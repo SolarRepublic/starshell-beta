@@ -167,12 +167,11 @@ export const H_STORE_INIT_NETWORKS = type_check<typeof SI_STORE_NETWORKS>(fold([
 		rpcHost: 'rpc.testnet.secretsaturn.net',
 	},
 	{
-		name: 'Polypore',
-		pfp: '' as PfpPath,
+		name: 'StarShell',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 		chain: '/family.cosmos/chain.theta-testnet-001',
-		// grpcWebUrl: 'https://grpc.sentry-01.theta-testnet.polypore.xyz',
-		grpcWebUrl: 'https://cosmos-theta.starshell.net',
-		rpcHost: 'rpc.sentry-01.theta-testnet.polypore.xyz',
+		grpcWebUrl: 'https://grpc-web.cosmos-theta.starshell.net',
+		rpcHost: 'rpc.cosmos-theta.starshell.net',
 	},
 ], g_each => ({
 	[`/network.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: g_each,

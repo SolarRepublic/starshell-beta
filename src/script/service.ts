@@ -767,6 +767,9 @@ function listenTransfer(
 }
 
 async function periodic_check() {
+	// fetch latest decrees
+	await WebResourceCache.updateAll();
+
 	// not signed in; exit
 	if(!await Vault.getRootKey()) return;
 
@@ -784,9 +787,6 @@ async function periodic_check() {
 		Chains.read(),
 		Networks.read(),
 	]);
-
-	// fetch latest decrees
-	await WebResourceCache.updateAll();
 
 	// prep network => chain map
 	const h_networks: Record<ChainPath, Network['interface']> = {};
