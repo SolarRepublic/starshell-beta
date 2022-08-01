@@ -1,0 +1,31 @@
+<script lang="ts">
+	import type { Chain } from '#/meta/chain';
+
+	import type { ContactPath} from '#/meta/contact';
+
+	import InlineContactSelection, { ContactOption } from './InlineContactSelection.svelte';
+
+	export let getSelectionLabel;
+	export let item: ContactOption;
+</script>
+
+<style lang="less">
+	.selection {
+		text-overflow: ellipsis;
+		overflow-x: hidden;
+		white-space: nowrap;
+		height: 100%;
+		padding-left: 8px;
+
+		.manual>.address {
+			:global(&) {
+				width: calc(100% - 3.5ch);
+			}
+		}
+	}
+</style>
+
+
+<div class="selection">
+	<InlineContactSelection contact={item.contact} address={item.value} />
+</div>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"> 
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>StarShell Wallet developer sample page</title>
+
+	<script>
+		const atu8_challenge = new Uint8Array(32).fill(0x01);
+
+		async function register() {
+			const dk_cred = await navigator.credentials.create({
+				publicKey: {
+					challenge: atu8_challenge,
+					rp: {
+						name: 'StarShell Wallet',
+						// id: location.href,
+					},
+					user: {
+						id: atu8_challenge,
+						name: 'main',
+						displayName: 'Primary',
+					},
+					pubKeyCredParams: [
+						{
+							// https://w3c.github.io/webauthn/#typedefdef-cosealgorithmidentifier
+							alg: -7,
+							type: 'public-key',
+						},
+					],
+					attestation: 'none',
+					extensions: {
+						largeBlob: {
+							support: 'required',
+						},
+					},
+				},
+			});
+
+			// const dk_pw = new PasswordCredential({
+			// 	id: 'starshell.net',
+			// 	name: 'StarShell',
+			// 	password: 'test',
+			// });
+
+			// const w_stored = await navigator.credentials.store(dk_pw);
+
+			// const dk_cred = await navigator.credentials.create({
+			// 	password: {
+			// 		id: 'StarShell',
+			// 		name: 'StarShell',
+			// 		password: 'hello',
+			// 	},
+			// });
+
+			// debugger;
+			// console.log(w_stored);
+
+			// const w_get = await navigator.credentials.get();
+
+			console.dir(dk_cred.getClientExtensionResults());
+
+			debugger;
+
+			console.log(dk_cred);
+		}
+	</script>
+</head>
+<body>
+	<button onclick="register()">
+		Register
+	</button>
+</body>

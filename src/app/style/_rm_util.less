@@ -1,0 +1,130 @@
+@theme-color-light: #f7f7f7;
+@theme-color-yellow: #ffb61a;
+@theme-color-orange: #f85931;
+@theme-color-sky: #1976d2;
+@theme-color-grass: #3a6f16;
+@theme-color-graymed: #96a0ac;
+@theme-color-graydark: #35383d;
+@theme-color-dark: #0f1317;
+@theme-color-black: #000000;
+
+@theme-color-graysoft: #757575;
+@theme-color-slime: #a0f831;
+
+@theme-color-red: #ff0000;
+@theme-color-green: #23af00;
+@theme-color-blue: #0094ff;
+
+@theme-color-border: @theme-color-graydark;
+
+
+.font-variant(huge) {
+	@set-family: Poppins;
+	@set-size: 23px;
+}
+
+.font-variant(big) {
+	@set-family: Poppins;
+	@set-size: 16px;
+	@set-weight: 400;
+}
+
+.font-variant(regular) {
+	@set-family: Poppins;
+	@set-size: 14px;
+	@set-weight: 400;
+}
+
+.font-variant(tiny) {
+	@set-family: Poppins;
+	@set-size: 11px;
+}
+
+.font-variant(mono) {
+	@set-family: 'PT Mono';
+	@set-size: 14px;
+}
+
+.font-variant(mono-tiny) {
+	@set-family: 'PT Mono';
+	@set-size: 11px;
+}
+
+.font(@variant, @weight: 0, @size: 0) {
+	@default-family: Poppins;
+	@default-weight: 400;
+	@default-size: 12px;
+
+	.font-variant(@variant);
+
+	font-family: if(isdefined(@set-family), @set-family, @default-family);
+
+	// --debug-set-size: @set-size;
+	// --debug-size: @size;
+	// --debug-set-family: if(isdefined(@set-family), @set-family, undef);
+	// --debug-default-family: @default-family;
+	// --debug-varient: @variant;
+
+	font-weight: if(not(@weight = 0), @weight,
+		if(isdefined(@set-weight), @set-weight, @default-weight));
+
+	font-size: if(not(@size = 0), @size,
+		if(isdefined(@set-size), @set-size, @default-size));
+}
+
+
+.inherit(@var-name) {
+	--proxy@{var-name}: var(@var-name);
+
+	&* {
+		@{var-name}: ~'var(--proxy@{var-name})';
+	}
+}
+
+
+.style-svelte-select() {
+	--height: var(--ui-row-height);
+	--background: var(--theme-color-border);
+	--border: 1px solid transparent;
+
+	--borderRadius: 8px;
+	--inputColor: var(--theme-color-text-light);
+	--placeholderColor: var(--theme-color-graysoft);
+
+	--inputFontSize: 13px;
+
+	--borderFocusColor: var(--theme-color-primary);
+
+	--indicatorColor: var(--theme-color-primary);
+
+	--listShadow: -1px 3px 7px 0 rgba(0, 0, 0, 0.8);
+
+	--listMaxHeight: 500px;
+	--listBackground: fade(@theme-color-graydark, 97%);
+	--listBorderRadius: var(--ui-border-radius);
+
+	--itemHoverBG: black;
+	--itemIsActiveBG: var(--theme-color-primary);
+	--itemIsActiveColor: black;
+
+	--clearSelectColor: var(--theme-color-graymed);
+	--clearSelectFocusColor: var(--theme-color-graymed);
+	--clearSelectHoverColor: var(--theme-color-graymed);
+}
+
+
+.hide-scrollbar {
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+
+	&::-webkit-scrollbar-track {
+		display: none;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background-color: rgba(0, 0, 0, 0.2);
+	}
+}

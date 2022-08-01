@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+message Keyring {
+	message Key {
+		enum KeyType {
+			Raw = 0;
+			Pin = 1;
+			Passphrase = 2;
+			Shared = 3;
+		}
+		
+		KeyType type = 1;
+		bytes data = 2;
+		string extra = 3;
+	}
+
+	map<string, Key> secp256k1Keys = 1;
+}

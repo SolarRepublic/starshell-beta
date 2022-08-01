@@ -1,0 +1,3 @@
+[submodule "submodules/publicsuffix-list"]
+	path = submodules/publicsuffix-list
+	url = https://github.com/publicsuffix/list
