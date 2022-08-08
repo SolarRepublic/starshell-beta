@@ -148,7 +148,13 @@ export type EventTypeRegistry = {
 
 	receive: {
 		interface: {
-			
+			chain: ChainPath;
+			hash: string;
+			coin: string;
+			height: string;
+			recipient: string;
+			sender: string;
+			amount: string;
 		};
 	};
 };

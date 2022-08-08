@@ -6,15 +6,19 @@
 	import type { Account, AccountPath } from "#/meta/account";
 	import type { Bech32 } from "#/meta/chain";
 	import type { Contact } from "#/meta/contact";
+import { NB_MAX_MEMO } from "#/share/constants";
 	import { Accounts } from "#/store/accounts";
 	import { Agents } from "#/store/agents";
 	import { Chains } from "#/store/chains";
 	import { Events } from "#/store/events";
 	import { CoinGecko } from "#/store/web-apis";
+import { buffer_to_base64, concat, sha256, sha256_sync, text_to_buffer } from "#/util/data";
 	import { format_fiat } from "#/util/format";
 	import BigNumber from "bignumber.js";
 
 	import { getContext, onMount } from "svelte";
+import { sys } from "typescript";
+import { syserr } from "../common";
 	import { ThreadId } from "../def";
 	import { yw_chain, yw_navigator, yw_network_active } from "../mem";
 	import ActionsLine from "../ui/ActionsLine.svelte";
@@ -41,6 +45,9 @@
 
 	export let recipient: Bech32.String;
 	const sa_recipient = recipient;
+
+	export let encryptMemo = false;
+	const b_memo_encrypted = encryptMemo;
 
 	let s_recipient_title = '';
 
@@ -74,6 +81,63 @@
 		g_contact = await Agents.getContact(p_contact);
 
 		s_recipient_title = g_contact?.name || '';
+
+		if(b_memo_encrypted) {
+debugger;
+			// encode memo
+			const atu8_memo_in = text_to_buffer(memo);
+
+			// exceeds length
+			if(atu8_memo_in.byteLength > NB_MAX_MEMO) {
+				throw syserr({
+					text: 'Memo exceeds character limitation',
+				});
+			}
+
+			// prepare the plaintext buffer
+			const atu8_memo = new Uint8Array(280);
+			atu8_memo.set(atu8_memo_in, 0);
+
+			// locate recipient's public key
+			let atu8_pubkey_65: Uint8Array;
+			try {
+				({
+					pubkey: atu8_pubkey_65,
+				} = await $yw_network_active.e2eInfoFor(sa_recipient));
+			}
+			catch(e_info) {
+				throw syserr({
+					error: e_info,
+				});
+			}
+
+			// produce e2e nonce
+			let s_sequence: string;
+			let s_height: string;
+			try {
+				({
+					sequence: s_sequence,
+					height: s_height,
+				} = await $yw_network_active.e2eInfoFor(sa_sender));
+			}
+			catch(e_info) {
+				throw syserr({
+					error: e_info,
+				});
+			}
+
+			console.log({
+				atu8_pubkey_65: buffer_to_base64(atu8_pubkey_65),
+			});
+
+			const atu8_nonce = await sha256(text_to_buffer(['s2r', s_sequence, s_height].join('\0')));
+
+			const atu8_encrypted = await $yw_network_active.ecdhEncrypt(atu8_pubkey_65, atu8_memo, atu8_nonce);
+
+			console.log({
+				atu8_encrypted: buffer_to_base64(atu8_encrypted),
+			});
+		}
 	})();
 
 	async function approve() {
@@ -216,7 +280,11 @@
 		name='Memo'
 	>
 		{#if memo}
+			Plaintext:
 			<textarea disabled>{memo}</textarea>
+
+			Encrypted form:
+			<textarea disabled>{s_memo_encrypted}</textarea>
 		{:else}
 			<span class="empty-memo">(empty)</span>
 		{/if}

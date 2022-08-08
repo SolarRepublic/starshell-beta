@@ -6,6 +6,7 @@ import {
 	P_PUBLIC_SUFFIX_LIST,
 	P_STARSHELL_DECREES,
 } from "#/share/constants";
+import { storage_get } from '#/extension/public-storage';
 
 const $_EXISTING = Symbol('use-existing-cache');
 
@@ -74,14 +75,12 @@ interface Cache {
 	data: JsonValue;
 }
 
-async function put(p_res: CacheKey, g_cache: Cache) {
+async function cache_put(p_res: CacheKey, g_cache: Cache) {
 	return await chrome.storage.local.set({[`@cache:${p_res}`]:g_cache});
 }
 
-async function get_cache(p_res: CacheKey): Promise<Cache> {
-	const si_key = `@cache:${p_res}`;
-
-	return (await chrome.storage.local.get([si_key]))[si_key];
+async function cache_get(p_res: CacheKey): Promise<Cache | null> {
+	return await storage_get<Cache>(`@cache:${p_res}`);
 }
 
 export class WebResourceCache {
@@ -113,7 +112,7 @@ export class WebResourceCache {
 					if($_EXISTING === z_parsed) continue;
 
 					// set/overwrite
-					await put(p_res as CacheKey, {
+					await cache_put(p_res as CacheKey, {
 						etag: d_res.headers.get('etag') ?? '',
 						data: s_data,
 					});
@@ -130,7 +129,7 @@ export class WebResourceCache {
 					}
 
 					// set/overwrite
-					await put(p_res as CacheKey, {
+					await cache_put(p_res as CacheKey, {
 						etag: d_res.headers.get('etag') ?? '',
 						data: w_data,
 					});
@@ -145,6 +144,6 @@ export class WebResourceCache {
 	}
 
 	static async get(p_res: CacheKey): Promise<JsonValue | null> {
-		return (await get_cache(p_res))?.data || null;
+		return (await cache_get(p_res))?.data || null;
 	}
 }

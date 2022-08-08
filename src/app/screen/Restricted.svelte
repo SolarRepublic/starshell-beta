@@ -42,5 +42,5 @@
 		
 	</p>
 
-	<ActionsLine confirm={['See Instructions', () => open_external_link('https://github.com/SolarRepublic/starshell-beta/README.md')]} />
+	<ActionsLine confirm={['See Instructions', () => open_external_link('https://github.com/SolarRepublic/starshell-beta-releases/blob/main/README.md#updating')]} />
 </Screen>

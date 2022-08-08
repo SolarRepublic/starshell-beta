@@ -45,7 +45,8 @@
 	import BigNumber from 'bignumber.js';
 	import { XT_MINUTES } from '#/share/constants';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-import SendNative from './SendNative.svelte';
+	import SendNative from './SendNative.svelte';
+	import { buffer_to_string8, string8_to_buffer } from '#/util/data';
 
 
 	const k_page = getContext<Page>('page');
@@ -303,8 +304,8 @@ import SendNative from './SendNative.svelte';
 
 
 
-
 	let b_memo_expanded = false;
+	let b_memo_encrypted = false;
 	let s_memo = '';
 
 	let b_submitted = false;
@@ -328,6 +329,7 @@ import SendNative from './SendNative.svelte';
 						recipient: sa_recipient,
 						amount: s_amount,
 						memo: s_memo,
+						encryptMemo: b_memo_encrypted,
 						fee: x_fee+'',
 					},
 				});
@@ -518,7 +520,8 @@ import SendNative from './SendNative.svelte';
 	.memo {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75em;
+		@memo-gap: 0.75em;
+		gap: @memo-gap;
 
 		.title {
 			display: flex;
@@ -529,13 +532,21 @@ import SendNative from './SendNative.svelte';
 				--icon-diameter: 22px;
 				--icon-color: var(--theme-color-primary);
 			}
-	
-			>.disclaimer {
-				.font(tiny);
-				color: var(--theme-color-caution);
-				right: 0;
-				position: absolute;
-				bottom: 0.5ex;
+		}
+
+		:global(fieldset.encrypt) {
+			margin-left: auto;
+			margin-right: 0.5em;
+		}
+
+		.disclaimer {
+			.font(tiny);
+			color: var(--theme-color-caution);
+			margin-top: @memo-gap * (-4/3);
+			text-align: right;
+
+			&.good {
+				color: var(--theme-color-green);
 			}
 		}
 
@@ -718,17 +729,32 @@ import SendNative from './SendNative.svelte';
 				Add memo
 			</span>
 
-			{#if b_memo_expanded}
-				<span class="disclaimer" transition:slide={{duration:350, delay:400}}>
-					Caution: Memos are NOT private
-				</span>
-			{/if}
+			<!-- {#if b_memo_expanded}
+				<CheckboxField containerClass='encrypt' id='encrypted' bind:checked={b_memo_encrypted}>
+					Encrypt
+				</CheckboxField>
+			{/if} -->
 		</div>
 
 		{#if b_memo_expanded}
 			<div class="input" transition:slide={{duration:350}}>
 				<textarea bind:value={s_memo}></textarea>
+				{#if b_memo_encrypted}
+					<span class="memo-length-indicator">
+						{string8_to_buffer(s_memo || '').byteLength} / 280
+					</span>
+				{/if}
 			</div>
+
+			{#if !b_memo_encrypted}
+				<span class="disclaimer" transition:slide={{duration:350, delay:400}}>
+					Caution: This memo is currently NOT private
+				</span>
+			{:else}
+				<span class="disclaimer good" transition:slide={{duration:350, delay:400}}>
+					🔒 This encrypted memo will be private to you and the receiver
+				</span>
+			{/if}
 		{/if}
 	</div>
 

@@ -3,7 +3,7 @@ import type { ContentScripts } from 'webextension-polyfill';
 type ManifestV2 = chrome.runtime.ManifestV2;
 type ManifestV3 = chrome.runtime.ManifestV3;
 
-const SX_CONTENT_SECURITY_POLICY = `script-src 'self' 'wasm-unsafe-eval'; object-src 'self'`;
+const SX_CONTENT_SECURITY_POLICY = `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; object-src 'self'`;
 
 const H_ICONS = {
 	16: 'media/vendor/icon_16.png',

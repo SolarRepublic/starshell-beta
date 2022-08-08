@@ -45,11 +45,17 @@ import {
 } from './src/manifest';
 
 
-// import replace from 'rollup-plugin-re';
+import replace from '@rollup/plugin-replace';
 
 // proprietary plugin 
 import { inlineRequire } from './plugins/inline-require';
 import nodeResolve from '@rollup/plugin-node-resolve';
+
+const H_REPLACEMENTS_BROWSER = {
+	firefox: {
+		'chrome.': 'browser.',
+	},
+};
 
 const PD_MEDIA = path.join(__dirname, 'public', 'media');
 
@@ -125,6 +131,11 @@ export default defineConfig((gc_run) => {
 				include: [
 					'./src/script/*',
 				],
+			}),
+
+			// replace
+			replace({
+				...H_REPLACEMENTS_BROWSER[SI_BROWSER] || {},
 			}),
 
 			// build svelte components

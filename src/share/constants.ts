@@ -7,6 +7,9 @@ export const XT_MINUTES = 60 * XT_SECONDS;
 export const XT_HOURS = 60 * XT_MINUTES;
 export const XT_DAYS = 24 * XT_HOURS;
 
+// maximum byte length of a memo's input
+export const NB_MAX_MEMO = 280;
+
 // localhost pattern
 export const R_DOMAIN_LOCALHOST = /^(localhost|127.0.0.1)(:\d+)?$/;
 

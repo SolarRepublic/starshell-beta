@@ -38,12 +38,14 @@
 	import BigNumber from 'bignumber.js';
 	import { Chains } from '#/store/chains';
 	import type { Promisable } from '#/util/belt';
-	import { format_amount } from '#/util/format';
+	import { abbreviate_addr, format_amount } from '#/util/format';
 	import { Accounts } from '#/store/accounts';
 	import type { AccountPath } from '#/meta/account';
 	import { Agents } from '#/store/agents';
 	import Put from '../ui/Put.svelte';
 	import PfpDisplay from '../ui/PfpDisplay.svelte';
+import { Entities } from '#/store/entities';
+import { R_TRANSFER_AMOUNT } from '#/share/constants';
 
 	// import {definition} from '@fortawesome/free-solid-svg-icons/faRobot';
 	// const SXP_ROBOT = definition.icon[4];
@@ -163,7 +165,7 @@
 				title: `Sent ${g_coin.name}`,
 				name: si_coin,
 				icon: mk_icon(SX_SEND),
-				subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: sa_recipient}`,
+				subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_recipient)}`,
 				amount: `${format_amount(x_amount, true)} ${si_coin}`,
 				link: 'SCRT' === si_coin
 					? {
@@ -196,32 +198,38 @@
 
 
 		async receive(g_event) {
-			debugger;
+			const {
+				time: xt_when,
+				data: {
+					height: s_height,
+					amount: s_amount,
+					chain: p_chain,
+					coin: si_coin,
+					recipient: sa_recipient,
+					sender: sa_sender,
+				},
+			} = g_event;
 
-			console.log({
-				g_event,
-			});
+			const sa_other = sa_sender;
+			const p_contact = Agents.pathForContact(sa_other);
+			const g_contact = await Agents.getContact(p_contact);
 
-			// const {
-			// 	time: xt_when,
-			// 	data: {
+			const g_chain = (await Chains.at(p_chain))!;
+			const g_coin = g_chain.coins[si_coin];
 
-			// 	},
-			// } = g_event;
+			const [, s_size] = R_TRANSFER_AMOUNT.exec(s_amount)!;
 
-			// const sa_other = g_msg.toAddress;
-			// const p_contact = Agents.pathForContact(sa_other);
-			// const g_contact = await Agents.getContact(p_contact);
+			const x_amount = new BigNumber(s_size).shiftedBy(-g_chain.coins[si_coin].decimals).toNumber();
 
-			// return {
-			// 	title: `Received ${g_coin.name}`,
-			// 	name: si_coin,
-			// 	icon: DM_ICON_SEND,
-			// 	subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: sa_other}`,
-			// 	amount: `${format_amount(x_amount, true)} ${si_coin}`,
-			// 	link: 'SCRT' === si_coin? `<a href="https://secretnodes.com/secret/chains/pulsar-2/blocks/${s_height}/transactions/${si_txn}">View on block explorer</a>`: '',
-			// 	pfp: g_coin.pfp,
-			// };
+			return {
+				title: `Received ${g_coin.name}`,
+				name: si_coin,
+				icon: mk_icon(SX_RECV),
+				subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_other)}`,
+				amount: `${format_amount(x_amount, true)} ${si_coin}`,
+				// link: 'SCRT' === si_coin? `<a href="https://secretnodes.com/secret/chains/pulsar-2/blocks/${s_height}/transactions/${si_txn}">View on block explorer</a>`: '',
+				pfp: g_coin.pfp,
+			};
 		},
 
 		transaction(g_event) {

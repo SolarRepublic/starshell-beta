@@ -182,3 +182,7 @@ export function format_fiat(x_amount: number, si_fiat: CoinGeckoFiat='usd', b_om
 // export function amount_to_fiat(x_amount: number, k_token: Token, b_omit_sign=false): string {
 // 	return format_fiat(H_VERSUS_USD[k_token.def.iri].value * x_amount, b_omit_sign);
 // }
+
+export function abbreviate_addr(sa_addr: string) {
+	return sa_addr.replace(/^(\w+1...).+(.{7})/, '$1[...]$2');
+}

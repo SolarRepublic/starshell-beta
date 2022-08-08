@@ -181,7 +181,8 @@
 		}
 		// failed to verify
 		catch(e_login) {
-			s_error = 'Failed to verify passphrase immediately after registration';
+			debugger;
+			s_error = `Failed to verify passphrase immediately after registration:\n${e_login.stack}`;
 
 			// reset vault
 			await Vault.eraseBase();

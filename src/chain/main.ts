@@ -1,9 +1,9 @@
 import { yw_account, yw_chain, yw_chain_ref } from '#/app/mem';
-import type { Bech32, Chain, ChainPath, Family, HoldingPath } from '#/meta/chain';
+import type { Bech32, Bip44, Chain, ChainPath, Family, HoldingPath, NativeCoin } from '#/meta/chain';
 import type { Network } from '#/meta/network';
 import { Chains } from '#/store/chains';
 import { Entities } from '#/store/entities';
-import type { ActiveNetwork, BalanceBundle, Cached, Transfer, WsTxResult } from '#/store/networks';
+import type { ActiveNetwork, BalanceBundle, Cached, E2eInfo, Transfer, WsTxResult } from '#/store/networks';
 import { QueryCache } from '#/store/query-cache';
 import { Dict, fodemtv, fold, JsonObject, oderom, Promisable } from '#/util/belt';
 import {grpc} from '@improbable-eng/grpc-web';
@@ -46,8 +46,8 @@ import { instantiateSecp256k1 } from '@solar-republic/wasm-secp256k1';
 import type { Any } from 'cosmos-grpc/dist/google/protobuf/any';
 import { PubKey } from 'cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 
-import { AuthInfo, SignDoc, TxBody, TxRaw } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-import { base64_to_buffer, buffer_to_base64, buffer_to_string8, sha256, sha256_sync, string8_to_buffer } from '#/util/data';
+import { AuthInfo, SignDoc, Tx, TxBody, TxRaw } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+import { base64_to_buffer, buffer_to_base64, buffer_to_string8, sha256, sha256_sync, string8_to_buffer, text_to_buffer } from '#/util/data';
 import { SignMode } from 'cosmos-grpc/dist/cosmos/tx/signing/v1beta1/signing';
 import { Keyring } from '#/crypto/keyring';
 import { Secrets } from '#/store/secrets';
@@ -60,6 +60,7 @@ import type { Account } from '#/meta/account';
 import { syserr } from '#/app/common';
 import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 import type { Cast } from 'ts-toolbelt/out/Any/Cast';
+import { ATU8_SHA256_STARSHELL, encrypt } from '#/crypto/vault';
 
 export interface TypedEvent {
 	type: 'transfer' | 'message' | 'coin_spent' | 'coin_received';
@@ -369,6 +370,86 @@ export class CosmosNetwork implements ActiveNetwork {
 		], (d_kill, g_value) => {
 			void fke_send(d_kill, (g_value?.TxResult || void 0) as WsTxResult | undefined);
 		});
+	}
+
+	async e2eInfoFor(sa_other: Bech32.String): Promise<E2eInfo> {
+		const g_response = await new TxServiceClient(this._y_grpc).getTxsEvent({
+			events: [
+				`message.sender='${sa_other}'`,
+			],
+			pagination: {
+				limit: '1',
+			},
+			orderBy: OrderBy.ORDER_BY_DESC,
+		});
+
+		if(!g_response?.txs?.length) {
+			throw new Error(`Owner has not signed any messages yet on-chain`);
+		}
+
+		const a_signers = g_response.txs[0].authInfo!.signerInfos;
+		if(1 !== a_signers.length) {
+			throw new Error(`Multiple owners`);
+		}
+
+		const {
+			typeUrl: si_pubkey_type,
+			value: atu8_pubkey_33,
+		} = a_signers[0].publicKey!;
+
+		if('/cosmos.crypto.secp256k1.PubKey' !== si_pubkey_type) {
+			throw new Error(`Unexpected public key type`);
+		}
+
+		return {
+			sequence: a_signers[0].sequence,
+			height: g_response.txResponses[0].height,
+			pubkey: Secp256k1Key.uncompressPublicKey(atu8_pubkey_33),
+		};
+	}
+
+	async ecdhEncrypt(atu8_other_pubkey: Uint8Array, atu8_input: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get()): Promise<Uint8Array> {
+		// ref account secret path
+		const p_secret = yw_account.get().secret;
+
+		// fetch secret
+		const g_secret = await Secrets.get(p_secret);
+
+		if('none' !== g_secret?.security.type) {
+			throw new Error(`Keyring not yet implemented`);
+		}
+
+		// import signing key
+		const k_key = await Secp256k1Key.import(await RuntimeKey.createRaw(string8_to_buffer(g_secret.data)));
+
+		// sign document
+		const atu8_shared = await k_key.ecdh(atu8_other_pubkey);
+
+		// import base key
+		const dk_hkdf = await crypto.subtle.importKey('raw', atu8_shared, 'HKDF', false, ['deriveKey']);
+
+		// derive encryption key
+		const dk_aes_bits = await crypto.subtle.deriveBits({
+			name: 'HKDF',
+			hash: 'SHA-256',
+			salt: ATU8_SHA256_STARSHELL,
+			info: sha256_sync(text_to_buffer(g_chain.id)),
+		}, dk_hkdf, 256);
+
+		// derive encryption key
+		const dk_aes = await crypto.subtle.deriveKey({
+			name: 'HKDF',
+			hash: 'SHA-256',
+			info: sha256_sync(text_to_buffer(g_chain.id)),
+		}, dk_hkdf, {
+			name: 'AES-GCM',
+			length: 256,
+		}, false, ['encrypt', 'decrypt']);
+
+		// encrypt memo
+		const atu8_encrypted = await encrypt(atu8_input, dk_aes, atu8_nonce);
+
+		return atu8_encrypted;
 	}
 
 	async isContract(sa_account: string): Promise<boolean> {

@@ -95,6 +95,7 @@ interface Secp256k1KeyFields {
 // private fields
 const hm_privates = new Map<Secp256k1Key, Secp256k1KeyFields>();
 
+
 /**
  * Encapsulates a secp256k1 private key.
  */
@@ -138,6 +139,14 @@ export class Secp256k1Key {
 
 		// import into new instance
 		return [kk_sk, await Secp256k1Key.import(kk_sk, b_exportable)];
+	}
+
+
+	/**
+	 * Uncompresses a public key
+	 */
+	static uncompressPublicKey(atu8_pubkey: Uint8Array): Uint8Array {
+		return y_secp256k1!.uncompressPublicKey(atu8_pubkey);
 	}
 
 

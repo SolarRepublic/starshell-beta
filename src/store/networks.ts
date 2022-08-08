@@ -55,6 +55,12 @@ export interface WsTxResult {
 	};
 }
 
+export interface E2eInfo {
+	sequence: string;
+	height: string;
+	pubkey: Uint8Array;
+}
+
 export interface ActiveNetwork {
 	/**
 	 * Retrieves and updates the bank balance for a single coin
@@ -67,6 +73,10 @@ export interface ActiveNetwork {
 	bankBalances(sa_owner: Bech32.String): Promise<Dict<BalanceBundle>>;
 
 	bankSend(sa_sender: Bech32.String, sa_recipient: Bech32.String, si_coin: string, xg_amount: bigint, memo?: string, g_chain?: Chain['interface']): Promise<PendingSend>;
+
+	e2eInfoFor(sa_other: Bech32.String): Promise<E2eInfo>;
+
+	ecdhEncrypt(atu8_other_pubkey: Uint8Array, atu8_input: Uint8Array, atu8_nonce: Uint8Array, g_chain: Chain['interface']): Promise<Uint8Array>
 
 	isContract(sa_account: Bech32.String): Promise<boolean>;
 

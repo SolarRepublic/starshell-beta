@@ -75,12 +75,12 @@ export function inlineRequire(gc_import: Options={}) {
 			gc_plugin = gc_resolved;
 		},
 
-		async transform(sx_code, si_part) {
+		async transform(sx_code: string, si_part: string) {
 			if(!f_filter(si_part)) return null;
 
 			const y_magic = new MagicString(sx_code);
 
-			const y_ast = this.parse(sx_code);
+			const y_ast = this.parse(sx_code) as acorn.Node;
 
 			const a_requires: {
 				node: {
@@ -105,7 +105,7 @@ export function inlineRequire(gc_import: Options={}) {
 					// capture all `inline_require('something')`
 					if('Identifier' === si_type
 						&& 'inline_require' === s_name
-						&& a_args.length === 1
+						&& 1 === a_args.length
 						&& 'Literal' === a_args[0].type)
 					{
 						const p_require = a_args[0].value as string;
@@ -113,7 +113,7 @@ export function inlineRequire(gc_import: Options={}) {
 						a_requires.push({
 							node: {...y_node},
 							target: p_require,
-						})
+						});
 					}
 				},
 			});
@@ -156,11 +156,17 @@ export function inlineRequire(gc_import: Options={}) {
 					throw new Error(`Failed to resolve inline require "${p_target}" from ${pd_part}`);
 				}
 
-				// load module
-				const g_load = await this.load(g_resolve);
+				let si_load = '';
+				if(this.load) {
+					const g_load = await this.load(g_resolve);
+					si_load = g_load.id;
+				}
+				else {
+					si_load = (g_resolve.id || '').replace(/\?.*$/, '');
+				}
 
 				const y_bundle = await rollup({
-					input: g_load.id,
+					input: si_load,
 					plugins: [
 						nodeResolve(),
 						commonjs(),

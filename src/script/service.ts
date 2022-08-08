@@ -28,7 +28,7 @@ import { ActiveNetwork, BalanceBundle, Networks } from '#/store/networks';
 import { CosmosNetwork, fold_attrs, PendingSend, TypedEvent } from '#/chain/main';
 import { Accounts } from '#/store/accounts';
 import BigNumber from 'bignumber.js';
-import { format_amount, format_fiat } from '#/util/format';
+import { abbreviate_addr, format_amount, format_fiat } from '#/util/format';
 import type { Bech32, Chain, ChainPath, NativeCoin } from '#/meta/chain';
 import type { Coin } from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import { yw_network_active } from '#/app/mem';
@@ -633,6 +633,8 @@ function listenTransfer(
 						let s_payload = g_transfer.amount;
 
 						// attempt to parse amount
+						let si_coin = '';
+						let g_coin: NativeCoin;
 						const m_amount = R_TRANSFER_AMOUNT.exec(g_transfer.amount);
 						if(!m_amount) {
 							syswarn({
@@ -644,10 +646,12 @@ function listenTransfer(
 							const [, s_amount, si_denom] = m_amount;
 
 							// locate coin
-							for(const [si_coin, g_coin] of ode(g_chain.coins)) {
-								if(si_denom === g_coin.denom) {
-									const x_amount = new BigNumber(s_amount).shiftedBy(-g_coin.decimals).toNumber();
-									s_payload = `${format_amount(x_amount, true)} ${si_coin}`;
+							for(const [si_coin_test, g_coin_test] of ode(g_chain.coins)) {
+								if(si_denom === g_coin_test.denom) {
+									const x_amount = new BigNumber(s_amount).shiftedBy(-g_coin_test.decimals).toNumber();
+									s_payload = `${format_amount(x_amount, true)} ${si_coin_test}`;
+									si_coin = si_coin_test;
+									g_coin = g_coin_test;
 									break;
 								}
 							}
@@ -660,7 +664,7 @@ function listenTransfer(
 							s_other = g_contact.name;
 						}
 						else {
-							s_other = s_other.replace(/^(\w+1...).+(.{7})/, '$1[...]$2');
+							s_other = abbreviate_addr(s_other);
 						}
 
 						// hash tx to create notification id
@@ -677,28 +681,21 @@ function listenTransfer(
 								iconUrl: '/media/vendor/logo-192px.png',
 							});
 
-							// global_broadcast({
-							// 	type: 'transferReceive',
-							// 	value: {
-							// 		header: g_block.header,
-							// 		chain: p_chain,
-							// 		network: p_network,
-							// 		recents: a_recents,
-							// 	},
-							// });
-
-							debugger;
-							console.log({
-								g_tx,
-							});
-
 							// insert event
 							await Events.open(async(ks_events) => {
 								await ks_events.insert({
 									time: Date.now(),
 									type: 'receive',
-									height: g_tx.height,
-								});
+									data: {
+										height: g_tx.height,
+										sender: g_transfer.sender,
+										recipient: g_transfer.recipient,
+										amount: g_transfer.amount,
+										chain: p_chain,
+										coin: si_coin,
+										hash: '',
+									},
+								} as LogEvent<'receive'>);
 							});
 						}
 						else if('Send' === si_type) {
@@ -730,16 +727,18 @@ function listenTransfer(
 										await ks_events.delete(g_pending);
 
 										await ks_events.insert({
-											...g_pending,
 											time: Date.now(),
 											type: 'send',
-											height: g_tx.height,
-											gas_used: g_tx.result.gas_used,
-											gas_wanted: g_tx.result.gas_wanted,
-											sender: g_transfer.sender,
-											recipient: g_transfer.recipient,
-											amount: g_transfer.amount,
-										});
+											data: {
+												...g_pending.data,
+												height: g_tx.height,
+												gas_used: g_tx.result.gas_used,
+												gas_wanted: g_tx.result.gas_wanted,
+												sender: g_transfer.sender,
+												recipient: g_transfer.recipient,
+												amount: g_transfer.amount,
+											},
+										} as LogEvent<'send'>);
 
 										console.log({
 											events: ks_events.raw,
@@ -747,17 +746,6 @@ function listenTransfer(
 									}
 								}
 							});
-
-							// // broadcast send
-							// global_broadcast({
-							// 	type: 'transferSend',
-							// 	value: {
-							// 		header: g_block.header,
-							// 		chain: p_chain,
-							// 		network: p_network,
-							// 		recents: a_recents,
-							// 	},
-							// });
 						}
 					}
 				}

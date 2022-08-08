@@ -155,7 +155,10 @@ export const yw_navigator = writableSync<Navigator>(null! as Navigator);
  */
 export const yw_chain_ref = writableSync<ChainPath>('' as ChainPath);
 export const yw_chain = derivedSync<Chain['interface']>(yw_chain_ref, (p_chain, fk_set) => {
-	void Chains.read().then(ks => fk_set(ks.at(p_chain as ChainPath)!));
+	void Chains.read().then(ks => fk_set(ks.at(p_chain as ChainPath)!))
+		.catch((e_auth) => {
+			fk_set(null);
+		});
 
 	// propagate change of chain to default network provider
 	void Networks.read().then(ks => ks.entries().some(([p_network, g_network]) => {
@@ -165,7 +168,9 @@ export const yw_chain = derivedSync<Chain['interface']>(yw_chain_ref, (p_chain, 
 		}
 
 		return false;
-	}));
+	})).catch((e_auth) => {
+		yw_network_ref.set('');
+	});
 });
 
 
@@ -216,7 +221,10 @@ yw_chain.subscribe(g_chain => yw_family.set(g_chain?.family || ''));
  */
 export const yw_account_ref = writableSync<AccountPath>('' as AccountPath);
 export const yw_account = derivedSync<Account['interface']>(yw_account_ref, (p_account, fk_set) => {
-	void Accounts.read().then(ks => fk_set(ks.at(p_account as AccountPath)!));
+	void Accounts.read().then(ks => fk_set(ks.at(p_account as AccountPath)!))
+		.catch((e_auth) => {
+			fk_set(null);
+		});
 });
 
 export const yw_owner: Readable<Bech32.String> = derived([yw_account, yw_chain], ([g_account, g_chain], fk_set) => {

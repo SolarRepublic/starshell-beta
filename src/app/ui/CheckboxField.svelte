@@ -28,6 +28,19 @@
 	// console.log({
 	// 	b_text_propagates,
 	// });
+
+	function handle_field_click(d_event) {
+		// ignore label click propagations
+		if('LABEL' !== d_event.target.tagName) {
+			// all others
+			if(!disableHandler) {
+				checked = !checked;
+			}
+		}
+
+		// stop propagation
+		d_event.stopImmediatePropagation();
+	}
 </script>
 
 <style lang="less">
@@ -50,7 +63,7 @@
 </style>
 
 
-<fieldset class="{containerClass}" on:click={disableHandler? F_NOOP: () => checked = !checked}>
+<fieldset class="{containerClass}" on:click={handle_field_click}>
 	<span class="checkbox">
 		<input id={s_id} type="checkbox" hidden bind:checked={checked}>
 		<span class="icon">
@@ -59,7 +72,7 @@
 	</span>
 
 	{#if $$slots.default}
-		<label for={s_id} on:click={d_event => d_event.stopImmediatePropagation()}>
+		<label for={s_id}>
 			<slot />
 		</label>
 	{/if}

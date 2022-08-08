@@ -191,7 +191,7 @@
 
 	{#if $yw_chain.testnet}
 		<div class="testnet-reminder no-margin">
-			TESETNET
+			TESTNET
 		</div>
 	{/if}
 
@@ -249,7 +249,7 @@
 		{/if}
 
 		<div class="owner-address subinfo">
-			<Address address={$yw_owner} copyable='text' />
+			<Address address={$yw_owner} copyable='icon' />
 		</div>
 	{/key}
 

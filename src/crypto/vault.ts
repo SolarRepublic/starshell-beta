@@ -23,13 +23,14 @@ import { NotAuthenticatedError } from '#/share/auth';
 import { global_wait, global_broadcast } from '#/script/msg-global';
 import { syserr, syswarn } from '#/app/common';
 import { H_STORE_INITS } from '#/store/_init';
+import { PublicStorage, storage_get } from '#/extension/public-storage';
 
 
 // sha256("starshell")
-const ATU8_SHA256_STARSHELL = hex_to_buffer(sha256_sync('starshell').toString());
+export const ATU8_SHA256_STARSHELL = hex_to_buffer(sha256_sync('starshell').toString());
 
 // sha512("starshell")
-const ATU8_SHA512_STARSHELL = hex_to_buffer(sha512_sync('starshell').toString());
+export const ATU8_SHA512_STARSHELL = hex_to_buffer(sha512_sync('starshell').toString());
 
 // identifies the schema version of the store
 const SI_VERSION_SCHEMA_STORE = '1';
@@ -77,39 +78,10 @@ const GC_HKDF_COMMON = {
 	info: Uint8Array.from([]),
 };
 
-// const A_STORE_KEYS: Array<keyof Store | 'keys'> = [
-// 	'keys',
-// 	'accounts',
-// 	'chains',
-// 	'apps',
-// 	'app_policies',
-// 	'settings',
-// 	'tags',
-// 	'events',
-// 	'entities',
-// ];
-
 const A_STORE_KEYS: Array<StoreKey | 'keys'> = ['keys', ...Object.keys(H_STORE_INITS) as Array<StoreKey>];
 
 // identify this local frame
 const SI_FRAME_LOCAL = crypto.randomUUID().slice(24);
-
-/**
- * Use PBKDF2 to derive the encryption key.
- */
-function pbkdf2_derive(dk_base: CryptoKey, atu8_salt: Uint8Array): Promise<CryptoKey> {
-	return crypto.subtle.deriveKey({
-		name: 'PBKDF2',
-		salt: atu8_salt,
-		iterations: N_ITERATIONS,
-		hash: SI_PRF,
-	}, dk_base, {
-		name: 'AES-GCM',
-		length: NI_DERIVED_AES_KEY,
-	}, false, ['encrypt']);
-}
-
-
 
 
 interface VaultFields {
@@ -142,7 +114,7 @@ async function unlock(atu8_import: Uint8Array) {
 /**
  * Private fields for instances of `Vault`
  */
-const hm_privates = new WeakMap<Vault, VaultFields>();
+const hm_privates = new WeakMap<VaultEntry, VaultFields>();
 
 // /**
 //  * Keeps track of which stores have been checked out in order to prevent lost updates.
@@ -498,19 +470,6 @@ async function decrypt(atu8_data: Uint8Array, dk_key: CryptoKey, atu8_nonce: Uin
 		}, dk_key, atu8_data) as Uint8Array);
 	}
 	catch(e_decrypt) {
-		console.warn(`
-			const atu8_key = Uint8Array.from([${Array.from(new Uint8Array(await crypto.subtle.exportKey('raw', dk_key))).join(',')}]);
-			const dk_key = await crypto.subtle.importKey('raw', atu8_key, 'AES-GCM', true, ['encrypt', 'decrypt']);
-			const atu8_nonce = Uint8Array.from([${Array.from(atu8_nonce).join(',')}]);
-			const atu8_verify = Uint8Array.from([${Array.from(atu8_verify).join(',')}]);
-			const atu8_data = Uint8Array.from([${Array.from(atu8_data).join(',')}]);
-			const atu8_ans = await crypto.subtle.decrypt({
-				name: 'AES-GCM',
-				iv: atu8_nonce,
-				additionalData: atu8_verify,
-			}, dk_key, atu8_data);
-		`);
-		debugger;
 		throw new DecryptionError(e_decrypt as Error);
 	}
 }
@@ -522,7 +481,7 @@ class EncryptionError extends Error {
 	}
 }
 
-async function encrypt(atu8_data: Uint8Array, dk_key: CryptoKey, atu8_nonce: Uint8Array, atu8_verify=ATU8_SHA256_STARSHELL): Promise<Uint8Array> {
+export async function encrypt(atu8_data: Uint8Array, dk_key: CryptoKey, atu8_nonce: Uint8Array, atu8_verify=ATU8_SHA256_STARSHELL): Promise<Uint8Array> {
 	try {
 		return new Uint8Array(await crypto.subtle.encrypt({
 			name: 'AES-GCM',
@@ -565,6 +524,15 @@ interface RootKeysData {
 // wait for release from local frame
 const h_release_waiters_local: Dict<VoidFunction[]> = {};
 
+
+// async function storage_put(si_key: PublicStorageKey, w_value: any): Promise<void> {
+// 	const si_wire = `@${si_key}`;
+// 	await chrome.storage.local.set({
+// 		[si_wire]: w_value,
+// 	});
+// }
+
+
 /**
  * Responsible for (un)marshalling data structs between encrypted-at-rest storage and unencrypted-in-use memory.
  * 
@@ -577,7 +545,7 @@ const h_release_waiters_local: Dict<VoidFunction[]> = {};
  */
 export const Vault = {
 	async getBase(): Promise<BaseParams | undefined> {
-		return (await chrome.storage.local.get(['base']) as {base: BaseParams})['base'];
+		return await storage_get<BaseParams>('base') || void 0;
 	},
 
 	isValidBase(z_test: unknown): z_test is BaseParams {
@@ -617,7 +585,7 @@ export const Vault = {
 	 */
 	async getSalt(): Promise<Uint8Array | undefined> {
 		// fetch salt value
-		const sx_salt = (await chrome.storage.local.get(['salt']))['salt'] as string | undefined;
+		const sx_salt = await storage_get<string>('salt');
 
 		// convert to buffer if it exists
 		return sx_salt? hex_to_buffer(sx_salt): void 0;
@@ -681,7 +649,7 @@ export const Vault = {
 	deriveRootBits(
 		atu8_phrase: Uint8Array,
 		ab_nonce: BufferSource,
-		x_iteration_multiplier=0,
+		x_iteration_multiplier=0
 	): Promise<SensitiveBytes> {
 		// import the passphrase to a managed key object
 		return crypto.subtle.importKey('raw', atu8_phrase, 'PBKDF2', false, ['deriveBits'])
@@ -706,12 +674,18 @@ export const Vault = {
 		new DataView(atu8_vector_old.buffer).setBigUint64(8, xg_nonce_old, false);
 		new DataView(atu8_vector_new.buffer).setBigUint64(8, xg_nonce_new, false);
 
+		// migration
+		let x_migrate_multiplier = 0;
+		if(!await PublicStorage.lastSeen()) {
+			x_migrate_multiplier = 20 / N_ITERATIONS;
+		}
+
 		// derive the two root byte sequences for this session
 		const [
 			kn_root_old,
 			kn_root_new,
 		] = await Promise.all([
-			Vault.deriveRootBits(atu8_phrase, atu8_vector_old),
+			Vault.deriveRootBits(atu8_phrase, atu8_vector_old, x_migrate_multiplier),
 			Vault.deriveRootBits(atu8_phrase, atu8_vector_new),
 		]);
 
@@ -730,6 +704,9 @@ export const Vault = {
 		// wipe root bits
 		kn_root_old.wipe();
 		if(!b_export_new) kn_root_new.wipe();
+
+		// mark as seen
+		await PublicStorage.markSeen();
 
 		return {
 			old: {
@@ -772,7 +749,7 @@ export const Vault = {
 		return await crypto.subtle.verify('HMAC', dk_verify, atu8_test, ATU8_SHA256_STARSHELL);
 	},
 
-	async recryptAll(dk_root_old: CryptoKey, atu8_nonce_old: Uint8Array, dk_root_new: CryptoKey, atu8_nonce_new: Uint8Array) {
+	async recryptAll(dk_root_old: CryptoKey, atu8_nonce_old: Uint8Array, dk_root_new: CryptoKey, atu8_nonce_new: Uint8Array): Promise<void> {
 		// prep list of async operations
 		const a_promises: Array<Promise<void>> = [];
 
@@ -791,7 +768,7 @@ export const Vault = {
 		// each key
 		for(const si_key of A_STORE_KEYS) {
 			// ready from storage
-			const sx_entry = (await chrome.storage.local.get([si_key]))[si_key] as string | undefined;
+			const sx_entry = await storage_get<string>(si_key);
 
 			// skip no data
 			if(!sx_entry) continue;
@@ -861,9 +838,9 @@ export const Vault = {
 	/**
 	 * Obtain a readonly vault entry by its given key identifier.
 	 */
-	async readonly(si_key: keyof Store): Promise<VaultEntry<typeof si_key>> {
+	async readonly(si_key: keyof Store): Promise<VaultEntry> {
 		// read entry ciphertext
-		const sx_entry = (await chrome.storage.local.get(si_key))[si_key] as string | undefined;
+		const sx_entry = await storage_get<string>(si_key);
 
 		// create instance
 		return new VaultEntry(si_key, sx_entry ?? '');
@@ -956,7 +933,7 @@ export const Vault = {
 		});
 
 		// read entry ciphertext
-		const sx_entry = (await chrome.storage.local.get(si_key))[si_key] as string | undefined;
+		const sx_entry = await storage_get<string>(si_key);
 
 		// create instance
 		return new WritableVaultEntry(si_key, sx_entry ?? '');
@@ -978,7 +955,7 @@ function VaultEntry$_fields(kv_this: VaultEntry<StoreKey>): VaultFields {
 
 
 export class VaultEntry<
-	si_key extends StoreKey,
+	si_key extends StoreKey=StoreKey,
 	w_entry extends Store[si_key]=Store[si_key],
 > {
 	/**
