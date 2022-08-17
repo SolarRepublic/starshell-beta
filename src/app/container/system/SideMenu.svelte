@@ -148,15 +148,6 @@
 		}
 	}
 
-	.absolute(@dims: '') {
-		position: absolute;
-		top: 0;
-		left: 0;
-
-		width: if('' = @dims, var(--app-window-width), @dims);
-		height: if('' = @dims, var(--app-window-height), @dims);
-	}
-
 	.side-menu {
 		--item-padding: 30px;
 

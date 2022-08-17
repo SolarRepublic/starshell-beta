@@ -1,9 +1,8 @@
 import path from 'path';
-import fs from 'fs';
 
 import {
 	rollup,
-} from 'rollup'
+} from 'rollup';
 
 import type {
 	Plugin,

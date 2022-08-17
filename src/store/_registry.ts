@@ -1,16 +1,15 @@
-import type { StoreKey } from '#/meta/store';
+import type {StoreKey} from '#/meta/store';
 
-import { Accounts } from './accounts';
-import { Apps } from './apps';
-import { Chains } from './chains';
-import { Policies } from './policies';
-import { Settings } from './settings';
-import { Medias } from './medias';
-import { Tags } from './tags';
-import { Entities } from './entities';
-import { Pfps } from './pfps';
-import { WebResourceCache } from './web-resource-cache';
-import { WebApis } from './web-apis';
+import {Accounts} from './accounts';
+import {Apps} from './apps';
+import {Chains} from './chains';
+import {Policies} from './policies';
+import {Settings} from './settings';
+import {Medias} from './medias';
+import {Tags} from './tags';
+import {Entities} from './entities';
+import {Pfps} from './pfps';
+import {WebApis} from './web-apis';
 
 import {
 	SI_STORE_CHAINS,
@@ -22,13 +21,12 @@ import {
 	SI_STORE_TAGS,
 	SI_STORE_ENTITIES,
 	SI_STORE_PFPS,
-	SI_STORE_WEB_RESOURCES,
 	SI_STORE_WEB_APIS,
 	SI_STORE_NETWORKS,
 	SI_STORE_EVENTS,
 } from '#/share/constants';
-import { Networks } from './networks';
-import { Events } from './events';
+import {Networks} from './networks';
+import {Incidents} from './incidents';
 
 export const H_STORE_REGISTRY = {
 	[SI_STORE_ACCOUNTS]: Accounts,
@@ -39,7 +37,7 @@ export const H_STORE_REGISTRY = {
 	[SI_STORE_MEDIA]: Medias,
 	[SI_STORE_PFPS]: Pfps,
 	[SI_STORE_CHAINS]: Chains,
-	[SI_STORE_EVENTS]: Events,
+	[SI_STORE_EVENTS]: Incidents,
 	[SI_STORE_NETWORKS]: Networks,
 	[SI_STORE_ENTITIES]: Entities,
 	[SI_STORE_WEB_APIS]: WebApis,

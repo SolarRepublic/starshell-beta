@@ -89,6 +89,7 @@
 			error = 'No chain set';
 		}
 		else if(!Chains.isValidAddressFor($yw_chain, s_manual_input, 'acc')) {
+			console.error(`Invalid address`);
 			error = 'Invalid address for this chain';
 		}
 		else {

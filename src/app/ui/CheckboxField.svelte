@@ -46,7 +46,7 @@
 <style lang="less">
 	fieldset {
 		display: flex;
-		gap: 14px;
+		gap: 8px;
 		margin: 0;
 		padding: 0;
 		border: 0;

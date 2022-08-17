@@ -8,7 +8,7 @@ export const XT_HOURS = 60 * XT_MINUTES;
 export const XT_DAYS = 24 * XT_HOURS;
 
 // maximum byte length of a memo's input
-export const NB_MAX_MEMO = 280;
+export const NB_MAX_MEMO = 188;
 
 // localhost pattern
 export const R_DOMAIN_LOCALHOST = /^(localhost|127.0.0.1)(:\d+)?$/;
@@ -17,7 +17,7 @@ export const R_DOMAIN_LOCALHOST = /^(localhost|127.0.0.1)(:\d+)?$/;
 export const R_DOMAIN_IP = /^\d+(?:.\d+){3}(:\d+)?$/;
 
 // bech32 parsing regex
-export const R_BECH32 = /^(\w+)([13])([a-zA-HJ-NP-Z0-9]{25,39})$/;
+export const R_BECH32 = /^([a-z]+)([13])([a-zA-HJ-NP-Z0-9]{25,39})$/;
 
 // public suffix list
 export const P_PUBLIC_SUFFIX_LIST = 'https://raw.githubusercontent.com/publicsuffix/list/master/public_suffix_list.dat';
@@ -27,6 +27,9 @@ export const P_STARSHELL_DECREES = 'https://raw.githubusercontent.com/SolarRepub
 
 // transfer amount string regex
 export const R_TRANSFER_AMOUNT = /^(\d+)(.+)/;
+
+// size of pagination limit for synchronization queries
+export const XG_SYNCHRONIZE_PAGINATION_LIMIT = 16n;
 
 
 export const SI_STORE_SECRETS: StoreKey<'secrets'> = 'secrets';
@@ -43,5 +46,7 @@ export const SI_STORE_CHAINS: StoreKey<'chains'> = 'chains';
 export const SI_STORE_NETWORKS: StoreKey<'networks'> = 'networks';
 export const SI_STORE_ENTITIES: StoreKey<'entities'> = 'entities';
 export const SI_STORE_EVENTS: StoreKey<'events'> = 'events';
+export const SI_STORE_INCIDENTS: StoreKey<'incidents'> = 'incidents';
+export const SI_STORE_HISTORIES: StoreKey<'histories'> = 'histories';
 export const SI_STORE_WEB_RESOURCES: StoreKey<'web_resources'> = 'web_resources';
 export const SI_STORE_WEB_APIS: StoreKey<'web_apis'> = 'web_apis';

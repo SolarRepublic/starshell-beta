@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { getContext, onDestroy } from 'svelte';
-	import { slide } from 'svelte/transition';
+	import {getContext, onDestroy} from 'svelte';
+	import {slide} from 'svelte/transition';
 
 	import {
 		yw_account,
@@ -9,7 +9,9 @@
 		yw_chain_ref,
 		yw_network_active,
 		yw_owner,
+		yw_page,
 		yw_send_asset,
+		yw_task,
 		// yw_asset_send,
 		// yw_holding_send,
 	} from '##/mem';
@@ -19,6 +21,8 @@
 	import SX_ICON_LOADING from '#/icon/donut_large.svg?raw';
 	import SX_ICON_INFO from '#/icon/info.svg?raw';
 	import SX_ICON_DROPDOWN from '#/icon/drop-down.svg?raw';
+	import SX_ICON_VISIBILITY from '#/icon/visibility.svg?raw';
+	import SX_ICON_SHIELD from '#/icon/shield.svg?raw';
 
 	import AssetSelect from '##/ui/AssetSelect.svelte';
 	import AmountInput from '##/ui/AmountInput.svelte';
@@ -27,26 +31,40 @@
 	import Field from '##/ui/Field.svelte';
 
 	// import Execute from './Execute.svelte';
-	import type { Account, AccountPath } from '#/meta/account';
+	import type {Account, AccountPath} from '#/meta/account';
 
-	import { Screen, type Page } from './_screens';
-	import type { Token } from '#/meta/token';
-	import { Entities } from '#/store/entities';
+	import {Screen, type Page} from './_screens';
+	import type {Token} from '#/meta/token';
+	import {Entities} from '#/store/entities';
 	import SenderSelect from '../ui/SenderSelect.svelte';
 	import RecipientSelect from '../ui/RecipientSelect.svelte';
-	import type { Chain, EntityPath, NativeCoin } from '#/meta/chain';
-	import type { Contact, ContactPath } from '#/meta/contact';
-	import { subscribe_store } from '#/store/_base';
-	import { Agents } from '#/store/agents';
-	import { fold, ofe } from '#/util/belt';
-	import { Chains } from '#/store/chains';
-	import { CoinGecko } from '#/store/web-apis';
-	import { format_amount, format_fiat } from '#/util/format';
+	import type {Chain, EntityPath, NativeCoin} from '#/meta/chain';
+	import type {Contact, ContactPath} from '#/meta/contact';
+	import {subscribe_store} from '#/store/_base';
+	import {Agents} from '#/store/agents';
+	import {fold, F_NOOP, ofe} from '#/util/belt';
+	import {Chains} from '#/store/chains';
+	import {CoinGecko} from '#/store/web-apis';
+	import {format_amount, format_fiat} from '#/util/format';
 	import BigNumber from 'bignumber.js';
-	import { XT_MINUTES } from '#/share/constants';
+	import {NB_MAX_MEMO, XT_MINUTES} from '#/share/constants';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import SendNative from './SendNative.svelte';
-	import { buffer_to_string8, string8_to_buffer } from '#/util/data';
+	import {Settings} from '#/store/settings';
+	import Notice from '../ui/Notice.svelte';
+	import SettingsMemos from './SettingsMemos.svelte';
+	import { global_receive } from '#/script/msg-global';
+	import { string8_to_buffer } from '#/util/data';
+import type { E2eInfo } from '#/store/networks';
+
+	const G_SLIDE_IN = {
+		duration: 350,
+		delay: 110,
+	};
+
+	const G_SLIDE_OUT = {
+		duration: 150,
+	};
 
 
 	const k_page = getContext<Page>('page');
@@ -61,13 +79,13 @@
 	 * Native coin symbol to use for the transfer
 	 */
 	export let native: keyof typeof $yw_chain.coins = Object.keys($yw_chain.coins)[0];
-	let si_native = native;
+	const si_native = native;
 
 	/**
 	 * Token to use for transfer (instead of native coin)
 	 */
 	export let token: Token['interface'] | null = null;
-	let g_token = token;
+	const g_token = token;
 
 
 	/**
@@ -100,6 +118,44 @@
 	$: s_symbol = si_native || g_token?.symbol || '';
 
 
+	// whether the user has enabled encryption
+	let b_private_memo_enabled = false;
+	let b_private_memo_published = false;
+	let b_private_memo_recipient_published = false;
+
+	// 
+	async function reload_settings() {
+		const h_e2es = await Settings.get('e2e_encrypted_memos') || null;
+		if(h_e2es?.[$yw_chain_ref]) {
+			const g_config = h_e2es[$yw_chain_ref];
+			({
+				enabled: b_private_memo_enabled,
+				published: b_private_memo_published,
+			} = g_config);
+
+			check_recipient_publicity();
+		}
+	}
+
+	void reload_settings();
+
+	global_receive({
+		updateStore({key:si_store}) {
+			if('settings' === si_store) {
+				void reload_settings();
+			}
+		},
+	});
+
+
+	function check_recipient_publicity() {
+		b_private_memo_recipient_published = false;
+		$yw_network_active.e2eInfoFor(sa_recipient).then((g_info) => {
+			b_private_memo_recipient_published = !!g_info.sequence;
+		}).catch(() => {
+			b_memo_private = false;
+		});
+	}
 
 
 	let b_busy_agents = false;
@@ -246,7 +302,7 @@
 	}
 
 
-	let x_fee = 0.01;
+	const x_fee = 0.01;
 	
 	$: s_fee_fiat = 'number' === typeof x_worth? format_fiat(x_fee * x_worth, 'usd'): '';
 
@@ -283,7 +339,6 @@
 	$: g_address_type = H_ADDRESS_TYPES[si_address_type];
 
 
-
 	$: {
 		if(!sa_recipient) {
 			si_address_type = 'none';
@@ -291,21 +346,23 @@
 		else {
 			si_address_type = 'unknown';
 
-			(async() => {
-				if(await $yw_network_active.isContract(sa_recipient)) {
+			void $yw_network_active.isContract(sa_recipient).then((b_contract) => {
+				if(b_contract) {
 					si_address_type = 'contract';
 				}
 				else {
 					si_address_type = 'personal';
 				}
-			})();
+			});
+
+			check_recipient_publicity();
 		}
 	}
 
 
 
 	let b_memo_expanded = false;
-	let b_memo_encrypted = false;
+	let b_memo_private = false;
 	let s_memo = '';
 
 	let b_submitted = false;
@@ -328,8 +385,8 @@
 						coin: si_native,
 						recipient: sa_recipient,
 						amount: s_amount,
-						memo: s_memo,
-						encryptMemo: b_memo_encrypted,
+						memoPlaintext: s_memo,
+						encryptMemo: (b_memo_private || (!s_memo.length && b_private_memo_enabled && b_private_memo_published)) && b_private_memo_recipient_published,
 						fee: x_fee+'',
 					},
 				});
@@ -354,7 +411,7 @@
 	let c_show_validations = 0;
 
 	let b_checked_save_contact = false;
-	let b_dead = false;
+	const b_dead = false;
 
 
 	let s_err_recipient = '';
@@ -402,6 +459,17 @@
 	function input_new_contact(d_event: Event) {
 		s_new_contact = (d_event.target as HTMLInputElement).value;
 	}
+
+	function adjust_memo_settings() {
+		k_page.push({
+			creator: SettingsMemos,
+			context: {
+				intent: {
+					id: 'send_adjust_memo_settings',
+				},
+			},
+		});
+	}
 </script>
 
 
@@ -420,7 +488,10 @@
 	#field-recipient-status {
 		:global(&) {
 			margin-top: -12px;
-			padding-left: 6px;
+		}
+
+		.field-value {
+			margin-left: -2px;
 		}
 
 		.status {
@@ -438,10 +509,10 @@
 
 	.status {
 		color: var(--theme-color-graymed);
-
-		>* {
-			vertical-align: middle;
-		}
+		display: flex;
+		align-items: center;
+		gap: 3px;
+		margin-left: -1px;
 
 		>.icon {
 			--proxy-icon-diameter: 20px;
@@ -486,7 +557,7 @@
 		color: var(--theme-color-text-med);
 	}
 
-	#field-fee {
+	#field-fee-manual {
 		.field-value {
 			:global(&) {
 				flex: 1;
@@ -529,8 +600,12 @@
 			position: relative;
 
 			.icon {
-				--icon-diameter: 22px;
+				--icon-diameter: 24px;
 				--icon-color: var(--theme-color-primary);
+			}
+
+			.text {
+				align-self: center;
 			}
 		}
 
@@ -539,14 +614,21 @@
 			margin-right: 0.5em;
 		}
 
-		.disclaimer {
-			.font(tiny);
-			color: var(--theme-color-caution);
-			margin-top: @memo-gap * (-4/3);
-			text-align: right;
+		.submemo {
+			position: relative;
 
-			&.good {
-				color: var(--theme-color-green);
+			.disclaimer {
+				.font(tiny);
+				color: var(--theme-color-text-med);
+				text-align: left;
+				position: absolute;
+				bottom: 1.25em;
+			}
+
+			.memo-length-indicator {
+				position: absolute;
+				right: 0.5em;
+				bottom: 3em;
 			}
 		}
 
@@ -562,11 +644,7 @@
 		}
 
 		.input {
-			textarea {
-				resize: vertical;
-				min-height: 10.75ex;
-				max-height: 40ex;
-			}
+			margin-bottom: 1.5em;
 		}
 	}
 
@@ -584,6 +662,7 @@
 
 <Screen form slides on:submit={(d_submit) => {
 	d_submit.preventDefault();
+	submit();
 }}>
 	<Header pops
 		title={g_token? 'Transferring': 'Sending'}
@@ -695,7 +774,7 @@
 	<hr>
 
 	<Field short
-		key='fee'
+		key='fee-manual'
 		name='Fee'
 	>
 		<div class="fee-amount">
@@ -729,32 +808,77 @@
 				Add memo
 			</span>
 
-			<!-- {#if b_memo_expanded}
-				<CheckboxField containerClass='encrypt' id='encrypted' bind:checked={b_memo_encrypted}>
-					Encrypt
-				</CheckboxField>
-			{/if} -->
+			{#if b_memo_expanded}
+				{#if b_private_memo_enabled && b_private_memo_recipient_published}
+					<CheckboxField containerClass='encrypt' id='encrypted' bind:checked={b_memo_private}>
+						Private
+					</CheckboxField>
+				{/if}
+			{/if}
 		</div>
 
 		{#if b_memo_expanded}
+			{#if !b_private_memo_enabled}
+				<Notice
+					dismissable='send_encrypted_memo'
+					title='Make Your Memos Private'
+					action={['Enable Private Memos', adjust_memo_settings]}
+				>
+					StarShell allows you to send end-to-end encrypted memos that can only be seen by you and the recipient.
+					<br style="display:block; content:''; margin:0.75em;" />
+					Enable this feature to send and receive encrypted memos. You can always change this later in settings.
+				</Notice>
+			{/if}
+
 			<div class="input" transition:slide={{duration:350}}>
 				<textarea bind:value={s_memo}></textarea>
-				{#if b_memo_encrypted}
-					<span class="memo-length-indicator">
-						{string8_to_buffer(s_memo || '').byteLength} / 280
+			</div>
+
+			<div class="submemo">
+				{#if !b_private_memo_recipient_published}
+					<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+						<span class="global_svg-icon display_inline icon-diameter_18px">
+							{@html SX_ICON_VISIBILITY}
+						</span>
+						<span class="text vertical-align_middle">
+							Recipient isn't published, memo will be public. <span class="link" on:click={() => adjust_memo_settings()}>Settings</span>
+						</span>
+					</span>
+				{:else if !b_memo_private}
+					{#if !s_memo.length && b_private_memo_enabled && b_private_memo_published}
+						<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+							<span class="global_svg-icon display_inline icon-diameter_18px">
+								{@html SX_ICON_SHIELD}
+							</span>
+							<span class="text vertical-align_middle">
+								Empty memos will still appear encrypted. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
+							</span>
+						</span>
+					{:else}
+						<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+							<span class="global_svg-icon display_inline icon-diameter_18px">
+								{@html SX_ICON_VISIBILITY}
+							</span>
+							<span class="text vertical-align_middle">
+								This memo will be public. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
+							</span>
+						</span>
+					{/if}
+				{:else}
+					<span class="memo-length-indicator" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+						{string8_to_buffer(s_memo || '').byteLength} / {NB_MAX_MEMO}
+					</span>
+
+					<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+						<span class="global_svg-icon display_inline icon-diameter_18px" style="color:var(--theme-color-sky);">
+							{@html SX_ICON_SHIELD}
+						</span>
+						<span class="text vertical-align_middle">
+							This memo will be private, using encryption. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
+						</span>
 					</span>
 				{/if}
 			</div>
-
-			{#if !b_memo_encrypted}
-				<span class="disclaimer" transition:slide={{duration:350, delay:400}}>
-					Caution: This memo is currently NOT private
-				</span>
-			{:else}
-				<span class="disclaimer good" transition:slide={{duration:350, delay:400}}>
-					🔒 This encrypted memo will be private to you and the receiver
-				</span>
-			{/if}
 		{/if}
 	</div>
 

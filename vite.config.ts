@@ -47,6 +47,8 @@ import {
 
 import replace from '@rollup/plugin-replace';
 
+import analyze from 'rollup-plugin-analyzer'
+
 // proprietary plugin 
 import { inlineRequire } from './plugins/inline-require';
 import nodeResolve from '@rollup/plugin-node-resolve';
@@ -151,7 +153,17 @@ export default defineConfig((gc_run) => {
 					...H_BROWSERS[SI_BROWSER].manifest,
 				} as chrome.runtime.ManifestV2 & chrome.runtime.ManifestV3,
 			}),
+
+			analyze({
+				summaryOnly: true,
+			}),
 		],
+
+		// optimizeDeps: {
+		// 	exclude: [
+		// 		'@solar-republic/wasm-secp256k1',
+		// 	],
+		// },
 
 		resolve: {
 			alias: {
@@ -162,10 +174,17 @@ export default defineConfig((gc_run) => {
 
 		build: {
 			sourcemap: 'inline',
-			minify: false,
+			minify: 'production' === si_mode,
 			emptyOutDir: true,
 			outDir: `dist/${SI_BROWSER}`,
 			target: 'es2020',
+
+			rollupOptions: {
+			// 	output: {
+			// 		preserveModules: true,
+			// 	},
+			// 	preserveEntrySignatures: 'strict',
+			},
 		},
 	};
 });

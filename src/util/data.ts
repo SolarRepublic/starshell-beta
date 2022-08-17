@@ -218,3 +218,92 @@ export function string8_to_buffer(sx_buffer: string): Uint8Array {
 
 	return atu8_buffer;
 }
+
+
+// inspired by <https://github.com/ticlo/jsonesc/blob/master/dist/base93.js>
+const SX_CHARS_BASE93 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'()*+,-./:;<=>?@[]^_`{|}~ ";
+
+/**
+ * Converts the given buffer to a base93-encoded string.
+ * @param atu8_buffer input buffer
+ * @returns output base93-encoded string
+ */
+export function buffer_to_base93(atu8_buffer: Uint8Array): string {
+	let s_out = '';
+	const nb_buffer = atu8_buffer.byteLength;
+
+	let xb_encode = 0;
+	let ni_shift = 0;
+
+	for(let ib_each=0; ib_each<nb_buffer; ib_each++) {
+		const xb_each = atu8_buffer[ib_each];
+		xb_encode |= xb_each << ni_shift;
+		ni_shift += 8;
+
+		if(ni_shift > 13) {
+			let xb_local = xb_encode & 0x1fff;
+			if(xb_local > 456) {
+				xb_encode >>= 13;
+				ni_shift -= 13;
+			}
+			else {
+				xb_local = xb_encode & 0x3fff;
+				xb_encode >>= 14;
+				ni_shift -= 14;
+			}
+
+			s_out += SX_CHARS_BASE93[xb_local % 93]+SX_CHARS_BASE93[(xb_local / 93) | 0];
+		}
+	}
+
+	if(ni_shift > 0) {
+		s_out += SX_CHARS_BASE93[xb_encode % 93];
+		if(ni_shift > 7 || xb_encode > 92) {
+			s_out += SX_CHARS_BASE93[(xb_encode / 93) | 0];
+		}
+	}
+
+	return s_out;
+}
+
+
+/**
+ * Converts the given base93-encoded string to a buffer.
+ * @param sx_buffer input base93-encoded string
+ * @returns output buffer
+ */
+export function base93_to_buffer(sx_buffer: string): Uint8Array {
+	const nl_buffer = sx_buffer.length;
+	const a_out: number[] = [];
+
+	let xb_decode = 0;
+	let ni_shift = 0;
+	let xb_work = -1;
+
+	for(let i_each=0; i_each<nl_buffer; i_each++) {
+		const xb_char = SX_CHARS_BASE93.indexOf(sx_buffer[i_each]);
+
+		if(-1 === xb_char) throw new Error(`Invalid base93 string`);
+
+		if(-1 === xb_work) {
+			xb_work = xb_char;
+			continue;
+		}
+
+		xb_work += xb_char * 93;
+		xb_decode |= xb_work << ni_shift;
+		ni_shift += (xb_work & 0x1fff) > 456? 13: 14;
+
+		do {
+			a_out.push(xb_decode & 0xff);
+			xb_decode >>= 8;
+			ni_shift -= 8;
+		} while(ni_shift > 7);
+
+		xb_work = -1;
+	}
+
+	if(-1 !== xb_work) a_out.push(xb_decode | (xb_work << ni_shift));
+
+	return Uint8Array.from(a_out.slice(0, Math.ceil(sx_buffer.length * 7 / 8)));
+}

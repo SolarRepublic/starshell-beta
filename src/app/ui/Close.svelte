@@ -3,6 +3,8 @@
 
 	export let absolute = false;
 	export let heightless = false;
+
+	export let bgColor = '';
 </script>
 
 <style lang="less">
@@ -10,8 +12,8 @@
 		position: relative;
 		top: 0;
 		right: 0;
-		margin: var(--margin, 10px);
-		padding: 12px;
+		margin: var(--margin, 12px);
+		padding: 10px;
 		cursor: pointer;
 		--icon-diameter: 24px;
 		--icon-color: var(--theme-color-primary);
@@ -37,7 +39,7 @@
 			left: calc(var(--occlusion-thickness) / 2);
 			width: calc(100% - var(--occlusion-thickness));
 			height: calc(100% - var(--occlusion-thickness));
-			outline: var(--occlusion-thickness) solid var(--theme-color-bg);
+			outline: var(--occlusion-thickness) solid var(--bg-color, var(--theme-color-bg));
 			box-sizing: border-box;
 			pointer-events: none;
 		}
@@ -48,6 +50,6 @@
 	}
 </style>
 
-<div class="close icon" class:absolute={absolute} on:click>
+<div class="close icon" class:absolute={absolute} style={bgColor? `--bg-color:${bgColor};`: ''} on:click>
 	{@html SX_ICON_CLOSE}
 </div>

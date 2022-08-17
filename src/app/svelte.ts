@@ -114,3 +114,8 @@ export async function load_pfps<
 			))
 		));
 }
+
+
+export interface Intent {
+	id: string;
+}

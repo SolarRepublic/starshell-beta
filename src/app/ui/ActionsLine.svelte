@@ -107,6 +107,7 @@
 		// do not continue in case of error
 		catch(e_confirm) {
 			b_continue = false;
+			console.error(e_confirm);
 		}
 
 		// re-enable
@@ -125,7 +126,7 @@
 		flex-direction: row;
 		justify-content: space-evenly;
 		gap: var(--ui-padding);
-		padding-bottom: var(--ui-padding);
+		padding-bottom: calc(1.75 * var(--ui-padding));
 		align-items: flex-end;
 		flex: auto;
 

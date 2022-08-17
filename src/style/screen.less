@@ -199,8 +199,16 @@ section.screen,form.screen {
 		:global(&) {
 			.font(regular);
 
+			color: var(--theme-color-text-light);
 			padding: 1ex 2ex;
 			height: 10.75ex;
+		}
+
+		&:disabled,&[disabled="true"] {
+			:global(&) {
+				background-color: transparent;
+				outline: 1px solid var(--theme-color-border);
+			}
 		}
 	}
 

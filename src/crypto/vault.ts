@@ -1,11 +1,14 @@
 import '#/dev';
 
 import type { Store, StoreKey } from '#/meta/store';
-import { JsonObject, JsonValue, ode, type Dict } from '#/util/belt';
+import { F_NOOP, JsonObject, JsonValue, ode, type Dict } from '#/util/belt';
 import {
+	base93_to_buffer,
+	buffer_to_base93,
 	buffer_to_hex,
 	buffer_to_string8,
 	buffer_to_text,
+	concat,
 	hex_to_buffer,
 	string8_to_buffer,
 	text_to_buffer,
@@ -24,6 +27,7 @@ import { global_wait, global_broadcast } from '#/script/msg-global';
 import { syserr, syswarn } from '#/app/common';
 import { H_STORE_INITS } from '#/store/_init';
 import { PublicStorage, storage_get } from '#/extension/public-storage';
+import AsyncLockPool, { LockTimeoutError } from '#/util/async-lock-pool';
 
 
 // sha256("starshell")
@@ -37,7 +41,11 @@ const SI_VERSION_SCHEMA_STORE = '1';
 
 // number of key derivation iterations
 // const N_ITERATIONS = 6942069;
-const N_ITERATIONS = 20;
+// const N_ITERATIONS = 4206969;
+const N_ITERATIONS = 696969;
+// const N_ITERATIONS = 20;
+
+const NB_PADDING = 512;
 
 // size of salt in bytes
 const NB_SALT = 256 >> 3;
@@ -461,7 +469,7 @@ class DecryptionError extends Error {
 	}
 }
 
-async function decrypt(atu8_data: Uint8Array, dk_key: CryptoKey, atu8_nonce: Uint8Array, atu8_verify=ATU8_SHA256_STARSHELL): Promise<Uint8Array> {
+export async function decrypt(atu8_data: Uint8Array, dk_key: CryptoKey, atu8_nonce: Uint8Array, atu8_verify=ATU8_SHA256_STARSHELL): Promise<Uint8Array> {
 	try {
 		return new Uint8Array(await crypto.subtle.decrypt({
 			name: 'AES-GCM',
@@ -532,6 +540,10 @@ const h_release_waiters_local: Dict<VoidFunction[]> = {};
 // 	});
 // }
 
+// async lock pools for stores
+const h_lock_pools: Partial<Record<`lock_${StoreKey}`, AsyncLockPool>> = {};
+
+let c_incidents = 0;
 
 /**
  * Responsible for (un)marshalling data structs between encrypted-at-rest storage and unencrypted-in-use memory.
@@ -676,8 +688,18 @@ export const Vault = {
 
 		// migration
 		let x_migrate_multiplier = 0;
-		if(!await PublicStorage.lastSeen()) {
+		const g_last_seen = await PublicStorage.lastSeen();
+		if(!g_last_seen) {
 			x_migrate_multiplier = 20 / N_ITERATIONS;
+		}
+
+		// migrate init stores
+		if(!g_last_seen || (+g_last_seen.version.replace(/^v?0\.0\./, '')) <= 6) {
+			await chrome.storage.local.remove('chains');
+			await chrome.storage.local.remove('agents');
+			await chrome.storage.local.remove('networks');
+			await chrome.storage.local.remove('contacts');
+			await chrome.storage.local.remove('apps');
 		}
 
 		// derive the two root byte sequences for this session
@@ -773,6 +795,9 @@ export const Vault = {
 			// skip no data
 			if(!sx_entry) continue;
 
+
+			// TODO: deserialize using base93 if migration has been completed
+
 			// deserialize
 			const atu8_entry = string8_to_buffer(sx_entry);
 
@@ -798,6 +823,7 @@ export const Vault = {
 				// save encrypted data back to store
 				await chrome.storage.local.set({
 					[si_key]: buffer_to_string8(atu8_replace),
+					// [si_key]: buffer_to_base93(atu8_replace),
 				});
 
 				// done; clear bytes from pending
@@ -822,13 +848,10 @@ export const Vault = {
 
 	async peekJson(si_key: keyof Store, dk_cipher: CryptoKey): Promise<null | Store[typeof si_key]> {
 		// checkout store
-		const kp_store = await Vault.acquire(si_key);
+		const kp_store = await Vault.readonly(si_key);
 
 		// read from it
 		const w_read = kp_store.readJson(dk_cipher);
-
-		// release store
-		await kp_store.release();
 
 		// return the json
 		return w_read;
@@ -852,15 +875,41 @@ export const Vault = {
 	 * @param si_key key identifier
 	 * @returns new vault entry
 	 */
-	async acquire(si_key: keyof Store, c_attempts=0): Promise<WritableVaultEntry<typeof si_key>> {
+	async acquire(si_key: StoreKey, c_attempts=0): Promise<WritableVaultEntry<typeof si_key>> {
 		// prep lock id and self id
 		const si_lock = `lock_${si_key}` as const;
+
+		let b_debug = false;
+
+		let si_log = `${si_lock}/${c_incidents++}]:`;
+
+		// check if the lock is busy locally and wait for it
+		const k_pool = h_lock_pools[si_lock] = h_lock_pools[si_lock] || new AsyncLockPool(1);
+
+		if(b_debug) console.log(`${si_log} acquire(${k_pool._c_free} free)`);
+
+		let f_release = F_NOOP;
+		try {
+			f_release = await k_pool.acquire(null, 10e3);
+		}
+		catch(e_acquire) {
+			if(e_acquire instanceof LockTimeoutError) {
+				throw new Error(`Timed out while waiting for ${si_lock} on same thread`);
+			}
+			else {
+				throw e_acquire;
+			}
+		}
+
+		if(b_debug) console.log(`${si_log} CONTINUING`);
 
 		// read lock status
 		const sx_owner = await session_storage_get(si_lock);
 
 		// busy; wait for owner to release
 		if(sx_owner) {
+			if(b_debug) console.warn(`${si_log} is still locked on some frame...`);
+
 			// parse owner
 			const [si_frame, si_moment] = sx_owner.split(':');
 
@@ -883,9 +932,10 @@ export const Vault = {
 					// timeout
 					i_timeout = globalThis.setTimeout(() => {
 						syserr({
-							text: `Local lock on '${si_key}' lasted more than 5 seconds; possible bug in implementation.`,
+							title: 'I/O Error',
+							text: `Local lock on '${si_key}' lasted more than 5 seconds; possible disk error or bug in implementation.`,
 						});
-					}, 5000);
+					}, 5e3);
 				});
 			}
 			// owner is remote
@@ -904,17 +954,29 @@ export const Vault = {
 
 					await session_storage_remove(`lock_${si_key}`);
 				}
+
+				console.warn(`'${si_key}' store was released`);
 			}
+		}
+		else {
+			if(b_debug) console.log(`${si_log} NO OWNERS`);
 		}
 
 		// create self id
 		const si_self = SI_FRAME_LOCAL+':'+crypto.randomUUID().slice(24);
 
+		if(b_debug) console.log(`${si_log} attempting to acquire exclusive lock`);
+
 		// acquire lock
 		await session_storage_set_isomorphic({[si_lock]:si_self});
 
+		// verify ownership
+		const si_verify = await session_storage_get(si_lock);
+
 		// failed to acquire exclusive lock
-		if(si_self !== await session_storage_get(si_lock)) {
+		if(si_self !== si_verify) {
+			if(b_debug) console.warn(`${si_log} FAILED TO ACQUIRE EXCLUSIVE ${si_verify} !== ${si_self}`);
+
 			// exceeded retry limit
 			if(c_attempts > 10) {
 				throw new Error(`Exceeded maximum retry count while trying to checkout "${si_key}" from the vault`);
@@ -922,6 +984,9 @@ export const Vault = {
 
 			// retry
 			return await Vault.acquire(si_key, c_attempts+1);
+		}
+		else {
+			if(b_debug) console.log(`${si_log} acquired ${si_verify} === ${si_self}`);
 		}
 
 		// broadcast global
@@ -936,7 +1001,7 @@ export const Vault = {
 		const sx_entry = await storage_get<string>(si_key);
 
 		// create instance
-		return new WritableVaultEntry(si_key, sx_entry ?? '');
+		return new WritableVaultEntry(si_key, sx_entry ?? '', f_release);
 	},
 };
 
@@ -964,6 +1029,7 @@ export class VaultEntry<
 	constructor(public _si_key: si_key, sx_store: string) {
 		hm_privates.set(this, {
 			atu8_ciphertext: string8_to_buffer(sx_store),
+			// atu8_ciphertext: base93_to_buffer(sx_store),
 		});
 	}
 
@@ -997,7 +1063,17 @@ export class VaultEntry<
 
 
 		// decrypt
-		return await decrypt(g_privates.atu8_ciphertext, dk_cipher, atu8_vector);
+		const atu8_decrypted = await decrypt(g_privates.atu8_ciphertext, dk_cipher, atu8_vector);
+
+		// TODO: REMOVE (temporary migration for beta participants)
+		if(0 !== atu8_decrypted[0]) {
+			return atu8_decrypted;
+		}
+
+		// decode
+		const dv_decrypted = new DataView(atu8_decrypted.buffer);
+		const nb_data = dv_decrypted.getUint32(0);
+		return atu8_decrypted.subarray(4, nb_data+4);
 	}
 
 
@@ -1041,9 +1117,13 @@ export class VaultEntry<
 
 
 export class WritableVaultEntry<
-	si_key extends StoreKey,
+	si_key extends StoreKey=StoreKey,
 	w_entry extends Store[si_key]=Store[si_key],
 > extends VaultEntry<si_key, w_entry> {
+	constructor(si_key: si_key, sx_store: string, private readonly _f_release=F_NOOP) {
+		super(si_key, sx_store);
+	}
+
 	/**
 	 * Destroy's this instance and returns the store's key to the registry.
 	 */
@@ -1065,6 +1145,9 @@ export class WritableVaultEntry<
 				f_notify();
 			}
 		}
+
+		// local lock release
+		this._f_release();
 
 		// broadcast lock removal
 		global_broadcast({
@@ -1089,12 +1172,21 @@ export class WritableVaultEntry<
 			throw new NotAuthenticatedError();
 		}
 
+		// pad and encode the input data
+		const nb_data = atu8_data.byteLength;
+		const nb_padded = (Math.ceil((nb_data + 4) / NB_PADDING) * NB_PADDING) - 4;
+		const atu8_padding = crypto.getRandomValues(new Uint8Array(nb_padded - nb_data));
+		const atu8_padded = concat([new Uint8Array(4), atu8_data, atu8_padding]);
+		const dv_padded = new DataView(atu8_padded.buffer);
+		dv_padded.setUint32(0, nb_data);
+
 		// encrypt the store
-		const atu8_ciphertext = await encrypt(atu8_data, dk_cipher, atu8_vector);
+		const atu8_ciphertext = await encrypt(atu8_padded, dk_cipher, atu8_vector);
 
 		// save
 		await chrome.storage.local.set({
 			[this._si_key]: buffer_to_string8(atu8_ciphertext),
+			// [this._si_key]: buffer_to_base93(atu8_ciphertext),
 		});
 
 		// zero out previous data in memory

@@ -19,7 +19,7 @@ import type { Network } from './network';
 import type { Secret } from './secret';
 import type { ResponseCache, WebApi } from './web-api';
 import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import type { PendingSend } from '#/chain/main';
+import type { Incident, IncidentPath } from './incident';
 
 // associates a resource to arbitrary data in some typed category
 export type DataMap<
@@ -124,49 +124,8 @@ export namespace LinkTree {
 // 	owner: Bech32.String;
 // }
 
-export type EventTypeRegistry = {
-	account_created: {
-		interface: {
-			account: AccountPath;
-		};
-	};
-
-	pending: {
-		interface: PendingSend;
-	};
-
-	send: {
-		interface: Merge<PendingSend, {
-			height: string;
-			gas_used: string;
-			gas_wanted: string;
-			recipient: string;
-			sender: string;
-			amount: string;
-		}>;
-	};
-
-	receive: {
-		interface: {
-			chain: ChainPath;
-			hash: string;
-			coin: string;
-			height: string;
-			recipient: string;
-			sender: string;
-			amount: string;
-		};
-	};
-};
-
-export type EventTypeKey = keyof EventTypeRegistry;
-
-export interface LogEvent<
-	si_type extends EventTypeKey=EventTypeKey,
-> extends JsonObject {
-	time: number;
-	type: si_type;
-	data: EventTypeRegistry[si_type]['interface'];
+export interface SyncInfo extends JsonObject {
+	height: string;
 }
 
 export type Store = {
@@ -199,8 +158,16 @@ export type Store = {
 	// query_cache: Record<TokenPath, TokenSpec.Response>;
 	query_cache: Record<HoldingPath | TokenPath, JsonObject>;
 
+	// incidents
+	incidents: RootDoc<Incident>;
+
 	// activity log events
-	events: LogEvent[];
+	// events: LogEvent[];
+	events: [];
+	histories: {
+		order: IncidentPath[];
+		syncs: Record<ChainPath, Dict<SyncInfo>>;
+	};
 
 
 	web_resources: Dict<MergeAll<{

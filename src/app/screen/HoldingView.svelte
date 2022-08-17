@@ -28,7 +28,6 @@
 	import { format_amount, format_fiat } from '#/util/format';
 	import type { Coin } from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 	import type { PfpPath } from '#/meta/pfp';
-import PfpDisplay from '../ui/PfpDisplay.svelte';
 
 	const k_page = getContext<Page>('page');
 

@@ -1,4 +1,4 @@
-import type { Bech32, Chain, ChainPath, Family, FamilyKey } from '#/meta/chain';
+import type { Bech32, BlockExplorerConfig, Chain, ChainPath, Family, FamilyKey } from '#/meta/chain';
 import type { Resource } from '#/meta/resource';
 
 import {bech32} from 'bech32';
@@ -10,7 +10,7 @@ import {
 
 import { R_BECH32, SI_STORE_CHAINS } from '#/share/constants';
 import { yw_chain } from '#/app/mem';
-import { ode } from '#/util/belt';
+import { Dict, ode } from '#/util/belt';
 import { base64_to_buffer, ripemd160_sync, sha256_sync } from '#/util/data';
 import { binToBase58, binToBech32Padded, encodeBech32, instantiateRipemd160, Ripemd160 } from '@solar-republic/wasm-secp256k1';
 
@@ -93,6 +93,16 @@ export const Chains = create_store_class({
 			return Chains.read().then(ks => ks.at(p_chain));
 		}
 
+		static blockExplorer(si_type: Exclude<keyof BlockExplorerConfig, 'base'>, g_data: Dict, g_chain: Chain['interface']=yw_chain.get()): string {
+			let sx_url = g_chain.blockExplorer.base+g_chain.blockExplorer[si_type];
+
+			for(const si_key in g_data) {
+				sx_url = sx_url.replace(`{${si_key}}`, g_data[si_key]);
+			}
+
+			return sx_url;
+		}
+
 		static isValidAddressFor(g_chain: Chain['interface'], s_address: Chain.Bech32String<typeof g_chain['bech32s']>, si_purpose: keyof Family.Bech32s<typeof g_chain['family']>='acc') {
 			if(g_chain.bech32s) {
 				const m_bech32 = R_BECH32.exec(s_address);
@@ -104,6 +114,16 @@ export const Chains = create_store_class({
 				// TODO: non-bech32 chains
 				return false;
 			}
+		}
+
+		static coinFromDenom(si_denom: string, g_chain=yw_chain.get()): string {
+			for(const [si_coin, g_coin] of ode(g_chain.coins)) {
+				if(si_denom === g_coin.denom) {
+					return si_coin;
+				}
+			}
+
+			return '';
 		}
 
 		* inFamily(si_family: FamilyKey): IterableIterator<[ChainPath, Chain['interface']]> {

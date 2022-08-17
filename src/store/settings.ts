@@ -3,12 +3,18 @@ import {
 	WritableStoreDict,
 } from './_base';
 
-import { SI_STORE_SETTINGS } from '#/share/constants';
+import {SI_STORE_SETTINGS} from '#/share/constants';
+import type { Dict } from '#/util/belt';
 
 
 export type SettingsRegistry = {
 	allow_file_urls?: boolean;
-}
+	e2e_encrypted_memos?: Dict<{
+		enabled: boolean;
+		published: boolean;
+	}>;
+	notice_send_encrypted_memo?: boolean;
+};
 
 export type SettingsKey = keyof SettingsRegistry;
 

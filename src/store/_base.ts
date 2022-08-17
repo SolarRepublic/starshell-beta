@@ -124,7 +124,7 @@ export class WritableStoreDict<
 	si_store extends StoreKey,
 	h_cache extends Store.Map<si_store>=Store.Map<si_store>,
 > extends WritableStore<si_store, h_cache> {
-	get(si_key: keyof h_cache): h_cache[typeof si_key] | null {
+	get<si_key extends keyof h_cache>(si_key: si_key): h_cache[si_key] | null {
 		return this._w_cache[si_key] ?? null;
 	}
 
@@ -168,7 +168,7 @@ export type StaticStore<
 		at(si_key: Store.Key<si_store>): Promise<null | Store[si_store][typeof si_key]>;
 	};
 	dict: {
-		get(si_key: Store.Key<si_store>): Promise<null | Store[si_store][typeof si_key]>;
+		get<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]>;
 
 		set(si_key: Store.Key<si_store>, w_value: Store[si_store][typeof si_key]): Promise<void>;
 	};
@@ -201,7 +201,7 @@ export function create_store_class<
 	store: si_store;
 	class: dc_store;
 	extension?: s_extends;
-}): StaticStore<si_store, dc_store, s_extends> & dc_store {
+}): dc_store & StaticStore<si_store, dc_store, s_extends> {
 	return Object.assign(dc_store, {
 		async open<w_return extends any>(fk_use: UseStore<dc_store, w_return>): Promise<w_return> {
 			// fetch cipher key
@@ -238,8 +238,26 @@ export function create_store_class<
 			return w_return;
 		},
 
-		read(): Promise<Instance<dc_store>> {
-			return dc_store['open'](ks_store => ks_store);
+		async read(): Promise<Instance<dc_store>> {
+			// // TODO: solve race conditions for many simultaneous lock requests
+			// return dc_store['open'](ks_store => ks_store);
+
+			// fetch cipher key
+			const dk_cipher = await fetch_cipher();
+
+			// read from the store
+			const kv_store = await Vault.readonly(si_store);
+
+			// read the store as json
+			const w_store = await kv_store.readJson(dk_cipher) as w_cache;
+
+			// not exists; initialize
+			if(!w_store) {
+				return dc_store['open'](ks_store => ks_store);
+			}
+
+			// return instantiated store class
+			return new dc_store(kv_store as WritableVaultEntry, w_store, dk_cipher) as InstanceType<dc_store>;
 		},
 
 		// async readonly(this: StaticStore): Promise<Instance<dc_store>> {
@@ -287,7 +305,7 @@ export function create_store_class<
 			},
 
 			async set(si_key: Store.Key<si_store>, w_value: Store[si_store][typeof si_key]): Promise<void> {
-				return await dc_store['open'](ks_self => ks_self.put(si_key, w_value));
+				return await dc_store['open'](ks_self => ks_self.set(si_key, w_value));
 			},
 		},
 	}) as StaticStore<si_store, dc_store, s_extends> & dc_store;

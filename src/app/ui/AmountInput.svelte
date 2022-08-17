@@ -269,7 +269,7 @@
 			}
 
 			.fiat {
-				color: var(--theme-color-primary);
+				color: var(--theme-color-text-med);
 			}
 		}
 	}

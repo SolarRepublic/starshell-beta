@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { global_receive } from '#/script/msg-global';
 
-	import { Events } from '#/store/events';
+	import {Incidents} from '#/store/incidents';
 	import { onDestroy } from 'svelte';
-	import { once_store_updates } from '../svelte';
+import { yw_account, yw_network_active, yw_owner } from '../mem';
 	import TxnList from '../ui/TxnList.svelte';
 
 	import {
@@ -25,6 +25,14 @@
 	onDestroy(() => {
 		f_unsubscribe();
 	});
+
+	async function load_incidents() {
+		await $yw_network_active.synchronizeAll($yw_owner);
+
+		const a_incidents = [...await Incidents.filter()];
+
+		return a_incidents;
+	}
 </script>
 
 <style lang="less">
@@ -53,13 +61,11 @@
 	</p> -->
 
 	{#key c_reloads}
-		{#await Events.read()}
+		{#await load_incidents()}
 			Loading history...
-		{:then ks_events}
-			{@const a_events = ks_events.raw}
-
+		{:then a_incidents}
 			<TxnList
-				events={a_events}
+				incidents={a_incidents}
 			/>
 		{/await}
 	{/key}

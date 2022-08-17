@@ -93,7 +93,7 @@ export const Entities = create_store_class({
 		}
 
 		static holdingPathFor(sa_owner: Bech32.String, si_coin: string, p_chain=yw_chain_ref.get()): HoldingPath {
-			return `${p_chain}/bech32.${sa_owner}/holding.${si_coin}`
+			return `${p_chain}/bech32.${sa_owner}/holding.${si_coin}`;
 		}
 
 		static async readTokens(g_chain: Chain['interface'], h_interfaces: TokenInterfaceMap|null=null) {

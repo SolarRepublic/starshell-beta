@@ -1,9 +1,9 @@
-import type { Dict, JsonObject, JsonValue } from "#/util/belt";
-import type { Compute } from "ts-toolbelt/out/Any/Compute";
-import type { HostToRelay, RelayToHost } from "#/script/messages";
-import type { Vocab } from "#/meta/vocab";
-import { StorageModule } from "./storage-module";
-import { HotWalletModule } from "./host-wallet-module";
+import type {Dict, JsonObject, JsonValue} from '#/util/belt';
+import type {Compute} from 'ts-toolbelt/out/Any/Compute';
+import type {HostToRelay, RelayToHost} from '#/script/messages';
+import type {Vocab} from '#/meta/vocab';
+import {StorageModule} from './storage-module';
+import type {HotWalletModule} from './host-wallet-module';
 
 
 /**
@@ -23,7 +23,6 @@ type RelayToHostConnectionPort = Compute<Vocab.TypedPort<RelayToHost.ConnectionV
 interface QueryModule {
 
 }
-
 
 
 

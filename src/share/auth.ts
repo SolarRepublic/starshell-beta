@@ -93,52 +93,11 @@ export async function register(sh_phrase: string, f_update: ((s_state: string) =
 	f_update('Saving to storage');
 
 	// save to storage
-	const w_set = await Vault.setParsedBase({
+	await Vault.setParsedBase({
 		entropy: atu8_entropy,
 		nonce: xg_nonce_new,
 		signature: atu8_signature,
 	});
-
-	console.log({w_set});
-
-	await chrome.storage.local.set({
-		test: 'yes',
-	});
-
-	await chrome.storage.local.set({
-		obj: {
-			version: 1,
-			data: 'ok',
-		},
-	});
-
-	const w_test = await chrome.storage.local.get(['test']);
-	console.log({w_test});
-
-	const w_obj = await chrome.storage.local.get(['obj']);
-	console.log({w_obj});
-
-	await browser.storage.local.set({
-		test: 'yes',
-	});
-
-	await browser.storage.local.set({
-		obj: {
-			version: 1,
-			data: 'ok',
-		},
-	});
-
-	const w_testb = await browser.storage.local.get(['test']);
-	console.log({w_testb});
-
-	const w_objb = await browser.storage.local.get(['obj']);
-	console.log({w_objb});
-
-
-	const w_base = await chrome.storage.local.get(['base']);
-	console.log({w_base});
-	debugger;
 }
 
 

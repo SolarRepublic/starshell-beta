@@ -6,6 +6,7 @@ import { Dict, JsonObject, JsonValue, ode, Promisable } from '#/util/belt';
 
 import type {
 	IcsToService,
+	IntraExt,
 	ServiceToIcs,
 } from './messages';
 
@@ -39,10 +40,11 @@ import { syserr, syswarn } from '#/app/common';
 import { Agents } from '#/store/agents';
 import type { BlockInfoHeader } from './common';
 import type { Account } from '#/meta/account';
-import { Events } from '#/store/events';
+import { Incidents } from '#/store/incidents';
 import type { LogEvent } from '#/meta/store';
 import { Decree, WebResourceCache } from '#/store/web-resource-cache';
 import { check_restrictions } from '#/extension/restrictions';
+import { BroadcastMode } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 
 interface ServiceMessageHandler {
 	(message: any, sender: MessageSender, sendResponse: (response?: any) => void): void;
@@ -260,252 +262,311 @@ async function app_blocked(s_scheme: string, s_host: string, g_sender: MessageSe
 	return false;
 }
 
+
+/**
+ * Generate a new private/shared secret key of the specified size in bytes (defaults to 512-bit key)
+ */
+function generate_key(nb_size=64): string {
+	// prep space in memory
+	const atu8_secret = new Uint8Array(nb_size);
+
+	// fill with crypto random values
+	crypto.getRandomValues(atu8_secret);
+
+	// convert to hex string
+	return Array.from(atu8_secret).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * message handlers for the public vocab from ICS
+ */
+const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
+	// 
+	panic(g_msg, g_sender) {
+		// TODO: handle
+	},
+
+	// page is requesting advertisement via ics-spotter
+	async requestAdvertisement(g_msg, g_sender, fk_respond) {
+		// ref tab id
+		const i_tab = g_sender.tab!.id!;
+
+		// unknown source, silently reject
+		if(!g_sender.url) {
+			console.debug('Silently ignoring advertisement request from unknown source');
+			return;
+		}
+
+		// parse sender url
+		const [s_scheme, s_host] = parse_sender(g_sender.url);
+
+		// prep page descriptor for restores
+		const g_page = {
+			tabId: i_tab,
+			href: g_sender.url+'',
+		};
+
+console.info('get root key');
+		// check if app is locked
+		const dk_root = await Vault.getRootKey();
+		if(!dk_root) {
+console.info('no root key');
+			// ask user to login
+			const b_finished = await flow_broadcast({
+				flow: {
+					type: 'authenticate',
+					page: g_page,
+				},
+			});
+
+console.info('flow completed');
+			// user cancelled; do not advertise
+			if(!b_finished) {
+				return;
+			}
+
+			// retry
+			return await H_HANDLERS_ICS.requestAdvertisement(g_msg, g_sender, fk_respond);
+		}
+
+console.info('root key exists');
+
+		// app is blocked; exit
+		if(await app_blocked(s_scheme, s_host, g_sender)) return;
+
+console.info('app passed scheme check');
+
+		// check app's policy and registration status
+		{
+			// lookup app in store
+			let g_app = await Apps.get(s_host, s_scheme);
+
+			// app registrtion state
+			let b_registered = false;
+
+			// app is registered; mark it such
+			if(g_app) {
+				b_registered = true;
+			}
+			// app is not yet registered; initialize
+			else {
+				g_app = {
+					scheme: s_scheme,
+					host: s_host,
+					connections: {},
+				};
+			}
+
+			// lookup policy on app
+			const g_policy = await Policies.forApp(g_app);
+
+console.info('got policy for app %o', g_policy);
+			// a policy indicates this app is blocked
+			if(g_policy.blocked) {
+				return block_app(g_sender, 'App connection blocked by policy');
+			}
+
+			// // app does not have any connections
+			// if(!Object.keys(g_app.connections).length) {
+
+			// app is not registered and not trusted; requires user approval
+			if(!b_registered && !g_policy.trusted) {
+				// request approval from user
+				const b_confirmed = await flow_broadcast({
+					flow: {
+						type: 'requestAdvertisement',
+						value: {
+							app: g_app,
+						},
+						page: g_page,
+					},
+				});
+
+				// retry 
+				if(b_confirmed) {
+					return await H_HANDLERS_ICS.requestAdvertisement(g_msg, g_sender, fk_respond);
+				}
+
+				// abort
+				console.debug('User cancelled request');
+				return;
+			}
+		}
+
+		// TODO: consider what will happen if prompt closes but serice worker becomes inactive
+
+		// verbose
+		console.debug(`Allowing <${g_sender.url}> to receive advertisement`);
+
+		// secrets for this session
+		const g_secrets: ServiceToIcs.SessionKeys = {
+			session: generate_key(),
+		};
+
+		// execute isolated-world content script 'host'
+		void chrome.scripting.executeScript({
+			target: {
+				tabId: i_tab,
+			},
+			func: IcsHost,
+			args: [g_secrets],
+			world: 'ISOLATED',
+		});
+
+		// execute main-world content script 'ratifier'
+		void chrome.scripting.executeScript({
+			target: {
+				tabId: i_tab,
+			},
+			func: McsRatifier,
+			args: [g_secrets],
+			world: 'MAIN',
+		});
+
+		// respond to inpage content script with session secrets
+		fk_respond(g_secrets);
+	},
+
+	async flowBroadcast(g_req, g_sender, fk_respond) {
+		const {
+			key: si_req,
+			config: gc_prompt,
+		} = g_req;
+
+		// unknown source, silently reject
+		if(!g_sender.url) {
+			console.debug('Silently ignoring advertisement request from unknown source');
+			return;
+		}
+
+		// set the page from which the flow is being requested
+		const g_page = gc_prompt.flow.page = {
+			tabId: g_sender.tab!.id!,
+			href: g_sender.url || gc_prompt.flow.page?.href || '',
+		};
+
+console.info('get root key');
+		// check if app is locked
+		const dk_root = await Vault.getRootKey();
+		if(!dk_root) {
+console.info('no root key');
+			// ask user to login
+			const b_finished = await flow_broadcast({
+				flow: {
+					type: 'authenticate',
+					page: g_page,
+				},
+			});
+
+console.info('flow completed');
+			// user cancelled; do not continue
+			if(!b_finished) {
+				return;
+			}
+
+			// retry
+			return await H_HANDLERS_ICS.flowBroadcast(g_req, g_sender, fk_respond);
+		}
+
+		// parse sender url
+		const [s_scheme, s_host] = parse_sender(g_sender.url);
+
+		// app is blocked; exit
+		if(await app_blocked(s_scheme, s_host, g_sender)) return;
+
+console.info('app passed scheme check');
+
+		// prep app descriptor
+		const g_app = {
+			scheme: s_scheme,
+			host: s_host,
+			connections: {},
+		};
+
+		gc_prompt.flow['value'].app = g_app;
+
+		// forward request
+		void flow_broadcast(gc_prompt, si_req);
+	},
+};
+
+
+/**
+ * message handlers for service instructions from popup
+ */
+const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction> = {
+	async bankSend(g_value) {
+		// dereference network
+		const g_network = (await Networks.at(g_value.network))!;
+
+		// dereference chain
+		const g_chain = (await Chains.at(g_network.chain))!;
+
+		// activate network
+		const k_active = Networks.activate(g_network, g_chain);
+
+		// execute transfer
+		const g_attempt = await k_active.bankSend(
+			g_value.sender,
+			g_value.recipient,
+			g_value.coin,
+			BigInt(g_value.amount),
+			BigInt(g_value.limit),
+			g_value.price,
+			g_value.memo,
+			BroadcastMode.BROADCAST_MODE_SYNC,
+			g_chain
+		);
+
+		// notify
+		const si_notifcation = buffer_to_base64(sha256_sync(text_to_buffer(g_attempt.hash)));
+		chrome.notifications.create(si_notifcation, {
+			type: 'basic',
+			title: `Transaction sent to network`,
+			message: `Waiting for confirmation on ${g_chain.name}...`,
+			priority: 1,
+			iconUrl: '/media/vendor/logo-192px.png',
+		});
+
+		// record pending transaction as incident
+		await Incidents.record(g_attempt.hash, {
+			type: 'tx_out',
+			time: Date.now(),
+			data: g_attempt,
+		});
+	},
+};
+
 /**
  * Handle messages from content scripts
  */
 const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
-	/**
-	 * Generate a new private/shared secret key of the specified size in bytes (defaults to 512-bit key)
-	 */
-	function generate_key(nb_size=64): string {
-		// prep space in memory
-		const atu8_secret = new Uint8Array(nb_size);
-
-		// fill with crypto random values
-		crypto.getRandomValues(atu8_secret);
-
-		// convert to hex string
-		return Array.from(atu8_secret).map(x => x.toString(16).padStart(2, '0')).join('');
-	}
-
-
-	// declare message handler dict
-	const H_HANDLERS_MESSAGE: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
-		// 
-		panic(g_msg, g_sender) {
-			// TODO: handle
-		},
-
-		// page is requesting advertisement via ics-spotter
-		async requestAdvertisement(g_msg, g_sender, fk_respond) {
-			// ref tab id
-			const i_tab = g_sender.tab!.id!;
-
-			// unknown source, silently reject
-			if(!g_sender.url) {
-				console.debug('Silently ignoring advertisement request from unknown source');
-				return;
-			}
-
-			// parse sender url
-			const [s_scheme, s_host] = parse_sender(g_sender.url);
-
-			// prep page descriptor for restores
-			const g_page = {
-				tabId: i_tab,
-				href: g_sender.url+'',
-			};
-
-console.info('get root key');
-			// check if app is locked
-			const dk_root = await Vault.getRootKey();
-			if(!dk_root) {
-console.info('no root key');
-				// ask user to login
-				const b_finished = await flow_broadcast({
-					flow: {
-						type: 'authenticate',
-						page: g_page,
-					},
-				});
-
-console.info('flow completed');
-				// user cancelled; do not advertise
-				if(!b_finished) {
-					return;
-				}
-
-				// retry
-				return await H_HANDLERS_MESSAGE.requestAdvertisement(g_msg, g_sender, fk_respond);
-			}
-
-console.info('root key exists');
-
-			// app is blocked; exit
-			if(await app_blocked(s_scheme, s_host, g_sender)) return;
-
-console.info('app passed scheme check');
-
-			// check app's policy and registration status
-			{
-				// lookup app in store
-				let g_app = await Apps.get(s_host, s_scheme);
-
-				// app registrtion state
-				let b_registered = false;
-
-				// app is registered; mark it such
-				if(g_app) {
-					b_registered = true;
-				}
-				// app is not yet registered; initialize
-				else {
-					g_app = {
-						scheme: s_scheme,
-						host: s_host,
-						connections: {},
-					};
-				}
-
-				// lookup policy on app
-				const g_policy = await Policies.forApp(g_app);
-
-console.info('got policy for app %o', g_policy);
-				// a policy indicates this app is blocked
-				if(g_policy.blocked) {
-					return block_app(g_sender, 'App connection blocked by policy');
-				}
-
-				// // app does not have any connections
-				// if(!Object.keys(g_app.connections).length) {
-
-				// app is not registered and not trusted; requires user approval
-				if(!b_registered && !g_policy.trusted) {
-					// request approval from user
-					const b_confirmed = await flow_broadcast({
-						flow: {
-							type: 'requestAdvertisement',
-							value: {
-								app: g_app,
-							},
-							page: g_page,
-						},
-					});
-
-					// retry 
-					if(b_confirmed) {
-						return await H_HANDLERS_MESSAGE.requestAdvertisement(g_msg, g_sender, fk_respond);
-					}
-
-					// abort
-					console.debug('User cancelled request');
-					return;
-				}
-			}
-
-			// TODO: consider what will happen if prompt closes but serice worker becomes inactive
-
-			// verbose
-			console.debug(`Allowing <${g_sender.url}> to receive advertisement`);
-
-			// secrets for this session
-			const g_secrets: ServiceToIcs.SessionKeys = {
-				session: generate_key(),
-			};
-
-			// execute isolated-world content script 'host'
-			void chrome.scripting.executeScript({
-				target: {
-					tabId: i_tab,
-				},
-				func: IcsHost,
-				args: [g_secrets],
-				world: 'ISOLATED',
-			});
-
-			// execute main-world content script 'ratifier'
-			void chrome.scripting.executeScript({
-				target: {
-					tabId: i_tab,
-				},
-				func: McsRatifier,
-				args: [g_secrets],
-				world: 'MAIN',
-			});
-
-			// respond to inpage content script with session secrets
-			fk_respond(g_secrets);
-		},
-
-		async flowBroadcast(g_req, g_sender, fk_respond) {
-			const {
-				key: si_req,
-				config: gc_prompt,
-			} = g_req;
-
-			// unknown source, silently reject
-			if(!g_sender.url) {
-				console.debug('Silently ignoring advertisement request from unknown source');
-				return;
-			}
-
-			// set the page from which the flow is being requested
-			const g_page = gc_prompt.flow.page = {
-				tabId: g_sender.tab!.id!,
-				href: g_sender.url || gc_prompt.flow.page?.href || '',
-			};
-
-console.info('get root key');
-			// check if app is locked
-			const dk_root = await Vault.getRootKey();
-			if(!dk_root) {
-console.info('no root key');
-				// ask user to login
-				const b_finished = await flow_broadcast({
-					flow: {
-						type: 'authenticate',
-						page: g_page,
-					},
-				});
-
-console.info('flow completed');
-				// user cancelled; do not continue
-				if(!b_finished) {
-					return;
-				}
-
-				// retry
-				return await H_HANDLERS_MESSAGE.flowBroadcast(g_req, g_sender, fk_respond);
-			}
-
-			// parse sender url
-			const [s_scheme, s_host] = parse_sender(g_sender.url);
-
-			// app is blocked; exit
-			if(await app_blocked(s_scheme, s_host, g_sender)) return;
-
-console.info('app passed scheme check');
-
-			// prep app descriptor
-			const g_app = {
-				scheme: s_scheme,
-				host: s_host,
-				connections: {},
-			};
-
-			gc_prompt.flow['value'].app = g_app;
-
-			// forward request
-			void flow_broadcast(gc_prompt, si_req);
-		},
-	};
-
 	// verbose
 	console.debug(`Service received message %o`, g_msg);
 
 	// verify message structure
 	if('object' === typeof g_msg && 'string' === typeof g_msg.type) {
-		// reject unknown senders
+		// default to ICS handlers
+		let h_handlers: Vocab.HandlersChrome<IcsToService.PublicVocab | IntraExt.ServiceInstruction> = H_HANDLERS_ICS;
+
+		// message does not originate from content script
 		if(!g_sender.tab || 'number' !== typeof g_sender.tab.id) {
-			console.error(`Refusing request from unknown sender`);
-			return;
+			// message originates from this extension
+			if(g_sender.origin && chrome.runtime.id === g_sender.id) {
+				h_handlers = H_HANDLERS_INSTRUCTIONS;
+			}
+			// reject unknown senders
+			else {
+				console.error(`Refusing request from unknown sender`);
+				return;
+			}
 		}
 
 		// ref message type
 		const si_type = g_msg.type;
 
 		// lookup handler
-		const f_handler = H_HANDLERS_MESSAGE[si_type];
+		const f_handler = h_handlers[si_type];
 
 		// route message to handler
 		if(f_handler) {
@@ -601,7 +662,7 @@ const auto_heal = () => setTimeout(() => {
 
 let i_auto_heal = auto_heal();
 
-function listenTransfer(
+function await_transfer(
 	si_socket_group: string,
 	k_network: ActiveNetwork,
 	g_chain: Chain['interface'],
@@ -667,8 +728,11 @@ function listenTransfer(
 							s_other = abbreviate_addr(s_other);
 						}
 
+						// ref transaction id
+						const si_txn = g_tx.hash;
+
 						// hash tx to create notification id
-						const si_notif = buffer_to_base64(sha256_sync(text_to_buffer(g_tx.tx)));
+						const si_notif = buffer_to_base64(sha256_sync(text_to_buffer(si_txn)));
 
 						// notify
 						if('Receive' === si_type) {
@@ -676,26 +740,18 @@ function listenTransfer(
 								type: 'basic',
 								title: `Received ${s_payload} on ${g_chain.name}`,
 								message: `${s_other} sent ${s_payload} to your ${g_account.name} account`,
-								// contextMessage: 'Click to view details',
 								priority: 1,
 								iconUrl: '/media/vendor/logo-192px.png',
 							});
 
-							// insert event
-							await Events.open(async(ks_events) => {
-								await ks_events.insert({
-									time: Date.now(),
-									type: 'receive',
-									data: {
-										height: g_tx.height,
-										sender: g_transfer.sender,
-										recipient: g_transfer.recipient,
-										amount: g_transfer.amount,
-										chain: p_chain,
-										coin: si_coin,
-										hash: '',
-									},
-								} as LogEvent<'receive'>);
+							// download receive txn
+							const g_download = await k_network.downloadTxn(si_txn);
+
+							// record incident
+							await Incidents.record(si_txn, {
+								type: 'tx_in',
+								time: new Date(g_download.timestamp).getTime(),
+								data: g_download,
 							});
 						}
 						else if('Send' === si_type) {
@@ -703,48 +759,18 @@ function listenTransfer(
 								type: 'basic',
 								title: `Sent ${s_payload} on ${g_chain.name}`,
 								message: `${s_payload} sent to ${s_other} from ${g_account.name} account`,
-								// contextMessage: 'Click to view details',
 								priority: 1,
 								iconUrl: '/media/vendor/logo-192px.png',
 							});
 
-							// insert event
-							await Events.open(async(ks_events) => {
-								const g_next = ks_events.filter({
-									type: 'pending',
-									chain: p_chain,
-								}).next() as LogEvent<'pending'>;
+							// download send txn
+							const g_download = await k_network.downloadTxn(si_txn);
 
-								if(g_next?.value) {
-									const g_pending = g_next.value as LogEvent<'pending'>;
-									const {
-										data: {
-											raw: sx_txn,
-										},
-									} = g_pending;
-
-									if(sx_txn === globalThis.atob(g_tx.tx)) {
-										await ks_events.delete(g_pending);
-
-										await ks_events.insert({
-											time: Date.now(),
-											type: 'send',
-											data: {
-												...g_pending.data,
-												height: g_tx.height,
-												gas_used: g_tx.result.gas_used,
-												gas_wanted: g_tx.result.gas_wanted,
-												sender: g_transfer.sender,
-												recipient: g_transfer.recipient,
-												amount: g_transfer.amount,
-											},
-										} as LogEvent<'send'>);
-
-										console.log({
-											events: ks_events.raw,
-										});
-									}
-								}
+							// record incident
+							await Incidents.record(si_txn, {
+								type: 'tx_out',
+								time: new Date(g_download.timestamp).getTime(),
+								data: g_download,
 							});
 						}
 					}
@@ -761,8 +787,13 @@ async function periodic_check() {
 	// not signed in; exit
 	if(!await Vault.getRootKey()) return;
 
+	// service is already alive; exit
 	if(b_alive) return;
+
+	// service is now alive
 	b_alive = true;
+
+	// reset auto heal timeout
 	clearTimeout(i_auto_heal);
 
 	// read from stores
@@ -785,6 +816,9 @@ async function periodic_check() {
 
 	// each chain w/ its default provider
 	for(const [p_chain, g_network] of ode(h_networks)) {
+		// skip broken cosmos
+		if(p_chain === '/family.cosmos/chain.theta-testnet-001') continue;
+
 		// already listening
 		if(h_sockets[p_chain]) continue;
 
@@ -833,6 +867,7 @@ async function periodic_check() {
 		}
 		catch(e_listen) {
 			syserr({
+				title: 'Websocket Error',
 				error: e_listen,
 			});
 		}
@@ -848,15 +883,19 @@ async function periodic_check() {
 				let f_close = h_sockets[si_socket_group];
 				if(!f_close) {
 					try {
-						listenTransfer(si_socket_group, k_network, g_chain, g_account, sa_owner, 'Receive');
-						listenTransfer(si_socket_group, k_network, g_chain, g_account, sa_owner, 'Send');
+						await_transfer(si_socket_group, k_network, g_chain, g_account, sa_owner, 'Receive');
+						await_transfer(si_socket_group, k_network, g_chain, g_account, sa_owner, 'Send');
 					}
 					catch(e_receive) {
 						syserr({
+							title: 'Provider Error',
 							error: e_receive,
 						});
 					}
 				}
+
+				// conduct account sync
+				await k_network.synchronizeAll(sa_owner);
 			}
 
 			// // query all balances
@@ -909,6 +948,7 @@ async function periodic_check() {
 		}
 	}
 
+	// start countdown to un-alive the service flag
 	auto_heal();
 }
 

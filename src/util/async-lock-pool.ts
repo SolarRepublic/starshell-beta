@@ -9,6 +9,12 @@ type ConfirmableAsyncLock = AsyncLock & {
 	confirm: (value: Promisable<VoidFunction>) => void;
 };
 
+export class LockTimeoutError extends Error {
+	constructor() {
+		super('Timed out while waiting for lock');
+	}
+}
+
 /**
  * Release a lock. If there are acquire requests waiting in the queue, shift
  *   one off and pass it to user.
@@ -100,7 +106,7 @@ export class AsyncLockPool {
 						a_awaits.splice(a_awaits.indexOf(g_lock), 1);
 
 						// throw
-						fe_timeout(new Error('Timed out while waiting for lock'));
+						fe_timeout(new LockTimeoutError());
 					}, xt_timeout);
 
 					g_lock.free = (...a_args) => {

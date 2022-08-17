@@ -1,14 +1,12 @@
-import { yw_account, yw_chain, yw_chain_ref } from '#/app/mem';
+import { yw_account, yw_chain, yw_chain_ref, yw_network_active } from '#/app/mem';
 import type { Bech32, Bip44, Chain, ChainPath, Family, HoldingPath, NativeCoin } from '#/meta/chain';
 import type { Network } from '#/meta/network';
 import { Chains } from '#/store/chains';
 import { Entities } from '#/store/entities';
-import type { ActiveNetwork, BalanceBundle, Cached, E2eInfo, Transfer, WsTxResult } from '#/store/networks';
+import { ActiveNetwork, BalanceBundle, Cached, E2eInfo, MultipleSignersError, NetworkTimeoutError, Transfer, UnpublishedAccountError, WrongKeyTypeError, WsTxResult } from '#/store/networks';
 import { QueryCache } from '#/store/query-cache';
-import { Dict, fodemtv, fold, JsonObject, oderom, Promisable } from '#/util/belt';
+import { Dict, fodemtv, fold, JsonObject, oderom, Promisable, timeout, with_timeout } from '#/util/belt';
 import {grpc} from '@improbable-eng/grpc-web';
-
-import * as secp from '@noble/secp256k1';
 
 import {
 	GrpcWebImpl,
@@ -17,7 +15,7 @@ import {
 } from 'cosmos-grpc/dist/cosmos/bank/v1beta1/query';
 
 import {
-	QueryClientImpl as AuthQueryClient,
+	QueryClientImpl as AuthQueryClient, QueryParamsRequest,
 } from 'cosmos-grpc/dist/cosmos/auth/v1beta1/query';
 
 import type {
@@ -31,7 +29,13 @@ import {
 	ServiceClientImpl as TxServiceClient,
 	OrderBy,
 	BroadcastMode,
+	BroadcastTxResponse,
 } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/service';
+
+import {
+	GetLatestBlockResponse,
+	ServiceClientImpl as TendermintServiceClient,
+} from 'cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 
 import type {
 	TxResult,
@@ -46,8 +50,8 @@ import { instantiateSecp256k1 } from '@solar-republic/wasm-secp256k1';
 import type { Any } from 'cosmos-grpc/dist/google/protobuf/any';
 import { PubKey } from 'cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 
-import { AuthInfo, SignDoc, Tx, TxBody, TxRaw } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-import { base64_to_buffer, buffer_to_base64, buffer_to_string8, sha256, sha256_sync, string8_to_buffer, text_to_buffer } from '#/util/data';
+import { AuthInfo, ModeInfo, SignDoc, Tx, TxBody, TxRaw } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+import { base64_to_buffer, buffer_to_base64, buffer_to_string8, sha256, sha256_sync, string8_to_buffer, text_to_buffer, zero_out } from '#/util/data';
 import { SignMode } from 'cosmos-grpc/dist/cosmos/tx/signing/v1beta1/signing';
 import { Keyring } from '#/crypto/keyring';
 import { Secrets } from '#/store/secrets';
@@ -60,7 +64,12 @@ import type { Account } from '#/meta/account';
 import { syserr } from '#/app/common';
 import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 import type { Cast } from 'ts-toolbelt/out/Any/Cast';
-import { ATU8_SHA256_STARSHELL, encrypt } from '#/crypto/vault';
+import { ATU8_SHA256_STARSHELL, encrypt, decrypt } from '#/crypto/vault';
+import { Histories, Incidents } from '#/store/incidents';
+import type { IncidentType, TxModeInfo, TxMsg, TxPending, TxSynced } from '#/meta/incident';
+import type { Cw } from '#/meta/cosm-wasm';
+import type { StringEvent, TxResponse } from 'cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
+import { XG_SYNCHRONIZE_PAGINATION_LIMIT } from '#/share/constants';
 
 export interface TypedEvent {
 	type: 'transfer' | 'message' | 'coin_spent' | 'coin_received';
@@ -71,22 +80,27 @@ export interface TypedEvent {
 }
 
 export interface BroadcastConfig {
+	chain: Chain['interface'];
 	msgs: Any[];
 	memo: string;
 	gasLimit: bigint;
 	gasFee: Coin | {
 		price: number | string | BigNumber;
 	};
-	account?: Account['interface'];
+	account: Account['interface'];
+	mode: BroadcastMode;
 }
 
+export interface ModWsTxResult extends WsTxResult {
+	hash: string;
+}
 
-export const fold_attrs = (g_event: TypedEvent): Dict => fold(g_event.attributes, g_attr => ({
+export const fold_attrs = (g_event: TypedEvent | StringEvent): Dict => fold(g_event.attributes, g_attr => ({
 	[g_attr.key]: g_attr.value,
 }));
 
 
-async function sign_doc(xg_account_number: bigint, atu8_auth: Uint8Array, atu8_body: Uint8Array, si_chain: string): Promise<Uint8Array> {
+async function sign_doc(g_account: Account['interface'], xg_account_number: bigint, atu8_auth: Uint8Array, atu8_body: Uint8Array, si_chain: string): Promise<Uint8Array> {
 	const g_doc = SignDoc.fromPartial({
 		accountNumber: xg_account_number+'',
 		authInfoBytes: atu8_auth,
@@ -98,7 +112,7 @@ async function sign_doc(xg_account_number: bigint, atu8_auth: Uint8Array, atu8_b
 	const atu8_doc = SignDoc.encode(g_doc).finish();
 
 	// ref account secret path
-	const p_secret = yw_account.get().secret;
+	const p_secret = g_account.secret;
 
 	// fetch secret
 	const g_secret = await Secrets.get(p_secret);
@@ -114,6 +128,67 @@ async function sign_doc(xg_account_number: bigint, atu8_auth: Uint8Array, atu8_b
 	return await k_key.sign(atu8_doc, true);
 }
 
+function convert_mode_info(g_info: ModeInfo): TxModeInfo {
+	if(g_info.multi) {
+		return {
+			multi: {
+				bitarray: Array.from(g_info.multi.bitarray!.elems).reduce((s, xb) => s+xb.toString(2).padStart(8, '0'), '')
+					.slice(0, -g_info.multi.bitarray!.extraBitsStored),
+				modeInfos: g_info.multi.modeInfos.map(convert_mode_info),
+			},
+		};
+	}
+
+	return g_info as TxModeInfo;
+}
+
+function tx_to_synced(p_chain: ChainPath, si_txn: string, g_tx: Tx, g_result: TxResponse): TxSynced {
+	return {
+		stage: 'synced',
+		chain: p_chain,
+		hash: si_txn,
+		code: g_result.code,
+
+		height: g_result.height as Cw.Uint128,
+		timestamp: g_result.timestamp as Cw.String,
+		gas_used: g_result.gasUsed as Cw.Uint128,
+		gas_wanted: g_result.gasWanted as Cw.Uint128,
+
+		msgs: g_result.logs.map(g_log => ({
+			events: fold(g_log.events, g_event => ({
+				[g_event.type]: fold_attrs(g_event),
+			})),
+		})) as TxMsg[],
+
+		// authInfo
+		...g_tx.authInfo
+			? (g_auth => ({
+				// fee
+				...g_auth.fee
+					? (g_fee => ({
+						fee_amounts: g_fee.amount as Cw.Coin[],
+						gas_limit: g_fee.gasLimit as Cw.Uint128,
+						payer: g_fee.payer as Cw.Bech32,
+						granter: g_fee.granter as Cw.Bech32,
+					}))(g_auth.fee)
+					: {
+						gas_limit: '' as Cw.Uint128,
+					},
+
+				// signerInfos
+				signers: g_auth.signerInfos.map(g_signer => ({
+					pubkey: buffer_to_base64(g_signer.publicKey?.value || new Uint8Array(0)),
+					sequence: g_signer.sequence as Cw.Uint128,
+					mode_info: convert_mode_info(g_signer.modeInfo!),
+				})),
+			}))(g_tx.authInfo)
+			: {
+				gas_limit: '' as Cw.Uint128,
+			},
+
+		memo: g_tx.body?.memo || '',
+	};
+}
 
 /**
  * Signing information for a single signer that is not included in the transaction.
@@ -126,13 +201,10 @@ export interface SignerData {
 	readonly chainId: string;
 }
 
-interface JsonMsgSend extends JsonObject {
+export interface JsonMsgSend extends JsonObject {
 	fromAddress: string;
 	toAddress: string;
-	amount: {
-		denom: string;
-		amount: string;
-	}[];
+	amount: Cw.Coin[];
 }
 
 export interface PendingSend extends JsonObject {
@@ -213,6 +285,10 @@ export class CosmosNetwork implements ActiveNetwork {
 
 	async reloadCached(): Promise<void> {
 		this._ks_cache = await QueryCache.read();
+	}
+
+	async latestBlock(): Promise<GetLatestBlockResponse> {
+		return await new TendermintServiceClient(this._y_grpc).getLatestBlock({});
 	}
 
 	cachedBalance(sa_owner: string, si_coin: string): Cached<Coin> | null {
@@ -306,7 +382,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		return !!this._g_network.rpcHost;
 	}
 
-	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_value?: JsonObject) => Promisable<void>): () => void {
+	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_value?: JsonObject, si_txn?: string) => Promisable<void>): () => void {
 		const p_host = this._g_network.rpcHost;
 
 		if(!p_host) throw new Error('Cannot subscribe to events; no RPC host configured on network');
@@ -325,14 +401,14 @@ export class CosmosNetwork implements ActiveNetwork {
 		};
 
 		d_ws.onmessage = (d_event: MessageEvent<string>) => {
-			// console.log(d_event.data);
-
 			const g_msg = JSON.parse(d_event.data || '{}');
 
 			const g_value = g_msg?.result?.data?.value;
 
+			const si_txn = g_msg?.result?.events?.['tx.hash']?.[0] as string || '';
+
 			if(g_value) {
-				void fke_receive(null, g_value as JsonObject);
+				void fke_receive(null, g_value as JsonObject, si_txn);
 			}
 		};
 
@@ -354,61 +430,83 @@ export class CosmosNetwork implements ActiveNetwork {
 	}
 
 
-	onReceive(sa_owner: Bech32.String, fke_receive: (d_kill: Event | null, g_tx?: WsTxResult) => Promisable<void>): () => void {
+	onReceive(sa_owner: Bech32.String, fke_receive: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): () => void {
 		return this.listen([
 			`tm.event='Tx'`,
 			`transfer.recipient='${sa_owner}'`,
-		], (d_kill, g_value) => {
-			void fke_receive(d_kill, (g_value?.TxResult || void 0) as WsTxResult | undefined);
+		], (d_kill, g_value, si_txn) => {
+			const g_result = g_value?.TxResult as JsonObject;
+			void fke_receive(d_kill, g_result? {
+				...g_result,
+				hash: si_txn,
+			} as ModWsTxResult: void 0);
 		});
 	}
 
-	onSend(sa_owner: Bech32.String, fke_send: (d_kill: Event | null, g_tx?: WsTxResult) => Promisable<void>): () => void {
+	onSend(sa_owner: Bech32.String, fke_send: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): () => void {
 		return this.listen([
 			`tm.event='Tx'`,
 			`transfer.sender='${sa_owner}'`,
-		], (d_kill, g_value) => {
-			void fke_send(d_kill, (g_value?.TxResult || void 0) as WsTxResult | undefined);
+		], (d_kill, g_value, si_txn) => {
+			const g_result = g_value?.TxResult as JsonObject;
+			void fke_send(d_kill, g_result? {
+				...g_result,
+				hash: si_txn,
+			} as ModWsTxResult: void 0);
 		});
 	}
 
-	async e2eInfoFor(sa_other: Bech32.String): Promise<E2eInfo> {
-		const g_response = await new TxServiceClient(this._y_grpc).getTxsEvent({
-			events: [
-				`message.sender='${sa_other}'`,
-			],
-			pagination: {
-				limit: '1',
+	async e2eInfoFor(sa_other: Bech32.String, s_height_max=''): Promise<E2eInfo> {
+		return await with_timeout({
+			duration: 10e3,
+			trip: () => new NetworkTimeoutError(),
+			run: async() => {
+				const g_response = await new TxServiceClient(this._y_grpc).getTxsEvent({
+					events: [
+						`message.sender='${sa_other}'`,
+						...s_height_max? [`block.height<${s_height_max}`]: [],
+					],
+					pagination: {
+						limit: '1',
+					},
+					orderBy: OrderBy.ORDER_BY_DESC,
+				});
+
+				if(!g_response?.txs?.length) {
+					throw new UnpublishedAccountError(sa_other, this._g_chain);
+				}
+
+				const a_signers = g_response.txs[0].authInfo!.signerInfos;
+				if(1 !== a_signers.length) {
+					throw new MultipleSignersError(sa_other, this._g_chain);
+				}
+
+				const {
+					typeUrl: si_pubkey_type,
+					value: atu8_pubkey_35,
+				} = a_signers[0].publicKey!;
+
+				if('/cosmos.crypto.secp256k1.PubKey' !== si_pubkey_type) {
+					throw new WrongKeyTypeError(sa_other, this._g_chain);
+				}
+
+				// ensure the module is initialized
+				await Secp256k1Key.init();
+
+				return {
+					sequence: a_signers[0].sequence,
+					height: g_response.txResponses[0].height,
+					hash: g_response.txResponses[0].txhash,
+					// priorSequence: a_signers[1]?.sequence,
+					// priorHeight: g_response.txResponses[1]?.height,
+					// priorHash: g_response.txResponses[1]?.txhash,
+					pubkey: Secp256k1Key.uncompressPublicKey(atu8_pubkey_35.subarray(2)),
+				};
 			},
-			orderBy: OrderBy.ORDER_BY_DESC,
 		});
-
-		if(!g_response?.txs?.length) {
-			throw new Error(`Owner has not signed any messages yet on-chain`);
-		}
-
-		const a_signers = g_response.txs[0].authInfo!.signerInfos;
-		if(1 !== a_signers.length) {
-			throw new Error(`Multiple owners`);
-		}
-
-		const {
-			typeUrl: si_pubkey_type,
-			value: atu8_pubkey_33,
-		} = a_signers[0].publicKey!;
-
-		if('/cosmos.crypto.secp256k1.PubKey' !== si_pubkey_type) {
-			throw new Error(`Unexpected public key type`);
-		}
-
-		return {
-			sequence: a_signers[0].sequence,
-			height: g_response.txResponses[0].height,
-			pubkey: Secp256k1Key.uncompressPublicKey(atu8_pubkey_33),
-		};
 	}
 
-	async ecdhEncrypt(atu8_other_pubkey: Uint8Array, atu8_input: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get()): Promise<Uint8Array> {
+	async ecdh(atu8_other_pubkey: Uint8Array, g_chain=yw_chain.get()): Promise<CryptoKey> {
 		// ref account secret path
 		const p_secret = yw_account.get().secret;
 
@@ -422,34 +520,47 @@ export class CosmosNetwork implements ActiveNetwork {
 		// import signing key
 		const k_key = await Secp256k1Key.import(await RuntimeKey.createRaw(string8_to_buffer(g_secret.data)));
 
-		// sign document
+		// derive shared secret
 		const atu8_shared = await k_key.ecdh(atu8_other_pubkey);
 
 		// import base key
-		const dk_hkdf = await crypto.subtle.importKey('raw', atu8_shared, 'HKDF', false, ['deriveKey']);
+		const dk_hkdf = await crypto.subtle.importKey('raw', atu8_shared, 'HKDF', false, ['deriveBits', 'deriveKey']);
 
-		// derive encryption key
-		const dk_aes_bits = await crypto.subtle.deriveBits({
-			name: 'HKDF',
-			hash: 'SHA-256',
-			salt: ATU8_SHA256_STARSHELL,
-			info: sha256_sync(text_to_buffer(g_chain.id)),
-		}, dk_hkdf, 256);
+		// zero out shared secret
+		zero_out(atu8_shared);
 
-		// derive encryption key
+		// derive encryption/decryption key
 		const dk_aes = await crypto.subtle.deriveKey({
 			name: 'HKDF',
 			hash: 'SHA-256',
+			salt: ATU8_SHA256_STARSHELL,  // TODO: ideas for salt?
 			info: sha256_sync(text_to_buffer(g_chain.id)),
 		}, dk_hkdf, {
 			name: 'AES-GCM',
 			length: 256,
 		}, false, ['encrypt', 'decrypt']);
 
+		return dk_aes;
+	}
+
+	async ecdhEncrypt(atu8_other_pubkey: Uint8Array, atu8_plaintext: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get()): Promise<Uint8Array> {
+		// derive encryption key
+		const dk_aes = await this.ecdh(atu8_other_pubkey, g_chain);
+
 		// encrypt memo
-		const atu8_encrypted = await encrypt(atu8_input, dk_aes, atu8_nonce);
+		const atu8_encrypted = await encrypt(atu8_plaintext, dk_aes, atu8_nonce);
 
 		return atu8_encrypted;
+	}
+
+	async ecdhDecrypt(atu8_other_pubkey: Uint8Array, atu8_ciphertext: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get()): Promise<Uint8Array> {
+		// derive encryption key
+		const dk_aes = await this.ecdh(atu8_other_pubkey, g_chain);
+
+		// decrypt memo
+		const atu8_decrypted = await decrypt(atu8_ciphertext, dk_aes, atu8_nonce);
+
+		return atu8_decrypted;
 	}
 
 	async isContract(sa_account: string): Promise<boolean> {
@@ -567,7 +678,17 @@ export class CosmosNetwork implements ActiveNetwork {
 		return a_outs;
 	}
 
-	async bankSend(sa_sender: Bech32.String, sa_recipient: Bech32.String, si_coin: string, xg_amount: bigint, s_memo='', g_chain=yw_chain.get()): Promise<PendingSend> {
+	async bankSend(
+		sa_sender: Bech32.String,
+		sa_recipient: Bech32.String,
+		si_coin: string,
+		xg_amount: bigint,
+		xg_limit: bigint,
+		x_price: number,
+		s_memo='',
+		xc_mode=BroadcastMode.BROADCAST_MODE_SYNC,
+		g_chain=yw_chain.get()
+	): Promise<TxPending> {
 		const g_coin = g_chain.coins[si_coin];
 
 		const g_msg_send = MsgSend.fromPartial({
@@ -584,32 +705,66 @@ export class CosmosNetwork implements ActiveNetwork {
 			value: MsgSend.encode(g_msg_send).finish(),
 		};
 
-		const [si_txn, atu8_txn] = await this.broadcast({
+		// locate account
+		let g_account!: Account['interface'];
+		const ks_accounts = await Accounts.read();
+		for(const [, g_account_test] of ks_accounts.entries()) {
+			if(sa_sender === Chains.addressFor(g_account_test.pubkey, g_chain)) {
+				g_account = g_account_test;
+				break;
+			}
+		}
+
+		// account not found
+		if(!g_account) {
+			throw syserr({
+				title: 'Critical Error',
+				text: `Failed to locate account associated with ${sa_sender}`,
+			});
+		}
+
+		const [si_txn] = await this.broadcast({
+			chain: g_chain,
+			account: g_account,
 			msgs: [g_encoded],
 			memo: s_memo,
-			gasLimit: 20_000n,
+			gasLimit: xg_limit,
 			gasFee: {
-				price: 0.25,
+				price: x_price,
 			},
+			mode: xc_mode,
 		});
 
+		// construct pending transaction
 		return {
-			chain: yw_chain_ref.get(),
-			owner: sa_sender,
+			stage: 'pending',
+			chain: Chains.pathFrom(g_chain),
 			hash: si_txn,
-			coin: si_coin,
-			msg: g_msg_send as JsonMsgSend,
-			raw: buffer_to_string8(atu8_txn),
+			gas_limit: `${xg_limit}` as Cw.Uint128,
+
+			msgs: [
+				{
+					events: {
+						transfer: {
+							sender: g_msg_send.fromAddress as Cw.Bech32,
+							recipient: g_msg_send.toAddress as Cw.Bech32,
+							amount: `${g_msg_send.amount[0].amount as Cw.Uint128}${g_msg_send.amount[0].denom}` as Cw.Amount,
+						},
+					},
+				},
+			],
 		};
 	}
 
 	async broadcast(gc_broadcast: BroadcastConfig): Promise<[string, Uint8Array]> {
 		const {
+			chain: g_chain,
 			msgs: a_msgs,
 			memo: s_memo,
 			gasLimit: xg_gas_limit,
 			gasFee: gc_fee,
-			account: g_account=yw_account.get(),
+			account: g_account,
+			mode: xc_mode,
 		} = gc_broadcast;
 
 		// prep gas fee data
@@ -624,14 +779,14 @@ export class CosmosNetwork implements ActiveNetwork {
 			s_gas_fee_amount = new BigNumber(gc_fee['price'] as BigNumber).times(xg_gas_limit.toString()).toString();
 
 			// use default native coin
-			s_denom = Object.values(yw_chain.get().coins)[0].denom;
+			s_denom = Object.values(g_chain.coins)[0].denom;
 		}
 
 		// derive account's address
 		const sa_owner = Chains.addressFor(g_account.pubkey, this._g_chain);
 
 		// ref account secret path
-		const p_secret = yw_account.get().secret;
+		const p_secret = g_account.secret;
 
 		// fetch secret
 		const g_secret = await Secrets.get(p_secret);
@@ -686,7 +841,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		const atu8_auth = AuthInfo.encode(g_auth_body).finish();
 
 		// produce signed doc bytes
-		const atu8_signature = await sign_doc(g_signer.accountNumber, atu8_auth, atu8_body, yw_chain.get().id);
+		const atu8_signature = await sign_doc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.id);
 
 		// produce txn raw bytes
 		const atu8_txn = TxRaw.encode(TxRaw.fromPartial({
@@ -695,20 +850,210 @@ export class CosmosNetwork implements ActiveNetwork {
 			signatures: [atu8_signature],
 		})).finish();
 
-		// broadcast txn
-		const g_response = await new TxServiceClient(this._y_grpc).broadcastTx({
-			txBytes: atu8_txn,
-			mode: BroadcastMode.BROADCAST_MODE_ASYNC,
-		});
+		// prep response
+		let g_response: BroadcastTxResponse;
+
+		// depending on broadcast mode
+		switch(xc_mode) {
+			// sync mode
+			case BroadcastMode.BROADCAST_MODE_SYNC: {
+				g_response = await new TxServiceClient(this._y_grpc).broadcastTx({
+					txBytes: atu8_txn,
+					mode: BroadcastMode.BROADCAST_MODE_SYNC,
+				});
+				break;
+			}
+
+			// async mode
+			case BroadcastMode.BROADCAST_MODE_ASYNC: {
+				g_response = await new TxServiceClient(this._y_grpc).broadcastTx({
+					txBytes: atu8_txn,
+					mode: BroadcastMode.BROADCAST_MODE_ASYNC,
+				});
+				break;
+			}
+
+			default: {
+				throw new Error(`Invalid broadcast mode: ${xc_mode}`);
+			}
+		}
 
 		const si_txn = g_response.txResponse?.txhash;
 
 		if(!si_txn) {
 			throw syserr({
-				text: 'Txn failed to broadcast',
+				title: 'Provider Error',
+				text: `The ${this._g_network.name} provider node failed to broadcast your transaction.`,
 			});
 		}
 
 		return [si_txn, atu8_txn];
+	}
+
+	async fetchParams() {
+		const g_response = await new AuthQueryClient(this._y_grpc).params({});
+
+		const {
+			maxMemoCharacters: nl_memo_chars_max,
+			txSizeCostPerByte: n_cost_per_byte,
+		} = g_response.params!;
+	}
+
+	async downloadTxn(si_txn: string): Promise<TxSynced> {
+		// download txn
+		const g_response = await new TxServiceClient(this._y_grpc).getTx({
+			hash: si_txn,
+		});
+
+		if(!g_response?.tx || !g_response?.txResponse) {
+			throw syserr({
+				title: 'Transaction not fonud',
+				text: `Transaction ${si_txn} was not found`,
+			});
+		}
+
+		const {
+			tx: g_tx,
+			txResponse: g_result,
+		} = g_response;
+
+		return tx_to_synced(this._p_chain, si_txn, g_tx, g_result);
+
+		// // start by inserting known event
+		// await Incidents.open(async(ks_events) => {
+		// 	await ks_events.insert(g_event);
+		// });
+
+		// // download txn
+		// const g_response = await new TxServiceClient(this._y_grpc).getTx({
+		// 	hash: g_event.data.hash!,
+		// });
+
+		// // fetch extra properties
+		// const s_memo = g_response?.tx?.body?.memo || '';
+		// const s_sequence = g_response?.tx?.authInfo?.signerInfos[0].sequence;
+
+		// // update event
+		// await Incidents.delete(g_event);
+		// await Incidents.insert({
+		// 	...g_event,
+		// 	data: {
+		// 		...g_event.data,
+		// 		memo: s_memo,
+		// 		sequence: s_sequence,
+		// 		gasWanted: g_response.txResponse?.gasWanted,
+		// 		gasUsed: g_response.txResponse?.gasUsed,
+		// 	},
+		// });
+	}
+
+	async synchronize(si_type: IncidentType, a_events: string[]): Promise<void> {
+		// 
+		const y_service = new TxServiceClient(this._y_grpc);
+
+		let xg_offset = 0n;
+		let xg_seen = 0n;
+		let atu8_key: Uint8Array | null = null;
+
+		// fetch latest sync height
+		const xg_synced = await Histories.syncHeight(this._p_chain, [si_type, ...a_events].join('\n'));
+
+		// fetch current block height
+		const g_latest = await this.latestBlock();
+		const s_latest = g_latest.block?.header?.height;
+
+		if(!s_latest) {
+			throw syserr({
+				title: 'Sync failed',
+				text: `${this._g_network.name} returned an invalid block`,
+			});
+		}
+
+		for(;;) {
+			// fetch batch
+			const g_response: GetTxsEventResponse = await y_service.getTxsEvent({
+				events: a_events,
+				orderBy: OrderBy.ORDER_BY_DESC,
+				pagination: atu8_key
+					? {
+						limit: ''+XG_SYNCHRONIZE_PAGINATION_LIMIT,
+						key: atu8_key,
+					}
+					: {
+						limit: ''+XG_SYNCHRONIZE_PAGINATION_LIMIT,
+						offset: ''+xg_offset,
+					},
+			});
+
+			// destructure
+			const {
+				txs: a_txs,
+				txResponses: a_infos,
+			} = g_response;
+
+			// open incidents and histories stores
+			const b_break = await Incidents.open(ks_incidents => Histories.open(async(ks_histories) => {  // eslint-disable-line @typescript-eslint/no-loop-func
+				// process each transaction
+				const nl_txns = a_txs.length;
+				xg_seen += BigInt(nl_txns);
+				for(let i_txn=0; i_txn<nl_txns; i_txn++) {
+					const g_tx = a_txs[i_txn];
+					const g_info = a_infos[i_txn];
+
+					const si_txn = g_info.txhash;
+					const p_incident = Incidents.pathFor(si_type, si_txn);
+
+					// synced version of transaction does not yet exist in incidents
+					const g_incident = ks_incidents.at(p_incident);
+					if('synced' !== (g_incident?.data as TxSynced)?.stage) {
+						// convert to synced
+						const g_synced = tx_to_synced(this._p_chain, si_txn, g_tx, g_info);
+
+						// record in incidents list
+						await ks_incidents.record(si_txn, {
+							type: si_type,
+							time: new Date(g_synced.timestamp).getTime(),
+							data: g_synced,
+						}, ks_histories);
+					}
+
+					// chain is already synced below this height; stop archiving
+					const xg_height = BigInt(g_info.height);
+					if(xg_synced < xg_height) {
+						return true;
+					}
+				}
+
+				return false;
+			}));
+
+			if(b_break) {
+				break;
+			}
+
+			// more results
+			const s_total = g_response.pagination?.total || '0';
+			if(s_total && (BigInt(s_total) - xg_seen) > 0n) {
+				// use 'nextKey'
+				atu8_key = g_response.pagination!.nextKey;
+				xg_offset += XG_SYNCHRONIZE_PAGINATION_LIMIT;
+				continue;
+			}
+
+			break;
+		}
+
+		// update histories sync info
+		await Histories.updateSyncInfo(this._p_chain, [si_type, ...a_events].join('\n'), s_latest);
+	}
+
+	async synchronizeAll(sa_owner: Bech32.String): Promise<void> {
+		await this.synchronize('tx_in', [
+			`transfer.recipient='${sa_owner}'`,
+		]);
+
+		await this.synchronize('tx_out', [
+			`message.sender='${sa_owner}'`,
+		]);
 	}
 }

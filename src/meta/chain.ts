@@ -1,5 +1,5 @@
 import type { BalanceBundle } from '#/store/networks';
-import type { Dict } from '#/util/belt';
+import type { Dict, JsonObject } from '#/util/belt';
 import type { Compute, ComputeRaw } from 'ts-toolbelt/out/Any/Compute';
 import type { Type } from 'ts-toolbelt/out/Any/Type';
 import type { Concat } from 'ts-toolbelt/out/List/Concat';
@@ -147,6 +147,15 @@ export type NativeCoin = {
 	extra?: Dict;
 };
 
+export interface BlockExplorerConfig extends JsonObject {
+	base: string;
+	block: string;
+	account: string;
+	contract?: string;
+	validator: string;
+	transaction: string;
+}
+
 export type Chain<
 	si_family extends FamilyKey=FamilyKey,
 	si_chain extends string=string,
@@ -162,6 +171,7 @@ export type Chain<
 		coins: Dict<NativeCoin>;
 		tokenInterfaces: TokenSpecKey[];
 		testnet?: boolean;
+		blockExplorer: BlockExplorerConfig;
 	}, Nameable, Pfpable];
 }>;
 

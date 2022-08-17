@@ -6,7 +6,7 @@
 	import { Accounts } from '#/store/accounts';
 	import { Secrets } from '#/store/secrets';
 	import { ode } from '#/util/belt';
-	import { buffer_to_base64, buffer_to_string8 } from '#/util/data';
+	import { buffer_to_base64, buffer_to_string8, sha256_sync, text_to_buffer } from '#/util/data';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import CheckboxField from '../ui/CheckboxField.svelte';
 	import { Header, Screen } from './_screens';
@@ -14,7 +14,7 @@
 	import { Secp256k1Key } from '#/crypto/secp256k1';
 	import type { Secret, SecretPath } from '#/meta/secret';
 	import AccountEdit from './AccountEdit.svelte';
-	import { Events } from '#/store/events';
+	import {Incidents} from '#/store/incidents';
 
 
 	export let reset = false;
@@ -32,7 +32,7 @@
 		}));
 
 		// create event
-		await Events.insert({
+		await Incidents.record(null, {
 			type: 'account_created',
 			time: Date.now(),
 			data: {

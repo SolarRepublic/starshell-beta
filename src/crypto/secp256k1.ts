@@ -11,9 +11,6 @@ import {
 } from '@solar-republic/wasm-secp256k1';
 import { ManagedKey } from './keyring';
 
-// import { sign as tiny_secp256k1_sign } from 'tiny-secp256k1';
-import * as secp from '@noble/secp256k1';
-
 
 const KN_ZERO_32 = SensitiveBigUint.empty(32);
 
@@ -103,6 +100,14 @@ const hm_privates = new Map<Secp256k1Key, Secp256k1KeyFields>();
 export class Secp256k1Key {
 	static withinCurve(kg_sk: SensitiveBigUint): boolean {
 		return KN_ZERO_32.lt(kg_sk) && KN_CURVE_N_SECP256K1.gt(kg_sk);
+	}
+
+	/**
+	 * Initializes the WASM instance
+	 */
+	static async init(): Promise<void> {
+		// secp256k1 not yet initialized; initialize it
+		if(!y_secp256k1) await init_secp256k1();
 	}
 
 	/**

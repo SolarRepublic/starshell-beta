@@ -9,7 +9,6 @@
 	import type { IntraExt } from "#/script/messages";
 	import { onMount } from "svelte";
 	import { get } from "svelte/store";
-	import { runtime } from "webextension-polyfill";
 
 	export let page: Page;
 	export let completed: Completed;

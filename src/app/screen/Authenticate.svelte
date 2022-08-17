@@ -178,9 +178,11 @@
 
 	<div class="form flex-rows">
 		<Field key="password" name="">
+			<!-- svelte-ignore a11y-autofocus -->
 			<input
 				type="password"
 				name="password"
+				autofocus
 				placeholder="Password"
 				bind:value={sh_password}
 				class:invalid={s_err_password}

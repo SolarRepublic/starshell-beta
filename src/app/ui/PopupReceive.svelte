@@ -127,8 +127,8 @@
 		if(dm_qr && g_account_selected && g_chain_selected) {
 			const y_qrcode = new QRCode({
 				content: `starshell:${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}`,
-				width: 240,
-				height: 240,
+				width: 220,
+				height: 220,
 				padding: 3,
 				ecl: 'H',
 				join: true,
@@ -171,8 +171,8 @@
 
 	.qr-code {
 		flex-shrink: 0;
-		width: 240px;
-		height: 240px;
+		width: 220px;
+		height: 220px;
 		border-radius: 8px;
 		overflow: hidden;
 		text-align: center;

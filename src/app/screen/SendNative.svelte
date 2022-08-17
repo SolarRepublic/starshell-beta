@@ -1,32 +1,35 @@
-<script context="module" lang="ts">
-
-</script>
-
 <script lang="ts">
-	import type { Account, AccountPath } from "#/meta/account";
-	import type { Bech32 } from "#/meta/chain";
-	import type { Contact } from "#/meta/contact";
-import { NB_MAX_MEMO } from "#/share/constants";
-	import { Accounts } from "#/store/accounts";
-	import { Agents } from "#/store/agents";
-	import { Chains } from "#/store/chains";
-	import { Events } from "#/store/events";
-	import { CoinGecko } from "#/store/web-apis";
-import { buffer_to_base64, concat, sha256, sha256_sync, text_to_buffer } from "#/util/data";
-	import { format_fiat } from "#/util/format";
-	import BigNumber from "bignumber.js";
+	import type {Account, AccountPath} from '#/meta/account';
+	import type {Bech32} from '#/meta/chain';
+	import type {Contact} from '#/meta/contact';
+	import {NB_MAX_MEMO} from '#/share/constants';
+	import {Accounts} from '#/store/accounts';
+	import {Agents} from '#/store/agents';
+	import {Chains} from '#/store/chains';
+	import {Incidents} from '#/store/incidents';
+	import {CoinGecko} from '#/store/web-apis';
+	import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_string8, buffer_to_text, concat, sha256, string8_to_buffer, text_to_buffer} from '#/util/data';
+	import {format_fiat} from '#/util/format';
+	import BigNumber from 'bignumber.js';
 
-	import { getContext, onMount } from "svelte";
-import { sys } from "typescript";
-import { syserr } from "../common";
-	import { ThreadId } from "../def";
-	import { yw_chain, yw_navigator, yw_network_active } from "../mem";
-	import ActionsLine from "../ui/ActionsLine.svelte";
-	import Address from "../ui/Address.svelte";
-	import Field from "../ui/Field.svelte";
-	import { Screen, Header, type Page } from './_screens';
+	import {Tabs, Tab, TabList, TabPanel} from 'svelte-tabs';
+
+	import {getContext} from 'svelte';
+	import {syserr} from '../common';
+	import {ThreadId} from '../def';
+	import {yw_chain, yw_navigator, yw_network_active, yw_network_ref} from '../mem';
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import Address from '../ui/Address.svelte';
+	import Field from '../ui/Field.svelte';
+	import {Screen, Header, type Page} from './_screens';
+	import MemoReview from '../ui/MemoReview.svelte';
+	import type { Vocab } from '#/meta/vocab';
+	import type { IntraExt } from '#/script/messages';
+	import { compileMemoPlaintext, ecdhNonce } from '#/crypto/privacy';
 
 	const k_page = getContext<Page>('page');
+
+	const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
 
 	/**
 	 * Native coin id
@@ -49,6 +52,9 @@ import { syserr } from "../common";
 	export let encryptMemo = false;
 	const b_memo_encrypted = encryptMemo;
 
+	let s_memo_publish = '';
+	let s_memo_encrypted = '';
+
 	let s_recipient_title = '';
 
 	let g_contact: Contact['interface'] | null;
@@ -58,9 +64,12 @@ import { syserr } from "../common";
 
 	$: s_total = new BigNumber(s_amount).plus(fee).toString();
 
-	export let memo: string;
+	export let memoPlaintext: string;
 
 	let x_worth = 0;
+
+	const xg_limit = 20_000n;
+	const x_price = 0.25;
 
 	(async(fk_resolve) => {
 		const si_coingecko = g_coin.extra?.coingecko_id || '';
@@ -83,20 +92,20 @@ import { syserr } from "../common";
 		s_recipient_title = g_contact?.name || '';
 
 		if(b_memo_encrypted) {
-debugger;
 			// encode memo
-			const atu8_memo_in = text_to_buffer(memo);
+			const atu8_memo_in = text_to_buffer(memoPlaintext);
 
 			// exceeds length
 			if(atu8_memo_in.byteLength > NB_MAX_MEMO) {
 				throw syserr({
-					text: 'Memo exceeds character limitation',
+					title: 'Invalid Memo',
+					text: 'Your memo text exceeds the character limitation for private memos',
 				});
 			}
 
 			// prepare the plaintext buffer
-			const atu8_memo = new Uint8Array(280);
-			atu8_memo.set(atu8_memo_in, 0);
+			const atu8_plaintext = new Uint8Array(NB_MAX_MEMO);
+			atu8_plaintext.set(atu8_memo_in, 0);
 
 			// locate recipient's public key
 			let atu8_pubkey_65: Uint8Array;
@@ -107,49 +116,62 @@ debugger;
 			}
 			catch(e_info) {
 				throw syserr({
+					title: 'Recipient Account Unpublished',
 					error: e_info,
 				});
 			}
 
 			// produce e2e nonce
 			let s_sequence: string;
-			let s_height: string;
 			try {
 				({
 					sequence: s_sequence,
-					height: s_height,
 				} = await $yw_network_active.e2eInfoFor(sa_sender));
 			}
 			catch(e_info) {
 				throw syserr({
+					title: 'Invalid Account for Private Memos',
 					error: e_info,
 				});
 			}
 
-			console.log({
-				atu8_pubkey_65: buffer_to_base64(atu8_pubkey_65),
-			});
+			const atu8_nonce = await ecdhNonce(`${BigInt(s_sequence) + 1n}`, `${xg_limit}`);
 
-			const atu8_nonce = await sha256(text_to_buffer(['s2r', s_sequence, s_height].join('\0')));
+			const atu8_ciphertext = await $yw_network_active.ecdhEncrypt(atu8_pubkey_65, atu8_plaintext, atu8_nonce);
 
-			const atu8_encrypted = await $yw_network_active.ecdhEncrypt(atu8_pubkey_65, atu8_memo, atu8_nonce);
+			s_memo_publish = s_memo_encrypted = compileMemoPlaintext(atu8_ciphertext);
 
-			console.log({
-				atu8_encrypted: buffer_to_base64(atu8_encrypted),
-			});
+			// simulate decryption
+			{
+				if(!s_memo_encrypted.startsWith('🔒1')) throw new Error(`Failed to verify encrypted memo prefix`);
+				const atu8_published = base93_to_buffer(s_memo_encrypted.slice(3));
+
+				const atu8_decrypted = await $yw_network_active.ecdhDecrypt(atu8_pubkey_65, atu8_published, atu8_nonce);
+
+				const s_memo_decrypted = buffer_to_text(atu8_decrypted).replace(/\0+$/, '');
+				if(s_memo_decrypted !== memoPlaintext) {
+					throw new Error(`Simulated decrypted memo did not match original: ${s_memo_decrypted}`);
+				}
+			}
 		}
 	})();
 
-	async function approve() {
+	function approve() {
 		const xg_amount = BigInt(new BigNumber(s_amount).shiftedBy(g_coin.decimals).toString());
 
-		const g_attempt = await $yw_network_active.bankSend(sa_sender, sa_recipient, si_coin, xg_amount, memo);
-
-		// prepend pending event to events store
-		await Events.insert({
-			type: 'pending',
-			time: Date.now(),
-			data: g_attempt,
+		// instruct service worker to complete send
+		void d_service.sendMessage({
+			type: 'bankSend',
+			value: {
+				network: $yw_network_ref,
+				sender: sa_sender,
+				recipient: sa_recipient,
+				coin: si_coin,
+				amount: `${xg_amount}`,
+				limit: `${xg_limit}`,
+				price: x_price,
+				memo: s_memo_publish,
+			},
 		});
 
 		// reset page
@@ -275,21 +297,10 @@ debugger;
 
 	<hr>
 	
-	<Field short
-		key='memo'
-		name='Memo'
-	>
-		{#if memo}
-			Plaintext:
-			<textarea disabled>{memo}</textarea>
-
-			Encrypted form:
-			<textarea disabled>{s_memo_encrypted}</textarea>
-		{:else}
-			<span class="empty-memo">(empty)</span>
-		{/if}
-	</Field>
-
+	<MemoReview
+		memoPlaintext={memoPlaintext}
+		memoCiphertext={s_memo_encrypted}
+	/>
 
 	<ActionsLine back confirm={['Approve', () => approve()]} />
 

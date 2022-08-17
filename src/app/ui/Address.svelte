@@ -33,7 +33,8 @@
 		// unable to use clipboard
 		catch(e_write) {
 			syserr({
-				text: 'Failed to write to the navigator clipboard',
+				title: 'Browser API Failure',
+				text: 'Failed to write to the navigator clipboard.',
 				error: e_write,
 			});
 

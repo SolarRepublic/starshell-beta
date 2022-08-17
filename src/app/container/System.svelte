@@ -19,6 +19,7 @@
 	import ProgressSvelte from './system/Progress.svelte';
 	import SideMenuSvelte from './system/SideMenu.svelte';
 	import VendorMenuSvelte from './system/VendorMenu.svelte';
+	import NotificationsSvelte from './system/Notifications.svelte';
 
 	import BlankSvelte from '##/screen/Blank.svelte';
 
@@ -502,6 +503,7 @@
 				<VendorMenuSvelte />
 				<SideMenuSvelte />
 				<PopupSvelte />
+				<NotificationsSvelte />
 			{/if}
 		{/await}
 	{/if}

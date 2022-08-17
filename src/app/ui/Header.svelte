@@ -71,13 +71,13 @@
 	 * The primary title to display
 	 */
 	export let title = '';
-	const s_title = title;
+	// const s_title = title;
 
 	/**
 	 * A short string to display immediately following the title
 	 */
 	export let symbol = '';
-	const s_symbol = symbol;
+	// const s_symbol = symbol;
 
 	/**
 	 * The substitle to display under the primary title
@@ -414,13 +414,13 @@
 		<!-- main title section on the left -->
 		<span class="main">
 			<div class="title">
-				{#if s_title}
+				{#if title}
 					<span class="name">
-						{s_title}
+						{title}
 					</span>
-					{#if s_symbol}
+					{#if symbol}
 						<span class="symbol">
-							- {s_symbol}
+							- {symbol}
 						</span>
 					{/if}
 				{/if}

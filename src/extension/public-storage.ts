@@ -47,5 +47,5 @@ export const PublicStorage = {
 			time: Date.now(),
 			version: SI_VERSION,
 		});
-	}
+	},
 };

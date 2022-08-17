@@ -54,7 +54,7 @@
 	/**
 	 * Sets the dimensions of the pfp icon
 	 */
-	export let pfpDim = 48;
+	export let pfpDim = 36;
 	const x_dim_pfp = pfpDim;
 
 

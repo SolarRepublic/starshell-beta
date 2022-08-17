@@ -1,4 +1,5 @@
 import type { CoinGeckoFiat } from "#/store/web-apis";
+import { fold, F_IDENTITY, F_NOOP } from "./belt";
 
 const D_INTL_USD = new Intl.NumberFormat('en-US', {
 	style: 'currency',
@@ -130,8 +131,10 @@ const D_INTL_AMOUNT_I1E3 = new Intl.NumberFormat('en-US', {
 	maximumSignificantDigits: 4,
 });
 
+
 export function format_amount(x_amount: number, b_shorter=false): string {
-	// if(b_shorter) debugger;
+	// shortening
+	const shorten = b_shorter? (s: string) => s.replace(/(\.\d+?)0+(\s+.*)?$/, '$1$2'): F_IDENTITY;
 
 	// zero
 	if(0 === x_amount) return '0';
@@ -140,7 +143,7 @@ export function format_amount(x_amount: number, b_shorter=false): string {
 	if(x_amount >= 1e6) {
 		for(const gc_abbr of A_NUMERIC_GT1) {
 			if(x_amount >= gc_abbr.order) {
-				return (x_amount / gc_abbr.order).toPrecision(3)+' '+gc_abbr.suffix;
+				return shorten((x_amount / gc_abbr.order).toPrecision(3))+' '+gc_abbr.suffix;
 			}
 		}
 	}
@@ -148,27 +151,28 @@ export function format_amount(x_amount: number, b_shorter=false): string {
 	else if(x_amount < 1) {
 		for(const gc_abbr of A_NUMERIC_LT1) {
 			if(x_amount <= gc_abbr.order) {
-				return (x_amount * gc_abbr.order).toPrecision(3)+' '+gc_abbr.metric;
+				return shorten((x_amount / gc_abbr.order).toPrecision(3))+' '+gc_abbr.metric;
 			}
 		}
 
 		// less than 1
-		return D_INTL_AMOUNT_LT1.format(x_amount);
+		return shorten(D_INTL_AMOUNT_LT1.format(x_amount));
 	}
 
 	// between 1k and 1M
 	if(x_amount >= 1e3) {
 		// make thousands shorter
 		if(b_shorter) {
-			return D_INTL_AMOUNT_I1E3.format(x_amount / 1e3)+' k';
+			return shorten(D_INTL_AMOUNT_I1E3.format(x_amount / 1e3))+' k';
 		}
 
-		return D_INTL_AMOUNT_GT1E3.format(x_amount);
+		return shorten(D_INTL_AMOUNT_GT1E3.format(x_amount));
 	}
 
 	// greater than 1
-	return D_INTL_AMOUNT_GT1.format(x_amount);
+	return shorten(D_INTL_AMOUNT_GT1.format(x_amount));
 }
+
 
 export function format_fiat(x_amount: number, si_fiat: CoinGeckoFiat='usd', b_omit_sign=false, n_decimals=2): string {
 	const s_formatted = x_amount < 1? D_INTL_USD_LT1.format(x_amount): D_INTL_USD.format(x_amount);
@@ -185,4 +189,28 @@ export function format_fiat(x_amount: number, si_fiat: CoinGeckoFiat='usd', b_om
 
 export function abbreviate_addr(sa_addr: string) {
 	return sa_addr.replace(/^(\w+1...).+(.{7})/, '$1[...]$2');
+}
+
+const D_INTL_DATE = new Intl.DateTimeFormat('en-US', {
+	month: 'short',
+	day: 'numeric',
+	year: 'numeric',
+	hour: 'numeric',
+	minute: 'numeric',
+});
+
+const timestamp_to_parts = (xt_timestamp=Date.now()) => fold(D_INTL_DATE.formatToParts(), g_part => ({
+	[g_part.type]: g_part.value,
+}));
+
+export function format_time(xt_timestamp: number): string {
+	const g_now = timestamp_to_parts();
+	const g_then = timestamp_to_parts(xt_timestamp);
+
+	let s_out = `${g_then.month} ${g_then.day}`;
+	if(g_now.year !== g_then.year) {
+		s_out += `, ${g_then.year}`;
+	}
+
+	return `${s_out} at ${g_then.hour}:${g_then.minute} ${g_then.dayPeriod}`;
 }

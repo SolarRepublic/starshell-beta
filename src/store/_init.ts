@@ -12,6 +12,8 @@ import {
 	SI_STORE_CHAINS,
 	SI_STORE_ENTITIES,
 	SI_STORE_EVENTS,
+	SI_STORE_INCIDENTS,
+	SI_STORE_HISTORIES,
 	SI_STORE_MEDIA,
 	SI_STORE_NETWORKS,
 	SI_STORE_PFPS,
@@ -22,7 +24,7 @@ import {
 	SI_STORE_WEB_APIS,
 	SI_STORE_WEB_RESOURCES,
 } from '#/share/constants';
-import { Dict, fold, ode, oderac } from '#/util/belt';
+import { Dict, fold, ode, oderac, oderom } from '#/util/belt';
 import { buffer_to_base64, sha256_sync, sha256_sync_insecure, text_to_buffer } from '#/util/data';
 
 
@@ -131,6 +133,14 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			},
 		},
 		tokenInterfaces: ['snip-20', 'snip-21', 'snip-721', 'snip-722'],
+		blockExplorer: {
+			base: 'https://secretnodes.com/{chain_prefix}',
+			block: '/blocks/{height}',
+			account: '/accounts/{address}',
+			contract: '/contracts/{address}',
+			validator: '/validators/{address}',
+			transaction: '/transactions/{hash}#overview',
+		},
 		testnet: true,
 	},
 	'/family.cosmos/chain.theta-testnet-001': {
@@ -154,6 +164,14 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			},
 		},
 		tokenInterfaces: ['cw-20'],
+		blockExplorer: {
+			base: 'https://testnet.cosmos.bigdipper.live',
+			block: '/blocks/{height}',
+			account: '/accounts/{address}',
+			contract: '/contracts/{address}',
+			validator: '/validators/{address}',
+			transaction: '/transactions/{hash}',
+		},
 		testnet: true,
 	},
 });
@@ -192,6 +210,12 @@ export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
 		connections: {},
 		pfp: '' as PfpPath,
 	},
+	{
+		scheme: 'https',
+		host: 'faucet.pulsar.scrttestnet.com',
+		connections: {},
+		pfp: '' as PfpPath,
+	},
 ], g_each => ({
 	[`/scheme.${g_each.scheme}/host.${g_each.host.replace(/:/g, '+')}`]: g_each,
 })) as Record<AppPath, App['interface']>);
@@ -206,11 +230,22 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		family: 'cosmos',
 		chains: {},
 		pfp: H_LOOKUP_PFP['/media/other/supdoggie.png'],
-		address: '0mtm48ul5mcgjj4hm0a4j3td4l5pt590erl3k9',
+		address: 'lhr6lnhscpdlrpjuat7jstar8snhhkguaemesd',
 		origin: 'built-in',
 	} as Contact['interface'],
 	{
 		name: 'faucet.secrettestnet.io',
+		notes: '',
+		agentType: ContactAgentType.PERSON,
+		space: 'acc',
+		family: 'cosmos',
+		chains: {},
+		pfp: '' as PfpPath,
+		address: '3fqtu0lxsvn8gtlf3mz5kt75spxv93ssa6vecf',
+		origin: 'built-in',
+	} as Contact['interface'],
+	{
+		name: 'faucet.pulsar.scrttestnet.com',
 		notes: '',
 		agentType: ContactAgentType.PERSON,
 		space: 'acc',
@@ -244,6 +279,13 @@ export const H_STORE_INITS: {
 	[SI_STORE_PFPS]: H_STORE_INIT_PFPS,
 	[SI_STORE_ENTITIES]: {},
 	[SI_STORE_EVENTS]: [],
+	[SI_STORE_INCIDENTS]: {},
+	[SI_STORE_HISTORIES]: {
+		order: [],
+		syncs: oderom(H_STORE_INIT_CHAINS, p_chain => ({
+			[p_chain]: {},
+		})),
+	},
 	[SI_STORE_SECRETS]: {},
 	[SI_STORE_TAGS]: {
 		registry: oderac({

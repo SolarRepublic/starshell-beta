@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-	import type { PfpPath } from '#/meta/pfp';
+	import type {PfpPath} from '#/meta/pfp';
 
 	export enum TxnContext {
 		NONE='none',
@@ -24,8 +24,7 @@
 </script>
 
 <script lang="ts">
-	import type { EventTypeKey, LogEvent } from '#/meta/store';
-	import { dd, open_external_link } from '#/util/dom';
+	import {dd, open_external_link} from '#/util/dom';
 
 	import Row from '../ui/Row.svelte';
 
@@ -36,16 +35,24 @@
 	import SX_RECV from '#/icon/recv.svg?raw';
 	import SX_ACC_CREATED from '#/icon/account-added.svg?raw';
 	import BigNumber from 'bignumber.js';
-	import { Chains } from '#/store/chains';
-	import type { Promisable } from '#/util/belt';
-	import { abbreviate_addr, format_amount } from '#/util/format';
-	import { Accounts } from '#/store/accounts';
-	import type { AccountPath } from '#/meta/account';
-	import { Agents } from '#/store/agents';
+	import {Chains} from '#/store/chains';
+	import type {Promisable} from '#/util/belt';
+	import {abbreviate_addr, format_amount} from '#/util/format';
+	import {Accounts} from '#/store/accounts';
+	import type {AccountPath} from '#/meta/account';
+	import {Agents} from '#/store/agents';
 	import Put from '../ui/Put.svelte';
 	import PfpDisplay from '../ui/PfpDisplay.svelte';
-import { Entities } from '#/store/entities';
-import { R_TRANSFER_AMOUNT } from '#/share/constants';
+	import {Entities} from '#/store/entities';
+	import {R_TRANSFER_AMOUNT} from '#/share/constants';
+	import {getContext} from 'svelte';
+	import IncidentView from '../screen/IncidentView.svelte';
+	import type {Incident, IncidentType, TxConfirmed, TxSynced} from '#/meta/incident';
+
+	import type {
+		Page,
+	} from '##/screen/_screens';
+	import {parse_coin_amount} from '#/chain/coin';
 
 	// import {definition} from '@fortawesome/free-solid-svg-icons/faRobot';
 	// const SXP_ROBOT = definition.icon[4];
@@ -54,7 +61,7 @@ import { R_TRANSFER_AMOUNT } from '#/share/constants';
 	// import SX_PERSONAL from '@material-design-icons/svg/outlined/account_box.svg?raw';
 	// import SX_CONTRACT from '@material-design-icons/svg/outlined/analytics.svg?raw';
 
-	export let events: LogEvent[];
+	export let incidents: Incident.Struct[];
 	export let context: TxnContext = TxnContext.NONE;
 
 	const b_ctx_contact = context === TxnContext.CONTACT;
@@ -80,6 +87,8 @@ import { R_TRANSFER_AMOUNT } from '#/share/constants';
 	// 	[Txn.Type.RECV]: 'color-icon-recv',
 	// } as Record<Txn.Type | Txn.BankishType, string>;
 
+	const k_page = getContext<Page>('page');
+
 	const mk_icon = (sx_icon: string) => {
 		const dm_icon = dd('span', {
 			class: 'event-icon',
@@ -100,80 +109,121 @@ import { R_TRANSFER_AMOUNT } from '#/share/constants';
 		return y_ago.format(xt_when, 'twitter');
 	}
 
-	const H_EVENT_MAP: {
-		[si_type in EventTypeKey]: (g: LogEvent<si_type>) => Promisable<Detail>;
+	const H_INCIDENT_MAP: {
+		[si_type in IncidentType]: (g: Incident.Struct<si_type>) => Promisable<Detail>;
 	} = {
-		async pending(g_event) {
+		async tx_out(g_incident) {
 			const {
 				time: xt_when,
+				data: g_data,
 				data: {
 					chain: p_chain,
-					coin: si_coin,
+					stage: si_stage,
 					hash: si_txn,
-					owner: sa_owner,
-					msg: g_msg,
 				},
-			} = g_event;
-
+			} = g_incident;
 
 			const g_chain = (await Chains.at(p_chain))!;
 
-			const g_coin = g_chain.coins[si_coin];
+			const b_pending = 'pending' === si_stage;
+			const b_confirmed = 'confirmed' === si_stage;
+			const b_synced = 'synced' === si_stage;
 
-			const x_amount = new BigNumber(g_event.data.msg.amount[0].amount).shiftedBy(-g_chain.coins[si_coin].decimals).toNumber();
+			if(b_confirmed || b_synced) {
+				const {
+					msgs: a_msgs,
+					code: xc_code,
+				} = g_data as TxConfirmed | TxSynced;
 
-			const sa_recipient = g_msg.toAddress;
-			const p_contact = Agents.pathForContact(sa_recipient);
-			const g_contact = await Agents.getContact(p_contact);
+				// single message
+				if(1 === a_msgs.length) {
+					const {
+						events: h_events,
+					} = a_msgs[0];
+
+					// transfer
+					if(h_events.transfer) {
+						const g_transfer = h_events.transfer;
+
+						const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+
+						const x_amount = new BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals).toNumber();
+
+						const sa_recipient = g_transfer.recipient;
+						const p_contact = Agents.pathForContact(sa_recipient);
+						const g_contact = await Agents.getContact(p_contact);
+
+						return {
+							title: `Sent ${g_coin.name}`,
+							name: si_coin,
+							icon: mk_icon(SX_SEND),
+							subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_recipient)}`,
+							amount: `${format_amount(x_amount, true)} ${si_coin}`,
+							pfp: g_coin.pfp,
+						};
+					}
+				}
+			}
 
 			return {
-				title: `Send ${g_coin.name}`,
-				name: si_coin,
-				icon: DM_ICON_SEND,
-				subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: sa_recipient}`,
-				amount: `${format_amount(x_amount, true)} ${si_coin}`,
-				pfp: g_coin.pfp,
-				pending: true,
+				title: 'Outgoing Transaction',
+				name: '',
+				icon: mk_icon(SX_SEND),
 			};
 		},
 
-		async send(g_event) {
+		async tx_in(g_incident) {
 			const {
 				time: xt_when,
+				data: g_data,
 				data: {
 					chain: p_chain,
-					coin: si_coin,
+					stage: si_stage,
 					hash: si_txn,
-					owner: sa_owner,
-					msg: g_msg,
-					height: s_height,
+					msgs: a_msgs,
+					code: xc_code,
 				},
-			} = g_event;
-
+			} = g_incident;
 
 			const g_chain = (await Chains.at(p_chain))!;
 
-			const g_coin = g_chain.coins[si_coin];
+			const b_confirmed = 'confirmed' === si_stage;
+			const b_synced = 'synced' === si_stage;
 
-			const x_amount = new BigNumber(g_event.data.msg.amount[0].amount).shiftedBy(-g_chain.coins[si_coin].decimals).toNumber();
+			// single message
+			if(1 === a_msgs.length) {
+				const {
+					events: h_events,
+				} = a_msgs[0];
 
-			const sa_recipient = g_msg.toAddress;
-			const p_contact = Agents.pathForContact(sa_recipient);
-			const g_contact = await Agents.getContact(p_contact);
+				// transfer
+				if(h_events.transfer) {
+					const g_transfer = h_events.transfer;
+
+					const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+
+					const x_amount = new BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals).toNumber();
+
+					const sa_recipient = g_transfer.recipient;
+					const p_contact = Agents.pathForContact(sa_recipient);
+					const g_contact = await Agents.getContact(p_contact);
+
+					return {
+						title: `Received ${g_coin.name}`,
+						name: si_coin,
+						icon: mk_icon(SX_RECV),
+						subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(g_transfer.sender)}`,
+						amount: `${format_amount(x_amount, true)} ${si_coin}`,
+						// link: 'SCRT' === si_coin? `<a href="https://secretnodes.com/secret/chains/pulsar-2/blocks/${s_height}/transactions/${si_txn}">View on block explorer</a>`: '',
+						pfp: g_coin.pfp,
+					};
+				}
+			}
 
 			return {
-				title: `Sent ${g_coin.name}`,
-				name: si_coin,
-				icon: mk_icon(SX_SEND),
-				subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_recipient)}`,
-				amount: `${format_amount(x_amount, true)} ${si_coin}`,
-				link: 'SCRT' === si_coin
-					? {
-						href: `https://secretnodes.com/secret/chains/pulsar-2/blocks/${s_height}/transactions/${si_txn}`,
-						text: 'View on block explorer',
-					}
-					: null,
-				pfp: g_coin.pfp,
+				title: `Incoming Transaction`,
+				name: '',
+				icon: mk_icon(SX_RECV),
 			};
 		},
 
@@ -195,68 +245,13 @@ import { R_TRANSFER_AMOUNT } from '#/share/constants';
 				pfp: g_account.pfp || '',
 			};
 		},
-
-
-		async receive(g_event) {
-			const {
-				time: xt_when,
-				data: {
-					height: s_height,
-					amount: s_amount,
-					chain: p_chain,
-					coin: si_coin,
-					recipient: sa_recipient,
-					sender: sa_sender,
-				},
-			} = g_event;
-
-			const sa_other = sa_sender;
-			const p_contact = Agents.pathForContact(sa_other);
-			const g_contact = await Agents.getContact(p_contact);
-
-			const g_chain = (await Chains.at(p_chain))!;
-			const g_coin = g_chain.coins[si_coin];
-
-			const [, s_size] = R_TRANSFER_AMOUNT.exec(s_amount)!;
-
-			const x_amount = new BigNumber(s_size).shiftedBy(-g_chain.coins[si_coin].decimals).toNumber();
-
-			return {
-				title: `Received ${g_coin.name}`,
-				name: si_coin,
-				icon: mk_icon(SX_RECV),
-				subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_other)}`,
-				amount: `${format_amount(x_amount, true)} ${si_coin}`,
-				// link: 'SCRT' === si_coin? `<a href="https://secretnodes.com/secret/chains/pulsar-2/blocks/${s_height}/transactions/${si_txn}">View on block explorer</a>`: '',
-				pfp: g_coin.pfp,
-			};
-		},
-
-		transaction(g_event) {
-
-		},
 	};
 
 
-	async function detail_event(g_event: LogEvent): Promise<Detail> {
-		return await (H_EVENT_MAP[g_event.type] as (g: LogEvent<typeof g_event['type']>) => Promisable<Detail>)(g_event);
+	async function detail_incident(g_incident: Incident.Struct): Promise<Detail> {
+		return await (H_INCIDENT_MAP[g_incident.type] as (g: Incident.Struct) => Promisable<Detail>)(g_incident);
 	}
 
-	// function detail_bankish(g_bankish?: Txn.Bankish | null): {prefix: string; name: string; icon: string} {
-	// 	if(!g_bankish) return {prefix:'', name:'', icon:''};
-	
-	// 	const k_contact = H_ADDR_TO_CONTACT[g_bankish.address];
-	
-	// 	return {
-	// 		prefix: (Txn.BankishType.SEND === g_bankish.type? 'to': 'fr')+':',
-	// 		name: k_contact? k_contact.def.label: '',
-	// 		icon: k_contact
-	// 			? Contact.Type.PERSON === k_contact.def.type
-	// 				? SX_PERSONAL
-	// 				: SX_CONTRACT
-	// 			: '',
-	// 	};
-	// }
 </script>
 
 <style lang="less">
@@ -305,8 +300,8 @@ import { R_TRANSFER_AMOUNT } from '#/share/constants';
 <div class="txns no-margin">
 	<slot name="first"></slot>
 
-	{#each events as g_event}
-		{#await detail_event(g_event)}
+	{#each incidents as g_incident}
+		{#await detail_incident(g_incident)}
 			Loading event...
 		{:then g_detail}
 			<Row
@@ -314,6 +309,14 @@ import { R_TRANSFER_AMOUNT } from '#/share/constants';
 				detail={g_detail.subtitle}
 				amount={g_detail.amount || ''}
 				fiat={g_detail.fiat || ''}
+				on:click={() => {
+					k_page.push({
+						creator: IncidentView,
+						props: {
+							incident: g_incident,
+						},
+					});
+				}}
 			>
 				<svelte:fragment slot="icon">
 					<Put element={g_detail.icon} />
@@ -321,7 +324,7 @@ import { R_TRANSFER_AMOUNT } from '#/share/constants';
 
 				<svelte:fragment slot="right">
 					{#if 'string' === typeof g_detail.pfp}
-						<PfpDisplay dim={36} name={g_detail.name} ref={g_detail.pfp} circular={'pending' === g_event.type}
+						<PfpDisplay dim={36} name={g_detail.name} ref={g_detail.pfp} circular={'pending' === g_incident.type}
 							rootStyle='margin-left: 1em;'
 						/>
 					{/if}

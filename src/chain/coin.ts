@@ -1,8 +1,10 @@
-import type {NativeCoin} from '#/meta/chain';
+import type {Chain, NativeCoin} from '#/meta/chain';
 import type {Coin} from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
 import BigNumber from 'bignumber.js';
 import {CoinGecko} from '#/store/web-apis';
+import { R_TRANSFER_AMOUNT } from '#/share/constants';
+import { ode } from '#/util/belt';
 
 export function as_amount(g_balance: Coin, g_coin: NativeCoin): string {
 	const s_norm = g_balance.amount.padStart(g_coin.decimals + 2, '0');
@@ -64,4 +66,33 @@ export async function coin_formats(g_balance: Coin, g_coin: NativeCoin, si_versu
 		fiat: yg_balance.times(x_worth).toNumber(),
 		worth: x_worth,
 	};
+}
+
+
+export class CoinParseError extends Error {}
+export class DenomNotFoundError extends Error {}
+
+export function parse_coin_amount(s_input: string, g_chain: Chain['interface']): [bigint, string, NativeCoin] {
+	// attempt to parse amount
+	const m_amount = R_TRANSFER_AMOUNT.exec(s_input);
+	if(!m_amount) {
+		throw new CoinParseError(`Failed to parse transfer amount "${s_input}"`);
+	}
+	else {
+		// destructure into amount and denom
+		const [, s_amount, si_denom] = m_amount;
+
+		// locate coin
+		for(const [si_coin_test, g_coin_test] of ode(g_chain.coins)) {
+			if(si_denom === g_coin_test.denom) {
+				return [
+					BigInt(s_amount),
+					si_coin_test,
+					g_coin_test,
+				];
+			}
+		}
+
+		throw new DenomNotFoundError(`Did not find "${si_denom}" denomination in ${g_chain.name}`);
+	}
 }

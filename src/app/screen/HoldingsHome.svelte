@@ -102,8 +102,8 @@
 		}
 		catch(e_network) {
 			syserr({
+				title: 'Network Error',
 				error: e_network as Error,
-				text: 'Network error',
 			});
 			return [];
 		}
@@ -147,7 +147,8 @@
 
 	const H_FAUCETS = {
 		'theta-testnet-001': 'https://discord.com/channels/669268347736686612/953697793476821092',
-		'pulsar-2': 'https://faucet.secrettestnet.io/',
+		// 'pulsar-2': 'https://faucet.secrettestnet.io/',
+		'pulsar-2': 'https://faucet.pulsar.scrttestnet.com/',
 	};
 </script>
 

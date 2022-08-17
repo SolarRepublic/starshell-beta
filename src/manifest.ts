@@ -3,7 +3,21 @@ import type { ContentScripts } from 'webextension-polyfill';
 type ManifestV2 = chrome.runtime.ManifestV2;
 type ManifestV3 = chrome.runtime.ManifestV3;
 
-const SX_CONTENT_SECURITY_POLICY = `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; object-src 'self'`;
+const H_CONTENT_SECURITY_POLICY = {
+	'script-src': ['self', 'wasm-unsafe-eval'],
+	'object-src': ['self'],
+};
+
+function csp(h_merge: Record<string, string[]>={}): string {
+	return Object.entries({
+		...H_CONTENT_SECURITY_POLICY,
+		...h_merge,
+	}).reduce((a_out, [si_key, a_values]) => [
+		...a_out,
+		`${si_key} ${a_values.map(s => `'${s}'`).join(' ')}`,
+	], []).join('; ');
+}
+// const SX_CONTENT_SECURITY_POLICY = `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; object-src 'self'`;
 
 const H_ICONS = {
 	16: 'media/vendor/icon_16.png',
@@ -93,7 +107,9 @@ export const GC_MANIFEST_V2: Partial<ManifestV2> = {
 			'src/script/service.ts',
 		],
 	},
-	content_security_policy: SX_CONTENT_SECURITY_POLICY,
+	content_security_policy: csp({
+		'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], 'unsafe-eval'],
+	}),
 };
 
 export const GC_MANIFEST_V3: Partial<ManifestV3> = {
@@ -122,7 +138,7 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 		type: 'module',
 	},
 	content_security_policy: {
-		extension_pages: SX_CONTENT_SECURITY_POLICY,
+		extension_pages: csp(),
 	},
 };
 

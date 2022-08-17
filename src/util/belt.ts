@@ -1,4 +1,5 @@
 import type { PlainObject } from "#/meta/belt";
+import { run } from "svelte/internal";
 
 /**
  * Shortcut for a very common type pattern
@@ -48,6 +49,12 @@ export type JsonValue =
  * The frequently-used "no-operation" function
  */
 export const F_NOOP = () => {};  // eslint-disable-line
+
+
+/**
+ * The seldomnly-used "identity" function
+ */
+export const F_IDENTITY = w => w;  // eslint-disable-line
 
 
 /**
@@ -220,6 +227,45 @@ export function timeout(xt_wait: number): Promise<void> {
 		setTimeout(() => {
 			fk_resolve();
 		}, xt_wait);
+	});
+}
+
+
+export interface WithTimeoutConfig<w_value extends any> {
+	duration: number;
+	trip: VoidFunction;
+	run: () => Promise<w_value>;
+}
+
+export function with_timeout<w_value extends any>(g_with: WithTimeoutConfig<w_value>): Promise<w_value> {
+	// go async
+	return new Promise((fk_resolve, fe_reject) => {
+		// state of completion
+		let b_complete = false;
+
+		// timer
+		setTimeout(() => {
+			// already completed
+			if(b_complete) return;
+
+			// now complete
+			b_complete = true;
+
+			// reject
+			fe_reject(g_with.trip());
+		}, g_with.duration);
+
+		// run task
+		g_with.run().then((w_value: w_value) => {
+			// already failed
+			if(b_complete) return;
+
+			// now complete
+			b_complete = true;
+
+			// resolve
+			fk_resolve(w_value);
+		}).catch(fe_reject);
 	});
 }
 

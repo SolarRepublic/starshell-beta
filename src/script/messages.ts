@@ -9,7 +9,7 @@ import type { ConnectionHandleConfig } from '#/provider/connection';
 import type { App } from '#/meta/app';
 import type { StoreKey } from '#/meta/store';
 import type { PromptConfig } from './msg-flow';
-import type { ChainPath } from '#/meta/chain';
+import type { Bech32, ChainPath } from '#/meta/chain';
 import type { NetworkPath } from '#/meta/network';
 
 
@@ -398,4 +398,22 @@ export namespace IntraExt {
 		};
 	}>;
 
+
+	/**
+	 * Vocab for instructions to be given directly to service worker.
+	 */
+	export type ServiceInstruction = Vocab.New<{
+		bankSend: {
+			value: {
+				network: NetworkPath;
+				sender: Bech32.String;
+				recipient: Bech32.String;
+				coin: string;
+				amount: `${bigint}`;
+				limit: `${bigint}`;
+				price: number;
+				memo: string;
+			};
+		};
+	}>;
 }
