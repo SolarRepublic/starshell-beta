@@ -3,29 +3,43 @@ import BlankSvelte from '#/app/screen/Blank.svelte';
 import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
 
 
-import type { SvelteComponent } from 'svelte';
-import type { PageConfig } from '#/app/nav/page';
-import { Vault } from '#/crypto/vault';
-import { qs } from '#/util/dom';
-import { initialize_caches, yw_navigator } from '#/app/mem';
-import { ThreadId } from '#/app/def';
-import { F_NOOP, ode } from '#/util/belt';
-import { dm_log, domlog } from './fallback';
+import type {SvelteComponent} from 'svelte';
+import type {PageConfig} from '#/app/nav/page';
+import {session_storage_clear, Vault} from '#/crypto/vault';
+import {qs} from '#/util/dom';
+import {initialize_caches, yw_navigator} from '#/app/mem';
+import {ThreadId} from '#/app/def';
+import {F_NOOP, ode} from '#/util/belt';
+import {dm_log, domlog} from './fallback';
 import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
-import { global_receive } from '#/script/msg-global';
-import { Accounts } from '#/store/accounts';
+import {global_receive} from '#/script/msg-global';
+import {Accounts} from '#/store/accounts';
 import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
-import { login, register } from '#/share/auth';
-import { XT_SECONDS } from '#/share/constants';
-import { check_restrictions } from '#/extension/restrictions';
+import {login, register} from '#/share/auth';
+import {XT_SECONDS} from '#/share/constants';
+import {check_restrictions} from '#/extension/restrictions';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
-import { WebResourceCache } from '#/store/web-resource-cache';
+import type {Vocab} from '#/meta/vocab';
+import type {IntraExt} from '#/script/messages';
+import {storage_clear} from '#/extension/public-storage';
 
-// bind factory reset button
-document.getElementById('factory-reset')?.addEventListener('click', async() => {
-	await chrome.storage.session.clear();
-	await chrome.storage.local.clear();
-	await reload();
+window.addEventListener('DOMContentLoaded', () => {
+	// hide dom log
+	if(dm_log) {
+		dm_log.style.opacity = '0';
+
+		// show it shortly
+		setTimeout(() => {
+			dm_log!.style.opacity = '1';
+		}, 2e3);
+	}
+
+	// bind factory reset button
+	document.getElementById('factory-reset')?.addEventListener('click', async() => {
+		await session_storage_clear();
+		await storage_clear();
+		await reload();
+	});
 });
 
 // top-level system component
@@ -183,6 +197,32 @@ async function reload() {
 				dm_log!.style.display = 'none';
 			}
 			catch(e_hide) {}
+
+			// listen for heartbeat
+			const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
+			let i_service_health = 0;
+			function health_check() {
+				clearTimeout(i_service_health);
+
+				i_service_health = setTimeout(() => {
+					void d_service.sendMessage({
+						type: 'wake',
+					});
+
+					console.warn(`Waking idle service worker`);
+				}, 2e3);
+			}
+
+			global_receive({
+				heartbeat() {
+					health_check();
+				},
+			});
+
+			// user is logged in, ensure the service is running
+			if(b_launch) {
+				health_check();
+			}
 		}
 	});
 

@@ -9,6 +9,7 @@
 	import { yw_store_tags } from '../mem';
 	import type { Promisable } from '#/util/belt';
 	import { onDestroy } from 'svelte';
+import Load from './Load.svelte';
 	
 	
 	// import LockOutline from 'svelte-material-icons/LockOutline.svelte';
@@ -283,11 +284,13 @@
 						flex: 0;
 					}
 
-					.fiat {
-						.font(tiny);
-						flex: 0;
-						color: var(--theme-color-text-med);
-						white-space: nowrap;
+					.fiat-container {
+						:global(.fiat) {
+							.font(tiny);
+							flex: 0;
+							color: var(--theme-color-text-med);
+							white-space: nowrap;
+						}
 					}
 				}
 			}
@@ -371,7 +374,8 @@
 				{:else if amount}
 					<div class="amount">
 						<span class="number">
-							{#await start_spinner(amount)}
+							<Load input={amount} pad />
+							<!-- {#await start_spinner(amount)}
 								<span class="font-family_mono">
 									{s_spin}
 								</span>
@@ -379,19 +383,13 @@
 								<span>
 									{amount}
 								</span>
-							{/await}
+							{/await} -->
 						</span>
 					</div>
 
 					{#if fiat}
-						<div>
-							<span class="fiat">
-								{#await fiat}
-									$...
-								{:then s_fiat}
-									{s_fiat}
-								{/await}
-							</span>
+						<div class="fiat-container">
+							<Load input={fiat} classes="fiat" pad />
 						</div>
 					{/if}
 				{/if}

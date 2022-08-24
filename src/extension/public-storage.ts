@@ -1,5 +1,6 @@
-import { SI_VERSION } from "#/share/constants";
-import { precedes } from "./semver";
+import {SI_VERSION} from '#/share/constants';
+import type {JsonObject, JsonValue} from '#/util/belt';
+import {precedes} from './semver';
 
 interface LastSeen {
 	time: number;
@@ -14,20 +15,49 @@ type StorageSchema = {
 
 type PublicStorageKey = keyof StorageSchema;
 
+const async_callback = (f_action: (f: () => void) => void): Promise<any> => new Promise((fk_resolve, fe_reject) => {
+	f_action(() => {
+		if(chrome.runtime.lastError) {
+			fe_reject(chrome.runtime.lastError);
+		}
+		else {
+			fk_resolve(void 0);
+		}
+	});
+});
 
-export async function storage_get<w_value extends any=any>(si_key: string): Promise<w_value | null> {
-	const g_storage = await chrome.storage.local.get([si_key]) as {[si in typeof si_key]: w_value} | null;
-	return g_storage?.[si_key] || null;
+export function storage_get<w_value extends any=any>(si_key: string): Promise<w_value | null> {
+	return new Promise((fk_resolve) => {
+		chrome.storage.local.get([si_key], (h_gets) => {
+			fk_resolve(h_gets[si_key] as w_value || null);
+		});
+	});
 }
+
+export function storage_set(h_set: JsonObject): Promise<void> {
+	return new Promise((fk_resolve) => {
+		chrome.storage.local.set(h_set, () => {
+			fk_resolve();
+		});
+	});
+}
+
+export function storage_remove(si_key: string): Promise<void> {
+	return async_callback(f => chrome.storage.local.remove(si_key, f));
+}
+
+export function storage_clear(): Promise<void> {
+	return async_callback(f => chrome.storage.local.clear(f));
+}
+
 
 async function public_storage_get<w_value extends any=any>(si_key: PublicStorageKey): Promise<w_value | null> {
 	return await storage_get<w_value>(`@${si_key}`);
 }
 
-async function public_storage_put(si_key: PublicStorageKey, w_value: any): Promise<void> {
-	const si_wire = `@${si_key}`;
-	await chrome.storage.local.set({
-		[si_wire]: w_value,
+function public_storage_put(si_key: PublicStorageKey, w_value: JsonValue): Promise<void> {
+	return storage_set({
+		[`@${si_key}`]: w_value,
 	});
 }
 

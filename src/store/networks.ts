@@ -6,17 +6,15 @@ import {
 import { SI_STORE_NETWORKS } from '#/share/constants';
 import type { Network, NetworkPath } from '#/meta/network';
 import { buffer_to_base64, sha256_sync, text_to_buffer } from '#/util/data';
-import type { QueryBalanceResponse } from 'cosmos-grpc/dist/cosmos/bank/v1beta1/query';
-import { CosmosNetwork, ModWsTxResult, PendingSend } from '#/chain/main';
-import type { Bech32, Chain, ChainPath, HoldingPath } from '#/meta/chain';
+import { CosmosNetwork, IncidentTx, ModWsTxResult, PendingSend } from '#/chain/main';
+import type { Bech32, Chain, HoldingPath } from '#/meta/chain';
 import { yw_chain } from '#/app/mem';
-import type { Coin } from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import type { Dict, JsonObject, Promisable } from '#/util/belt';
-import type { TxResult } from 'cosmos-grpc/dist/tendermint/abci/types';
-import type { LogEvent } from '#/meta/store';
 import { Chains } from './chains';
 import type { TxConfirmed, TxPending, TxSynced } from '#/meta/incident';
-import type { BroadcastMode } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/service';
+import type { BroadcastMode, GetTxResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
+import type { Account } from '#/meta/account';
 
 export type BalanceBundle = {
 	balance: Coin;
@@ -132,27 +130,41 @@ export interface ActiveNetwork {
 
 	e2eInfoFor(sa_other: Bech32.String, s_max_height?: string): Promise<E2eInfo>;
 
-	ecdh(atu8_other_pubkey: Uint8Array, g_chain?: Chain['interface']): Promise<Uint8Array>;
+	ecdh(atu8_other_pubkey: Uint8Array, g_chain?: Chain['interface'], g_account?: Account['interface']): Promise<CryptoKey>;
 
-	ecdhEncrypt(atu8_other_pubkey: Uint8Array, atu8_plaintext: Uint8Array, atu8_nonce: Uint8Array, g_chain?: Chain['interface']): Promise<Uint8Array>;
+	ecdhEncrypt(
+		atu8_other_pubkey: Uint8Array,
+		atu8_plaintext: Uint8Array,
+		atu8_nonce: Uint8Array,
+		g_chain?: Chain['interface'],
+		g_account?: Account['interface']
+	): Promise<Uint8Array>;
 
-	ecdhDecrypt(atu8_other_pubkey: Uint8Array, atu8_ciphertext: Uint8Array, atu8_nonce: Uint8Array, g_chain?: Chain['interface']): Promise<Uint8Array>;
+	ecdhDecrypt(
+		atu8_other_pubkey: Uint8Array,
+		atu8_ciphertext: Uint8Array,
+		atu8_nonce: Uint8Array,
+		g_chain?: Chain['interface'],
+		g_account?: Account['interface']
+	): Promise<Uint8Array>;
 
 	isContract(sa_account: Bech32.String): Promise<boolean>;
 
-	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_tx?: JsonObject, si_txn?: string) => Promisable<void>): () => void;
+	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_tx?: JsonObject, si_txn?: string) => Promisable<void>): Promise<() => void>;
 
 	get hasRpc(): boolean;
 
-	onReceive(sa_owner: string, fke_receive: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): () => void;
+	onReceive(sa_owner: string, fke_receive: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): Promise<() => void>;
 
-	onSend(sa_owner: string, fke_send: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): () => void;
+	onSend(sa_owner: string, fke_send: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): Promise<() => void>;
 
 	cachedBalance(sa_owner: Bech32.String, si_coin: string): Cached<Coin> | null;
 
+	fetchTx(si_txn: string): Promise<GetTxResponse>;
+
 	downloadTxn(si_txn: string): Promise<TxSynced>;
 
-	synchronizeAll(sa_owner: Bech32.String): Promise<void>;
+	synchronizeAll(sa_owner: Bech32.String): AsyncIterableIterator<IncidentTx>;
 }
 
 export const Networks = create_store_class({

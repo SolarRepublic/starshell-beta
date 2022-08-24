@@ -13,7 +13,7 @@
 	import { Chains } from '#/store/chains';
 	import { CoinGecko } from '#/store/web-apis';
 	import { format_amount, format_fiat } from '#/util/format';
-	import type { Coin } from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+	import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 	import type { Chain, NativeCoin } from '#/meta/chain';
 	import type { Values } from '#/meta/belt';
 	import BigNumber from 'bignumber.js';
@@ -26,6 +26,7 @@
 	import type { BalanceBundle } from '#/store/networks';
 	import { syserr } from '../common';
 	import { Accounts } from '#/store/accounts';
+	import { global_receive } from '#/script/msg-global';
 
 	// $: sa_owner = Chains.addressFor($yw_account.pubkey, $yw_chain);
 
@@ -38,6 +39,19 @@
 	let c_balances = 0;
 	let b_balances_ready = true;
 	let a_no_gas: string[] = [];
+
+	let c_updates = 0;
+
+	global_receive({
+		transferReceive() {
+
+		},
+		updateStore({key:si_key}) {
+			if('' === si_key) {
+				c_updates += 1;
+			}
+		},
+	});
 
 	let fk_resolve_total: (s_total: string) => void;
 	let dp_total = new Promise<string>((fk_resolve) => {
@@ -196,124 +210,135 @@
 		</div>
 	{/if}
 
-	<!-- title={format_fiat(x_usd_balance)} -->
-	<Portrait
-		noPfp
-		title={dp_total}
-		subtitle={$yw_account.name}
-		resource={$yw_account}
-		resourcePath={$yw_account_ref}
-		actions={{
-			send: {
-				label: 'Send',
-				trigger() {
-					k_page.push({
-						creator: Send,
-						props: {
-							from: $yw_account,
-						},
-					});
-				},
-			},
-			recv: {
-				label: 'Receive',
-				trigger() {
-					popup_receive($yw_account_ref);
-				},
-			},
-			// add: {
-			// 	label: 'Add Token',
-			// 	trigger() {
-			// 		k_page.push({
-			// 			creator: TokensAdd,
-			// 		});
-			// 	},
-			// },
-		}}
-	/>
+	{#key c_updates}
 
-	{#key $yw_chain}
-		{#if a_no_gas.length}
-			<div class="no-gas text-align_center subinfo">
-				<div class="message">
-					<span class="warning">Warning:</span> you don't have any {$yw_chain.testnet? 'testnet ':''}{a_no_gas.join(' or ')} to pay gas fees.
-				</div>
+		<!-- title={format_fiat(x_usd_balance)} -->
+		<Portrait
+			noPfp
+			title={dp_total}
+			subtitle={$yw_account.name}
+			resource={$yw_account}
+			resourcePath={$yw_account_ref}
+			actions={{
+				send: {
+					label: 'Send',
+					trigger() {
+						k_page.push({
+							creator: Send,
+							props: {
+								from: $yw_account,
+							},
+						});
+					},
+				},
+				recv: {
+					label: 'Receive',
+					trigger() {
+						popup_receive($yw_account_ref);
+					},
+				},
+				// add: {
+				// 	label: 'Add Token',
+				// 	trigger() {
+				// 		k_page.push({
+				// 			creator: TokensAdd,
+				// 		});
+				// 	},
+				// },
+			}}
+		/>
 
-				<div class="buttons">
-					{#if $yw_chain.testnet}
-						<button class="pill" on:click={() => open_external_link(H_FAUCETS[$yw_chain.id])}>Get {a_no_gas.join(' or ')} from faucet</button>
-					{:else}
-						<button class="pill">Buy {a_no_gas.join(' or ')}</button>
-					{/if}
+		{#key $yw_chain}
+			{#if a_no_gas.length}
+				<div class="no-gas text-align_center subinfo">
+					<div class="message">
+						<span class="warning">Warning:</span> you don't have any {$yw_chain.testnet? 'testnet ':''}{a_no_gas.join(' or ')} to pay gas fees.
+					</div>
+
+					<div class="buttons">
+						{#if $yw_chain.testnet}
+							<button class="pill" on:click={() => open_external_link(H_FAUCETS[$yw_chain.id])}>Get {a_no_gas.join(' or ')} from faucet</button>
+						{:else}
+							<button class="pill">Buy {a_no_gas.join(' or ')}</button>
+						{/if}
+					</div>
 				</div>
+			{/if}
+
+			<div class="owner-address subinfo">
+				<Address address={$yw_owner} copyable='icon' />
 			</div>
-		{/if}
+		{/key}
+		
+	<!-- 
+		<Gap />
 
-		<div class="owner-address subinfo">
-			<Address address={$yw_owner} copyable='icon' />
-		</div>
-	{/key}
-
-
-	<Gap />
-
-	<!-- {#key a_holdings}
-		<HoldingsList holdings={a_holdings} />
-	{/key} -->
-
-	{#key $yw_network_active}
 		<div class="rows no-margin">
-			<!-- native coin(s) -->
-			{#await load_native_balances()}
-				{#each ode($yw_chain.coins) as [si_coin, g_bundle]}
+			<Row
+				name={`Staked`}
+			/>
+		</div> -->
+
+		<Gap />
+
+		<!-- {#key a_holdings}
+			<HoldingsList holdings={a_holdings} />
+		{/key} -->
+
+		{#key $yw_network_active}
+			<div class="rows no-margin">
+				<!-- native coin(s) -->
+				{#await load_native_balances()}
+					{#each ode($yw_chain.coins) as [si_coin, g_bundle]}
+						{@const p_entity = Entities.holdingPathFor($yw_owner, si_coin)}
+						<Row lockIcon detail='Native Coin'
+							name={si_coin}
+							pfp={$yw_chain.pfp}
+							amount={forever('')}
+							on:click={() => {
+								k_page.push({
+									creator: HoldingView,
+									props: {
+										entityRef: p_entity,
+									},
+								});
+							}}
+						/>
+					{/each}
+				{:then a_balances}
+					{#each a_balances as [si_coin, g_coin, g_balance, f_submit]}
 					{@const p_entity = Entities.holdingPathFor($yw_owner, si_coin)}
-					<Row lockIcon detail='Native Coin'
-						name={si_coin}
-						pfp={$yw_chain.pfp}
-						amount={forever('')}
-						on:click={() => {
-							k_page.push({
-								creator: HoldingView,
-								props: {
-									entityRef: p_entity,
-								},
-							});
+						{@const g_resource = {
+							name: si_coin,
+							pfp: $yw_chain.pfp,
 						}}
-					/>
-				{/each}
-			{:then a_balances}
-				{#each a_balances as [si_coin, g_coin, g_balance, f_submit]}
-				{@const p_entity = Entities.holdingPathFor($yw_owner, si_coin)}
-					{@const g_resource = {
-						name: si_coin,
-						pfp: $yw_chain.pfp,
-					}}
-					{@const dp_worth = f_submit(to_fiat(g_balance, g_coin))}
-					<Row lockIcon detail='Native Coin'
-						resourcePath={p_entity}
-						resource={g_resource}
-						amount={as_amount(g_balance, g_coin)}
-						fiat={dp_worth.then(yg => format_fiat(yg.toNumber(), 'usd'))}
-						on:click={() => {
-							k_page.push({
-								creator: HoldingView,
-								props: {
-									entityRef: p_entity,
-								},
-							});
-						}}
-					/>
-				{/each}
-			{/await}
+						{@const dp_worth = f_submit(to_fiat(g_balance, g_coin))}
+						<Row lockIcon detail='Native Coin'
+							resourcePath={p_entity}
+							resource={g_resource}
+							amount={as_amount(g_balance, g_coin)}
+							fiat={dp_worth.then(yg => format_fiat(yg.toNumber(), 'usd'))}
+							on:click={() => {
+								k_page.push({
+									creator: HoldingView,
+									props: {
+										entityRef: p_entity,
+									},
+								});
+							}}
+						/>
+					{/each}
+				{/await}
 
 
-			{#await Entities.readFungibleTokens($yw_chain)}
-				Loading tokens...
-			{:then h_fungibles}
-				{#each ode(merge_fungible_tokens(h_fungibles)) as [p_token, g_token]}
-					{g_token.spec}
-				{/each}
-			{/await}
-		</div>
+				{#await Entities.readFungibleTokens($yw_chain)}
+					Loading tokens...
+				{:then h_fungibles}
+					{#each ode(merge_fungible_tokens(h_fungibles)) as [p_token, g_token]}
+						{g_token.spec}
+					{/each}
+				{/await}
+			</div>
+		{/key}
 	{/key}
 </Screen>

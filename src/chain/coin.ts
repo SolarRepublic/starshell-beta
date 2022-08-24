@@ -1,5 +1,5 @@
 import type {Chain, NativeCoin} from '#/meta/chain';
-import type {Coin} from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
 import BigNumber from 'bignumber.js';
 import {CoinGecko} from '#/store/web-apis';

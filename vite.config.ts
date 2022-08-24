@@ -47,6 +47,8 @@ import {
 
 import replace from '@rollup/plugin-replace';
 
+import copy from 'rollup-plugin-copy';
+
 import analyze from 'rollup-plugin-analyzer'
 
 // proprietary plugin 
@@ -105,11 +107,13 @@ export default defineConfig((gc_run) => {
 
 	// sensitive build values are stored in environment variables
 	const {
-		BROWSER: SI_BROWSER='chrome',
+		PLATFORM: SI_PLATFORM='chrome' as 'chrome' | 'firefox' | 'firefox-android' | 'safari',
 	} = {
 		...loadEnv(si_mode, process.cwd(), ''),
 		...process.env,
 	};
+
+	const SI_BROWSER = SI_PLATFORM.replace(/\-.+$/, '');
 
 	// build media dict
 	const H_MEDIA_BUILTINT = builtin_media();
@@ -122,6 +126,7 @@ export default defineConfig((gc_run) => {
 			__H_MEDIA_BUILTIN: JSON.stringify(H_MEDIA_BUILTINT),
 			__H_MEDIA_LOOKUP: JSON.stringify(H_MEDIA_LOOKUP),
 			__SI_VERSION: JSON.stringify(G_PACKAGE_JSON.version),
+			__SI_PLATFORM: JSON.stringify(SI_PLATFORM),
 		},
 
 		plugins: [
@@ -160,7 +165,7 @@ export default defineConfig((gc_run) => {
 		],
 
 		// optimizeDeps: {
-		// 	exclude: [
+		// 	exlucde: [
 		// 		'@solar-republic/wasm-secp256k1',
 		// 	],
 		// },
@@ -176,13 +181,19 @@ export default defineConfig((gc_run) => {
 			sourcemap: 'inline',
 			minify: 'production' === si_mode,
 			emptyOutDir: true,
-			outDir: `dist/${SI_BROWSER}`,
+			outDir: `dist/${SI_PLATFORM}`,
 			target: 'es2020',
 
 			rollupOptions: {
-			// 	output: {
+				output: {
+					...SI_BROWSER.startsWith('firefox') && {
+						manualChunks: {
+							'bignumber.js': ['bignumber.js'],
+							'svelte-select': ['svelte-select'],
+						},
+					},
 			// 		preserveModules: true,
-			// 	},
+				},
 			// 	preserveEntrySignatures: 'strict',
 			},
 		},

@@ -61,12 +61,14 @@ export function global_receive(h_handlers: Partial<Vocab.Handlers<IntraExt.Globa
 }
 
 /**
- * 
+ * Listens for specific message on global broadcast channel and unregisters on first successful delivery
  */
-export async function global_wait(
-	si_key: keyof IntraExt.GlobalVocab,
-	fk_test: (w_value: Vocab.MessageValue<IntraExt.GlobalVocab, typeof si_key>) => Promisable<boolean>,
-	xt_timeout=0,
+export async function global_wait<
+	si_key extends keyof IntraExt.GlobalVocab,
+>(
+	si_key: si_key,
+	fk_test: (w_value: Vocab.MessageValue<IntraExt.GlobalVocab, si_key>) => Promisable<boolean>,
+	xt_timeout=0
 ): Promise<void> {
 	// capture stack trace
 	const s_stack = (new Error()).stack || '';
@@ -96,7 +98,7 @@ export async function global_wait(
 		// a timeout value was provided
 		if(Number.isInteger(xt_timeout) && xt_timeout > 0) {
 			// set a cancel timeout
-			i_timeout = globalThis.setTimeout(() => {
+			i_timeout = (globalThis as typeof window).setTimeout(() => {
 				// unregister
 				f_unregister();
 

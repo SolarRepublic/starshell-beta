@@ -20,6 +20,7 @@
 	import ActionsLine from '#/app/ui/ActionsLine.svelte';
 	import Field from '#/app/ui/Field.svelte';
 	import { slide } from 'svelte/transition';
+	import { B_MOBILE } from '#/share/constants';
 
 	// will be set if part of flow
 	const completed = getContext<Completed | undefined>('completed');
@@ -97,10 +98,31 @@
 		}
 
 		// success
-		if(completed) completed(true);
+		{
+			// escape the popup modal on firefox for android
+			if(B_MOBILE && 'moz-extension:' === globalThis.location.protocol) {
+				chrome.tabs.create({
+					url: 'popup.html',
+				}, () => {
+					globalThis.close();
+				});
+			}
+			else {
+				if(completed) completed(true);
+			}
+		}
 
 		// exit
 		return exit();
+	}
+
+	let c_easter_clicks = 0;
+	function easter_click() {
+		if(++c_easter_clicks >= 5) {
+			chrome.runtime.sendMessage({
+				type: 'easter_notify',
+			});
+		}
 	}
 
 </script>
@@ -166,7 +188,7 @@
 {/if}
 
 <Screen debug='Authenticate' classNames='welcome'>
-	<div class="logo">
+	<div class="logo" on:click={() => easter_click()}>
 		<img width="96" src="/media/vendor/logo-96px.png" srcset="/media/vendor/logo-96px.png 1x, /media/vendor/logo-192px.png 2x" alt="StarShell" />
 	</div>
 

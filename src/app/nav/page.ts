@@ -1,10 +1,10 @@
-import type { PlainObject } from '#/meta/belt';
-import type { ParametricSvelteConstructor } from '#/meta/svelte';
+import type {PlainObject} from '#/meta/belt';
+import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import {
 	Dict, objects_might_differ, ode, Promisable,
 } from '#/util/belt';
-import { dd } from '#/util/dom';
-import type { JumpConfig, PopConfig, Thread } from './thread';
+import {dd, uuid_v4} from '#/util/dom';
+import type {JumpConfig, PopConfig, Thread} from './thread';
 
 export interface PageConfig<
 	h_props extends Dict<unknown>=Dict<unknown>,
@@ -64,7 +64,7 @@ export class Page<
 		} = gc_page as Required<typeof gc_page>);
 
 		// set unique page id
-		this._si_page = crypto.randomUUID();
+		this._si_page = uuid_v4();
 
 		// create buffer element
 		const dm_buffer = dd('div');

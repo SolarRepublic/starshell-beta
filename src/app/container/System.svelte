@@ -115,6 +115,21 @@
 					if(!gc_pop.bypassAnimation) {
 						// apply translation transform to src page
 						kp_src.dom.style.transform = `translateX(var(--app-window-width))`;
+
+						kp_src.dom.addEventListener('transitionend', function transition_end(d_event) {
+							// not the intended property
+							if('transform' !== d_event.propertyName) return;
+
+							// remove self
+							kp_src.dom.removeEventListener('transitionend', transition_end);
+
+							// destroy component
+							kp_src.destroy();
+						});
+					}
+					// bypass animation; destroy component
+					else {
+						kp_src.destroy();
 					}
 				},
 

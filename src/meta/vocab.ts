@@ -213,6 +213,10 @@ export namespace Vocab {
 		sendMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg): Promise<Response<h_outgoing, g_msg['type']>>;
 		sendMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg, fk_respond: (w_result: Response<h_outgoing, g_msg['type']>) => void | PromiseLike<void>): void;
 
+		// outgoing messages
+		sendNativeMessage<g_msg extends Message<h_outgoing>>(si_application: string, g_msg: g_msg): Promise<Response<h_outgoing, g_msg['type']>>;
+		sendNativeMessage<g_msg extends Message<h_outgoing>>(si_application: string, g_msg: g_msg, fk_respond: (w_result: Response<h_outgoing, g_msg['type']>) => void | PromiseLike<void>): void;
+
 		// incoming messages
 		onMessage: chrome.events.Event<
 			(g_msg: Message<h_incoming>, g_sender: chrome.runtime.MessageSender, fk_respond: (w_result?: any) => void) => void

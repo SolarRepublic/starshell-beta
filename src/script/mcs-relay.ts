@@ -1,5 +1,5 @@
-import type { Union } from 'ts-toolbelt';
-import type { Merge } from 'ts-toolbelt/out/Object/_api'
+import type {Union} from 'ts-toolbelt';
+import type {Merge} from 'ts-toolbelt/out/Object/_api';
 
 import type * as ConnectionModule from '#/provider/connection';
 import type * as Constants from './constants';
@@ -11,17 +11,17 @@ import type {
 	ConnectionManifest,
 } from './common';
 
-import type { RelayToHost, HostToRelay } from './messages';
-import type { Vocab } from '#/meta/vocab';
-import type { OmitUnknownKeys } from '#/meta/belt';
+import type {RelayToHost, HostToRelay} from './messages';
+import type {Vocab} from '#/meta/vocab';
+import type {OmitUnknownKeys} from '#/meta/belt';
 
 
 /**
  * Store pending requests while waitinf for extension to respond
  */
 type PendingRequest = Merge<{
-	resolve(kc_handle: ConnectionHandle): void,
-	reject(e_reason: Error): void,
+	resolve(kc_handle: ConnectionHandle): void;
+	reject(e_reason: Error): void;
 }, OmitUnknownKeys<Vocab.MessageValue<RelayToHost.AuthedVocab, 'requestConnect'>>>;
 
 
@@ -29,16 +29,14 @@ type PendingRequest = Merge<{
 /**
  * Define the connect method
  */
-interface ConnectMethod {
-	(g_advertisement: Advertisement, gc_manifest: ConnectionManifest): Promise<ConnectionHandle>;
-}
+type ConnectMethod = (g_advertisement: Advertisement, gc_manifest: ConnectionManifest) => Promise<ConnectionHandle>;
 
 // create a safe Window object for the inpage script
 (function() {
 	const hmacSHA256 = inline_require('crypto-js/hmac-sha256');
 
-	const { text_to_buffer } = inline_require('#/util/data.ts');
-	const { ConnectionHandle } = inline_require('../provider/connection.ts') as typeof ConnectionModule;
+	const {text_to_buffer} = inline_require('#/util/data.ts');
+	const {ConnectionHandle} = inline_require('../provider/connection.ts') as typeof ConnectionModule;
 	const {
 		N_PX_WIDTH_POPUP,
 		N_PX_HEIGHT_POPUP,
@@ -66,7 +64,7 @@ interface ConnectMethod {
 
 	// subclass Error to be able to recognize object origin
 	class SecurityError extends Error {}
-	class PotentialBugError extends Error{}
+	class PotentialBugError extends Error {}
 
 	// flag in case security violation occurs
 	let b_aborted = false;
@@ -122,7 +120,7 @@ interface ConnectMethod {
 	let g_payload: HostToRelay.Payload;
 	{
 		// get the payload text
-		const sx_payload = dm_payload.textContent
+		const sx_payload = dm_payload.textContent;
 
 		// text is empty or blank
 		if(!sx_payload || !sx_payload.trim()) {
@@ -156,7 +154,7 @@ interface ConnectMethod {
 	const {
 		session: sh_session,
 		csurl: p_content_script,
-	} = g_payload as HostToRelay.Payload;
+	} = g_payload;
 
 	// create private stack-signing key
 	const sh_stack = crypto.randomUUID();
@@ -221,19 +219,19 @@ interface ConnectMethod {
 
 	// count number of times stack verifier is called
 	let c_access_stack = 0;
-	
+
 	// count number of times export is accessed
 	let c_access_export = 0;
 
 	// capture stacks to make sure inpage content script bookends the receivers
 	let b_access_capture = true;
-	let a_stacks_init: string[] = [];
+	const a_stacks_init: string[] = [];
 
 	// ratified flag
 	let b_ratified = false;
 
 	// hardened flag
-	let b_hardened = false;
+	const b_hardened = false;
 
 	// conection requests
 	const hm_requests = new Map<number, PendingRequest>();
@@ -274,8 +272,9 @@ interface ConnectMethod {
 			if(0 === c_access_stack++) {
 				// generate new stack
 				let s_stack;
-				try { throw new Error('StarShell security check'); } catch(e_thrown) { s_stack = e_thrown.stack }
-				
+				try { throw new Error('StarShell security check'); }
+				catch(e_thrown) { s_stack = e_thrown.stack; }
+
 				// return the stack and sign it
 				return {
 					stack: s_stack,
@@ -290,7 +289,8 @@ interface ConnectMethod {
 		verify(f_caller) {
 			// generate new stack
 			let s_stack_local;
-			try { throw new Error('StarShell security check'); } catch(e_thrown) { s_stack_local = e_thrown.stack }
+			try { throw new Error('StarShell security check'); }
+			catch(e_thrown) { s_stack_local = e_thrown.stack; }
 
 			// sign auth
 			const s_sig_auth = JSON.stringify(hmacSHA256('starshell', sh_session));
@@ -388,15 +388,15 @@ interface ConnectMethod {
 			if(b_aborted) throw new Error('StarShell withdrew wallet access from this website due to a security violation');
 
 			// connect access index
-			let i_access_connect = c_access_connect++;
+			const i_access_connect = c_access_connect++;
 
 			// function can only be used once
 			let b_used = false;
 
 			// create a new function for each connect access
-			return (g_advertisement: Advertisement, gc_manifest: ConnectionManifest): Promise<ConnectionHandle> => {
+			return (g_advertisement: Advertisement, gc_manifest: ConnectionManifest): Promise<ConnectionHandle> =>
 				// go async
-				return new Promise((fk_resolve, fe_reject) => {
+				 new Promise((fk_resolve, fe_reject) => {
 					// already aborted
 					if(b_aborted) return fe_reject(new Error('StarShell withdrew wallet access from this website due to a security violation'));
 
@@ -426,7 +426,7 @@ interface ConnectMethod {
 					if(text_to_buffer(sx_manifest).byteLength > NB_MAX_MESSAGE) {
 						return fe_reject(new Error('Message exceeds maximum byte length'));
 					}
-				
+
 					// save request
 					hm_requests.set(i_access_connect, {
 						index: i_access_connect,
@@ -456,7 +456,6 @@ interface ConnectMethod {
 						return fe_reject(new Error(`Invalid connection request; failed to serialize object.\n${e_post.stack}`));
 					}
 				});
-			};
 		},
 	};
 
@@ -487,7 +486,8 @@ interface ConnectMethod {
 
 		// will want to compare stacks later
 		if(b_access_capture) {
-			try { throw new Error('StarShell security check'); } catch(e_thrown) { a_stacks_init.push(e_thrown.stack); }
+			try { throw new Error('StarShell security check'); }
+			catch(e_thrown) { a_stacks_init.push(e_thrown.stack); }
 		}
 
 		// return bundle
@@ -513,7 +513,7 @@ interface ConnectMethod {
 			return abort(`Unable to freeze property '${SI_EXPORT}' on parent window`);
 		}
 	}
-	
+
 	// confirm modifiability using secondary method
 	{
 		const gc_confirm = Reflect.getOwnPropertyDescriptor(d_parent, SI_EXPORT);

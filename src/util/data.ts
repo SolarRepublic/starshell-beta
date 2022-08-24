@@ -1,6 +1,6 @@
-import type { JsonValue } from '#/util/belt';
-import { instantiateRipemd160, instantiateSha256, Ripemd160, Sha256 } from '@solar-republic/wasm-secp256k1';
-import { createHash } from 'sha256-uint8array';
+import type {JsonValue} from '#/util/belt';
+import {instantiateRipemd160, instantiateSha256, Ripemd160, Sha256} from '@solar-republic/wasm-secp256k1';
+import {createHash} from 'sha256-uint8array';
 
 /**
  * Performs SHA-256 hash on the given data.
@@ -128,6 +128,7 @@ export function concat(a_buffers: Uint8Array[]): Uint8Array {
 		atu8_out.set(atu8_each, ib_write);
 		ib_write += atu8_each.byteLength;
 	}
+
 	return atu8_out;
 }
 

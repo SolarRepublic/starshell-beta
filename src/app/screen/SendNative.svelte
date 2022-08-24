@@ -156,8 +156,20 @@
 		}
 	})();
 
-	function approve() {
+	async function approve() {
 		const xg_amount = BigInt(new BigNumber(s_amount).shiftedBy(g_coin.decimals).toString());
+
+		const i_timeout = setTimeout(() => {
+			syserr({
+				title: 'Service worker is inactive',
+				text: 'Your browser is preventing StarShell from waking the background thread.',
+			});
+		}, 2e3);
+
+		// send wake instruction
+		await d_service.sendMessage({
+			type: 'wake',
+		});
 
 		// instruct service worker to complete send
 		void d_service.sendMessage({
@@ -172,13 +184,16 @@
 				price: x_price,
 				memo: s_memo_publish,
 			},
+		}).then(() => {
+			// cancel timeout
+			clearTimeout(i_timeout);
+
+			// reset page
+			k_page.reset();
+
+			// activate history thread
+			void $yw_navigator.activateThread(ThreadId.HISTORY);
 		});
-
-		// reset page
-		k_page.reset();
-
-		// activate history thread
-		void $yw_navigator.activateThread(ThreadId.HISTORY);
 	}
 
 </script>

@@ -10,6 +10,7 @@ import type { Bech32, ChainPath } from '#/meta/chain';
 import type { Incident, IncidentType, IncidentPath } from '#/meta/incident';
 import { buffer_to_text, sha256_sync, text_to_buffer } from '#/util/data';
 import type { SyncInfo } from '#/meta/store';
+import { JsonObject, ode } from '#/util/belt';
 
 export interface IncidentFilterConfig {
 	type?: IncidentType;
@@ -124,8 +125,6 @@ class HistoriesI extends WritableStore<typeof SI_STORE_HISTORIES> {
 			a_incidents.push(p_incident);
 		}
 
-		console.log(`** History updated: [${a_incidents.join(', ')}]`);
-
 		// save to store
 		await this.save();
 	}
@@ -148,6 +147,10 @@ export const Incidents = create_store_class({
 			return `/incident.${si_category}/id.${si_id}`;
 		}
 
+		static pathFrom(g_incident: Incident['interface']) {
+			return IncidentsI.pathFor(g_incident.type, g_incident.id || g_incident.data?.['hash'] as string || 'unknown');
+		}
+
 		static async filter(gc_filter: IncidentFilterConfig={}): Promise<IterableIterator<Incident.Struct>> {
 			const [
 				a_incidents,
@@ -160,13 +163,22 @@ export const Incidents = create_store_class({
 			return ks_incidents.filter(a_incidents, gc_filter);
 		}
 
-		static record(si_id: string | null, g_incident: Incident.Struct): Promise<void> {
+		static record(si_id: string | null, g_incident: Partial<Pick<Incident.Struct, 'id'>> & Omit<Incident.Struct, 'id'>): Promise<IncidentPath> {
 			if(!si_id) {
+				delete g_incident.id;
 				const atu8_hash = sha256_sync(text_to_buffer(JSON.stringify(g_incident)));
 				si_id = `${g_incident.type}:${buffer_to_text(atu8_hash)}`;
+				g_incident.id = si_id;
+			}
+			else if(!g_incident.id) {
+				g_incident.id = si_id;
 			}
 
-			return Incidents.open(ks => ks.record(si_id!, g_incident));
+			return Incidents.open(ks => ks.record(si_id!, g_incident as Incident.Struct));
+		}
+
+		static async mutateData(p_incident: IncidentPath, g_mutate: JsonObject): Promise<void> {
+			return await Incidents.open(ks => ks.mutateData(p_incident, g_mutate));
 		}
 
 		// static async delete(g_event: LogEvent): Promise<number> {
@@ -177,7 +189,7 @@ export const Incidents = create_store_class({
 		// 	return await Incidents.open(ks => ks.insert(g_event));
 		// }
 
-		async record(si_id: string, g_incident: Incident.Struct, ks_histories?: HistoriesI): Promise<void> {
+		async record(si_id: string, g_incident: Incident.Struct, ks_histories?: HistoriesI): Promise<IncidentPath> {
 			// ref cache
 			const h_incidents = this._w_cache as Record<IncidentPath, typeof g_incident>;
 
@@ -187,12 +199,8 @@ export const Incidents = create_store_class({
 			// overwrite cache entry
 			h_incidents[p_incident] = g_incident;
 
-			console.log(`+Recording ${p_incident} incident`);
-
 			// save to store
 			await this.save();
-
-			console.log(`:Saved ${p_incident} incident`);
 
 			// save in history's order
 			if(ks_histories) {
@@ -202,7 +210,8 @@ export const Incidents = create_store_class({
 				await Histories.insertIncident(p_incident, g_incident.time, this._w_cache as IncidentDict);
 			}
 
-			console.log(`~Inserted ${p_incident} incident`);
+			// return incident path
+			return p_incident;
 		}
 
 		* filter(a_incidents: IncidentPath[], gc_filter: IncidentFilterConfig={}): IterableIterator<Incident.Struct> {
@@ -217,6 +226,34 @@ export const Incidents = create_store_class({
 
 				yield g_incident;
 			}
+		}
+
+		async mutateData(p_incident: IncidentPath, g_mutate: JsonObject): Promise<void> {
+			const g_data = this._w_cache[p_incident]!.data!;
+
+			for(const [si_key, w_value] of ode(g_mutate)) {
+				const w_existing = g_data[si_key];
+				const b_existing_object = w_existing && 'object' === typeof w_existing;
+				const b_existing_array = b_existing_object && Array.isArray(w_existing);
+				const b_existing_dict = b_existing_object && !b_existing_array;
+
+				const b_replace_object = w_value && 'object' === typeof w_value;
+				const b_replace_array = b_replace_object && Array.isArray(w_value);
+				const b_replace_dict = b_replace_object && !b_replace_array;
+
+				if(b_existing_dict && b_replace_dict) {
+					g_data[si_key] = {
+						...w_existing,
+						...w_value,
+					};
+					continue;
+				}
+
+				g_data[si_key] = w_value;
+			}
+
+			// save
+			await this.save();
 		}
 
 		// async delete(g_delete: LogEvent): Promise<number> {

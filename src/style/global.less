@@ -95,7 +95,7 @@
 .fontFace(Light, 300);
 .fontFace(LightItalic, 300, italic);
 .fontFace(Regular, 400);
-.fontFace(RegularItalic, 400, italic);
+.fontFace(Italic, 400, italic);
 .fontFace(Medium, 500);
 .fontFace(MediumItalic, 500, italic);
 .fontFace(SemiBold, 600);
@@ -164,18 +164,22 @@ body {
 	});
 }
 
-.produce(@prefix: '.icon-diameter_', @from: 10px, @to: 96px, @rule: --icon-diameter);
+.produce(@prefix: '.icon-diameter_', @from: 10px, @to: 128px, @rule: --icon-diameter);
 
 
 
 
-.text:not(button .text):not(.row .text) {
+.text:not(button .text):not(.row .text):not(.link .text) {
 	user-select: text;
 	cursor: default;
 }
 
 input,textarea {
 	user-select: initial;
+
+	&:disabled {
+		opacity: 1;
+	}
 }
 
 .validation-message {

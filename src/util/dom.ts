@@ -1,3 +1,4 @@
+import { G_USERAGENT } from '#/share/constants';
 import { JsonValue, ode } from './belt';
 
 
@@ -113,7 +114,7 @@ export const uuid_v4 = crypto.randomUUID? () => crypto.randomUUID(): (): string 
 	return S_UUID_V4.replace(R_UUID_V4, (s) => {
 		const x_r = (dt_now + (Math.random()*16)) % 16 | 0;
 		dt_now = Math.floor(dt_now / 16);
-		return ('x' === s? x_r: ((x_r & 0x3) | 0x8)).toString(16);
+		return ('x' === s? x_r: (x_r & 0x3) | 0x8).toString(16);
 	});
 };
 
@@ -174,7 +175,16 @@ export function delete_cookie(si_cookie: string) {
 }
 
 export function open_external_link(p_url: string) {
-	chrome.tabs.create({
-		url: p_url,
-	});
+	if('function' === typeof chrome.tabs?.create) {
+		void chrome.tabs.create({
+			url: p_url,
+		});
+
+		if('Android' === G_USERAGENT.os.name && 'Firefox' === G_USERAGENT.browser.name) {
+			globalThis.close();
+		}
+	}
+	else {
+		globalThis.open(p_url, '_blank');
+	}
 }

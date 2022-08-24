@@ -12,6 +12,8 @@
 	import SX_ICON_CONNECTIONS from '#/icon/account_tree.svg?raw';
 	import SX_ICON_SETTINGS from '#/icon/settings.svg?raw';
 	import SX_ICON_LOGOUT from '#/icon/sensor_door.svg?raw';
+	import SX_ICON_POPOUT from '#/icon/pop-out.svg?raw';
+	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import { ThreadId } from '#/app/def';
 	import { getContext } from 'svelte';
@@ -97,12 +99,54 @@
 		// },
 	];
 
+	import { open_window, P_POPUP } from '#/extension/browser';
+	import { flow_broadcast, flow_generic } from '#/script/msg-flow';
+
+	const A_UTILITY_ITEMS = [
+		{
+			label: 'Scan QR',
+			icon: SX_ICON_SCAN,
+			async click() {
+				// open qr code scanner
+				const b_finished = await flow_broadcast({
+					flow: {
+						type: 'scanQr',
+						value: {
+							id: 'side_menu',
+						},
+						page: null,
+					},
+					open: {
+						popout: true,
+					},
+				});
+
+				// collapse side menu
+				$yw_menu_expanded = false;
+			},
+		},
+		{
+			label: 'Pop Out',
+			icon: SX_ICON_POPOUT,
+			async click() {
+				// open pop-out
+				await open_window(P_POPUP, {popout:true});
+
+				// close this popup
+				globalThis.close();
+			},
+		},
+	];
+
 	const A_SESSION_ITEMS = [
 		{
 			label: 'Log out',
 			icon: SX_ICON_LOGOUT,
 			async click() {
+				// logout of session
 				await logout();
+
+				// close this popup
 				globalThis.close();
 			},
 		},
@@ -213,6 +257,14 @@
 							--icon-color: var(--theme-color-text-med);
 						}
 					}
+
+					&.utility {
+						// padding: calc(var(--item-padding) / 2) 0;
+
+						.icon {
+							--icon-color: var(--theme-color-primary);
+						}
+					}
 				}
 
 				>.main {
@@ -312,6 +364,21 @@
 							<span class="icon">
 								{@html g_item.icon}
 								<!-- <Put element={g_item.icon.render()} /> -->
+							</span>
+							<span class="text">
+								{g_item.label}
+							</span>
+						</li>
+					{/each}
+				</ul>
+
+				<hr>
+
+				<ul class="utility">
+					{#each A_UTILITY_ITEMS as g_item}
+						<li on:click={() => g_item.click()}>
+							<span class="icon">
+								{@html g_item.icon}
 							</span>
 							<span class="text">
 								{g_item.label}

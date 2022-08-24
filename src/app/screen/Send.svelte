@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {getContext, onDestroy} from 'svelte';
 	import {slide} from 'svelte/transition';
+	import BigNumber from 'bignumber.js';
 
 	import {
 		yw_account,
@@ -46,7 +47,6 @@
 	import {Chains} from '#/store/chains';
 	import {CoinGecko} from '#/store/web-apis';
 	import {format_amount, format_fiat} from '#/util/format';
-	import BigNumber from 'bignumber.js';
 	import {NB_MAX_MEMO, XT_MINUTES} from '#/share/constants';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import SendNative from './SendNative.svelte';
@@ -55,7 +55,6 @@
 	import SettingsMemos from './SettingsMemos.svelte';
 	import { global_receive } from '#/script/msg-global';
 	import { string8_to_buffer } from '#/util/data';
-import type { E2eInfo } from '#/store/networks';
 
 	const G_SLIDE_IN = {
 		duration: 350,
@@ -365,18 +364,12 @@ import type { E2eInfo } from '#/store/networks';
 	let b_memo_private = false;
 	let s_memo = '';
 
-	let b_submitted = false;
-
 	function submit() {
 		if(!b_form_valid) {
 			c_show_validations++;
 			return;
 		}
 		else {
-			if(b_submitted) return false;
-
-			b_submitted = true;
-
 			if(si_native) {
 				k_page.push({
 					creator: SendNative,

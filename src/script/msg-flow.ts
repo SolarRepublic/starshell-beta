@@ -1,142 +1,40 @@
-import {
-	N_PX_WIDTH_POPUP,
-	N_PX_HEIGHT_POPUP,
-} from './constants';
-import type { IntraExt } from './messages';
-import type { Vocab } from '#/meta/vocab';
-import type { Dict, JsonObject } from '#/util/belt';
-import { session_storage_get, session_storage_remove } from '#/crypto/vault';
-import { XT_SECONDS } from '#/share/constants';
-import { once_storage_changes } from './service';
+import type {IntraExt} from './messages';
+import type {Vocab} from '#/meta/vocab';
+import {Dict, JsonObject, microtask} from '#/util/belt';
+import {session_storage_get, session_storage_remove} from '#/crypto/vault';
+import {OpenWindowConfig, open_window, PopoutWindowHandle} from '#/extension/browser';
+import type { FlowMessage } from '#/entry/flow';
+import { global_wait } from './msg-global';
+import { uuid_v4 } from '#/util/dom';
 
-
-type Flow = Vocab.Message<IntraExt.FlowVocab>;
 
 export interface PromptConfig extends JsonObject {
-	flow: Flow;
+	flow: FlowMessage;
+	open?: OpenWindowConfig;
 }
 
-type FlowHandle = {
-	window: chrome.windows.Window;
-	tab: chrome.tabs.Tab;
-};
-
-interface ScreenInfo {
-	width: number;
-	height: number;
-	availWidth: number;
-	availHeight: number;
-	orientation: JsonObject;
-	devicePixelRatio: number,
-}
-
-export async function flow_generic(h_params: Dict): Promise<FlowHandle> {
+export async function flow_generic(h_params: Dict, gc_open?: OpenWindowConfig): Promise<PopoutWindowHandle> {
 	// get flow URL
 	const p_flow = chrome.runtime.getURL('src/entry/flow.html');
 
 	// indicate via query params method of communication
 	const p_connect = p_flow+'?'+new URLSearchParams(h_params).toString();
 
-	// fetch displays and screen info
-	const [
-		a_displays,
-		g_screen_info,
-	] = await Promise.all([
-		chrome.system.display.getInfo(),
+	// verbose
+	console.debug(`Opening flow <${p_connect}>`);
 
-		(async(): Promise<ScreenInfo | undefined> => {
-			// create popup to determine screen dimensions
-			const g_info = (await chrome.storage.session.get(['display_info']))?.display_info;
-			if(g_info) return g_info;
-
-			void chrome.windows.create({
-				type: 'popup',
-				url: p_flow+'?'+new URLSearchParams({headless:'info'}).toString(),
-				focused: true,
-				width: N_PX_WIDTH_POPUP,
-				height: N_PX_HEIGHT_POPUP,
-			});
-
-			try {
-				return (await once_storage_changes('session', 'display_info', 5*XT_SECONDS))?.newValue;
-			}
-			catch(e_timeout) {}
-		})(),
-	]);
-
-	// create displays dict
-	const h_displays = {};
-	for(const g_display of a_displays) {
-		if(g_display.isEnabled) {
-			h_displays[g_display.bounds.width+':'+g_display.bounds.height] = g_display;
-		}
-	}
-
-	// set display propertiess to be center of screen
-	let g_window_position = {};
-	if(g_screen_info) {
-		const si_display = g_screen_info.width+':'+g_screen_info.height;
-		const g_display = h_displays[si_display];
-		if(g_display) {
-			g_window_position = {
-				left: g_display.bounds.left + Math.round((g_screen_info.width / 2) - (N_PX_WIDTH_POPUP / 2)),
-				top: g_display.bounds.top + Math.round((g_screen_info.height * 0.45) - (N_PX_HEIGHT_POPUP / 2)),
-			};
-		}
-	}
-
-	// create window
-	const g_window = await chrome.windows.create({
-		type: 'popup',
-		url: p_connect,
-		focused: true,
-		width: N_PX_WIDTH_POPUP,
-		height: N_PX_HEIGHT_POPUP,
-		...g_window_position,
-	});
-
-	// window was not created
-	if('number' !== typeof g_window.id) {
-		throw new Error('Failed to create popup window');
-	}
-
-	// fetch its view
-	const dv_popup = await chrome.windows.get(g_window.id, {
-		windowTypes: ['popup'],
-	});
-
-	// no view
-	if(!dv_popup) {
-		throw new Error('Failed to locate popup window');
-	}
-
-	// wait for tab to load
-	const dt_created: chrome.tabs.Tab = await new Promise((fk_created) => {
-		// tab update event
-		chrome.tabs.onUpdated.addListener(function tab_update(i_tab, g_info, dt_updated) {
-			// is the target tab
-			if(g_window.id === dt_updated.windowId && 'number' === typeof i_tab) {
-				// loading compelted
-				if('complete' === g_info.status) {
-					// remove listener
-					chrome.tabs.onUpdated.removeListener(tab_update);
-
-					// resolve promise
-					fk_created(dt_updated);
-				}
-			}
-		});
-	});
-
-	return {
-		window: g_window,
-		tab: dt_created,
-	};
+	// open connect window
+	return await open_window(p_connect, gc_open);
 }
 
 export async function flow_broadcast(gc_prompt: PromptConfig, si_req=''): Promise<boolean> {
+	// fallback
+	if(!chrome.windows.create) {
+		return await flow_query(gc_prompt);
+	}
+
 	// name to use for private broadcast channel
-	const si_channel = `flow_${crypto.randomUUID()}`;
+	const si_channel = `flow_${uuid_v4()}`;
 
 	// awaiting for a previous flow to complete
 	const s_flow = await session_storage_get('flow') || '';
@@ -151,7 +49,7 @@ export async function flow_broadcast(gc_prompt: PromptConfig, si_req=''): Promis
 	} = await flow_generic({
 		comm: 'broadcast',
 		name: si_channel,
-	});
+	}, gc_prompt.open);
 
 	// communicate with popup using broadcast channel
 	const d_broadcast: Vocab.TypedBroadcast<IntraExt.FlowVocab, IntraExt.FlowResponseVocab> = new BroadcastChannel(si_channel);
@@ -176,12 +74,21 @@ export async function flow_broadcast(gc_prompt: PromptConfig, si_req=''): Promis
 		// handle incoming messages
 		function message_listener(d_event) {
 			// parse response
-			const g_msg = d_event.data;
+			const g_msg = d_event.data as Vocab.Message<IntraExt.FlowResponseVocab>;
 
+			// missed message
+			if('retransmit' === g_msg.type) {
+				d_broadcast.postMessage(gc_prompt.flow);
+			}
 			// flow completed
-			if('completeFlow' === g_msg.type) {
+			else if('completeFlow' === g_msg.type) {
 				// kill the flow window (no need to wait for it to resolve)
-				chrome.windows.remove(g_window.id!);
+				if(g_window) {
+					void chrome.windows.remove(g_window.id!);
+				}
+				else {
+					void chrome.tabs.remove(dt_flow.id || 0);
+				}
 
 				// shutdown with answer
 				shutdown(g_msg.value.answer);
@@ -194,7 +101,7 @@ export async function flow_broadcast(gc_prompt: PromptConfig, si_req=''): Promis
 		// handle popup window being closed
 		function close_listener(i_window) {
 			// target window; shutdown with effective cancel answer
-			if(i_window === g_window.id!) shutdown(false);
+			if(i_window === g_window?.id) shutdown(false);
 		}
 
 		// listen for popup window being closed
@@ -207,12 +114,37 @@ export async function flow_broadcast(gc_prompt: PromptConfig, si_req=''): Promis
 	});
 }
 
-export async function flow_query(gc_prompt: PromptConfig): Promise<void> {
+export async function flow_query(gc_prompt: PromptConfig): Promise<boolean> {
+	// create response key
+	const si_key = uuid_v4();
+
 	// create flow tab
-	await flow_generic({
+	const {
+		tab: dt_flow,
+	} = await flow_generic({
 		comm: 'query',
-		data: JSON.stringify(gc_prompt),
+		key: si_key,
+		data: JSON.stringify(gc_prompt.flow),
 	});
+
+	// register for response
+	let b_answer!: boolean;
+	await global_wait('flowResponse', async({key:si_response, response:g_response}) => {
+		// beat
+		await microtask();
+
+		if(si_key === si_response) {
+			if('completeFlow' === g_response.type) {
+				b_answer = g_response.value.answer;
+				return true;
+			}
+		}
+
+		return false;
+	});
+
+	// 
+	return b_answer;
 }
 
 
@@ -318,7 +250,7 @@ export async function flow_query(gc_prompt: PromptConfig): Promise<void> {
 
 // 		// lookup app in store
 // 		let g_app = await ks_apps.get(s_host, s_scheme);
-	
+
 // 		// app is not yet registered; initialize
 // 		if(!g_app) {
 // 			g_app = {

@@ -44,6 +44,7 @@ import { SI_VERSION } from '#/share/constants';
 	// let s_latency = '120ms';
 
 	let s_height = '';
+	let n_txs = 0;
 	let xt_when = 0;
 	let xt_avg_block_time = 0;
 
@@ -63,6 +64,7 @@ import { SI_VERSION } from '#/share/constants';
 		s_network_status = 'Connecting';
 		p_provider = new URL($yw_network.grpcWebUrl).host;
 		si_chain = '';
+		n_txs = 0;
 	}
 
 	global_receive({
@@ -73,6 +75,8 @@ import { SI_VERSION } from '#/share/constants';
 
 				s_height = g_info.header.height as string;
 				xt_when = Date.now();
+
+				n_txs = g_info.txCount;
 
 				const a_recents = g_info.recents;
 				if(a_recents.length > 1) {
@@ -461,6 +465,16 @@ import { SI_VERSION } from '#/share/constants';
 
 					<div class="value">
 						{s_long_ago}
+					</div>
+				</div>
+
+				<div class="info">
+					<div class="name">
+						Block Saturation
+					</div>
+
+					<div class="value">
+						{n_txs} txs
 					</div>
 				</div>
 

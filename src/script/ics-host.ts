@@ -15,6 +15,7 @@ import type {
 } from './messages';
 
 import type { Vocab } from '#/meta/vocab';
+import { uuid_v4 } from '#/util/dom';
 
 interface ScriptParams {
 	session: string;
@@ -56,7 +57,7 @@ export default function({
 	function flow_send(gc_prompt: Flow.PromptConfig): Promise<boolean> {
 		return new Promise((fk_resolve) => {
 			// create response key
-			const si_response = crypto.randomUUID();
+			const si_response = uuid_v4();
 
 			// wait for response from popup
 			d_runtime.onMessage.addListener(function flow_response_handler(g_msg, g_sender) {

@@ -26,7 +26,7 @@
 	import { Chains } from '#/store/chains';
 	import { coin_formats, to_fiat } from '#/chain/coin';
 	import { format_amount, format_fiat } from '#/util/format';
-	import type { Coin } from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+	import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 	import type { PfpPath } from '#/meta/pfp';
 
 	const k_page = getContext<Page>('page');

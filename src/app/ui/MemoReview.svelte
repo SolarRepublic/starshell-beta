@@ -1,10 +1,13 @@
 <script lang="ts">
+	import type { Promisable } from '#/util/belt';
+
 	import {Tabs, TabList, Tab, TabPanel} from 'svelte-tabs';
 	import Field from './Field.svelte';
+	import Load from './Load.svelte';
 
-	export let memoPlaintext: string | null;
+	export let memoPlaintext: string | Promise<string> | null;
 
-	export let memoCiphertext = '';
+	export let memoCiphertext: string | Promise<string> = '';
 </script>
 
 <Field
@@ -23,10 +26,14 @@
 			</TabList>
 
 			<TabPanel>
-				{#if memoPlaintext}
-					<textarea disabled>{memoPlaintext}</textarea>
-				{:else if '' === memoPlaintext}
-					<i>Empty memo</i>
+				{#if 'string' === typeof memoPlaintext}
+					{#if memoPlaintext}
+						<textarea disabled>{memoPlaintext}</textarea>
+					{:else}
+						<i>Empty memo</i>
+					{/if}
+				{:else if memoPlaintext}
+					<Load input={memoPlaintext} />
 				{:else}
 					<i>Corrupted memo, unable to decrypt</i>
 				{/if}

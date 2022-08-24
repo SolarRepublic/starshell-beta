@@ -1,6 +1,11 @@
+import UAParser from 'ua-parser-js';
 import type { StoreKey } from '#/meta/store';
 
 export const SI_VERSION = __SI_VERSION;
+export const SI_PLATFORM = __SI_PLATFORM;
+
+export const G_USERAGENT = new UAParser().getResult();
+export const B_MOBILE = 'mobile' === G_USERAGENT.device.type;
 
 export const XT_SECONDS = 1e3;
 export const XT_MINUTES = 60 * XT_SECONDS;

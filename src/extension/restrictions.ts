@@ -10,6 +10,18 @@ function satisfies(si_version: string, s_semver: string): boolean {
 	if('<=' === s_cmp) {
 		return semver.lte(si_version, s_base);
 	}
+	else if('<' === s_cmp) {
+		return semver.lt(si_version, s_base);
+	}
+	else if('>' === s_cmp) {
+		return semver.gt(si_version, s_base);
+	}
+	else if('>=' === s_cmp) {
+		return semver.gte(si_version, s_base);
+	}
+	else if('=' === s_cmp) {
+		return semver.equivalent(si_version, s_base);
+	}
 
 	return false;
 }

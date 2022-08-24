@@ -1,6 +1,6 @@
 import type { JsonMsgSend, PendingSend } from '#/chain/main';
 import type { Dict, JsonObject } from '#/util/belt';
-import type { Coin } from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import type { Union } from 'ts-toolbelt';
 import type { Cast } from 'ts-toolbelt/out/Any/Cast';
 import type { Merge } from 'ts-toolbelt/out/Object/Merge';
@@ -66,9 +66,15 @@ export interface TxSigner extends JsonObject {
 }
 
 
-export interface TxCore {
+export interface TxCore extends JsonObject {
 	// chain that this transaction belongs to
 	chain: ChainPath;
+
+	// txResponse.code
+	code: number;
+
+	// txResponse.rawLog
+	raw_log: string;
 
 	// // addresses that this transaction is affiliated with
 	// owners: Bech32.String[];
@@ -78,6 +84,12 @@ export interface TxCore {
 
 	// tx.authInfo.fee.gasLimit
 	gas_limit: Cw.Uint128;
+
+	// txResponse.gasWanted
+	gas_wanted: Cw.Uint128;
+
+	// txResponse.gasUsed
+	gas_used: Cw.Uint128;
 
 	// txResponse.logs[]
 	msgs: TxMsg[];
@@ -96,20 +108,11 @@ export interface TxPending extends TxCore {
 }
 
 export interface TxPartial extends TxCore {
-	// txResponse.code
-	code: number;
-
 	// txResponse.height
 	height: Cw.Uint128;
 
 	// txResponse.timestamp
 	timestamp: Cw.String;
-
-	// txResponse.gasWanted
-	gas_wanted: Cw.Uint128;
-
-	// txResponse.gasUsed
-	gas_used: Cw.Uint128;
 }
 
 export interface TxConfirmed extends TxPartial {
@@ -133,6 +136,9 @@ export interface TxSynced extends TxPartial {
 
 	// tx.body.memo
 	memo: string;
+
+	// approximate equivalent fiat values
+	fiats: Dict<number>;
 }
 
 export type IncidentRegistry = {
@@ -152,6 +158,7 @@ export namespace Incident {
 		si_type extends IncidentType=IncidentType,
 	> = {
 		type: si_type;
+		id: string;
 		time: number;
 		data: IncidentRegistry[si_type];
 	};

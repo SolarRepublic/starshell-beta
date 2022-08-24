@@ -24,4 +24,5 @@ declare global {
 	const __H_MEDIA_BUILTIN: Store.Cache<typeof SI_STORE_MEDIA>;
 	const __H_MEDIA_LOOKUP: Dict<Resource.Path<ImageMedia>>;
 	const __SI_VERSION: string;
+	const __SI_PLATFORM: string;
 }

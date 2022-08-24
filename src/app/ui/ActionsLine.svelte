@@ -25,6 +25,11 @@
 	export let confirm: readonly [string, PromisableIgnoreFunction?, boolean?] = ['Done', F_NOOP, false];
 	const [s_confirm, f_confirm] = confirm;
 
+	/**
+	 * Disables primary class for confirm action
+	 */
+	export let noPrimary = false;
+
 	// append text to confirmation label
 	let s_confirm_append = '';
 
@@ -66,6 +71,9 @@
 	// busy flag
 	let b_busy = false;
 
+	// re-entry blocking flag
+	let b_cooldown = false;
+
 	// reactive disabled flag for all entries
 	export let disabled = false;
 
@@ -81,6 +89,9 @@
 
 	// handle cancel action
 	function cancel_action() {
+		// begin cooldown
+		b_cooldown = true;
+
 		// cancellation handler is set; call it
 		if(b_cancel && f_cancel) {
 			f_cancel();
@@ -90,6 +101,11 @@
 		if(b_back || 'pop' === cancel) {
 			k_page.pop();
 		}
+
+		// reset cooldown
+		setTimeout(() => {
+			b_cooldown = false;
+		}, 1e3);
 	}
 
 	// handle confirm action
@@ -99,6 +115,7 @@
 
 		// disable everything while awaiting
 		b_busy = true;
+		b_cooldown = true;
 
 		// await for confirmation
 		try {
@@ -117,6 +134,11 @@
 		if(f_continue && b_continue) {
 			f_continue();
 		}
+
+		// reset cooldown
+		setTimeout(() => {
+			b_cooldown = false;
+		}, 1e3);
 	}
 </script>
 
@@ -145,7 +167,7 @@
 		</button>
 	{/if}
 
-	<button disabled={b_disabled || disabled || b_waiting || b_busy} class="primary" on:click={() => confirm_action()}>
+	<button disabled={b_disabled || disabled || b_waiting || b_busy} class:primary={!noPrimary} on:click={() => confirm_action()}>
 		{s_confirm_final}
 	</button>
 </div>

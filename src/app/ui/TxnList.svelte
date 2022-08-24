@@ -47,12 +47,13 @@
 	import {R_TRANSFER_AMOUNT} from '#/share/constants';
 	import {getContext} from 'svelte';
 	import IncidentView from '../screen/IncidentView.svelte';
-	import type {Incident, IncidentType, TxConfirmed, TxSynced} from '#/meta/incident';
+	import type {Incident, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
 
 	import type {
 		Page,
 	} from '##/screen/_screens';
 	import {parse_coin_amount} from '#/chain/coin';
+	import { Incidents } from '#/store/incidents';
 
 	// import {definition} from '@fortawesome/free-solid-svg-icons/faRobot';
 	// const SXP_ROBOT = definition.icon[4];
@@ -101,8 +102,8 @@
 	const DM_ICON_RECV = mk_icon(SX_RECV);
 	const DM_ICON_ACC_CREATED = mk_icon(SX_ACC_CREATED);
 
-
-	TimeAgo.addDefaultLocale(english_locale);
+	TimeAgo.setDefaultLocale(english_locale.locale);
+	TimeAgo.addLocale(english_locale);
 	const y_ago = new TimeAgo('en-US');
 
 	function format_time_ago(xt_when: number): string {
@@ -129,39 +130,37 @@
 			const b_confirmed = 'confirmed' === si_stage;
 			const b_synced = 'synced' === si_stage;
 
-			if(b_confirmed || b_synced) {
+			const {
+				msgs: a_msgs,
+				code: xc_code,
+			} = g_data;
+
+			// single message
+			if(1 === a_msgs.length) {
 				const {
-					msgs: a_msgs,
-					code: xc_code,
-				} = g_data as TxConfirmed | TxSynced;
+					events: h_events,
+				} = a_msgs[0];
 
-				// single message
-				if(1 === a_msgs.length) {
-					const {
-						events: h_events,
-					} = a_msgs[0];
+				// transfer
+				if(h_events.transfer) {
+					const g_transfer = h_events.transfer;
 
-					// transfer
-					if(h_events.transfer) {
-						const g_transfer = h_events.transfer;
+					const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
 
-						const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+					const x_amount = new BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals).toNumber();
 
-						const x_amount = new BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals).toNumber();
+					const sa_recipient = g_transfer.recipient;
+					const p_contact = Agents.pathForContact(sa_recipient);
+					const g_contact = await Agents.getContact(p_contact);
 
-						const sa_recipient = g_transfer.recipient;
-						const p_contact = Agents.pathForContact(sa_recipient);
-						const g_contact = await Agents.getContact(p_contact);
-
-						return {
-							title: `Sent ${g_coin.name}`,
-							name: si_coin,
-							icon: mk_icon(SX_SEND),
-							subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_recipient)}`,
-							amount: `${format_amount(x_amount, true)} ${si_coin}`,
-							pfp: g_coin.pfp,
-						};
-					}
+					return {
+						title: `${b_pending? 'Sending': 'Sent'} ${g_coin.name}${b_pending? '...': ''}`,
+						name: si_coin,
+						icon: mk_icon(SX_SEND),
+						subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_recipient)}`,
+						amount: `${format_amount(x_amount, true)} ${si_coin}`,
+						pfp: g_coin.pfp,
+					};
 				}
 			}
 
@@ -204,15 +203,15 @@
 
 					const x_amount = new BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals).toNumber();
 
-					const sa_recipient = g_transfer.recipient;
-					const p_contact = Agents.pathForContact(sa_recipient);
+					const sa_sender = g_transfer.sender;
+					const p_contact = Agents.pathForContact(sa_sender);
 					const g_contact = await Agents.getContact(p_contact);
 
 					return {
 						title: `Received ${g_coin.name}`,
 						name: si_coin,
 						icon: mk_icon(SX_RECV),
-						subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(g_transfer.sender)}`,
+						subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_sender)}`,
 						amount: `${format_amount(x_amount, true)} ${si_coin}`,
 						// link: 'SCRT' === si_coin? `<a href="https://secretnodes.com/secret/chains/pulsar-2/blocks/${s_height}/transactions/${si_txn}">View on block explorer</a>`: '',
 						pfp: g_coin.pfp,
@@ -313,7 +312,7 @@
 					k_page.push({
 						creator: IncidentView,
 						props: {
-							incident: g_incident,
+							incident: Incidents.pathFrom(g_incident),
 						},
 					});
 				}}

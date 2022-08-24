@@ -1,22 +1,22 @@
 import SystemSvelte from '##/container/System.svelte';
-import BlankSvelte from '##/screen/Blank.svelte';
 import AuthenticateSvelte from '##/screen/Authenticate.svelte';
-import RegisterSvelte from '##/screen/Register.svelte';
 
 import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
 import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
 
-import { session_storage_remove, Vault } from '#/crypto/vault';
-import type { Vocab } from '#/meta/vocab';
-import type { IntraExt } from '#/script/messages';
-import { dd, qs } from '#/util/dom';
-import type { Union } from 'ts-toolbelt';
-import type { ParametricSvelteConstructor } from '#/meta/svelte';
-import { dm_log, domlog } from './fallback';
-import type { PlainObject } from '#/meta/belt';
-import type { SvelteComponent } from 'svelte';
-import { ode } from '#/util/belt';
+import {session_storage_remove, session_storage_set_isomorphic, Vault} from '#/crypto/vault';
+import type {Vocab} from '#/meta/vocab';
+import type {IntraExt} from '#/script/messages';
+import {qs} from '#/util/dom';
+import type {Union} from 'ts-toolbelt';
+import type {ParametricSvelteConstructor} from '#/meta/svelte';
+import {dm_log, domlog} from './fallback';
+import type {PlainObject} from '#/meta/belt';
+import type {SvelteComponent} from 'svelte';
+import {ode} from '#/util/belt';
 import PreRegister from '#/app/screen/PreRegister.svelte';
+import IncidentView from '#/app/screen/IncidentView.svelte';
+import ScanQrSvelte from '#/app/screen/ScanQr.svelte';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -38,7 +38,7 @@ async function unload() {
 addEventListener('beforeunload', unload);
 
 // top-level system component
-let yc_system: SvelteComponent | null = null;
+const yc_system: SvelteComponent | null = null;
 
 function open_flow<
 	dc_screen extends ParametricSvelteConstructor,
@@ -152,6 +152,26 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 	signTransaction(w_value) {
 
 	},
+
+	inspectIncident(g_value, fk_completed) {
+		// verbose
+		domlog(`Handling 'inspectIncident' on ${JSON.stringify(g_value)}`);
+
+		open_flow(IncidentView, {
+			completed: fk_completed,
+		}, {
+			incident: g_value.incident,
+		});
+	},
+
+	scanQr(g_value, fk_completed) {
+		// verbose
+		domlog(`Handling 'scanQr' on ${JSON.stringify(g_value)}`);
+
+		open_flow(ScanQrSvelte, {
+			completed: fk_completed,
+		}, g_value);
+	},
 } as const;
 
 
@@ -240,13 +260,13 @@ async function suggest_reload_page(g_page: Page) {
 	const si_objective = h_query.get('headless');
 	if(si_objective) {
 		if('info' === si_objective) {
-			return chrome.storage.session.set({
+			return session_storage_set_isomorphic({
 				display_info: {
 					width: screen.width,
 					height: screen.height,
 					availHeight: screen.availHeight,
 					availWidth: screen.availWidth,
-					orientation: screen.orientation,
+					orientation: JSON.parse(JSON.stringify(screen.orientation ?? null)),
 					devicePixelRatio: devicePixelRatio,
 				},
 			}).then(() => {
@@ -257,8 +277,11 @@ async function suggest_reload_page(g_page: Page) {
 		window.close();
 	}
 
+	// depending on comm method
+	const si_comm = h_query.get('comm');
+
 	// use broadcast channel
-	if('broadcast' === h_query.get('comm')) {
+	if('broadcast' === si_comm) {
 		// verbose
 		domlog('Using broadcast comm');
 
@@ -313,7 +336,7 @@ async function suggest_reload_page(g_page: Page) {
 			}
 
 			// save message to storage
-			sessionStorage.setItem(si_channel, JSON.stringify(g_msg));
+			sessionStorage.setItem(`@flow:${si_channel}`, JSON.stringify(g_msg));
 
 			// acknowledge receipt
 			d_broadcast.postMessage({
@@ -329,7 +352,7 @@ async function suggest_reload_page(g_page: Page) {
 		domlog('Listening for message...');
 
 		// read from session storage
-		const s_reloaded = sessionStorage.getItem(si_channel);
+		const s_reloaded = sessionStorage.getItem(`@flow:${si_channel}`);
 		if(s_reloaded) {
 			// verbose
 			domlog('Attempting to restore message after reload...');
@@ -346,6 +369,59 @@ async function suggest_reload_page(g_page: Page) {
 			// route
 			void route_message(g_parsed, respond_broadcast);
 		}
+	}
+	// query comm
+	else if('query' === si_comm) {
+		// get response key
+		const si_key = h_query.get('key');
+
+		// get data
+		const sx_data = h_query.get('data');
+
+		// verbose
+		domlog(`Received => ${sx_data}`);
+
+		// missing data
+		if(!sx_data) {
+			return domlog(`Missing flow data`);
+		}
+
+		// parse data
+		let g_flow: FlowMessage;
+		try {
+			g_flow = JSON.parse(sx_data) as FlowMessage;
+		}
+		catch(e_parse) {
+			return domlog('Invalid message');
+		}
+
+		// invalid event data
+		if(!g_flow || !g_flow.type) {
+			return domlog('Invalid message');
+		}
+
+		// route message
+		void route_message(g_flow, (b_answer, g_page) => {
+			// schedule response
+			(chrome.runtime as Vocab.TypedRuntime<IntraExt.ServiceInstruction>).sendMessage({
+				type: 'scheduleFlowResponse',
+				value: {
+					key: si_key || '(none)',
+					response: {
+						type: 'completeFlow',
+						value: {
+							answer: b_answer,
+						},
+					},
+				},
+			}, async() => {
+				// unload
+				await unload();
+
+				// close self
+				window.close();
+			});
+		});
 	}
 	// unknown comm
 	else {

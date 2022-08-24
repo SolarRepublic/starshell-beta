@@ -100,7 +100,7 @@ const A_NUMERIC_LT1 = [
 	{
 		order: 1e-6,
 		suffix: 'milth',
-		metric: 'mirco',
+		metric: 'micro',
 		m: 'μ',
 	},
 	{
@@ -134,7 +134,7 @@ const D_INTL_AMOUNT_I1E3 = new Intl.NumberFormat('en-US', {
 
 export function format_amount(x_amount: number, b_shorter=false): string {
 	// shortening
-	const shorten = b_shorter? (s: string) => s.replace(/(\.\d+?)0+(\s+.*)?$/, '$1$2'): F_IDENTITY;
+	const shorten = b_shorter? (s: string) => s.replace(/(?:(\.)|(\.\d+?))0+(\s+.*)?$/, '$2$3'): F_IDENTITY;
 
 	// zero
 	if(0 === x_amount) return '0';

@@ -57,6 +57,7 @@ let y_ripemd: Ripemd160;
 
 export const Chains = create_store_class({
 	store: SI_STORE_CHAINS,
+	extension: 'map',
 	class: class ChainsI extends WritableStoreMap<typeof SI_STORE_CHAINS> {
 		static pathFor(si_family: FamilyKey, si_chain: string): PathFor<typeof si_family, typeof si_chain> {
 			return `/family.${si_family}/chain.${si_chain}`;
@@ -89,9 +90,9 @@ export const Chains = create_store_class({
 			return Chains.read().then(ks => ks.get(si_family, si_chain));
 		}
 
-		static at(p_chain: ChainPath): Promise<null | Chain['interface']> {
-			return Chains.read().then(ks => ks.at(p_chain));
-		}
+		// static at(p_chain: ChainPath): Promise<null | Chain['interface']> {
+		// 	return Chains.read().then(ks => ks.at(p_chain));
+		// }
 
 		static blockExplorer(si_type: Exclude<keyof BlockExplorerConfig, 'base'>, g_data: Dict, g_chain: Chain['interface']=yw_chain.get()): string {
 			let sx_url = g_chain.blockExplorer.base+g_chain.blockExplorer[si_type];

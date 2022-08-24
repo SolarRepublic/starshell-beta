@@ -15,6 +15,7 @@
 	import type { Secret, SecretPath } from '#/meta/secret';
 	import AccountEdit from './AccountEdit.svelte';
 	import {Incidents} from '#/store/incidents';
+import { uuid_v4 } from '#/util/dom';
 
 
 	export let reset = false;
@@ -48,7 +49,7 @@
 		const [kk_sk, k_secp] = await Secp256k1Key.generatePrivateKey(true);
 
 		// generate new uuid for the secret
-		const s_uuid = crypto.randomUUID();
+		const s_uuid = uuid_v4();
 
 		// save private key to secrets store
 		const p_secret = await Secrets.open(async ks => ks.put({

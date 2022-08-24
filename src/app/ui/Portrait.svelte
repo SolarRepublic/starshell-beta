@@ -34,6 +34,7 @@
 	import type { Nameable, Pfpable } from '#/meta/able';
 	import { yw_store_tags } from '../mem';
 	import InlineTags from './InlineTags.svelte';
+import Load from './Load.svelte';
 
 	const H_ACTION_ICONS: Record<string, string> = {
 		send: SX_ICON_SEND,
@@ -213,13 +214,7 @@
 		</div>
 	{/if}
 	<div class="title">
-		<span class="text">
-			{#await title}
-				...
-			{:then s_title}
-				{s_title}
-			{/await}
-		</span>
+		<Load input={title} classes="text" />
 		{#if info}
 			<span class="info">
 				{@html SX_ICON_INFO}

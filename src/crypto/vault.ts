@@ -1,7 +1,7 @@
 import '#/dev';
 
-import type { Store, StoreKey } from '#/meta/store';
-import { F_NOOP, JsonObject, JsonValue, ode, type Dict } from '#/util/belt';
+import type {Store, StoreKey} from '#/meta/store';
+import {F_NOOP, JsonObject, JsonValue, ode, type Dict} from '#/util/belt';
 import {
 	base93_to_buffer,
 	buffer_to_base93,
@@ -15,19 +15,20 @@ import {
 	zero_out,
 } from '#/util/data';
 
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 
-import { default as sha256_sync } from 'crypto-js/sha256';
-import { default as sha512_sync } from 'crypto-js/sha512';
+import {default as sha256_sync} from 'crypto-js/sha256';
+import {default as sha512_sync} from 'crypto-js/sha512';
 
 import SensitiveBytes from './sensitive-bytes';
-import { NotAuthenticatedError } from '#/share/auth';
-import { global_wait, global_broadcast } from '#/script/msg-global';
-import { syserr, syswarn } from '#/app/common';
-import { H_STORE_INITS } from '#/store/_init';
-import { PublicStorage, storage_get } from '#/extension/public-storage';
-import AsyncLockPool, { LockTimeoutError } from '#/util/async-lock-pool';
+import {NotAuthenticatedError} from '#/share/auth';
+import {global_wait, global_broadcast} from '#/script/msg-global';
+import {syserr, syswarn} from '#/app/common';
+import {H_STORE_INITS} from '#/store/_init';
+import {PublicStorage, storage_get, storage_remove, storage_set} from '#/extension/public-storage';
+import AsyncLockPool, {LockTimeoutError} from '#/util/async-lock-pool';
+import {uuid_v4} from '#/util/dom';
 
 
 // sha256("starshell")
@@ -89,7 +90,7 @@ const GC_HKDF_COMMON = {
 const A_STORE_KEYS: Array<StoreKey | 'keys'> = ['keys', ...Object.keys(H_STORE_INITS) as Array<StoreKey>];
 
 // identify this local frame
-const SI_FRAME_LOCAL = crypto.randomUUID().slice(24);
+const SI_FRAME_LOCAL = uuid_v4().slice(24);
 
 
 interface VaultFields {
@@ -194,7 +195,7 @@ const hm_privates = new WeakMap<VaultEntry, VaultFields>();
 
 // 	// ref the salt to derive the decryption key
 // 	const atu8_salt_read = hex_to_buffer(g_private.sh_salt_read);
-	
+
 // 	// derive the decryption key
 // 	const dk_aes_read = await pbkdf2_derive(dk_phrase, atu8_salt_read);
 
@@ -208,7 +209,7 @@ const hm_privates = new WeakMap<VaultEntry, VaultFields>();
 // 		sh_nonce_read,
 // 		atu8_ciphertext,
 // 	} = hm_privates.get(k_this)!;
-	
+
 // 	// prep the iv to decrypt the store
 // 	const atu8_nonce_read = hex_to_buffer(sh_nonce_read);
 
@@ -254,6 +255,10 @@ export type SessionStorage = Merge<{
 		native: string;
 		wrapped: string;
 	};
+	display_info: {
+		native: ScreenInfo;
+		wrapped: ScreenInfo;
+	};
 }, {
 	[si_lock in `lock_${string}`]: {
 		native: string;
@@ -290,7 +295,7 @@ export async function restore_as_key(
 	z_data: null | number[] | CryptoKey,
 	w_kdf: AlgorithmIdentifier,
 	b_extractable: boolean,
-	a_usages: KeyUsage[],
+	a_usages: KeyUsage[]
 ): Promise<null | CryptoKey> {
 	if(Array.isArray(z_data)) {
 		return await crypto.subtle.importKey('raw', Uint8Array.from(z_data), w_kdf, false, a_usages);
@@ -353,63 +358,154 @@ export const {
 		};
 	}
 	else {
-		const dw_background = chrome.extension.getBackgroundPage();
+		interface IsoStorage {
+			get(si_key: string): string | null;
+			set(si_key: string, s_value: string): void;
+			remove(si_key: string): void;
+			clear(): void;
+		}
 
-		if(!dw_background) {
+		const session = (): IsoStorage | null => {
+			const dw_background = chrome.extension.getBackgroundPage?.();
+			let d_session!: Window['sessionStorage'];
+			if(dw_background) {
+				d_session = dw_background.sessionStorage;
+			}
+			else if(globalThis.sessionStorage) {
+				d_session = sessionStorage;
+			}
+
+			if(d_session) {
+				return {
+					get(si_key) {
+						return d_session.getItem(si_key);
+					},
+					set(si_key, s_value) {
+						return d_session.setItem(si_key, s_value);
+					},
+					remove(si_key) {
+						return d_session.removeItem(si_key);
+					},
+					clear() {
+						return d_session.clear();
+					},
+				};
+			}
+
+			return null;
+		};
+
+		if(!session()) {
 			throw new Error('Browser does not support any type of session storage');
 		}
 
-		// declare initial storage object
-		let g_session: SetNative = dw_background['_g_session'] = {};
+		// // mobile
+		// if(B_MOBILE) {
+			const k_session = session()!;
 
-		return {
-			/* eslint-disable @typescript-eslint/require-await */
-			async session_storage_get<
-				si_key extends SessionStorageKey,
-			>(si_key: si_key): Promise<SessionStorage.Native<si_key> | null> {
-				return g_session[si_key]! ?? null;
-			},
+			return {
+				/* eslint-disable @typescript-eslint/require-await */
+				async session_storage_get<
+					si_key extends SessionStorageKey,
+				>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
+					const s_raw = k_session.get(si_key);
+					return s_raw? JSON.parse(s_raw) as SessionStorage.Wrapped<si_key>: null;
+				},
 
-			async session_storage_set_native(h_set_native: SetNative): Promise<void> {
-				for(const [si_key, w_value] of ode(h_set_native)) {
-					session_storage_remove(si_key);
-					g_session[si_key as string] = w_value!;
-				}
-			},
+				async session_storage_set_native(h_set_native: SetNative): Promise<void> {
+					throw new Error('Implementation bug; cannot use native session storage');
+				},
 
-			async session_storage_set_wrapped(h_set_wrapped: SetWrapped): Promise<void> {
-				throw new Error('Implementation bug; cannot use wrapped session storage');
-			},
-
-			async session_storage_remove(si_key: SessionStorageKey): Promise<void> {
-				const z_value = g_session[si_key];
-				if(z_value && 'object' === typeof z_value) {
-					if(Array.isArray(z_value) || ArrayBuffer.isView(z_value)) {
-						zero_out(z_value);
+				async session_storage_set_wrapped(h_set_wrapped: SetWrapped): Promise<void> {
+					for(const [si_key, w_value] of ode(h_set_wrapped)) {
+						k_session.set(si_key, JSON.stringify(w_value));
 					}
-				}
+				},
 
-				delete g_session[si_key];
-			},
+				async session_storage_remove(si_key: SessionStorageKey): Promise<void> {
+					k_session.remove(si_key);
+				},
 
-			async session_storage_clear(): Promise<void> {
-				for(const [si_key, w_value] of ode(g_session)) {
-					session_storage_remove(si_key);
-				}
+				async session_storage_clear(): Promise<void> {
+					k_session.clear();
+				},
 
-				// reset
-				dw_background['_g_session'] = g_session = {};
-			},
+				session_storage_is_native: false,
 
-			session_storage_is_native: true,
+				/* eslint-enable @typescript-eslint/require-await */
+			};
+		// }
+		// // desktop
+		// else {
+		// 	// function bg_session(): SetNative {
+		// 	// 	const dw_background = chrome.extension.getBackgroundPage();
+		// 	// 	dw_background['_g_session'] = dw_background['_g_session'] || {};
+		// 	// 	if(dw_background) {
+		// 	// 		return {
+		// 	// 			get(si_key):  {
+		// 	// 			},
+		// 	// 		};
+		// 	// 	}
+		// 	// 	else {
+		// 	// 		throw new Error(`Attempted to use non-existent background page for session storage`);
+		// 	// 	}
+		// 	// }
 
-			/* eslint-enable @typescript-eslint/require-await */
-		};
+		// 	return {
+		// 		/* eslint-disable @typescript-eslint/require-await */
+		// 		async session_storage_get<
+		// 			si_key extends SessionStorageKey,
+		// 		>(si_key: si_key): Promise<SessionStorage.Native<si_key> | null> {
+		// 			return bg_session()[si_key] ?? null;
+		// 		},
+
+		// 		async session_storage_set_native(h_set_native: SetNative): Promise<void> {
+		// 			const g_session = bg_session();
+
+		// 			for(const [si_key, w_value] of ode(h_set_native)) {
+		// 				await session_storage_remove(si_key);
+		// 				g_session[si_key as string] = w_value!;
+		// 			}
+		// 		},
+
+		// 		async session_storage_set_wrapped(h_set_wrapped: SetWrapped): Promise<void> {
+		// 			throw new Error('Implementation bug; cannot use wrapped session storage');
+		// 		},
+
+		// 		async session_storage_remove(si_key: SessionStorageKey): Promise<void> {
+		// 			const g_session = bg_session();
+
+		// 			const z_value = g_session[si_key];
+		// 			if(z_value && 'object' === typeof z_value) {
+		// 				if(Array.isArray(z_value) || ArrayBuffer.isView(z_value)) {
+		// 					zero_out(z_value as any[] | Uint8Array);
+		// 				}
+		// 			}
+
+		// 			delete g_session[si_key];
+		// 		},
+
+		// 		async session_storage_clear(): Promise<void> {
+		// 			const g_session = bg_session();
+
+		// 			for(const [si_key, w_value] of ode(g_session)) {
+		// 				await session_storage_remove(si_key);
+		// 			}
+
+		// 			// reset
+		// 			session()!['_g_session'] = {};
+		// 		},
+
+		// 		session_storage_is_native: true,
+
+		// 		/* eslint-enable @typescript-eslint/require-await */
+		// 	};
+		// }
 	}
 })();
 
 
-async function session_storage_set_isomorphic(h_set: SetNative & SetWrapped): Promise<void> {
+export async function session_storage_set_isomorphic(h_set: SetNative & SetWrapped): Promise<void> {
 	if(session_storage_is_native) {
 		await session_storage_set_native(h_set as SetNative);
 	}
@@ -460,7 +556,7 @@ function pbkdf2_derive2(ab_nonce: BufferSource, x_iteration_multiplier=0): (dk_b
 			iterations: x_iteration_multiplier? Math.ceil(N_ITERATIONS * x_iteration_multiplier): N_ITERATIONS,
 			hash: SI_PRF,
 		}, dk_base, 256)));
-	}
+	};
 }
 
 class DecryptionError extends Error {
@@ -578,7 +674,7 @@ export const Vault = {
 	},
 
 	async setParsedBase(g_base: Omit<ParsedBase, 'version'>): Promise<void> {
-		return await chrome.storage.local.set({
+		return await storage_set({
 			base: {
 				version: 1,
 				entropy: buffer_to_hex(g_base.entropy),
@@ -589,7 +685,7 @@ export const Vault = {
 	},
 
 	async eraseBase(): Promise<void> {
-		return await chrome.storage.local.remove(['base']);
+		return await storage_remove('base');
 	},
 
 	/**
@@ -605,7 +701,7 @@ export const Vault = {
 
 	async setSalt(atu8_salt: Uint8Array): Promise<void> {
 		// store salt as stringify'd buffer
-		return await chrome.storage.local.set({
+		return await storage_set({
 			salt: buffer_to_hex(atu8_salt),
 		});
 	},
@@ -636,8 +732,8 @@ export const Vault = {
 
 	async clearRootKey(): Promise<void> {
 		// background page exists
-		let dw_background!: Window | null;
-		if(chrome.extension.getBackgroundPage && (dw_background=chrome.extension.getBackgroundPage())) {
+		let dw_background!: Window | null | undefined;
+		if((dw_background=chrome.extension?.getBackgroundPage())) {
 			delete dw_background['_dk_root'];
 		}
 
@@ -694,12 +790,14 @@ export const Vault = {
 		}
 
 		// migrate init stores
-		if(!g_last_seen || (+g_last_seen.version.replace(/^v?0\.0\./, '')) <= 6) {
-			await chrome.storage.local.remove('chains');
-			await chrome.storage.local.remove('agents');
-			await chrome.storage.local.remove('networks');
-			await chrome.storage.local.remove('contacts');
-			await chrome.storage.local.remove('apps');
+		if(!g_last_seen || +g_last_seen.version.replace(/^v?0\.0\./, '') <= 6) {
+			await Promise.all([
+				storage_remove('chains'),
+				storage_remove('agents'),
+				storage_remove('networks'),
+				storage_remove('contacts'),
+				storage_remove('apps'),
+			]);
 		}
 
 		// derive the two root byte sequences for this session
@@ -821,7 +919,7 @@ export const Vault = {
 				const atu8_replace = await encrypt(atu8_data, dk_aes_new, atu8_nonce_new);
 
 				// save encrypted data back to store
-				await chrome.storage.local.set({
+				await storage_set({
 					[si_key]: buffer_to_string8(atu8_replace),
 					// [si_key]: buffer_to_base93(atu8_replace),
 				});
@@ -846,7 +944,7 @@ export const Vault = {
 	},
 
 
-	async peekJson(si_key: keyof Store, dk_cipher: CryptoKey): Promise<null | Store[typeof si_key]> {
+	async peekJson(si_key: StoreKey, dk_cipher: CryptoKey): Promise<null | Store[typeof si_key]> {
 		// checkout store
 		const kp_store = await Vault.readonly(si_key);
 
@@ -861,7 +959,7 @@ export const Vault = {
 	/**
 	 * Obtain a readonly vault entry by its given key identifier.
 	 */
-	async readonly(si_key: keyof Store): Promise<VaultEntry> {
+	async readonly(si_key: StoreKey): Promise<VaultEntry> {
 		// read entry ciphertext
 		const sx_entry = await storage_get<string>(si_key);
 
@@ -875,13 +973,13 @@ export const Vault = {
 	 * @param si_key key identifier
 	 * @returns new vault entry
 	 */
-	async acquire(si_key: StoreKey, c_attempts=0): Promise<WritableVaultEntry<typeof si_key>> {
+	async acquire(si_key: StoreKey, c_attempts=0): Promise<WritableVaultEntry> {
 		// prep lock id and self id
 		const si_lock = `lock_${si_key}` as const;
 
-		let b_debug = false;
+		const b_debug = false;
 
-		let si_log = `${si_lock}/${c_incidents++}]:`;
+		const si_log = `${si_lock}/${c_incidents++}]:`;
 
 		// check if the lock is busy locally and wait for it
 		const k_pool = h_lock_pools[si_lock] = h_lock_pools[si_lock] || new AsyncLockPool(1);
@@ -958,12 +1056,10 @@ export const Vault = {
 				console.warn(`'${si_key}' store was released`);
 			}
 		}
-		else {
-			if(b_debug) console.log(`${si_log} NO OWNERS`);
-		}
+		else if(b_debug) {console.log(`${si_log} NO OWNERS`);}
 
 		// create self id
-		const si_self = SI_FRAME_LOCAL+':'+crypto.randomUUID().slice(24);
+		const si_self = SI_FRAME_LOCAL+':'+uuid_v4().slice(24);
 
 		if(b_debug) console.log(`${si_log} attempting to acquire exclusive lock`);
 
@@ -985,9 +1081,7 @@ export const Vault = {
 			// retry
 			return await Vault.acquire(si_key, c_attempts+1);
 		}
-		else {
-			if(b_debug) console.log(`${si_log} acquired ${si_verify} === ${si_self}`);
-		}
+		else if(b_debug) {console.log(`${si_log} acquired ${si_verify} === ${si_self}`);}
 
 		// broadcast global
 		global_broadcast({
@@ -1006,7 +1100,7 @@ export const Vault = {
 };
 
 
-function VaultEntry$_fields(kv_this: VaultEntry<StoreKey>): VaultFields {
+function VaultEntry$_fields(kv_this: VaultEntry): VaultFields {
 	// lookup private fields
 	const g_privates = hm_privates.get(kv_this);
 
@@ -1184,7 +1278,7 @@ export class WritableVaultEntry<
 		const atu8_ciphertext = await encrypt(atu8_padded, dk_cipher, atu8_vector);
 
 		// save
-		await chrome.storage.local.set({
+		await storage_set({
 			[this._si_key]: buffer_to_string8(atu8_ciphertext),
 			// [this._si_key]: buffer_to_base93(atu8_ciphertext),
 		});

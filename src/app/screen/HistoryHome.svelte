@@ -3,7 +3,7 @@
 
 	import {Incidents} from '#/store/incidents';
 	import { onDestroy } from 'svelte';
-import { yw_account, yw_network_active, yw_owner } from '../mem';
+	import { yw_account, yw_network_active, yw_owner } from '../mem';
 	import TxnList from '../ui/TxnList.svelte';
 
 	import {
@@ -16,7 +16,7 @@ import { yw_account, yw_network_active, yw_owner } from '../mem';
 	let c_reloads = 1;
 	const f_unsubscribe = global_receive({
 		updateStore({key:si_store}) {
-			if('events' === si_store) {
+			if('incidents' === si_store || 'histories' === si_store) {
 				c_reloads++;
 			}
 		},
@@ -27,8 +27,6 @@ import { yw_account, yw_network_active, yw_owner } from '../mem';
 	});
 
 	async function load_incidents() {
-		await $yw_network_active.synchronizeAll($yw_owner);
-
 		const a_incidents = [...await Incidents.filter()];
 
 		return a_incidents;

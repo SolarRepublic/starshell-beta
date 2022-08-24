@@ -11,6 +11,7 @@ import type { StoreKey } from '#/meta/store';
 import type { PromptConfig } from './msg-flow';
 import type { Bech32, ChainPath } from '#/meta/chain';
 import type { NetworkPath } from '#/meta/network';
+import type { IncidentPath, TxConfirmed, TxPending, TxSynced } from '#/meta/incident';
 
 
 /**
@@ -22,6 +23,9 @@ export interface TypedMessage<
 	type: s_type;
 }
 
+export interface DeepLinkMessage extends JsonObject {
+	url: string;
+}
 
 /**
  * Vocab for wallet events.
@@ -271,6 +275,12 @@ export namespace IntraExt {
 		// logout of the application
 		logout: {};
 
+		// service heartbeat
+		heartbeat: {};
+
+		// wake message
+		wake: {};
+
 		// store acquired
 		acquireStore: {
 			value: {
@@ -301,6 +311,14 @@ export namespace IntraExt {
 			};
 		};
 
+		// responde to a flow (in query comm mode)
+		flowResponse: {
+			value: {
+				key: string;
+				response: Vocab.Message<FlowResponseVocab>;
+			};
+		};
+
 		// block info
 		blockInfo: {
 			value: {
@@ -308,26 +326,23 @@ export namespace IntraExt {
 				chain: ChainPath;
 				network: NetworkPath;
 				recents: number[];
+				txCount: number;
 			};
+		};
+
+		// deep link
+		deepLink: {
+			value: DeepLinkMessage;
 		};
 
 		// transfer receive
 		transferReceive: {
-			value: {
-			};
+			value: TxConfirmed | TxSynced;
 		};
 
 		// transfer send
 		transferSend: {
-			value: {
-				height: string;
-				tx: string;
-				gas_wanted: string;
-				gas_used: string;
-				sender: string;
-				recipient: string;
-				amunt: string;
-			};
+			value: TxConfirmed | TxSynced;
 		};
 	}>;
 
@@ -358,6 +373,25 @@ export namespace IntraExt {
 		signTransaction: {
 			value: {};
 		};
+
+		// user clicked notification
+		inspectIncident: {
+			value: {
+				incident: IncidentPath;
+			};
+		};
+
+		// QR code scan
+		scanQr: {
+			value: {
+				id: string;
+			};
+		};
+
+		// deep link
+		deepLink: {
+			value: DeepLinkMessage;
+		};
 	}, {
 		each: {
 			message: {
@@ -374,6 +408,9 @@ export namespace IntraExt {
 	 * Vocab for standalone popups that should conduct some specific flow.
 	 */
 	export type FlowResponseVocab = Vocab.New<{
+		// request retransmission
+		retransmit: {};
+
 		// acknowledge receipt of a message
 		acknowledgeReceipt: {
 			value: Vocab.Message<FlowVocab>;
@@ -403,6 +440,26 @@ export namespace IntraExt {
 	 * Vocab for instructions to be given directly to service worker.
 	 */
 	export type ServiceInstruction = Vocab.New<{
+		wake: {};
+
+		scheduleFlowResponse: {
+			value: {
+				key: string;
+				response: Vocab.Message<FlowResponseVocab>;
+			};
+		};
+
+		scheduleBroadcast: {
+			value: {
+				delay?: number;
+				broadcast: Vocab.Message<GlobalVocab>;
+			};
+		};
+
+		deepLink: {
+			value: DeepLinkMessage;
+		};
+
 		bankSend: {
 			value: {
 				network: NetworkPath;
@@ -413,6 +470,26 @@ export namespace IntraExt {
 				limit: `${bigint}`;
 				price: number;
 				memo: string;
+			};
+		};
+	}>;
+}
+
+
+/**
+ * Messages sent from web extension to native app.
+ */
+export namespace ExtToNative {
+	/**
+	 * Vocab for messages exchanged over window.
+	 */
+	export type MobileVocab = Vocab.New<{
+		greet: {};
+
+		notify: {
+			value: {
+				title: string;
+				message: string;
 			};
 		};
 	}>;

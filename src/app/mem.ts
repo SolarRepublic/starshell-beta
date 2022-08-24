@@ -393,25 +393,42 @@ export function arrival(dm_screen: HTMLElement, fk_arrive: VoidFunction) {
 }
 
 // wait for window to load
-void once_store_updates(yw_navigator).then(() => {
-	// respond to window resize events in order to update root css variable
-	const d_style_root = document.documentElement.style;
-	window.addEventListener('resize', () => {
-		d_style_root.setProperty('--app-window-width', `${window.innerWidth}px`);
-		d_style_root.setProperty('--app-window-height', `${window.innerHeight}px`);
-	});
+if('undefined' !== typeof document) {
+	void once_store_updates(yw_navigator).then(() => {
+		let c_resizes = 0;
 
-	// initialize
-	window.dispatchEvent(new Event('resize'));
+		function resize(i_resize: number) {
+			// ignore late delayed resizes
+			if(c_resizes !== i_resize) return;
 
-	// global key events
-	window.addEventListener('keydown', (d_event) => {
-		// escape key
-		if('Escape' === d_event.key) {
-			// popup is open; close it
-			if(yw_popup.get()) {
-				yw_popup.set(null);
-			}
+			d_style_root.setProperty('--app-window-width', `${window.innerWidth}px`);
+			d_style_root.setProperty('--app-window-height', `${window.innerHeight}px`);
 		}
+
+		// respond to window resize events in order to update root css variable
+		const d_style_root = document.documentElement.style;
+		window.addEventListener('resize', () => {
+			const i_resize = ++c_resizes;
+
+			resize(i_resize);
+
+			setTimeout(() => resize(i_resize), 250);
+			setTimeout(() => resize(i_resize), 750);
+			setTimeout(() => resize(i_resize), 1000);
+		});
+
+		// initialize
+		window.dispatchEvent(new Event('resize'));
+
+		// global key events
+		window.addEventListener('keydown', (d_event) => {
+			// escape key
+			if('Escape' === d_event.key) {
+				// popup is open; close it
+				if(yw_popup.get()) {
+					yw_popup.set(null);
+				}
+			}
+		});
 	});
-});
+}

@@ -1,5 +1,4 @@
-import type { PlainObject } from "#/meta/belt";
-import { run } from "svelte/internal";
+import type {PlainObject} from '#/meta/belt';
 
 /**
  * Shortcut for a very common type pattern

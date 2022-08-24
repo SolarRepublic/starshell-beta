@@ -1,7 +1,11 @@
-import type { ContentScripts } from 'webextension-polyfill';
+import type {ContentScripts} from 'webextension-polyfill';
+import type { Values } from './meta/belt';
 
 type ManifestV2 = chrome.runtime.ManifestV2;
 type ManifestV3 = chrome.runtime.ManifestV3;
+
+type Mv2ContentScript = Values<NonNullable<Required<ManifestV2>['content_scripts']>>;
+type Mv3ContentScript = Values<NonNullable<Required<ManifestV3>['content_scripts']>>;
 
 const H_CONTENT_SECURITY_POLICY = {
 	'script-src': ['self', 'wasm-unsafe-eval'],
@@ -42,9 +46,16 @@ const A_MATCH_ALL = [
 	'https://*/*',
 ];
 
+const A_MATCH_LAUNCH = [
+	'https://launch.starshell.net/*',
+];
+
+const A_MATCH_LINK = [
+	'https://link.starshell.net/*',
+];
 
 const G_CONTENT_SCRIPTS = {
-	ics_spotter(h_overrides?: Partial<ContentScripts.RegisteredContentScriptOptions | {world:'MAIN' | 'ISOLATED'}>) {
+	ics_spotter(h_overrides?: Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>) {
 		return {
 			js: ['src/script/ics-spotter.ts'],
 			matches: A_MATCH_ALL,
@@ -61,6 +72,36 @@ const G_CONTENT_SCRIPTS = {
 				'file:///:never:',
 			],
 			run_at: 'document_start',
+			all_frames: true,
+		};
+	},
+
+	ics_launch(h_overrides?: Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>) {
+		return {
+			js: ['src/script/ics-launch.ts'],
+			matches: A_MATCH_LAUNCH,
+			run_at: 'document_start',
+			...h_overrides,
+		};
+	},
+
+	ics_link(h_overrides?: Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>) {
+		return {
+			js: ['src/script/ics-link.ts'],
+			matches: A_MATCH_LINK,
+			run_at: 'document_start',
+			...h_overrides,
+		};
+	},
+
+	about_blank() {
+		return {
+			js: ['src/script/about-blank.ts'],
+			matches: [
+				'file:///:never',
+			],
+			run_at: 'document_start',
+			match_about_blank: true,
 			all_frames: true,
 		};
 	},
@@ -97,10 +138,15 @@ export const GC_MANIFEST_V2: Partial<ManifestV2> = {
 	],
 	browser_action: G_BROWSER_ACTION,
 
-	web_accessible_resources: A_WA_RESOURCES,
-	content_scripts: [
-		G_CONTENT_SCRIPTS.ics_spotter() as Required<ManifestV2>['content_scripts'][number],
+	web_accessible_resources: [
+		...A_WA_RESOURCES,
+		G_BROWSER_ACTION.default_popup,
 	],
+	content_scripts: [
+		G_CONTENT_SCRIPTS.ics_spotter(),
+		G_CONTENT_SCRIPTS.ics_launch(),
+		G_CONTENT_SCRIPTS.ics_link(),
+	] as Mv2ContentScript[],
 	background: {
 		persistent: false,
 		scripts: [
@@ -127,12 +173,22 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 			resources: A_WA_RESOURCES,
 			matches: A_MATCH_ALL,
 		},
+		{
+			resources: [G_BROWSER_ACTION.default_popup],
+			matches: A_MATCH_LAUNCH,
+		},
 	],
 	content_scripts: [
 		G_CONTENT_SCRIPTS.ics_spotter({
 			world: 'ISOLATED',
-		}) as Required<ManifestV3>['content_scripts'][number],
-	],
+		}),
+		G_CONTENT_SCRIPTS.ics_launch({
+			world: 'ISOLATED',
+		}),
+		G_CONTENT_SCRIPTS.ics_link({
+			world: 'ISOLATED',
+		}),
+	] as Mv3ContentScript[],
 	background: {
 		service_worker: 'src/script/service.ts',
 		type: 'module',
@@ -144,7 +200,9 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 
 export const H_BROWSERS = {
 	chrome: {
-		manifest: GC_MANIFEST_V3,
+		manifest: {
+			...GC_MANIFEST_V3,
+		},
 	},
 
 	firefox: {
@@ -152,13 +210,19 @@ export const H_BROWSERS = {
 			...GC_MANIFEST_V2,
 			browser_specific_settings: {
 				gecko: {
-					id: 'wallet@starshell.net',
+					id: 'wallet-beta@starshell.net',
 				},
 			},
 		},
 	},
 
 	safari: {
-		manifest: GC_MANIFEST_V2,
+		manifest: {
+			...GC_MANIFEST_V2,
+			permissions: [
+				...GC_MANIFEST_V2.permissions || [],
+				'nativeMessaging',
+			],
+		},
 	},
 } as const;

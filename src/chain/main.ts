@@ -12,15 +12,15 @@ import {
 	GrpcWebImpl,
 	QueryBalanceResponse,
 	QueryClientImpl as BankQueryClient,
-} from 'cosmos-grpc/dist/cosmos/bank/v1beta1/query';
+} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/query';
 
 import {
 	QueryClientImpl as AuthQueryClient, QueryParamsRequest,
-} from 'cosmos-grpc/dist/cosmos/auth/v1beta1/query';
+} from '@solar-republic/cosmos-grpc/dist/cosmos/auth/v1beta1/query';
 
 import type {
 	Coin,
-} from 'cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
 import {
 	ServiceGetTxsEventDesc,
@@ -30,35 +30,36 @@ import {
 	OrderBy,
 	BroadcastMode,
 	BroadcastTxResponse,
-} from 'cosmos-grpc/dist/cosmos/tx/v1beta1/service';
+	GetTxResponse,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 
 import {
 	GetLatestBlockResponse,
 	ServiceClientImpl as TendermintServiceClient,
-} from 'cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
+} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 
 import type {
 	TxResult,
-} from 'cosmos-grpc/dist/tendermint/abci/types';
+} from '@solar-republic/cosmos-grpc/dist/tendermint/abci/types';
 
 import {
 	MsgSend,
 	MsgClientImpl as BankMsgClient,
-} from 'cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
+} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
 import { instantiateSecp256k1 } from '@solar-republic/wasm-secp256k1';
 
-import type { Any } from 'cosmos-grpc/dist/google/protobuf/any';
-import { PubKey } from 'cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
+import type { Any } from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+import { PubKey } from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 
-import { AuthInfo, ModeInfo, SignDoc, Tx, TxBody, TxRaw } from 'cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+import { AuthInfo, ModeInfo, SignDoc, Tx, TxBody, TxRaw } from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 import { base64_to_buffer, buffer_to_base64, buffer_to_string8, sha256, sha256_sync, string8_to_buffer, text_to_buffer, zero_out } from '#/util/data';
-import { SignMode } from 'cosmos-grpc/dist/cosmos/tx/signing/v1beta1/signing';
+import { SignMode } from '@solar-republic/cosmos-grpc/dist/cosmos/tx/signing/v1beta1/signing';
 import { Keyring } from '#/crypto/keyring';
 import { Secrets } from '#/store/secrets';
 import { Secp256k1Key } from '#/crypto/secp256k1';
 import RuntimeKey from '#/crypto/runtime-key';
 import { Accounts } from '#/store/accounts';
-import { BaseAccount } from 'cosmos-grpc/dist/cosmos/auth/v1beta1/auth';
+import { BaseAccount } from '@solar-republic/cosmos-grpc/dist/cosmos/auth/v1beta1/auth';
 import BigNumber from 'bignumber.js';
 import type { Account } from '#/meta/account';
 import { syserr } from '#/app/common';
@@ -66,10 +67,12 @@ import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 import type { Cast } from 'ts-toolbelt/out/Any/Cast';
 import { ATU8_SHA256_STARSHELL, encrypt, decrypt } from '#/crypto/vault';
 import { Histories, Incidents } from '#/store/incidents';
-import type { IncidentType, TxModeInfo, TxMsg, TxPending, TxSynced } from '#/meta/incident';
+import type { Incident, IncidentType, TxModeInfo, TxMsg, TxPending, TxSynced } from '#/meta/incident';
 import type { Cw } from '#/meta/cosm-wasm';
-import type { StringEvent, TxResponse } from 'cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
+import type { StringEvent, TxResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
 import { XG_SYNCHRONIZE_PAGINATION_LIMIT } from '#/share/constants';
+
+export type IncidentTx = Incident.Struct<'tx_in' | 'tx_out'>;
 
 export interface TypedEvent {
 	type: 'transfer' | 'message' | 'coin_spent' | 'coin_received';
@@ -95,9 +98,11 @@ export interface ModWsTxResult extends WsTxResult {
 	hash: string;
 }
 
-export const fold_attrs = (g_event: TypedEvent | StringEvent): Dict => fold(g_event.attributes, g_attr => ({
-	[g_attr.key]: g_attr.value,
-}));
+export function fold_attrs<w_out extends object=Dict>(g_event: TypedEvent | StringEvent): w_out {
+	return fold(g_event.attributes, g_attr => ({
+		[g_attr.key]: g_attr.value,
+	})) as w_out;
+}
 
 
 async function sign_doc(g_account: Account['interface'], xg_account_number: bigint, atu8_auth: Uint8Array, atu8_body: Uint8Array, si_chain: string): Promise<Uint8Array> {
@@ -148,6 +153,8 @@ function tx_to_synced(p_chain: ChainPath, si_txn: string, g_tx: Tx, g_result: Tx
 		chain: p_chain,
 		hash: si_txn,
 		code: g_result.code,
+		raw_log: g_result.rawLog,
+		fiats: {},
 
 		height: g_result.height as Cw.Uint128,
 		timestamp: g_result.timestamp as Cw.String,
@@ -265,7 +272,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		const p_holding = Entities.holdingPathFor(sa_owner, si_coin, this._p_chain);
 
 		// read from cache
-		const g_cached = this._ks_cache.at(p_holding) as Cached<Coin> | null;
+		const g_cached = (this._ks_cache || await this.reloadCached()).at(p_holding) as Cached<Coin> | null;
 
 		// update cache
 		await QueryCache.open(async(ks) => {
@@ -283,8 +290,8 @@ export class CosmosNetwork implements ActiveNetwork {
 		return [p_holding, g_cached];
 	}
 
-	async reloadCached(): Promise<void> {
-		this._ks_cache = await QueryCache.read();
+	async reloadCached(): Promise<typeof this._ks_cache> {
+		return this._ks_cache = await QueryCache.read();
 	}
 
 	async latestBlock(): Promise<GetLatestBlockResponse> {
@@ -293,6 +300,8 @@ export class CosmosNetwork implements ActiveNetwork {
 
 	cachedBalance(sa_owner: string, si_coin: string): Cached<Coin> | null {
 		const p_holding = Entities.holdingPathFor(sa_owner, si_coin, this._p_chain);
+
+		if(!this._ks_cache) return null;
 
 		return this._ks_cache.at(p_holding) as Cached<Coin> | null;
 	}
@@ -382,55 +391,57 @@ export class CosmosNetwork implements ActiveNetwork {
 		return !!this._g_network.rpcHost;
 	}
 
-	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_value?: JsonObject, si_txn?: string) => Promisable<void>): () => void {
-		const p_host = this._g_network.rpcHost;
+	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_value?: JsonObject, si_txn?: string) => Promisable<void>): Promise<() => void> {
+		return new Promise((fk_resolve) => {
+			const p_host = this._g_network.rpcHost;
 
-		if(!p_host) throw new Error('Cannot subscribe to events; no RPC host configured on network');
+			if(!p_host) throw new Error('Cannot subscribe to events; no RPC host configured on network');
 
-		const d_ws = new WebSocket(`wss://${p_host}/websocket`);
+			const d_ws = new WebSocket(`wss://${p_host}/websocket`);
 
-		d_ws.onopen = (d_event) => {
-			d_ws.send(JSON.stringify({
-				jsonrpc: '2.0',
-				method: 'subscribe',
-				id: '0',
-				params: {
-					query: a_events.join(' AND '),
-				},
-			}));
-		};
+			d_ws.onopen = (d_event) => {
+				d_ws.send(JSON.stringify({
+					jsonrpc: '2.0',
+					method: 'subscribe',
+					id: '0',
+					params: {
+						query: a_events.join(' AND '),
+					},
+				}));
 
-		d_ws.onmessage = (d_event: MessageEvent<string>) => {
-			const g_msg = JSON.parse(d_event.data || '{}');
+				fk_resolve(() => {
+					b_user_closed = true;
+					d_ws.close();
+				});
+			};
 
-			const g_value = g_msg?.result?.data?.value;
+			d_ws.onmessage = (d_event: MessageEvent<string>) => {
+				const g_msg = JSON.parse(d_event.data || '{}');
 
-			const si_txn = g_msg?.result?.events?.['tx.hash']?.[0] as string || '';
+				const g_value = g_msg?.result?.data?.value;
 
-			if(g_value) {
-				void fke_receive(null, g_value as JsonObject, si_txn);
-			}
-		};
+				const si_txn = g_msg?.result?.events?.['tx.hash']?.[0] as string || '';
 
-		let b_user_closed = false;
-		d_ws.onclose = (d_event) => {
-			if(!b_user_closed) {
+				if(g_value) {
+					void fke_receive(null, g_value as JsonObject, si_txn);
+				}
+			};
+
+			let b_user_closed = false;
+			d_ws.onclose = (d_event) => {
+				if(!b_user_closed) {
+					void fke_receive(d_event);
+				}
+			};
+
+			d_ws.onerror = (d_event) => {
 				void fke_receive(d_event);
-			}
-		};
-
-		d_ws.onerror = (d_event) => {
-			void fke_receive(d_event);
-		};
-
-		return () => {
-			b_user_closed = true;
-			d_ws.close();
-		};
+			};
+		});
 	}
 
 
-	onReceive(sa_owner: Bech32.String, fke_receive: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): () => void {
+	onReceive(sa_owner: Bech32.String, fke_receive: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): Promise<() => void> {
 		return this.listen([
 			`tm.event='Tx'`,
 			`transfer.recipient='${sa_owner}'`,
@@ -443,7 +454,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		});
 	}
 
-	onSend(sa_owner: Bech32.String, fke_send: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): () => void {
+	onSend(sa_owner: Bech32.String, fke_send: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): Promise<() => void> {
 		return this.listen([
 			`tm.event='Tx'`,
 			`transfer.sender='${sa_owner}'`,
@@ -506,9 +517,9 @@ export class CosmosNetwork implements ActiveNetwork {
 		});
 	}
 
-	async ecdh(atu8_other_pubkey: Uint8Array, g_chain=yw_chain.get()): Promise<CryptoKey> {
+	async ecdh(atu8_other_pubkey: Uint8Array, g_chain=yw_chain.get(), g_account=yw_account.get()): Promise<CryptoKey> {
 		// ref account secret path
-		const p_secret = yw_account.get().secret;
+		const p_secret = g_account.secret;
 
 		// fetch secret
 		const g_secret = await Secrets.get(p_secret);
@@ -543,9 +554,9 @@ export class CosmosNetwork implements ActiveNetwork {
 		return dk_aes;
 	}
 
-	async ecdhEncrypt(atu8_other_pubkey: Uint8Array, atu8_plaintext: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get()): Promise<Uint8Array> {
+	async ecdhEncrypt(atu8_other_pubkey: Uint8Array, atu8_plaintext: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get(), g_account=yw_account.get()): Promise<Uint8Array> {
 		// derive encryption key
-		const dk_aes = await this.ecdh(atu8_other_pubkey, g_chain);
+		const dk_aes = await this.ecdh(atu8_other_pubkey, g_chain, g_account);
 
 		// encrypt memo
 		const atu8_encrypted = await encrypt(atu8_plaintext, dk_aes, atu8_nonce);
@@ -553,9 +564,9 @@ export class CosmosNetwork implements ActiveNetwork {
 		return atu8_encrypted;
 	}
 
-	async ecdhDecrypt(atu8_other_pubkey: Uint8Array, atu8_ciphertext: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get()): Promise<Uint8Array> {
+	async ecdhDecrypt(atu8_other_pubkey: Uint8Array, atu8_ciphertext: Uint8Array, atu8_nonce: Uint8Array, g_chain=yw_chain.get(), g_account=yw_account.get()): Promise<Uint8Array> {
 		// derive encryption key
-		const dk_aes = await this.ecdh(atu8_other_pubkey, g_chain);
+		const dk_aes = await this.ecdh(atu8_other_pubkey, g_chain, g_account);
 
 		// decrypt memo
 		const atu8_decrypted = await decrypt(atu8_ciphertext, dk_aes, atu8_nonce);
@@ -723,7 +734,7 @@ export class CosmosNetwork implements ActiveNetwork {
 			});
 		}
 
-		const [si_txn] = await this.broadcast({
+		const [g_response] = await this.broadcast({
 			chain: g_chain,
 			account: g_account,
 			msgs: [g_encoded],
@@ -739,8 +750,12 @@ export class CosmosNetwork implements ActiveNetwork {
 		return {
 			stage: 'pending',
 			chain: Chains.pathFrom(g_chain),
-			hash: si_txn,
+			code: g_response.code,
+			hash: g_response.txhash,
 			gas_limit: `${xg_limit}` as Cw.Uint128,
+			gas_wanted: g_response.gasWanted as Cw.Uint128,
+			gas_used: g_response.gasUsed as Cw.Uint128,
+			raw_log: g_response.rawLog,
 
 			msgs: [
 				{
@@ -756,7 +771,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		};
 	}
 
-	async broadcast(gc_broadcast: BroadcastConfig): Promise<[string, Uint8Array]> {
+	async broadcast(gc_broadcast: BroadcastConfig): Promise<[TxResponse, Uint8Array]> {
 		const {
 			chain: g_chain,
 			msgs: a_msgs,
@@ -878,16 +893,14 @@ export class CosmosNetwork implements ActiveNetwork {
 			}
 		}
 
-		const si_txn = g_response.txResponse?.txhash;
+		// if(!si_txn) {
+		// 	throw syserr({
+		// 		title: 'Provider Error',
+		// 		text: `The ${this._g_network.name} provider node failed to broadcast your transaction.`,
+		// 	});
+		// }
 
-		if(!si_txn) {
-			throw syserr({
-				title: 'Provider Error',
-				text: `The ${this._g_network.name} provider node failed to broadcast your transaction.`,
-			});
-		}
-
-		return [si_txn, atu8_txn];
+		return [g_response.txResponse!, atu8_txn];
 	}
 
 	async fetchParams() {
@@ -899,11 +912,15 @@ export class CosmosNetwork implements ActiveNetwork {
 		} = g_response.params!;
 	}
 
-	async downloadTxn(si_txn: string): Promise<TxSynced> {
-		// download txn
-		const g_response = await new TxServiceClient(this._y_grpc).getTx({
+	fetchTx(si_txn: string): Promise<GetTxResponse> {
+		return new TxServiceClient(this._y_grpc).getTx({
 			hash: si_txn,
 		});
+	}
+
+	async downloadTxn(si_txn: string): Promise<TxSynced> {
+		// download txn
+		const g_response = await this.fetchTx(si_txn);
 
 		if(!g_response?.tx || !g_response?.txResponse) {
 			throw syserr({
@@ -947,7 +964,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		// });
 	}
 
-	async synchronize(si_type: IncidentType, a_events: string[]): Promise<void> {
+	async* synchronize(si_type: IncidentType, a_events: string[]): AsyncIterableIterator<IncidentTx> {
 		// 
 		const y_service = new TxServiceClient(this._y_grpc);
 
@@ -991,6 +1008,9 @@ export class CosmosNetwork implements ActiveNetwork {
 				txResponses: a_infos,
 			} = g_response;
 
+			// 
+			const a_yields: IncidentTx[] = [];
+
 			// open incidents and histories stores
 			const b_break = await Incidents.open(ks_incidents => Histories.open(async(ks_histories) => {  // eslint-disable-line @typescript-eslint/no-loop-func
 				// process each transaction
@@ -1009,12 +1029,19 @@ export class CosmosNetwork implements ActiveNetwork {
 						// convert to synced
 						const g_synced = tx_to_synced(this._p_chain, si_txn, g_tx, g_info);
 
-						// record in incidents list
-						await ks_incidents.record(si_txn, {
-							type: si_type,
+						// wrap as incident
+						const g_update: IncidentTx = {
+							type: si_type as Extract<'tx_in' | 'tx_out', IncidentType>,
+							id: si_txn,
 							time: new Date(g_synced.timestamp).getTime(),
 							data: g_synced,
-						}, ks_histories);
+						};
+
+						// record in incidents list
+						await ks_incidents.record(si_txn, g_update, ks_histories);
+
+						// yield
+						a_yields.push(g_update);
 					}
 
 					// chain is already synced below this height; stop archiving
@@ -1026,6 +1053,10 @@ export class CosmosNetwork implements ActiveNetwork {
 
 				return false;
 			}));
+
+			for(const g_synced of a_yields) {
+				yield g_synced;
+			}
 
 			if(b_break) {
 				break;
@@ -1047,13 +1078,17 @@ export class CosmosNetwork implements ActiveNetwork {
 		await Histories.updateSyncInfo(this._p_chain, [si_type, ...a_events].join('\n'), s_latest);
 	}
 
-	async synchronizeAll(sa_owner: Bech32.String): Promise<void> {
-		await this.synchronize('tx_in', [
+	async* synchronizeAll(sa_owner: Bech32.String): AsyncIterableIterator<IncidentTx> {
+		for await(const g_incident of this.synchronize('tx_in', [
 			`transfer.recipient='${sa_owner}'`,
-		]);
+		])) {
+			yield g_incident;
+		}
 
-		await this.synchronize('tx_out', [
+		for await(const g_incident of this.synchronize('tx_out', [
 			`message.sender='${sa_owner}'`,
-		]);
+		])) {
+			yield g_incident;
+		}
 	}
 }

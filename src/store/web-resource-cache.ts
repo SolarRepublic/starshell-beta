@@ -6,7 +6,7 @@ import {
 	P_PUBLIC_SUFFIX_LIST,
 	P_STARSHELL_DECREES,
 } from "#/share/constants";
-import { storage_get } from '#/extension/public-storage';
+import { storage_get, storage_set } from '#/extension/public-storage';
 
 const $_EXISTING = Symbol('use-existing-cache');
 
@@ -70,13 +70,15 @@ const H_REGISTRY = {
 
 type CacheKey = keyof typeof H_REGISTRY;
 
-interface Cache {
+interface Cache extends JsonObject {
 	etag: string;
 	data: JsonValue;
 }
 
 async function cache_put(p_res: CacheKey, g_cache: Cache) {
-	return await chrome.storage.local.set({[`@cache:${p_res}`]:g_cache});
+	return await storage_set({
+		[`@cache:${p_res}`]: g_cache,
+	});
 }
 
 async function cache_get(p_res: CacheKey): Promise<Cache | null> {

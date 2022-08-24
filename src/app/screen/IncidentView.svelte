@@ -1,51 +1,47 @@
 <script lang="ts">
-	import {onMount} from 'svelte';
-	import {Screen, Header, type Page} from './_screens';
+	import {getContext} from 'svelte';
+	import {Tab, TabList, TabPanel, Tabs} from 'svelte-tabs';
+	import {Header, Screen} from './_screens';
+	
+	import {JsonView} from '@zerodevx/svelte-json-view';
 
-	import { format_amount, format_time } from '#/util/format';
-	import Field from '../ui/Field.svelte';
-	import MemoReview from '../ui/MemoReview.svelte';
-	import { decrypt } from '#/crypto/vault';
-	import { Accounts } from '#/store/accounts';
-	import { Chains } from '#/store/chains';
-	import type { Account, AccountPath } from '#/meta/account';
-	import { Networks } from '#/store/networks';
-	import { syserr, syswarn } from '../common';
-	import { base93_to_buffer, buffer_to_text, sha256, text_to_buffer } from '#/util/data';
-	import type { Chain, ChainPath, NativeCoin } from '#/meta/chain';
-	import { R_TRANSFER_AMOUNT } from '#/share/constants';
-	import { ode, Promisable } from '#/util/belt';
+	import {format_amount, format_fiat, format_time} from '#/util/format';
+	
+	import {parse_coin_amount, to_fiat} from '#/chain/coin';
+	import type {Completed} from '#/entry/flow';
+	import type {Chain, ChainPath} from '#/meta/chain';
+	import type {Incident, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
+	import {R_TRANSFER_AMOUNT} from '#/share/constants';
+	import {Chains} from '#/store/chains';
+	import {ActiveNetwork, Networks} from '#/store/networks';
+	import {JsonObject, JsonValue, ode} from '#/util/belt';
+	import {buffer_to_base64} from '#/util/data';
 	import BigNumber from 'bignumber.js';
-	import { open_external_link } from '#/util/dom';
-	import type { Incident, IncidentType, TxConfirmed, TxPending, TxSynced } from '#/meta/incident';
-	import { parse_coin_amount } from '#/chain/coin';
-	import { ecdhNonce, extractMemoCiphertext } from '#/crypto/privacy';
-	import Address from '../ui/Address.svelte';
+	import {syswarn} from '../common';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 
-	export let incident: Incident['interface'];
+	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
+	import {Incidents} from '#/store/incidents';
+	import {MsgSend} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
+	import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
+	import {Tx} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+	import type {SimpleField} from '../ui/IncidentFields.svelte';
+	import IncidentFields from '../ui/IncidentFields.svelte';
+
+	const completed = getContext<Completed | undefined>('completed');
+
+	function complete() {
+		completed!(true);
+	}
+
+	export let incident: IncidentPath;
+	const p_incident = incident;
 
 	interface EventViewConfig {
 		s_title: string;
 		a_fields: SimpleField[];
 	}
-
-	type SimpleField = {
-		type: 'key_value';
-		key: string;
-		value: Promisable<string>;
-		render?: 'address';
-	} | {
-		type: 'memo';
-		value: string;
-	} | {
-		type: 'links';
-		value: Promisable<{
-			href: string;
-			text: string;
-		}[]>;
-	};
-
-	// const a_fields: SimpleField[] = [];
+		// const a_fields: SimpleField[] = [];
 	async function pretty_amount(s_input: string, p_chain: ChainPath): Promise<string> {
 		// attempt to parse amount
 		const m_amount = R_TRANSFER_AMOUNT.exec(s_input);
@@ -77,7 +73,7 @@
 			type: 'memo',
 			value: g_data['memo'],
 		} as const]: [],
-		{
+		...g_data['hash'] && [{
 			type: 'links',
 			value: (async() => {
 				const g_chain = (await Chains.at(g_data.chain))!;
@@ -87,12 +83,15 @@
 							...g_data,
 							chain_prefix: g_chain.id.replace(/-.+$/, ''),
 						}, g_chain),
-						text: 'View on block explorer',
+						icon: SX_ICON_LAUNCH,
+						text: 'Block explorer',
 					},
 				];
 			})(),
-		},
+		}],
 	] as SimpleField[];
+
+	let s_fiat_amount = '';
 
 	const H_EVENTS: {
 		[si_type in IncidentType]: (g_data: Incident.Struct<si_type>['data'], g_chain: Chain['interface']) => EventViewConfig;
@@ -104,7 +103,26 @@
 
 				if(h_events.transfer) {
 					const g_transfer = h_events.transfer;
-					const [xg_amount, si_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+					const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+
+					// missing fiat
+					if('synced' === g_data.stage && !('usd' in (g_data.fiats || {}))) {
+						const m_amount = R_TRANSFER_AMOUNT.exec(g_transfer.amount);
+						if(m_amount) {
+							void to_fiat({
+								amount: m_amount[1],
+								denom: m_amount[2],
+							}, g_coin, 'usd').then((yg_fiat) => {
+								void Incidents.mutateData(p_incident, {
+									fiats: {
+										usd: yg_fiat.toNumber(),
+									},
+								}).then(() => {
+									s_fiat_amount = format_fiat(yg_fiat.toNumber(), 'usd');
+								});
+							});
+						}
+					}
 
 					return {
 						s_title: `Sent ${si_coin}`,
@@ -130,11 +148,68 @@
 								type: 'key_value',
 								key: 'Amount',
 								value: pretty_amount(g_transfer.amount, g_data.chain),
+								// subvalue: `${format_amount(Number(xg_amount))} ${g_coin.denom}`,
+							},
+							{
+								type: 'key_value',
+								key: 'Fiat',
+								value: 'usd' in (g_data.fiats || {})? format_fiat(g_data.fiats['usd'], 'usd'): '',
 							},
 							{
 								type: 'key_value',
 								key: 'Fee',
-								value: `${format_amount(+g_data.gas_wanted)} GAS`,
+								value: `${format_amount(new BigNumber(g_data.gas_wanted).shiftedBy(-g_coin.decimals).toNumber())} ${si_coin}`,
+								subvalue: `${format_amount(+g_data.gas_wanted)} ${g_coin.denom}`,
+							},
+							// {
+							// 	type: 'key_value',
+							// 	key: 'Total',
+							// 	value: `${format_amount(g_data.gas_wanted)}`,
+							// },
+							...f_send_recv(g_data),
+						],
+					};
+				}
+			}
+			else {
+				const g_msg = g_data.msgs[0];
+				const h_events = g_msg.events;
+
+				if(h_events.transfer) {
+					const g_transfer = h_events.transfer;
+					const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+
+					return {
+						s_title: `Send ${si_coin}`,
+						a_fields: [
+							{
+								type: 'key_value',
+								key: 'Status',
+								value: 'Confirmed',
+							},
+							{
+								type: 'key_value',
+								key: 'Sender',
+								value: g_transfer.sender,
+								render: 'address',
+							},
+							{
+								type: 'key_value',
+								key: 'Recipient',
+								value: g_transfer.recipient,
+								render: 'address',
+							},
+							{
+								type: 'key_value',
+								key: 'Amount',
+								value: pretty_amount(g_transfer.amount, g_data.chain),
+								// subvalue: `${format_amount(Number(xg_amount))} ${g_coin.denom}`,
+							},
+							{
+								type: 'key_value',
+								key: 'Fee',
+								value: `${format_amount(new BigNumber(g_data.gas_wanted).shiftedBy(-g_coin.decimals).toNumber())} ${si_coin}`,
+								subvalue: `${format_amount(+g_data.gas_wanted)} ${g_coin.denom}`,
 							},
 							// {
 							// 	type: 'key_value',
@@ -159,7 +234,7 @@
 
 			if(h_events.transfer) {
 				const g_transfer = h_events.transfer;
-				const [xg_amount, si_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+				const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
 
 				return {
 					s_title: `Received ${si_coin}`,
@@ -184,7 +259,8 @@
 						{
 							type: 'key_value',
 							key: 'Amount',
-							value: `${xg_amount}`,
+							value: pretty_amount(g_transfer.amount, g_data.chain),
+							subvalue: `${new BigNumber(''+xg_amount).shiftedBy(-g_coin.decimals).toString()} ${si_coin}`,
 						},
 						...f_send_recv(g_data),
 					],
@@ -214,17 +290,30 @@
 		// }),
 	};
 
+	let g_incident!: Incident['interface'];
+	let g_chain: Chain['interface'] | null;
+	let k_network: ActiveNetwork;
+
+	let s_time = '';
 	let s_title = '';
 	let a_fields: SimpleField[] = [];
-	(async() => {
-		const g_data = incident.data;
+	const dp_loaded = (async() => {
+		g_incident = (await Incidents.at(p_incident))!;
 
-		const g_chain = g_data['chain']? await Chains.at(g_data['chain'] as ChainPath): null;
+		const g_data = g_incident.data;
+
+		g_chain = g_data['chain']? await Chains.at(g_data['chain'] as ChainPath): null;
+
+		if(g_chain) {
+			k_network = await Networks.activateDefaultFor(g_chain);
+		}
+
+		s_time = format_time(g_incident.time);
 
 		({
 			s_title,
 			a_fields,
-		} = H_EVENTS[incident.type](g_data, g_chain));
+		} = H_EVENTS[g_incident.type](g_data, g_chain));
 	})();
 
 	// const {
@@ -232,142 +321,151 @@
 	// 	a_fields,
 	// } = H_EVENTS[event.type](event.data);
 
-	const s_time = format_time(incident.time);
 
-	async function decrypt_memo(s_memo: string): Promise<string> {
-		const {
-			chain: p_chain,
-			height: s_height,
-			msgs: [
-				{
-					events: {
-						transfer: g_transfer,
-					},
-				},
-			],
-			gas_wanted: s_gas_wanted,
-			signers: a_signers,
-		} = (incident as Incident.Struct<'tx_in' | 'tx_out'>).data as TxSynced;
+	const H_GRPC_MAP = {
+		'/cosmos.bank.v1beta1.MsgSend': MsgSend,
+		'/cosmos.crypto.secp256k1.PubKey': PubKey,
+		'/cosmos.tx.v1beta1.Tx': Tx,
+	};
 
-		const s_sequence = a_signers![0].sequence;
-
-		const {
-			recipient: sa_recipient,
-			sender: sa_sender,
-		} = g_transfer!;
-
-
-		const b_outgoing = 'tx_out' === incident.type;
-
-		const g_chain = (await Chains.at(p_chain))!;
-
-		const ks_accounts = await Accounts.read();
-
-		const sa_owner = (b_outgoing? sa_sender: sa_recipient) as string;
-		const sa_other = (b_outgoing? sa_recipient: sa_sender) as string;
-
-		let p_account!: AccountPath;
-		let g_account!: Account['interface'];
-		for(const [p_account_test, g_account_test] of ks_accounts.entries()) {
-			const sa_test = Chains.addressFor(g_account_test.pubkey, g_chain);
-			if(sa_test === sa_owner) {
-				p_account = p_account_test;
-				g_account = g_account_test;
-				break;
+	function recode(w_value: JsonValue) {
+		if(w_value && 'object' === typeof w_value) {
+			// array of values
+			if(Array.isArray(w_value)) {
+				return w_value.map(recode);
+			}
+			// raw data; replace with base64 encoding
+			else if(ArrayBuffer.isView(w_value)) {
+				return buffer_to_base64(w_value as unknown as Uint8Array);
+			}
+			// nested object
+			else {
+				return decode_proto(w_value);
 			}
 		}
 
-		if(!p_account) throw new Error(`Transaction is not associated with any accounts in this wallet`);
+		return w_value;
+	}
 
-		const k_network = await Networks.activateDefaultFor(g_chain);
-
-		// locate others's public key
-		let atu8_pubkey_65: Uint8Array;
-		try {
-			({
-				pubkey: atu8_pubkey_65,
-			} = await k_network.e2eInfoFor(sa_other));
+	function decode_proto(g_top: JsonObject): JsonObject {
+		// proto thing
+		const si_proto = g_top.typeUrl;
+		if('string' === typeof si_proto) {
+			// has value
+			if(ArrayBuffer.isView(g_top.value)) {
+				if(si_proto in H_GRPC_MAP) {
+					return {
+						'@type': si_proto,
+						...decode_proto(H_GRPC_MAP[si_proto].decode(g_top.value) as unknown as JsonObject),
+					};
+				}
+			}
 		}
-		catch(e_info) {
-			throw syserr({
-				title: 'Other Account Unpublished',
-				error: e_info,
-			});
+
+		for(const [si_key, w_value] of ode(g_top)) {
+			const si_type = typeof w_value;
+
+			// ignore functions and undefined
+			if('function' === si_type || 'undefined' === si_type) {
+				delete g_top[si_key];
+				continue;
+			}
+
+			// recode everything else
+			g_top[si_key] = recode(w_value);
 		}
 
-		const atu8_nonce = await ecdhNonce(s_sequence, s_gas_wanted);
+		return g_top;
+	}
 
-		const atu8_ciphertext = extractMemoCiphertext(s_memo);
+	async function load_raw_json() {
+		await dp_loaded;
 
-		const atu8_plaintext = await k_network.ecdhDecrypt(atu8_pubkey_65, atu8_ciphertext, atu8_nonce);
+		const g_response = await k_network.fetchTx(g_incident.data.hash);
 
-		return buffer_to_text(atu8_plaintext).replace(/\0+$/, '');
+		const g_formatted = decode_proto(g_response);
+
+		return g_formatted;
 	}
 </script>
 
 <style lang="less">
-	
+	@import './_base.less';
+
+	.subvalue {
+		.font(tiny);
+		color: var(--theme-color-text-med);
+	}
+
+	.raw-json {
+		background-color: fade(@theme-color-graydark, 50%);
+		color: var(--theme-color-text-light);
+		overflow: scroll;
+		padding: 1em;
+		border-radius: 4px;
+		.font(mono-tiny);
+		margin-bottom: var(--ui-padding);
+	}
 </style>
 
 <Screen>
 	<Header
-		pops
+		pops={!completed}
 		title={s_title}
 		subtitle={s_time}
 	/>
 
+	{#if s_title}
+		{#if 'tx_in' === g_incident.type || 'tx_out' === g_incident.type}
+			<Tabs>
+				<TabList>
+					<Tab>
+						Overview
+					</Tab>
 
-	{#each a_fields as g_field}
-		<hr>
+					<Tab>
+						Raw JSON
+					</Tab>
+				</TabList>
 
-		{#if 'key_value' === g_field.type}
-			<Field
-				short
-				key={g_field.key.toLowerCase()}
-				name={g_field.key}
-			>
-				{#await g_field.value}
-					Loading...
-				{:then s_value}
-					{#if 'address' === g_field.render}
-						<Address address={s_value} copyable />
-					{:else}
-						{s_value}
-					{/if}
-				{/await}
-			</Field>
-		{:else if 'memo' === g_field.type}
-			{#if g_field.value?.startsWith('🔒1')}
-				{#await decrypt_memo(g_field.value)}
-					Decrypting memo....
-				{:then s_plaintext}
-					<MemoReview
-						memoPlaintext={s_plaintext}
-						memoCiphertext={g_field.value}
+				<!-- Overview -->
+				<TabPanel>
+					<IncidentFields
+						incident={g_incident}
+						fields={a_fields}
+						chain={g_chain}
+						network={k_network}
+						loaded={dp_loaded}
 					/>
-				{:catch}
-					<MemoReview
-						memoPlaintext={null}
-						memoCiphertext={g_field.value}
-					/>
-				{/await}
-			{:else}
-				<MemoReview
-					memoPlaintext={g_field.value || ''}
-				/>
-			{/if}
-		{:else if 'links' === g_field.type}
-			<div class="links">
-				{#await g_field.value}
-					Loading...
-				{:then a_links}
-					{#each a_links as g_link}
-						<span class="link" on:click={() => open_external_link(g_link.href)}>
-							{g_link.text}
-						</span>
-					{/each}
-				{/await}
-			</div>
+				</TabPanel>
+
+				<!-- Raw JSON -->
+				<TabPanel>
+					{#await load_raw_json()}
+						Loading JSON...
+					{:then g_response}
+						<div class="raw-json">
+							<JsonView
+								--nodeColor='var(--theme-color-text-light)'
+								json={g_response}
+							/>
+						</div>
+					{/await}
+				</TabPanel>
+			</Tabs>
+		{:else}
+			<IncidentFields
+				incident={g_incident}
+				fields={a_fields}
+				chain={g_chain}
+				network={k_network}
+				loaded={dp_loaded}
+			/>
 		{/if}
-	{/each}
+	{/if}
+
+
+	{#if completed}
+		<ActionsLine confirm={['Done', complete]} />
+	{/if}
 </Screen>

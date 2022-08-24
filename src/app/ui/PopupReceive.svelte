@@ -126,7 +126,8 @@
 	$: {
 		if(dm_qr && g_account_selected && g_chain_selected) {
 			const y_qrcode = new QRCode({
-				content: `starshell:${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}`,
+				// use hash fragment to encode the data so that is never leaves device
+				content: `https://link.starshell.net/qr#family.cosmos/chain.${g_chain_selected.id}/address.${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}`,
 				width: 220,
 				height: 220,
 				padding: 3,

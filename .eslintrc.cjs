@@ -186,6 +186,7 @@ module.exports = {
 					'restrict-plus-operands',
 					'ban-types',
 					'consistent-type-definitions',
+					'no-dynamic-delete',
 				]),
 
 				...warn([
@@ -462,6 +463,7 @@ module.exports = {
 					overrides: {
 						if: {after:false},
 						for: {after:false},
+						await: {after: false},
 						while: {after:false},
 						switch: {after:false},
 						catch: {after:false},

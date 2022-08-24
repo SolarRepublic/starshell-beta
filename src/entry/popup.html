@@ -5,6 +5,9 @@
 	<meta name='viewport' content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no'>
 	<meta name='HandheldFriendly' content='true'>
 
+	<link rel="icon" type="image/svg+xml" href="/media/vendor/logo.svg">
+	<link rel="icon" type="image/png" href="/media/vendor/icon_128.png">
+
 	<title>StarShell Wallet</title>
 
 	<link data-meta="global" rel='stylesheet' href='../style/global.less'>
@@ -12,9 +15,37 @@
 	<script type="module" src="./popup.ts"></script>
 </head>
 <body>
+	<style>
+		#dom-log button {
+			padding: 0.5em 1em;
+			border: 1px solid white;
+			border-radius: 4px;
+			margin: 0.5em;
+		}
+
+		#dom-log button#reload {
+			font-family: monospace;
+			background-color: #23af00;
+			color: #f7f7f7;
+		}
+
+		#dom-log button#factory-reset {
+			font-family: monospace;
+			background-color: #f85931;
+			color: black;
+		}
+	</style>
 	<section id="dom-log">
-		<button id="factory-reset">Factory reset</button>
-		<h5>StarShell Fallback DOM Log</h5>
+		<div class="recovery">
+			<div class="title">
+				Recovery Options
+			</div>
+			<div class="actions">
+				<button id="reload">Reload</button>
+				<button id="factory-reset">Factory reset</button>
+			</div>
+		</div>
+		<h5>StarShell Emergency Fallback DOM Log</h5>
 		<ol id="dom-log-list">
 			<li>
 				<pre>Loading StarShell popup script...</pre>

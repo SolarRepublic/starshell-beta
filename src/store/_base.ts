@@ -312,7 +312,7 @@ export function create_store_class<
 }
 
 
-export function subscribe_store(si_key: keyof Store, f_callback: (b_init: boolean) => void): Unsubscriber {
+export function subscribe_store(si_key: StoreKey, f_callback: (b_init: boolean) => void): Unsubscriber {
 	return global_receive({
 		updateStore({key:si_store, init:b_init}) {
 			if(si_store === si_key) {

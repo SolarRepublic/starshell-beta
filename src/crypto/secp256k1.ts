@@ -3,10 +3,11 @@ import RuntimeKey from './runtime-key';
 
 import SensitiveBigUint from './sensitive-big-uint';
 
-import { buffer_to_base64, concat, hex_to_buffer, hmac, sha256, zero_out } from '#/util/data';
+import { base64_to_buffer, buffer_to_base64, concat, hex_to_buffer, hmac, sha256, zero_out } from '#/util/data';
 
 import {
-	instantiateSecp256k1,
+	// instantiateSecp256k1,
+	instantiateSecp256k1Bytes,
 	Secp256k1,
 } from '@solar-republic/wasm-secp256k1';
 import { ManagedKey } from './keyring';
@@ -56,8 +57,11 @@ async function init_secp256k1(): Promise<Secp256k1> {
 	// start accepting additional listeners
 	a_wait_secp256k1 = [];
 
+	// fetch wasm bytes from resource
+	const ab_wasm_bytes = await (await fetch('/bin/secp256k1.wasm')).arrayBuffer();
+
 	// initialize
-	y_secp256k1 = await instantiateSecp256k1(crypto.getRandomValues(new Uint8Array(32)));
+	y_secp256k1 = await instantiateSecp256k1Bytes(ab_wasm_bytes, crypto.getRandomValues(new Uint8Array(32)));
 
 	// copy list
 	const a_execs = a_wait_secp256k1.slice();
