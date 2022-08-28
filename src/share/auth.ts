@@ -5,7 +5,7 @@ import {
 	Vault,
 } from '#/crypto/vault';
 
-import { F_NOOP } from '#/util/belt';
+import { F_NOOP, timeout } from '#/util/belt';
 import { text_to_buffer } from '#/util/data';
 import { global_broadcast } from '#/script/msg-global';
 import { PublicStorage } from '#/extension/public-storage';
@@ -176,7 +176,20 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 		f_update('Rotating keys');
 
 		// recrypt everything
-		await Vault.recryptAll(dk_root_old, atu8_vector_old, dk_root_new, atu8_vector_new);
+		try {
+			await Vault.recryptAll(dk_root_old, atu8_vector_old, dk_root_new, atu8_vector_new);
+		}
+		// handle errors
+		catch(e_recrypt) {
+			console.error(`Recovering from error during recryption: ${e_recrypt}`);
+
+			// logout
+			await logout();
+
+			await timeout(5e3);
+			globalThis.close();
+			return;
+		}
 
 		f_update('Generating signature');
 

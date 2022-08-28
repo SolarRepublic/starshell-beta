@@ -1,8 +1,7 @@
 <script lang="ts">
 	import type {Bech32, Chain, FamilyKey} from '#/meta/chain';
 	import type {Contact} from '#/meta/contact';
-	import {R_CHAIN_ID} from '#/script/constants';
-	import {R_BECH32} from '#/share/constants';
+	import {R_CHAIN_ID, R_BECH32} from '#/share/constants';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
 	import {Entities} from '#/store/entities';

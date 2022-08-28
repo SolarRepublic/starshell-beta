@@ -1,6 +1,4 @@
-import type { ImageMedia } from './media';
-import type { Pfp, PfpPath } from './pfp';
-import type { Resource } from './resource';
+import type {PfpPath} from './pfp';
 
 export type Nameable = {
 	name: string;

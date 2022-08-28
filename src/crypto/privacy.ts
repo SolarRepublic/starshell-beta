@@ -2,13 +2,6 @@ import { syserr } from '#/app/common';
 import {base93_to_buffer, buffer_to_base93, sha256, text_to_buffer} from '#/util/data';
 
 export function ecdhNonce(s_sequence: `${bigint}`, s_gas_wanted: `${bigint}`): Promise<Uint8Array> {
-	console.log({
-		nonce: {
-			s_sequence,
-			s_gas_wanted,
-		},
-	});
-
 	return sha256(text_to_buffer(['StarShell', s_sequence, s_gas_wanted].join('\0')));
 }
 

@@ -8,8 +8,10 @@ type Mv2ContentScript = Values<NonNullable<Required<ManifestV2>['content_scripts
 type Mv3ContentScript = Values<NonNullable<Required<ManifestV3>['content_scripts']>>;
 
 const H_CONTENT_SECURITY_POLICY = {
+	'default-src': ['self'],
 	'script-src': ['self', 'wasm-unsafe-eval'],
 	'object-src': ['self'],
+	'frame-ancestors': ['self', 'https://launch.starshel.net'],
 };
 
 function csp(h_merge: Record<string, string[]>={}): string {
@@ -54,8 +56,10 @@ const A_MATCH_LINK = [
 	'https://link.starshell.net/*',
 ];
 
+type ContentScriptOverrides = Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>;
+
 const G_CONTENT_SCRIPTS = {
-	ics_spotter(h_overrides?: Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>) {
+	ics_spotter(h_overrides?: ContentScriptOverrides) {
 		return {
 			js: ['src/script/ics-spotter.ts'],
 			matches: A_MATCH_ALL,
@@ -76,7 +80,17 @@ const G_CONTENT_SCRIPTS = {
 		};
 	},
 
-	ics_launch(h_overrides?: Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>) {
+	mcs_keplr(h_overrides?: ContentScriptOverrides) {
+		return {
+			js: ['src/script/mcs-keplr.ts'],
+			matches: A_MATCH_ALL,
+			run_at: 'document_start',
+			all_frames: true,
+			...h_overrides,
+		};
+	},
+
+	ics_launch(h_overrides?: ContentScriptOverrides) {
 		return {
 			js: ['src/script/ics-launch.ts'],
 			matches: A_MATCH_LAUNCH,
@@ -85,7 +99,7 @@ const G_CONTENT_SCRIPTS = {
 		};
 	},
 
-	ics_link(h_overrides?: Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>) {
+	ics_link(h_overrides?: ContentScriptOverrides) {
 		return {
 			js: ['src/script/ics-link.ts'],
 			matches: A_MATCH_LINK,
@@ -119,6 +133,7 @@ const G_MANIFEST_COMMON: Partial<chrome.runtime.ManifestBase> = {
 };
 
 const A_WA_RESOURCES = [
+	'src/script/mcs-keplr.ts',
 	'src/script/mcs-relay.ts',
 	'src/entry/flow.html',
 	'media/*',
@@ -146,6 +161,7 @@ export const GC_MANIFEST_V2: Partial<ManifestV2> = {
 		G_CONTENT_SCRIPTS.ics_spotter(),
 		G_CONTENT_SCRIPTS.ics_launch(),
 		G_CONTENT_SCRIPTS.ics_link(),
+		// G_CONTENT_SCRIPTS.mcs_keplr(),
 	] as Mv2ContentScript[],
 	background: {
 		persistent: false,
@@ -188,6 +204,9 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 		G_CONTENT_SCRIPTS.ics_link({
 			world: 'ISOLATED',
 		}),
+		// G_CONTENT_SCRIPTS.mcs_keplr({
+		// 	world: 'MAIN',
+		// }),
 	] as Mv3ContentScript[],
 	background: {
 		service_worker: 'src/script/service.ts',

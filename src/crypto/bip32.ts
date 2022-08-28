@@ -1,7 +1,6 @@
 import {hmac, text_to_buffer, zero_out} from '#/util/data';
 import RuntimeKey, {KeyProducer} from './runtime-key';
 import {Secp256k1Key} from './secp256k1';
-import SensitiveBigUint from './sensitive-big-uint';
 import SensitiveBytes from './sensitive-bytes';
 
 // create the master 'Bitcoin seed' hmac key
@@ -15,6 +14,9 @@ const DK_BIP32_KEY_MASTER_GEN = await crypto.subtle.importKey('raw', text_to_buf
  * <https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Master_key_generation>
  */
 export async function bip32MasterKey(fk_seed: KeyProducer): Promise<Bip32> {
+	// initialize WASM module
+	await Secp256k1Key.init();
+
 	// generate the master `I`
 	const atu8_i = new Uint8Array(await crypto.subtle.sign('HMAC', DK_BIP32_KEY_MASTER_GEN, await fk_seed()));
 
@@ -23,7 +25,7 @@ export async function bip32MasterKey(fk_seed: KeyProducer): Promise<Bip32> {
 	const atu8_ir = atu8_i.subarray(32);
 
 	// invalid master secret key
-	if(!Secp256k1Key.withinCurve(new SensitiveBigUint(atu8_il))) {
+	if(!Secp256k1Key.validatePrivateKey(atu8_il)) {
 		// panic wipe
 		zero_out(atu8_i);
 
@@ -123,6 +125,9 @@ export class Bip32 {
 			atu8_chain,
 		} = hm_privates.get(this)!;
 
+		// initialize WASM module
+		await Secp256k1Key.init();
+
 		// prep data bytes
 		const kn_data = SensitiveBytes.empty(1 + 32 + 4);
 		const atu8_data = kn_data.data;
@@ -157,10 +162,9 @@ export class Bip32 {
 		const atu8_ir = atu8_i.subarray(32);
 
 		// > In case parse256(IL) ≥ n or ki = 0
-		const kg_i = new SensitiveBigUint(atu8_i);
-		if(!Secp256k1Key.withinCurve(kg_i)) {
+		if(!Secp256k1Key.validatePrivateKey(atu8_i)) {
 			// panic wipe
-			kg_i.wipe();
+			zero_out(atu8_i);
 
 			// > proceed with the next value for i
 			return this.derive(i_child + 1);
@@ -171,11 +175,10 @@ export class Bip32 {
 			const atu8_ki = await ks_sk.add(atu8_il);
 
 			// check ki is valid
-			const kg_ki = new SensitiveBigUint(atu8_ki);
-			if(!Secp256k1Key.withinCurve(kg_ki)) {
+			if(!Secp256k1Key.validatePrivateKey(atu8_ki)) {
 				// panic wipe
-				kg_i.wipe();
-				kg_ki.wipe();
+				zero_out(atu8_i)
+				zero_out(atu8_ki);
 
 				// > proceed with the next value for i
 				return this.derive(i_child + 1);

@@ -47,6 +47,11 @@ import Load from './Load.svelte';
 	const s_postname = postname;
 
 	/**
+	 * Disables pfp
+	*/
+	export let noPfp = false;
+
+	/**
 	 * Overrides pfp automatically extracted from resource
 	 */
 	export let pfp: PfpPath = g_resource?.pfp;
@@ -313,14 +318,16 @@ import Load from './Load.svelte';
 
 <div class="row {s_classes}" style={rootStyle} on:click>
 	<div class="banner">
-		<span class="icon {iconClass}">
-			<slot name="icon">
-			<!-- class:bordered={k_icon?.isHtml}> -->
+		{#if !noPfp}
+			<span class="icon {iconClass}">
 				<slot name="icon">
-					<PfpDisplay ref={p_pfp} name={s_name} dim={x_dim_pfp} />
+				<!-- class:bordered={k_icon?.isHtml}> -->
+					<slot name="icon">
+						<PfpDisplay ref={p_pfp} name={s_name} dim={x_dim_pfp} />
+					</slot>
 				</slot>
-			</slot>
-		</span>
+			</span>
+		{/if}
 		<span class="content">
 			<span class="main part">
 				<div class="title">

@@ -2,7 +2,6 @@
 <script type="ts">
 
 	import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-	import { N_PX_HEIGHT_POPUP, N_PX_WIDTH_POPUP } from '#/script/constants';
 	import {Screen, type Page} from './_screens';
 	import type{ Completed } from '#/entry/flow';
 	import { timeout } from '#/util/belt';
@@ -14,8 +13,8 @@
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import { syserr } from '../common';
 	import { R_BECH32 } from '#/share/constants';
-import DeepLink from './DeepLink.svelte';
-import { qs } from '#/util/dom';
+	import DeepLink from './DeepLink.svelte';
+	import { qs } from '#/util/dom';
 
 	const completed = getContext<Completed>('completed');
 	

@@ -21,10 +21,21 @@ interface ScriptParams {
 	session: string;
 }
 
+import {
+	A_CHAIN_CATEGORIES,
+	A_CHAIN_FAMILIES,
+	R_CHAIN_ID,
+	R_CHAIN_NAME,
+} from '#/share/constants';
+
+import {
+	locate_script,
+} from './utils';
+
 /**
  * The host provides a connection between the page and the extension and allows messages from the relay frame to be
  * forwarded to the service if necessary.
- * This content script is executed a runtime by the service, so the module exports a function that accepts an argument.
+ * This content script is executed at runtime by the service, so the module exports a function that accepts an argument.
  * @param - a {@link ServiceToIcs.SessionKeys} object
  */
 export default function({
@@ -33,16 +44,16 @@ export default function({
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	const hmacSHA256 = inline_require('crypto-js/hmac-sha256') as typeof HmacSHA256;
 
-	const {
-		A_CHAIN_CATEGORIES,
-		A_CHAIN_FAMILIES,
-		R_CHAIN_ID,
-		R_CHAIN_NAME,
-	} = inline_require('./constants.ts') as typeof Constants;
+	// const {
+	// 	A_CHAIN_CATEGORIES,
+	// 	A_CHAIN_FAMILIES,
+	// 	R_CHAIN_ID,
+	// 	R_CHAIN_NAME,
+	// } = inline_require('./constants.ts') as typeof Constants;
 
-	const {
-		locate_script,
-	} = inline_require('./utils.ts') as typeof Utils;
+	// const {
+	// 	locate_script,
+	// } = inline_require('./utils.ts') as typeof Utils;
 
 	// typed chrome runtime for sending messages
 	const d_runtime: Vocab.TypedRuntime<IcsToService.PublicVocab, IcsToService.PublicResponseVocab> = chrome.runtime;
@@ -98,7 +109,6 @@ export default function({
 		// convert to hex string
 		return Array.from(atu8_secret).map(x => x.toString(16).padStart(2, '0')).join('');
 	}
-
 
 	// subclass Error to be able to recognize object origin
 	class SecurityError extends Error {}

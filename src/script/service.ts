@@ -134,43 +134,50 @@ function fire_storage_change(si_area: StorageArea, si_key: string, g_change: chr
 	}
 }
 
+async function set_keplr_polyfill(b_enabled: boolean) {
+	const d_scripting = chrome.scripting as browser.Scripting.Static;
+
+	// debugger;
+
+	// // build the content script definition
+	// const gc_script = H_CONTENT_SCRIPT_DEFS.mcs_keplr();
+
+	// // check the current status of the script, i.e., whether or not it is enabled
+	// // zero length indicates no currently registered scripts match the given id
+	// const b_registered = !!(await d_scripting.getRegisteredContentScripts({
+	// 	ids: [gc_script.id],
+	// })).length;
+
+	// // Keplr polyfill option is now enabled
+	// if(true === b_enabled) {
+	// 	// script is not currently registered
+	// 	if(!b_registered) {
+	// 		// register the content script
+	// 		await d_scripting.registerContentScripts([
+	// 			gc_script,
+	// 		]);
+	// 	}
+	// }
+	// // Keplr polyfill option is now disabled
+	// else {
+	// 	// script is currently registered
+	// 	if(!b_registered) {
+	// 		// unregister the content script
+	// 		await d_scripting.unregisterContentScripts({
+	// 			ids: [gc_script.id],
+	// 		});
+	// 	}
+	// }
+
+}
+
 // 
-chrome.storage.onChanged.addListener((h_changes, si_area) => {
+chrome.storage.onChanged?.addListener((h_changes, si_area) => {
 	const H_STORAGE_LISTENERS: StorageListenerMap = {
 		sync: {
 			// 
-			async keplr_polyfill(g_change) {
-				const d_scripting = chrome.scripting as browser.Scripting.Static;
-
-				// build the content script definition
-				const gc_script = H_CONTENT_SCRIPT_DEFS.mcs_keplr();
-
-				// check the current status of the script, i.e., whether or not it is enabled
-				// zero length indicates no currently registered scripts match the given id
-				const b_registered = !!(await d_scripting.getRegisteredContentScripts({
-					ids: [gc_script.id],
-				})).length;
-
-				// Keplr polyfill option is now enabled
-				if(true === g_change.newValue) {
-					// script is not currently registered
-					if(!b_registered) {
-						// register the content script
-						await d_scripting.registerContentScripts([
-							gc_script,
-						]);
-					}
-				}
-				// Keplr polyfill option is now disabled
-				else {
-					// script is currently registered
-					if(!b_registered) {
-						// unregister the content script
-						await d_scripting.unregisterContentScripts({
-							ids: [gc_script.id],
-						});
-					}
-				}
+			keplr_polyfill(g_change) {
+				return set_keplr_polyfill(g_change.newValue || false);
 			},
 
 		},
@@ -688,7 +695,7 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 };
 
 // bind message router listener
-chrome.runtime.onMessage.addListener(message_router);
+chrome.runtime.onMessage?.addListener(message_router);
 
 
 chrome.runtime.onInstalled?.addListener(async() => {
@@ -705,7 +712,7 @@ chrome.runtime.onInstalled?.addListener(async() => {
 	else if(B_IPHONE) {
 		// startup
 		chrome.tabs.create({
-			url: 'src/entry/popup.html',
+			url: 'src/entry/popup.html?tab=launch&install',
 		}, F_NOOP);
 
 		// contact native application
@@ -718,6 +725,8 @@ chrome.runtime.onInstalled?.addListener(async() => {
 		}
 		catch(e_native) {}
 	}
+
+	void set_keplr_polyfill(true);
 
 	// // upon first install, walk the user through setup
 	// await flow_broadcast({

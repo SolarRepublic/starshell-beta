@@ -1,10 +1,10 @@
 import type {Union} from 'ts-toolbelt';
 import type {Merge} from 'ts-toolbelt/out/Object/_api';
 
-import type * as ConnectionModule from '#/provider/connection';
-import type * as Constants from './constants';
+// import type * as ConnectionModule from '#/provider/connection';
+// import type * as Constants from './constants';
 
-type ConnectionHandle = ConnectionModule.ConnectionHandle;
+// type ConnectionHandle = ConnectionModule.ConnectionHandle;
 
 import type {
 	Advertisement,
@@ -14,6 +14,14 @@ import type {
 import type {RelayToHost, HostToRelay} from './messages';
 import type {Vocab} from '#/meta/vocab';
 import type {OmitUnknownKeys} from '#/meta/belt';
+
+import {text_to_buffer} from '#/util/data';
+import {ConnectionHandle} from '#/provider/connection';
+import {
+	N_PX_WIDTH_POPUP,
+	N_PX_HEIGHT_POPUP,
+	NB_MAX_MESSAGE,
+} from '#/share/constants';
 
 
 /**
@@ -35,13 +43,13 @@ type ConnectMethod = (g_advertisement: Advertisement, gc_manifest: ConnectionMan
 (function() {
 	const hmacSHA256 = inline_require('crypto-js/hmac-sha256');
 
-	const {text_to_buffer} = inline_require('#/util/data.ts');
-	const {ConnectionHandle} = inline_require('../provider/connection.ts') as typeof ConnectionModule;
-	const {
-		N_PX_WIDTH_POPUP,
-		N_PX_HEIGHT_POPUP,
-		NB_MAX_MESSAGE,
-	} = inline_require('./constants.ts') as typeof Constants;
+	// const {text_to_buffer} = inline_require('#/util/data.ts');
+	// const {ConnectionHandle} = inline_require('../provider/connection.ts') as typeof ConnectionModule;
+	// const {
+	// 	N_PX_WIDTH_POPUP,
+	// 	N_PX_HEIGHT_POPUP,
+	// 	NB_MAX_MESSAGE,
+	// } = inline_require('./constants.ts') as typeof Constants;
 
 	// verbose
 	const debug = (s: string, ...a_args: any[]) => console.debug(`StarShell.mcs-relay: ${s}`, ...a_args);

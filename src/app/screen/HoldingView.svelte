@@ -28,6 +28,8 @@
 	import { format_amount, format_fiat } from '#/util/format';
 	import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 	import type { PfpPath } from '#/meta/pfp';
+import Gap from '../ui/Gap.svelte';
+import Row from '../ui/Row.svelte';
 
 	const k_page = getContext<Page>('page');
 
@@ -369,6 +371,26 @@
 		actions={gc_actions}
 		circular
 	/>
+
+	<Gap />
+
+	<div class="rows">
+<!-- 		
+		<div class="section">
+			<span class="content">
+				<span class="title">
+					Stake
+				</span>
+				</span>
+			</span>
+
+			<button class="pill">
+				Stake {si_coin}
+			</button>
+		</div> -->
+	</div>
+
+	<Gap />
 
 	<div class="txns no-margin">
 

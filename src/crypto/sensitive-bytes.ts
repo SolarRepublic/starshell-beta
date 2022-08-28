@@ -4,52 +4,6 @@ function destroyed() {
 }
 
 
-class SensitiveBytesContext {
-	// list of instances
-	private _a_biguints: SensitiveBytes[] = [];
-
-
-	/**
-	 * Wraps static random()
-	 */
-	random(nb_size: number): SensitiveBytes {
-		const kn_random = SensitiveBytes.random(nb_size);
-		this._a_biguints.push(kn_random);
-		return kn_random;
-	}
-
-
-	/**
-	 * Wraps static empty()
-	 */
-	empty(nb_size: number): SensitiveBytes {
-		const kn_empty = SensitiveBytes.random(nb_size);
-		this._a_biguints.push(kn_empty);
-		return kn_empty;
-	}
-
-
-	/**
-	 * Wraps default constructor.
-	 */
-	new(atu8_data: Uint8Array): SensitiveBytes {
-		const kn_new = new SensitiveBytes(atu8_data, this);
-		this._a_biguints.push(kn_new);
-		return kn_new;
-	}
-
-
-	/**
-	 * Wipes all instances
-	 */
-	wipe(): void {
-		for(const kn_each of this._a_biguints) {
-			kn_each.wipe();
-		}
-	}
-}
-
-
 /**
  * Provides wrapper for Uint8Array intended to hold sensitive data such as private key material.
  * Rather than allowing key material to possibly outlive garbage collection in memory by using hex strings
@@ -90,14 +44,6 @@ class SensitiveBytesContext {
  */
 export default class SensitiveBytes {
 	/**
-	 * Creates an instance that assists with creating and securely deallocating multple SensitiveBytess
-	 */
-	static context(): SensitiveBytesContext {
-		return new SensitiveBytesContext();
-	}
-
-
-	/**
 	 * Generate a cryptographically random value having the given number of bytes.
 	 */
 	static random(nb_size: number): SensitiveBytes {
@@ -117,9 +63,7 @@ export default class SensitiveBytes {
 	 * 
 	 * @param atu8_data 
 	 */
-	constructor(private readonly _atu8_data: Uint8Array, private readonly _kc_context: SensitiveBytesContext|null=null) {
-		// this._kc_context = kc_context || null;
-	}
+	constructor(private readonly _atu8_data: Uint8Array) {}
 
 
 	/**
@@ -134,7 +78,7 @@ export default class SensitiveBytes {
 	 * Clone this instance so that it can be destroyed without affecting the clone.
 	 */
 	clone(): SensitiveBytes {
-		return new SensitiveBytes(Uint8Array.from(this._atu8_data), this._kc_context);
+		return new SensitiveBytes(Uint8Array.from(this._atu8_data));
 	}
 
 
@@ -158,137 +102,6 @@ export default class SensitiveBytes {
 				get: destroyed,
 			},
 		});
-	}
-
-
-	/**
-	 * Left shift by the given number of bits, discarding excess bits shifted off to the left
-	 * and adding new zero bits shifted in from the right.
-	 */
-	leftShift(ni_shift: number): SensitiveBytes {
-		// invalid argument
-		if(Number.isInteger(ni_shift) || ni_shift < 0) {
-			// panic wipe
-			this.wipe();
-
-			// refuse operation
-			throw new Error('Refusing to left shift by argument that is not a non-negative integer');
-		}
-
-		// no shift, just clone
-		if(0 === ni_shift) return this.clone();
-
-		// number of bytes
-		const nb_digits_this = this._atu8_data.byteLength;
-
-		// prep new buffer
-		const atu8_output = new Uint8Array(nb_digits_this);
-
-		// amount to shift in bytes
-		const nb_shift = ni_shift >>> 3;
-		
-		// start with approximate subarray
-		const atu8_sub = this._atu8_data.subarray(nb_shift);
-
-		// remainder amount to left shift
-		const ni_remainder = ni_shift % 8;
-
-		// able to move bytes around
-		if(0 === ni_remainder) {
-			// set sub array in highest bit position
-			atu8_output.set(atu8_sub);
-
-			// return new instance
-			return new SensitiveBytes(atu8_output);
-		}
-
-		// bitmask to truncate each byte
-		const xm_truncate = 0xff >>> ni_remainder;
-
-		// amount to right shift each byte in order to carry
-		const ni_carry = 8 - ni_remainder;
-
-		// each byte
-		let ib_each = 0;
-		for(; ib_each<nb_digits_this-1-nb_shift; ib_each++) {
-			// this can be optimized
-			atu8_output[ib_each] = ((atu8_sub[ib_each] & xm_truncate) << ni_remainder) | (atu8_sub[ib_each+1] >>> ni_carry);
-		}
-		
-		// lowest byte has data
-		if(0 === nb_shift) {
-			atu8_output[ib_each] <<= ni_shift;
-		}
-
-		// return new instance
-		return new SensitiveBytes(atu8_output);
-	}
-
-
-	/**
-	 * Right shift by the given number of bits, discarding excess bits shifted off to the right
-	 * and adding new zero bits shifted in from the left.
-	 */
-	rightShift(ni_shift: number): SensitiveBytes {
-		// invalid argument
-		if(Number.isInteger(ni_shift) || ni_shift < 0) {
-			// panic wipe
-			this.wipe();
-
-			// refuse operation
-			throw new Error('Refusing to left shift by argument that is not a non-negative integer');
-		}
-
-		// no shift, just clone
-		if(0 === ni_shift) return this.clone();
-
-		// ref data
-		const atu8_data = this._atu8_data;
-
-		// number of bytes
-		const nb_digits_this = atu8_data.byteLength;
-
-		// prep new buffer
-		const atu8_output = new Uint8Array(nb_digits_this);
-
-		// remainder amount to right shift
-		const ni_remainder = ni_shift % 8;
-
-		// amount to shift in bytes
-		const nb_shift = ni_shift >>> 3;
-
-		// able to move bytes around
-		if(0 === ni_remainder) {
-			// set sub array in appropriate bit position (allow excess bytes to be chopped off)
-			atu8_output.set(atu8_data, nb_shift);
-
-			// return new instance
-			return new SensitiveBytes(atu8_output);
-		}
-
-		// start with approximate subarray
-		const atu8_sub = atu8_data.subarray(0, nb_digits_this - (ni_shift >>> 3));
-
-		// bitmask to truncate each byte
-		const xm_truncate = (0xff >> ni_remainder) << ni_remainder;
-
-		// amount to left shift each byte in order to carry
-		const ni_carry = 8 - ni_remainder;
-
-		// highest byte has data
-		if(0 === nb_shift) {
-			atu8_output[0] >>= ni_shift;
-		}
-
-		// each byte
-		let ib_each = 1;
-		for(; ib_each<nb_digits_this-1; ib_each++) {
-			// check for accuracy
-			atu8_output[ib_each] = ((atu8_sub[ib_each-1] << ni_carry) & 0xff) | (atu8_sub[ib_each] >>> ni_remainder);
-		}
-
-		// return new instance
-		return new SensitiveBytes(atu8_output);
 	}
 
 
@@ -336,7 +149,7 @@ export default class SensitiveBytes {
 		const nb_this = atu8_data.byteLength;
 
 		// array of pointers to words as buffers
-		const a_words = [];
+		const a_words: Uint8Array[] = [];
 
 		// byte index start of word
 		let ib_start = 0;

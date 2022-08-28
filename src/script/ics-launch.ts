@@ -1,15 +1,25 @@
 import type * as Utils from './utils';
 
+import {
+	locate_script,
+} from './utils';
+
+import {B_SAFARI_MOBILE, G_USERAGENT} from '#/share/constants';
+
+import {qs, dd} from '#/util/dom';
+import {P_POPUP} from '#/extension/browser';
+import { idText } from 'typescript';
+
 console.log(`StarShell.ics-launch: Launched on <${location.href}>`);
 
 (function() {
-	const {
-		locate_script,
-	} = inline_require('./utils.ts') as typeof Utils;
+	// const {
+	// 	locate_script,
+	// } = inline_require('./utils.ts') as typeof Utils;
 
-	const {G_USERAGENT} = inline_require('#/share/constants.ts');
+	// const {G_USERAGENT} = inline_require('#/share/constants.ts');
 
-	const {qs, dd} = inline_require('#/util/dom.ts');
+	// const {qs, dd} = inline_require('#/util/dom.ts');
 
 	const h_query = Object.fromEntries([...new URLSearchParams(location.search.slice(1))]);
 
@@ -53,16 +63,18 @@ console.log(`StarShell.ics-launch: Launched on <${location.href}>`);
 		}
 		// pwa
 		else if(b_pwa) {
+			const dm_html = document.documentElement;
+
 			dm_body.innerHTML = '';
 
 			const dm_iframe = dd('iframe', {
-				src: chrome.runtime.getURL('src/entry/popup.html'),
+				src: `${P_POPUP}?tab=iframe`,
 				style: `
 					position: absolute;
-					top: 0;
+					top: ${B_SAFARI_MOBILE? '200px': '0'};
 					left: 0;
 					width: 100%;
-					height: 100%;
+					height: 100vh;
 					margin: 0;
 					padding: 0;
 					border: none;
@@ -73,7 +85,7 @@ console.log(`StarShell.ics-launch: Launched on <${location.href}>`);
 		}
 		// launching app
 		else {
-			location.href = chrome.runtime.getURL('src/entry/popup.html');
+			location.href = `${P_POPUP}?tab=launch`;
 		}
 	}
 

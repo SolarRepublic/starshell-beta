@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { F_NOOP, timeout } from '#/util/belt';
+	import {F_NOOP, timeout} from '#/util/belt';
 
 	import {
+B_NATIVE_POPUP,
 		yw_menu_expanded, yw_navigator,
 	} from '#/app/mem';
 
@@ -15,10 +16,10 @@
 	import SX_ICON_POPOUT from '#/icon/pop-out.svg?raw';
 	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
-	import { ThreadId } from '#/app/def';
-	import { getContext } from 'svelte';
-	import type { Page } from '##/screen/_screens';
-	import { logout } from '#/share/auth';
+	import {ThreadId} from '#/app/def';
+	import {getContext} from 'svelte';
+	import type {Page} from '##/screen/_screens';
+	import {logout} from '#/share/auth';
 
 	interface Item {
 		click: VoidFunction;
@@ -99,38 +100,43 @@
 		// },
 	];
 
-	import { open_window, P_POPUP } from '#/extension/browser';
-	import { flow_broadcast, flow_generic } from '#/script/msg-flow';
+	import {open_window, P_POPUP} from '#/extension/browser';
+	import {flow_broadcast} from '#/script/msg-flow';
 
 	const A_UTILITY_ITEMS = [
 		{
 			label: 'Scan QR',
 			icon: SX_ICON_SCAN,
 			async click() {
-				// open qr code scanner
-				const b_finished = await flow_broadcast({
-					flow: {
-						type: 'scanQr',
-						value: {
-							id: 'side_menu',
+				// wait for up to a few seconds
+				await Promise.race([
+					timeout(4e3),
+
+					// open qr code scanner
+					flow_broadcast({
+						flow: {
+							type: 'scanQr',
+							value: {
+								id: 'side_menu',
+							},
+							page: null,
 						},
-						page: null,
-					},
-					open: {
-						popout: true,
-					},
-				});
+						open: {
+							popout: true,
+						},
+					}),
+				]);
 
 				// collapse side menu
 				$yw_menu_expanded = false;
 			},
 		},
 		{
-			label: 'Pop Out',
+			label: B_NATIVE_POPUP? 'Pop Out': 'New Tab',
 			icon: SX_ICON_POPOUT,
 			async click() {
 				// open pop-out
-				await open_window(P_POPUP, {popout:true});
+				await open_window(`${P_POPUP}?tab=launch`, {popout:true});
 
 				// close this popup
 				globalThis.close();

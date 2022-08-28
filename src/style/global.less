@@ -3,7 +3,8 @@
 
 :root {
 	--app-window-width: 360px;
-	--app-window-height: 640px;
+	--app-window-height: 600px;
+	--app-window-padding-bottom: 0px;
 	--app-icon-diameter: 46px;
 	--app-tag-diameter: 10px;
 
@@ -107,20 +108,23 @@
 .fontFace(Black, 900);
 .fontFace(BlackItalic, 900, italic);
 
-html, body {
-	position: relative;
-	width: 100%;
-	height: 100%;
+html {
 	width: var(--app-window-width);
 	height: var(--app-window-height);
+
+	// transition: height 300ms ease-in-out;
 }
 
 body {
-	background-color: black;
+	position: relative;
+	width: 100%;
+	height: 100%;
+
+	background-color: var(--theme-color-bg);
 	color: white;
 
 	margin: 0;
-	padding: 0;
+	padding: 0 0 var(--app-window-padding-bottom) 0;
 
 	box-sizing: border-box;
 	/* overflow: hidden; */
@@ -128,6 +132,14 @@ body {
 	font-family: 'Poppins', sans-serif;
 }
 
+#terminus {
+	display: none;
+	width: 100%;
+	position: absolute;
+	bottom: -35px;
+	height: calc(var(--app-window-padding-bottom) + 35px);
+	background-color: var(--theme-color-bg);
+}
 
 .global_pfp {
 	display: inline-block;

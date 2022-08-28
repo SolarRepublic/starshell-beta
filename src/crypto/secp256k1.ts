@@ -1,37 +1,12 @@
 
 import RuntimeKey from './runtime-key';
 
-import SensitiveBigUint from './sensitive-big-uint';
-
-import { base64_to_buffer, buffer_to_base64, concat, hex_to_buffer, hmac, sha256, zero_out } from '#/util/data';
+import * as data from '#/util/data';
 
 import {
-	// instantiateSecp256k1,
 	instantiateSecp256k1Bytes,
 	Secp256k1,
 } from '@solar-republic/wasm-secp256k1';
-import { ManagedKey } from './keyring';
-
-
-const KN_ZERO_32 = SensitiveBigUint.empty(32);
-
-// secp256k1 curve order; equivalent to the number of valid points in field
-// <https://neuromancer.sk/std/secg/secp256k1>
-// <https://secg.org/sec2-v2.pdf>
-const KN_CURVE_N_SECP256K1 = new SensitiveBigUint(hex_to_buffer('fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141'));
-
-// minimum distance to enforce (in bits) away from the valid endpoints of the field
-const NI_MINIMUM_BORDER = 64;
-
-// private keys lower than this value are at high risk of being guessed
-const KN_DANGER_LO = new SensitiveBigUint(
-	hex_to_buffer(
-		((1 << (NI_MINIMUM_BORDER % 8)).toString(16)
-		+'00'.repeat(NI_MINIMUM_BORDER >>> 3)).padStart(64, '0')
-	));
-
-// private keys greater than this value are at high risk of being guessed
-const KN_DANGER_HI = KN_CURVE_N_SECP256K1.diff(KN_DANGER_LO);
 
 
 
@@ -102,8 +77,15 @@ const hm_privates = new Map<Secp256k1Key, Secp256k1KeyFields>();
  */
 // export class Secp256k1Key<si_type extends KeyType> extends ManagedKey<si_type> {
 export class Secp256k1Key {
-	static withinCurve(kg_sk: SensitiveBigUint): boolean {
-		return KN_ZERO_32.lt(kg_sk) && KN_CURVE_N_SECP256K1.gt(kg_sk);
+	/**
+	 * Validate the given secp256k1 private key is within curve order
+	 */
+	static validatePrivateKey(atu8_sk: Uint8Array): boolean {
+		// assertion error
+		if(!y_secp256k1) throw new Error('Secp256k1 WASM module was never initialized');
+
+		// validate key
+		return y_secp256k1.validatePrivateKey(atu8_sk) || false;
 	}
 
 	/**
@@ -122,7 +104,7 @@ export class Secp256k1Key {
 		if(!y_secp256k1) await init_secp256k1();
 
 		// compute message digest
-		const atu8_digest = await sha256(atu8_message);
+		const atu8_digest = await data.sha256(atu8_message);
 
 		// verify signature
 		return y_secp256k1!.verifySignatureCompactLowS(atu8_signature, atu8_pk, atu8_digest);
@@ -268,7 +250,7 @@ export class Secp256k1Key {
 	 */
 	async sign(atu8_message: Uint8Array, b_extra_entropy=false): Promise<Uint8Array> {
 		// hash message
-		const atu8_digest = await sha256(atu8_message);
+		const atu8_digest = await data.sha256(atu8_message);
 
 		// destructure private field(s)
 		const {
@@ -292,7 +274,7 @@ export class Secp256k1Key {
 	 */
 	async verify(atu8_signature: Uint8Array, atu8_message: Uint8Array): Promise<boolean> {
 		// compute message digest
-		const atu8_digest = await sha256(atu8_message);
+		const atu8_digest = await data.sha256(atu8_message);
 
 		// destructure private field
 		const {
@@ -318,6 +300,9 @@ export class Secp256k1Key {
 	}
 
 
+	/**
+	 * Tweaks a private key by adding a value to it
+	 */
 	add(atu8_tweak: Uint8Array): Promise<Uint8Array> {
 		// destructure private field(s)
 		const {
@@ -327,23 +312,4 @@ export class Secp256k1Key {
 		// access the private key; add tweak private key
 		return kk_sk.access(atu8_sk => this._y_secp256k1.addTweakPrivateKey(atu8_sk, atu8_tweak));
 	}
-
-	// /**
-	//  * Compute the shared secret between this and the given public key.
-	//  */
-	// async computeSharedSecretWith(atu8_pk_other: Uint8Array): Promise<RuntimePrivateKey> {
-	// 	// destructure private field
-	// 	const {
-	// 		kk_sk,
-	// 	} = hm_privates.get(this);
-
-		
-	// 	// access the private key
-	// 	return await RuntimePrivateKey.create(kk_sk.access((atu8_sk) => {
-	// 		// get and return the shared secret
-	// 		return y_libauth.getSharedSecret(atu8_sk, atu8_pk_other);
-
-	// 		// return secp.getSharedSecret(atu8_sk, atu8_pk_other);
-	// 	}));
-	// }
 }

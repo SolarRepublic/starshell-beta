@@ -33,8 +33,8 @@ import {
 // } from './vite/extension';
 
 // supports building for web extension to multiple browsers
-// import webExtension from '@solar-republic/vite-plugin-web-extension';
-import webExtension from '@samrum/vite-plugin-web-extension';
+import webExtension from '@solar-republic/vite-plugin-web-extension';
+// import webExtension from '@samrum/vite-plugin-web-extension';
 
 // // inlined scripts are required to reach window before page scripts
 // import { bundleImports } from 'rollup-plugin-bundle-imports';

@@ -1,9 +1,7 @@
-import type { Dict, JsonObject } from '#/util/belt';
-import { Vault } from './vault';
-// import Pbf from 'pbf';
+import type {Dict} from '#/util/belt';
+import {Vault} from './vault';
 import RuntimeKey from './runtime-key';
-import { Secp256k1Key } from './secp256k1';
-import SensitiveBytes from './sensitive-bytes';
+import {Secp256k1Key} from './secp256k1';
 
 type KeyDerivationAlgo = 'pbkdf2';
 
@@ -45,11 +43,9 @@ const hm_privates = new Map<Keyring, KeyringFields>();
 
 
 export class Keyring {
-
 	static async unlockKeyring(dk_phrase: CryptoKey) {
-
 		const kp_keys = await Vault.acquire('keys');
-	
+
 		const atu8_data = await kp_keys.read(dk_phrase);
 
 		// new keyring
@@ -67,7 +63,7 @@ export class Keyring {
 		// 	schema: SI_VERSION_SCHEMA_KEYRING,
 		// 	keys: h_keys,
 		// } = g_keyring as KeyringStruct;
-	
+
 		const k_ring = new Keyring(g_keyring);
 	}
 
@@ -84,7 +80,7 @@ export class Keyring {
 		IMPORTING:
 		for(const si_pubkey in h_keys_secp256k1) {
 			const g_key = h_keys_secp256k1[si_pubkey];
-			
+
 			switch(g_key.type) {
 				// raw key
 				case KeyType.Raw: {

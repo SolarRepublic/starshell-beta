@@ -142,7 +142,8 @@
 			background-repeat: no-repeat;
 			background-position: center top;
 			background-size: cover;
-			padding-top: calc(50vh - 200px);
+			// padding-top: calc(50vh - 200px);
+			padding-top: calc((0.45 * var(--app-window-height)) - 132px);  // 132px is half the computed height of the login prompt
 		}
 
 		>div {

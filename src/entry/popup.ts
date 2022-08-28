@@ -6,24 +6,95 @@ import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
 import type {SvelteComponent} from 'svelte';
 import type {PageConfig} from '#/app/nav/page';
 import {session_storage_clear, Vault} from '#/crypto/vault';
-import {qs} from '#/util/dom';
+import {qs, qsa} from '#/util/dom';
 import {initialize_caches, yw_navigator} from '#/app/mem';
 import {ThreadId} from '#/app/def';
-import {F_NOOP, ode} from '#/util/belt';
+import {F_NOOP, microtask, ode} from '#/util/belt';
 import {dm_log, domlog} from './fallback';
 import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
 import {global_receive} from '#/script/msg-global';
 import {Accounts} from '#/store/accounts';
 import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
 import {login, register} from '#/share/auth';
-import {XT_SECONDS} from '#/share/constants';
+import {B_MOBILE, B_SAFARI_MOBILE, XT_SECONDS} from '#/share/constants';
 import {check_restrictions} from '#/extension/restrictions';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
 import type {Vocab} from '#/meta/vocab';
 import type {IntraExt} from '#/script/messages';
 import {storage_clear} from '#/extension/public-storage';
 
+// parse search params from URL
+const h_params = Object.fromEntries(new URLSearchParams(location.search.slice(1)).entries());
+
+// wait for DOM
 window.addEventListener('DOMContentLoaded', () => {
+	// ref document element
+	const dm_html = document.documentElement;
+
+	const d_style_root = dm_html.style;
+
+	// mobile
+	if(B_MOBILE) {
+		// use all available 
+
+
+		// // in tab
+		// if('tab' in h_params) {
+		// 	// safari mobile
+		// 	if(B_SAFARI_MOBILE) {
+		// 		const d_viewport = globalThis.visualViewport;
+
+
+		// 		d_style_root.setProperty('--app-window-width', d_viewport.width+'px');
+		// 		d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
+
+		// 		// viewport is resized (e.g., from virtual keyboard overlay)
+		// 		d_viewport.addEventListener('resize', () => {
+		// 			// resize document to viewport
+		// 			// d_style_root.setProperty('--app-window-width', '100%');
+		// 			d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
+
+		// 			// dm_html.style.height = d_viewport.height+'px';
+
+		// 			// scroll to top
+		// 			dm_html.scrollTop = 0;
+		// 		});
+		// 	}
+
+		// 	// debugger;
+		// 	// Object.assign(document.documentElement.style, {
+				
+		// 	// });
+
+		// 	// globalThis.addEventListener('scroll', () => {
+		// 	// 	console.log('window#scroll');
+		// 	// });
+
+		// 	// document.addEventListener('scroll', (d_event) => {
+		// 	// 	console.log('document#scroll: %o', d_event);
+		// 	// });
+
+		// 	// document.addEventListener('focus', )
+
+		// 	// globalThis.addEventListener('resize', () => {
+		// 	// 	console.log('#resize');
+		// 	// });
+
+		// 	// setTimeout(async() => {
+		// 	// 	console.log('updating scroll');
+
+
+		// 	// 	// dm_scroll.scrollTop = dm_scroll.scrollHeight;
+		// 	// 	// await microtask();
+		// 	// 	dm_html.style.height = (window.innerHeight - 52)+'px';
+		// 	// 	await microtask();
+		// 	// 	dm_html.scrollTop = 0;
+		// 	// 	await microtask();
+		// 	// 	qsa(document.body, '.thread>.bounds>.screen').map(dm => dm.scrollTop = dm.scrollHeight);
+		// 	// }, 12e3);
+		// }
+	}
+
 	// hide dom log
 	if(dm_log) {
 		dm_log.style.opacity = '0';
@@ -229,6 +300,7 @@ async function reload() {
 	// create system component
 	yc_system = new SystemSvelte({
 		target: document.body,
+		anchor: document.getElementById('terminus')!,
 		props: {
 			mode: 'app',
 			page: gc_page_start,
@@ -245,8 +317,6 @@ async function reload() {
 
 // dev
 if('localhost' === location.hostname) {
-	const h_params = Object.fromEntries(new URLSearchParams(location.search.slice(1)).entries());
-
 	if(h_params['autoskip']) {
 		console.log('Autoskipping registration');
 

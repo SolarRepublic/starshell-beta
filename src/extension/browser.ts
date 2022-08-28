@@ -1,8 +1,12 @@
-import { session_storage_get } from "#/crypto/vault";
-import { N_PX_HEIGHT_POPUP, N_PX_WIDTH_POPUP } from "#/script/constants";
-import { once_storage_changes } from "#/script/service";
-import { G_USERAGENT, XT_SECONDS } from "#/share/constants";
-import { F_NOOP, JsonObject } from "#/util/belt";
+import {session_storage_get} from '#/crypto/vault';
+import {once_storage_changes} from '#/script/service';
+import {
+	G_USERAGENT,
+	XT_SECONDS,
+	N_PX_WIDTH_POPUP,
+	N_PX_HEIGHT_POPUP,
+} from '#/share/constants';
+import {F_NOOP, JsonObject} from '#/util/belt';
 
 export type PopoutWindowHandle = {
 	window: chrome.windows.Window | null;
@@ -19,12 +23,12 @@ export interface ScreenInfo {
 }
 
 // get popup URL
-export const P_POPUP = chrome.runtime.getURL('src/entry/popup.html');
+export const P_POPUP = chrome.runtime?.getURL?.('src/entry/popup.html');
 
 // get flow URL
-export const P_FLOW = chrome.runtime.getURL('src/entry/flow.html');
+export const P_FLOW = chrome.runtime?.getURL?.('src/entry/flow.html');
 
-async function center_window_position(): Promise<{left?:number; top?:number}> {
+async function center_window_position(): Promise<{left?: number; top?: number}> {
 	// not mobile
 	if(['mobile', 'wearable', 'embedded'].includes(G_USERAGENT.device.type || '')) {
 		return {};
@@ -98,8 +102,8 @@ function center_over_position() {
 	const x_left = globalThis.screenLeft;
 	const x_top = globalThis.screenTop;
 
-	const x_center_x = (x_left + (globalThis.outerWidth / 2));
-	const x_center_y = (x_top + (globalThis.outerHeight / 2));
+	const x_center_x = x_left + (globalThis.outerWidth / 2);
+	const x_center_y = x_top + (globalThis.outerHeight / 2);
 
 	return {
 		left: Math.round(x_center_x - (N_PX_WIDTH_POPUP / 2)),
@@ -111,19 +115,35 @@ function center_over_position() {
  * Opens a new window. Position defaults to the center of the currently active screen
  */
 export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Promise<PopoutWindowHandle> {
+	// parse url
+	const d_url = new URL(p_url);
+
+	// parse params
+	const h_params = Object.fromEntries(d_url.searchParams.entries());
+
 	// determine center screen position for new window
 	const g_window_position = gc_open?.position ?? gc_open?.popout? center_over_position(): await center_window_position();
 
 	// windows is available
 	if(chrome.windows.create) {
+		// extend search params
+		h_params['tab'] = 'window';
+
+		// update url
+		d_url.search = new URLSearchParams(h_params).toString();
+
+		// reserialize
+		p_url = d_url.toString();
+
 		// create window
 		const g_window = await chrome.windows.create({
 			type: 'popup',
 			url: p_url,
 			focused: true,
 			width: N_PX_WIDTH_POPUP,
-			height: N_PX_HEIGHT_POPUP,
+			height: N_PX_HEIGHT_POPUP + 20,  // roughly 20 pixel chrome height
 			...g_window_position,
+			top: (g_window_position.top || 20) - 20,
 		});
 
 		// window was not created

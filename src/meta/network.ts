@@ -1,5 +1,5 @@
-import type { Nameable, Pfpable } from './able';
-import type { Chain, ChainPath, Family, FamilyKey } from './chain';
+import type {Nameable, Pfpable} from './able';
+import type {ChainPath} from './chain';
 import type {Resource} from './resource';
 
 

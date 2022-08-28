@@ -18,6 +18,16 @@ import {
 	QueryClientImpl as AuthQueryClient, QueryParamsRequest,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/auth/v1beta1/query';
 
+import {
+	QueryClientImpl as StakingQueryClient,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/staking/v1beta1/query';
+
+import {
+	BondStatus, bondStatusToJSON,
+	type DelegationResponse,
+	type Validator,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/staking/v1beta1/staking';
+
 import type {
 	Coin,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
@@ -196,6 +206,14 @@ function tx_to_synced(p_chain: ChainPath, si_txn: string, g_tx: Tx, g_result: Tx
 		memo: g_tx.body?.memo || '',
 	};
 }
+
+// async function depaginate<g_response>(fk_call: () => Promise<g_response>): Promise<g_response> {
+// 	const g_response = await fk_call({
+// 		pagination: {
+// 			limit: ,
+// 		},
+// 	});
+// }
 
 /**
  * Signing information for a single signer that is not included in the transaction.
@@ -1090,5 +1108,28 @@ export class CosmosNetwork implements ActiveNetwork {
 		])) {
 			yield g_incident;
 		}
+	}
+
+	async delegations(sa_owner: Bech32.String): Promise<DelegationResponse[]> {
+		const y_client = new StakingQueryClient(this._y_grpc);
+
+		const g_response = await y_client.delegatorDelegations({
+			delegatorAddr: sa_owner,
+		});
+
+		return g_response.delegationResponses;
+	}
+
+	async validators(): Promise<Validator[]> {
+		const y_client = new StakingQueryClient(this._y_grpc);
+
+		const g_response = await y_client.validators({
+			status: bondStatusToJSON(BondStatus.BOND_STATUS_BONDED),
+			pagination: {
+				limit: '200',
+			},
+		});
+
+		return g_response.validators;
 	}
 }

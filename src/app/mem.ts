@@ -8,14 +8,14 @@ import type { Store, StoreKey } from '#/meta/store';
 import type { ParametricSvelteConstructor } from '#/meta/svelte';
 import type { Token } from '#/meta/token';
 import { global_receive } from '#/script/msg-global';
-import { SI_STORE_MEDIA, SI_STORE_TAGS } from '#/share/constants';
+import { B_MOBILE, B_SAFARI_MOBILE, N_PX_HEIGHT_POPUP, N_PX_WIDTH_POPUP, SI_STORE_MEDIA, SI_STORE_TAGS } from '#/share/constants';
 import { Accounts } from '#/store/accounts';
 import { Chains } from '#/store/chains';
 import { Medias } from '#/store/medias';
 import { ActiveNetwork, Networks } from '#/store/networks';
 import { Tags } from '#/store/tags';
 import type { H_STORE_REGISTRY, StoreRegistry } from '#/store/_registry';
-import { Dict, F_NOOP, Promisable } from '#/util/belt';
+import { Dict, F_NOOP, microtask, Promisable, timeout } from '#/util/belt';
 import type { SvelteComponent, SvelteComponentTyped } from 'svelte';
 import {
 	derived,
@@ -392,33 +392,294 @@ export function arrival(dm_screen: HTMLElement, fk_arrive: VoidFunction) {
 	hm_arrivals.set(dm_screen, fk_arrive);
 }
 
+
+// get URL params
+export const H_PARAMS = Object.fromEntries(new URL(location.href).searchParams.entries());
+
+// whether or not this window is part of a native popup or not
+export const B_NATIVE_POPUP = !('tab' in H_PARAMS);
+
+// fits the app to the full viewport dimensions
+function fit_viewport() {
+	const d_style_root = document.documentElement.style;
+	const d_viewport = globalThis.visualViewport;
+	d_style_root.setProperty('--app-window-width', d_viewport.width+'px');
+	d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
+}
+
+// states of scrollable area
+enum SCROLLABLE {
+	NONE=0,
+	EXTENDED=1,
+	COLLAPSED=2,
+}
+
 // wait for window to load
 if('undefined' !== typeof document) {
-	void once_store_updates(yw_navigator).then(() => {
+	void once_store_updates(yw_navigator).then(async() => {
+		// ref html element
+		const dm_html = document.documentElement;
+
+		// get root style
+		const d_style_root = dm_html.style;
+
+		// use all available width on mobile device
+		if(B_MOBILE) {
+			// state of whether it is extended or collapsed
+			let xc_scrollable = SCROLLABLE.NONE;
+
+			// extend the height of the document so that the use can scroll down to hide the safari toolbar
+			function extend_scrollable() {
+				// +200px seems to be the lowest safe amount to overflow the page in order for safari to hide the toolbar
+				dm_html.style.height = 'calc(200px + 100vh)';
+
+				xc_scrollable = SCROLLABLE.EXTENDED;
+			}
+
+			// remove the extra scrollable space at the bottom so there is no akward space
+			function collapse_scrollabe() {
+				// set to +1px so that scrollable height does not fit within viewport, otherwise safari will show toolbar
+				dm_html.style.height = 'calc(1px + 100vh)';
+
+				xc_scrollable = SCROLLABLE.COLLAPSED;
+			}
+
+			// resize the entire app according to viewport
+			async function resize_app() {
+				// delete max height temporarily
+				dm_html.style.maxHeight = '';
+
+				// start by setting dimensions to fill entire viewport
+				dm_html.style.width = '100vw';
+				dm_html.style.height = '100vh';
+
+				// wait a tick
+				await microtask();
+
+				// update viewport
+				fit_viewport();
+
+				// scroll position is below
+				if(dm_html.scrollTop > 0) {
+					// scroll to nearly the top
+					dm_html.scrollTo({
+						top: 1,
+						behavior: 'smooth',
+					});
+				}
+
+				// (re)set max-height of html
+				if(B_SAFARI_MOBILE && B_NATIVE_POPUP) {
+					d_style_root.maxHeight = 'var(--app-window-height)';
+				}
+			}
+
+			// immediately resize app on mobile
+			await resize_app();
+
+			// safari mobile
+			if(B_SAFARI_MOBILE) {
+				const d_viewport = globalThis.visualViewport;
+
+				// within native popup
+				if(B_NATIVE_POPUP) {
+					// set padding bottom in order to clear home bar
+					d_style_root.setProperty('--app-window-padding-bottom', '15px');
+					d_style_root.background = 'var(--theme-color-bg)';
+
+					// system dark theme
+					if(globalThis.matchMedia('(prefers-color-scheme: dark)')) {
+						document.body.style.background = 'rgb(68, 27, 0)';
+					}
+					// system light theme
+					else {
+						document.body.style.background = 'rgb(255, 159, 0)';
+					}
+
+					// show terminus
+					document.getElementById('terminus')!.style.display = 'block';
+				}
+				// launch URL
+				else if('launch' === H_PARAMS.tab) {
+					// on ios, require user to scroll down to hide UI
+					extend_scrollable();
+
+					// set body height
+					document.body.style.height = '100vh';
+					document.body.style.maxHeight = 'var(--app-window-height)';
+
+					// // scroll down to hide toolbar
+					// function trim_once() {
+					// 	// reached bottom
+					// 	if(window.innerHeight + dm_html.scrollTop >= dm_html.scrollHeight) {
+					// 		// scroll document to top
+					// 		dm_html.scrollTo({top:1, behavior:'smooth'});
+
+					// 		// remove self
+					// 		document.removeEventListener('scroll', trim_once);
+					// 	}
+					// }
+
+					// listen for scroll events
+					document.addEventListener('scroll', async() => {
+						// scrollable area is extended
+						if(SCROLLABLE.EXTENDED === xc_scrollable) {
+							// user scrolled past bottom
+							if(dm_html.scrollTop >= 10) {
+								console.log('scrolled beyond bottom while extended');
+
+								// collapse scrollable (view will automatically smooth scroll to top)
+								collapse_scrollabe();
+
+								// pause
+								await timeout(2e3);
+
+								console.log('extended scrollable again');
+
+								// make collapsible again
+								extend_scrollable();
+							}
+						}
+					});
+
+					// anytime safari resizes the visual viewport (e.g., keyboard overlay or toolbar visibility)
+					d_viewport.addEventListener('resize', () => {
+						// adjust window height variable
+						d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
+
+						// scroll document to nearly top
+						dm_html.scrollTo({top:1, behavior:'smooth'});
+					});
+
+					return;
+				}
+
+				// 
+				if('launch' !== H_PARAMS.tab) {
+					// viewport is resized (e.g., from virtual keyboard overlay)
+					d_viewport.addEventListener('resize', () => {
+						console.log('#resize %o', {
+							viewportHeight: d_viewport.height,
+							innerHeight: window.innerHeight,
+							scrollHeight: document.documentElement.scrollHeight,
+							scrollTop: document.documentElement.scrollTop,
+						});
+
+						// returning to actual height, resize immediately
+						if(d_viewport.height === dm_html.scrollHeight) {
+							void resize_app();
+						}
+						// viewport is shrinking, debounce rapid resize events
+						else if(d_viewport.height < window.innerHeight) {
+							void resize_app();
+						}
+						// within native popup
+						else if(B_NATIVE_POPUP) {
+							void resize_app();
+						}
+					});
+				}
+			}
+		}
+		// desktop
+		else {
+			// window
+			if('window' === H_PARAMS.tab) {
+				d_style_root.setProperty('--app-window-width', '100%');
+				d_style_root.setProperty('--app-window-height', '100%');
+			}
+		}
+
 		let c_resizes = 0;
+
+		let x_prev_width = N_PX_WIDTH_POPUP;
+		let x_prev_height = N_PX_HEIGHT_POPUP;
 
 		function resize(i_resize: number) {
 			// ignore late delayed resizes
 			if(c_resizes !== i_resize) return;
 
-			d_style_root.setProperty('--app-window-width', `${window.innerWidth}px`);
-			d_style_root.setProperty('--app-window-height', `${window.innerHeight}px`);
+			const x_window_width = window.innerWidth;
+			const x_window_height = window.innerHeight;
+
+			let x_app_width = 0;
+			let x_app_height = 0;
+
+			console.log(`Window resize event: [${x_window_width}, ${x_window_height}]`);
+
+			// on mobile
+			if(B_MOBILE) {
+				// temporarily assign full width/height
+				maximize_viewport();
+
+				// get full viewport dimensions
+				const {
+					width: sx_viewport_width,
+					height: sx_viewport_height,
+				} = globalThis.getComputedStyle(dm_html);
+
+				console.log(`Full viewport dimensions: [${sx_viewport_width}, ${sx_viewport_height}]`);
+
+				// width or height is being constrained by viewport
+				if(x_window_width < +sx_viewport_width.replace(/px$/, '')) {
+					x_app_width = x_window_width;
+					console.log(`width ${x_window_width} < ${+sx_viewport_width.replace(/px$/, '')}`);
+				}
+
+				if(x_window_height < +sx_viewport_height.replace(/px$/, '')) {
+					x_app_height = x_window_height;
+					console.log(`height ${x_window_height} < ${+sx_viewport_height.replace(/px$/, '')}`);
+				}
+			}
+			else {
+				x_app_width = x_window_width;
+				x_app_height = x_window_height;
+			}
+
+			console.log({
+				x_prev_width,
+				x_prev_height,
+				x_app_width,
+				x_app_height,
+			});
+
+			if(x_app_width && x_app_width !== x_prev_width) {
+				d_style_root.setProperty('--app-window-width', `${x_app_width}px`);
+				x_prev_width = x_window_width;
+			}
+
+			if(x_app_height && x_app_height !== x_prev_height) {
+				d_style_root.setProperty('--app-window-height', `${x_app_height}px`);
+				x_prev_height = x_window_height;
+			}
 		}
 
-		// respond to window resize events in order to update root css variable
-		const d_style_root = document.documentElement.style;
-		window.addEventListener('resize', () => {
-			const i_resize = ++c_resizes;
+		// // respond to window resize events in order to update root css variable
+		// const d_style_root = dm_html.style;
+		// window.addEventListener('resize', () => {
+		// 	const i_resize = ++c_resizes;
 
-			resize(i_resize);
+		// 	console.log({
+		// 		innerWidth: window.innerWidth,
+		// 		innerHeight: window.innerHeight,
+		// 		outerWidth: window.outerWidth,
+		// 		outerHeight: window.outerHeight,
+		// 	});
 
-			setTimeout(() => resize(i_resize), 250);
-			setTimeout(() => resize(i_resize), 750);
-			setTimeout(() => resize(i_resize), 1000);
-		});
+		// 	resize(i_resize);
 
-		// initialize
-		window.dispatchEvent(new Event('resize'));
+		// 	setTimeout(() => resize(i_resize), 250);
+		// 	setTimeout(() => resize(i_resize), 750);
+		// 	setTimeout(() => resize(i_resize), 1000);
+		// });
+
+		// // // continuously adjust size since mobile devices don't always fire the event
+		// // setInterval(() => {
+		// // 	resize(++c_resizes);
+		// // }, 2e3);
+
+		// // initialize
+		// window.dispatchEvent(new Event('resize'));
 
 		// global key events
 		window.addEventListener('keydown', (d_event) => {

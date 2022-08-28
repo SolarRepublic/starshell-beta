@@ -135,7 +135,6 @@ export function inlineRequire(gc_import: Options={}) {
 				}
 				// root relative path
 				else if('#' === p_target[0]) {
-					debugger;
 					// attempt verbatim resolve
 					g_resolve = await this.resolve(path.resolve(PD_SRC, p_target.slice(2)))
 

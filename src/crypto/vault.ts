@@ -316,6 +316,7 @@ export function restore_as_buffer(z_data: null | number[] | Uint8Array): null | 
 type SetNative = Partial<SessionStorage.Struct<'native'>>;
 type SetWrapped = Partial<SessionStorage.Struct<'wrapped'>>;
 
+// eslint-disable-next-line @typescript-eslint/unbound-method
 export const {
 	session_storage_get,
 	session_storage_set_native,
@@ -381,6 +382,7 @@ export const {
 						return d_session.getItem(si_key);
 					},
 					set(si_key, s_value) {
+						console.log('debug: setItem: %o => %o', si_key, s_value);
 						return d_session.setItem(si_key, s_value);
 					},
 					remove(si_key) {
