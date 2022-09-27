@@ -1,15 +1,18 @@
-import type { Resource } from '#/meta/resource';
-import type { ImageSet, Pfp } from '#/meta/pfp';
+import type {Resource} from '#/meta/resource';
+import type {ImageSet, Pfp, PfpInterface, PfpPath, PfpTarget} from '#/meta/pfp';
 
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
 
-import { SI_STORE_PFPS } from '#/share/constants';
-import { dd } from '#/util/dom';
-import type { Medias } from './medias';
-import type { Dict } from '#/util/belt';
+import {R_DATA_IMAGE_URL_ANY, SI_STORE_PFPS} from '#/share/constants';
+import {dd, uuid_v4} from '#/util/dom';
+import {Medias} from './medias';
+import type {Dict} from '#/meta/belt';
+import type {ImageMedia, ImageMediaTarget} from '#/meta/media';
+import {text_to_base64} from '#/util/data';
+import {SessionStorage} from '#/extension/session-storage';
 
 export type RenderConfig = {
 	alt?: string;
@@ -17,6 +20,18 @@ export type RenderConfig = {
 	medias: InstanceType<typeof Medias>;
 };
 
+function read_image_data(ks_medias: RenderConfig['medias'], p_media: ImageMediaTarget | undefined): string | null {
+	// no media data
+	if(!p_media) return null;
+
+	// correct type of data URL
+	if(R_DATA_IMAGE_URL_ANY.test(p_media)) {
+		return p_media;
+	}
+
+	// attempt to locate item in storage
+	return ks_medias.at(p_media as Resource.Path<ImageMedia>)?.data || null;
+}
 
 function picture(h_image: ImageSet, gc_render: RenderConfig, h_attrs: Dict={}): HTMLPictureElement {
 	// destructure resolutions
@@ -35,16 +50,14 @@ function picture(h_image: ImageSet, gc_render: RenderConfig, h_attrs: Dict={}): 
 	const ks_medias = gc_render.medias;
 
 	// read each resolution
-	/* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
-	const sx_16 = p_16? ks_medias.at(p_16)?.data!: null;
-	const sx_32 = p_32? ks_medias.at(p_32)?.data!: null;
-	const sx_48 = p_48? ks_medias.at(p_48)?.data!: null;
-	const sx_64 = p_64? ks_medias.at(p_64)?.data!: null;
-	const sx_96 = p_96? ks_medias.at(p_96)?.data!: null;
-	const sx_128 = p_128? ks_medias.at(p_128)?.data!: null;
-	const sx_256 = p_256? ks_medias.at(p_256)?.data!: null;
-	const sx_default = ks_medias.at(p_default)!.data;
-	/* eslint-enable @typescript-eslint/no-non-null-asserted-optional-chain */
+	const sx_16 = read_image_data(ks_medias, p_16);
+	const sx_32 = read_image_data(ks_medias, p_32);
+	const sx_48 = read_image_data(ks_medias, p_48);
+	const sx_64 = read_image_data(ks_medias, p_64);
+	const sx_96 = read_image_data(ks_medias, p_96);
+	const sx_128 = read_image_data(ks_medias, p_128);
+	const sx_256 = read_image_data(ks_medias, p_256);
+	const sx_default = read_image_data(ks_medias, p_default)!;
 
 	const sx_any_x = sx_16 || sx_32 || sx_48 || sx_64 || sx_96 || sx_128 || sx_256;
 
@@ -133,16 +146,41 @@ function picture(h_image: ImageSet, gc_render: RenderConfig, h_attrs: Dict={}): 
 	]);
 }
 
+type SavedPfpEntry = [PfpPath<'plain'>, PfpInterface<'plain'>];
+
 export const Pfps = create_store_class({
 	store: SI_STORE_PFPS,
 	extension: 'map',
 	class: class PfpI extends WritableStoreMap<typeof SI_STORE_PFPS> {
-		static async load(p_pfp: Resource.Path<Pfp>, gc_render: RenderConfig): Promise<HTMLElement | null> {
-			const g_pfp = await Pfps.at(p_pfp);
+		// static pathFrom(g_pfp: PfpInterface): PfpPath {
+		// 	return `/template.pfp/id.${hash_json(g_pfp)}`;
+		// }
 
-			if(!g_pfp) return null;
+		static async load(p_pfp: PfpTarget, gc_render: RenderConfig): Promise<HTMLElement | null> {
+			// session storage ref
+			if(p_pfp.startsWith('pfp:')) {
+				// load data URL from session storage
+				const p_data = await SessionStorage.get(p_pfp as `pfp:${string}`);
 
-			return Pfps.render(g_pfp, gc_render);
+				// nothing to render
+				if(!p_data) return null;
+
+				// render data URL
+				return Pfps.render({
+					type: 'plain',
+					image: {
+						default: p_data,
+					},
+				}, gc_render);
+			}
+			// store ref
+			else {
+				const g_pfp = await Pfps.at(p_pfp as Resource.Path<Pfp>);
+
+				if(!g_pfp) return null;
+
+				return Pfps.render(g_pfp, gc_render);
+			}
 		}
 
 		static render(g_pfp: Pfp['interface'], gc_render: RenderConfig): HTMLElement {
@@ -161,13 +199,11 @@ export const Pfps = create_store_class({
 
 				// a pair of icons of equal visual significance
 				case 'pair': {
-
 					break;
 				}
 
 				// a composite consisting of a foreground icon and background icon
 				case 'composite': {
-
 					break;
 				}
 
@@ -175,19 +211,64 @@ export const Pfps = create_store_class({
 					// TODO: log error
 				}
 			}
-
 		}
 
-		// async put(g_app: Media['interface']): Promise<void> {
-		// 	// prepare app path
-		// 	const p_app = MediaI.pathFor(g_app.host, g_app.scheme);
+		static async addSvg(dm_svg: SVGSVGElement): Promise<SavedPfpEntry> {
+			// serialize svg
+			const sx_pfpg = dm_svg.outerHTML;
 
-		// 	// update cache
-		// 	this._w_cache[p_app] = g_app;
+			// remove some extraneous whitespace
+			sx_pfpg.replace(/(>)\s+(<)|([{;])\s+/g, '$1$2$3');
 
-		// 	// attempt to save
-		// 	await this.save();
-		// }
+			// add as data
+			return Pfps.addData(`data:image/svg+xml;base64,${text_to_base64(sx_pfpg)}`);
+		}
+
+		static async addData(sx_data: string): Promise<SavedPfpEntry> {
+			// save media
+			const p_media = await Medias.put('image', sx_data);
+
+			// prep struct
+			const g_pfp: PfpInterface<'plain'> = {
+				type: 'plain',
+				image: {
+					default: p_media,
+				},
+			};
+
+			// save pfp
+			const p_pfp = await Pfps.open(ks => ks.add(g_pfp));
+
+			// return path and struct of new item
+			return [p_pfp, g_pfp];
+		}
+
+		async add(g_pfp: PfpInterface): Promise<PfpPath> {
+			// generate pfp path
+			const p_pfp: PfpPath = `/template.pfp/uuid.${uuid_v4()}`;
+
+			// update cache
+			this._w_cache[p_pfp] = g_pfp;
+
+			// attempt to save
+			await this.save();
+
+			// return path to new item
+			return p_pfp;
+		}
+
+		async update(p_pfp: PfpPath, g_pfp: PfpInterface): Promise<void> {
+			// item does not exist
+			if(!this._w_cache[p_pfp]) {
+				throw new Error(`Attempted to update a PFP item that does not exist: <${p_pfp}>`);
+			}
+
+			// update cache
+			this._w_cache[p_pfp] = g_pfp;
+
+			// attempt to save
+			await this.save();
+		}
 	},
 });
 

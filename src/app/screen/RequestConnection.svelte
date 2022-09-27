@@ -1,51 +1,77 @@
 <script lang="ts">
-	import { Screen, Header, type Page } from './_screens';
+	import {Screen} from './_screens';
 
-	import type { Completed } from '#/entry/flow';
-	import type { App } from '#/meta/app';
-	import type { ChainDescriptor } from '#/script/common';
-	import Banner from '../ui/Banner.svelte';
+	import type {Completed} from '#/entry/flow';
+	import type {AppInterface} from '#/meta/app';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
-	import { getContext } from 'svelte';
+	import {getContext} from 'svelte';
+	import type {Caip2, ChainInterface} from '#/meta/chain';
+	import type {SessionRequest} from '#/meta/api';
+	import {fodemtv, F_NOOP, ode, oderom} from '#/util/belt';
+	import type {Dict} from '#/meta/belt';
+	import AppBanner from '../ui/AppBanner.svelte';
+	import Row from '../ui/Row.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
+	import RequestConnectionAccounts from './RequestConnection_Accounts.svelte';
 
 	const completed = getContext<Completed>('completed');
 
-	const g_app = getContext<App['interface']>('app');
-	const p_favicon = getContext<string>('faviconSrc');
+	export let app: AppInterface;
 
-	// `data:image/png;base64,${sx_png}`
+	export let chains: Record<Caip2.String, ChainInterface>;
+	const h_chains = chains;
 
-	const a_chains = getContext<ChainDescriptor[]>('chains');
-	const i_chain = getContext<number>('chainIndex') || 0;
-	const g_chain = a_chains[i_chain];
+	export let sessions: Dict<SessionRequest>;
 
-	// selected accounts to apply the connection to
-	let a_accounts = [];
+	const nl_chains = Object.keys(h_chains).length;
+
+
+	// selected state of each chain
+	const h_selected = fodemtv(h_chains, () => true);
+
+	$: b_none_selected = Object.values(h_selected).every(b => !b);
+
 </script>
 
+<style lang="less">
+
+</style>
+
 <Screen>
-	<Banner display={{
-		image: p_favicon,
-		text: g_app.host,
-	}} />
+	<AppBanner {app} on:close={() => completed(false)}>
+		This app wants to connect on {1 === nl_chains? 'the chain': `${nl_chains} chains`}:
+	</AppBanner>
 
-	<center>
-		<h3>
-			Connect to StarShell
-		</h3>
 
-		<h4>
-			Select account(s)
-		</h4>
-	</center>
+<!-- 
+	{#if nl_chains > 2}
+		<div class="select-all">
+			<button class="pill">
+				Select all
+			</button>
+		</div>
+	{/if} -->
 
-	<!-- <Rows -->
+	<div class="rows no-margin">
+		{#each ode(h_chains) as [si_caip2, g_chain]}
+			<Row
+				name={g_chain.name}
+				pfp={g_chain.pfp}
+				detail={si_caip2}
+				on:click={toggleChildCheckbox}
+			>
+				<CheckboxField id={si_caip2} slot='right' checked={h_selected[si_caip2]}
+					on:change={({detail:b_checked}) => h_selected[si_caip2] = b_checked} />
+			</Row>
+		{/each}
+	</div>
 
-	<ActionsLine cancel={() => completed(false)} contd={{
-		creator: RequestConnectionPermissions,
+	<ActionsLine cancel={() => completed(false)} confirm={['Next', F_NOOP, b_none_selected]} contd={{
+		creator: RequestConnectionAccounts,
 		props: {
-			accounts: a_accounts,
+			app,
+			chains,
+			sessions,
 		},
 	}} />
 </Screen>

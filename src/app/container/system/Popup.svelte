@@ -2,9 +2,6 @@
 	import {
 		yw_popup,
 	} from '##/mem';
-
-
-	
 </script>
 
 <style lang="less">

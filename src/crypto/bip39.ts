@@ -131,8 +131,8 @@ export function trimPaddedMnemonic(kn_padded: SensitiveBytes, si_variant: Wordli
 	}
 
 	// copy out filled portion of mnemonic
-	const kn_mnemonic = SensitiveBytes.empty();
-	kn_mnemonic.data.set(atu8_padded);
+	const kn_mnemonic = SensitiveBytes.empty(atu8_padded.byteLength);
+	kn_mnemonic.data.set(atu8_padded, 0);
 
 	// wipe original
 	kn_padded.wipe();
@@ -189,7 +189,7 @@ export async function bip39MnemonicToSeed(fk_mnemonic: KeyProducer, fk_passphras
 	zero_out(atu8_salt);
 
 	// turn into key
-	return await RuntimeKey.create(() => atu8_derived);
+	return await RuntimeKey.create(() => atu8_derived, 512);
 }
 
 function locate_char(xb_find: number, ib_lo: number, ib_hi: number): number {
@@ -268,6 +268,11 @@ function concated_bits_to_indicies(atu8_range) {
 	]);
 }
 
+/**
+ * This verion expects exactly 32 bytes of entropy.
+ * @param fk_entropy 
+ * @returns 
+ */
 export async function bip39EntropyToExpanded(fk_entropy: KeyProducer): Promise<SensitiveBytes> {
 	// load entropy bits
 	const atu8_entropy = await fk_entropy();
@@ -314,9 +319,12 @@ export async function bip39ValidateExpanded(kn_expanded: SensitiveBytes): Promis
 	return b_valid;
 }
 
-export async function bip39EntropyToPaddedMnemonic(kn_entropy: SensitiveBytes, si_variant: WordlistVariant='english'): Promise<SensitiveBytes> {
-	// generate new random entropy and expand
-	const kn_expanded = await bip39EntropyToExpanded(() => SensitiveBytes.random(32).data);
+export async function bip39EntropyToPaddedMnemonic(kn_entropy: SensitiveBytes | null=null, si_variant: WordlistVariant='english'): Promise<SensitiveBytes> {
+	// use or generate new random entropy and expand
+	const kn_expanded = await bip39EntropyToExpanded(() => kn_entropy?.data || SensitiveBytes.random(32).data);
+
+	// wipe entropy if it was provided
+	kn_entropy?.wipe();
 
 	// validate expanded form
 	if(!await bip39ValidateExpanded(kn_expanded)) {

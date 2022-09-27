@@ -1,6 +1,6 @@
-import type { Dict, JsonObject as JsonObjectRaw, JsonValue as JsonValue } from '#/util/belt';
-import type { MergeAll } from 'ts-toolbelt/out/Object/MergeAll';
-import type { StringFormat } from './belt';
+import type {Dict, JsonObject as JsonObjectRaw, JsonValue as JsonValue} from '#/meta/belt';
+import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
+import type {StringFormat} from './belt';
 import type {Resource} from './resource';
 
 export namespace ResponseCache {

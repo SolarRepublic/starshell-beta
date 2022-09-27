@@ -1,16 +1,36 @@
-import type {Dict, JsonObject, JsonValue} from '#/util/belt';
+import type {
+	Dict,
+	JsonObject,
+	JsonValue,
+	Promisable,
+} from '#/meta/belt';
+
+import {oderac} from '#/util/belt';
 import type {Compute} from 'ts-toolbelt/out/Any/Compute';
 import type {HostToRelay, RelayToHost} from '#/script/messages';
 import type {Vocab} from '#/meta/vocab';
-import {StorageModule} from './storage-module';
-import type {HotWalletModule} from './host-wallet-module';
+
+import {DoxxModule} from './modules/doxx';
+import {StorageModule} from './modules/storage-module';
+import type {HotWalletModule} from './modules/host-wallet-module';
+import type {AccountPath} from '#/meta/account';
+import type {ChainInterface, ChainPath} from '#/meta/chain';
+import type { Merge } from 'ts-toolbelt/out/Object/Merge';
+import type { AppChainConnection } from '#/meta/app';
 
 
 /**
  * Declare and export the connnection handle options expected.
  */
 export interface ConnectionHandleConfig extends JsonObject {
-	features: Dict<JsonObject>;
+	account_path: AccountPath;
+	chain: ChainInterface;
+	features: {
+		doxx?: {
+			name?: boolean;
+			address?: boolean;
+		};
+	};
 }
 
 
@@ -24,7 +44,15 @@ interface QueryModule {
 
 }
 
+export interface ConnectionModule<k_instance extends object> {
+	create(k_handle: ConnectionHandle, k_channel: ConnectionChannel, gc_handle: ConnectionHandleConfig): Promisable<k_instance>;
+}
 
+export type InternalSessionResponse = Merge<AppChainConnection, {
+	chain: ChainInterface;
+}>;
+
+export type InternalConnectionsResponse = Record<ChainPath, InternalSessionResponse>;
 
 const h_handlers: Vocab.Handlers<HostToRelay.ConnectionVocab> = {
 	// host is responding to a specific action
@@ -126,12 +154,21 @@ export class ConnectionChannel {
 interface HandleFields {
 	k_channel: ConnectionChannel;
 	c_comands: number;
+	km_doxx: DoxxModule | null;
 	km_storage: StorageModule | null;
 	km_hotwallet: HotWalletModule | null;
 }
 
 const hm_fields = new WeakMap<ConnectionHandle, HandleFields>();
 
+const H_MODULES = {
+	doxx: DoxxModule,
+	storage: StorageModule,
+};
+
+/**
+ * Publicly-exposed handle for an approved app to account-and-chain-in-wallet connection
+ */
 export class ConnectionHandle {
 	static async create(si_handle: string, gc_handle: ConnectionHandleConfig, d_port: MessagePort): Promise<ConnectionHandle> {
 		// create instance
@@ -140,42 +177,17 @@ export class ConnectionHandle {
 		// fetch private fields
 		const g_fields = hm_fields.get(k_handle)!;
 
-		// init modules
-		const [
-			km_storage,
-			km_hotwallet,
-		] = await Promise.all([
-			// storage
-			(async() => {
-				// storage is enabled
-				if(gc_handle.features.storage) {
-					// init storage
-					return StorageModule.create(k_handle, g_fields.k_channel);
-				}
+		// ref channel
+		const k_channel = g_fields.k_channel;
 
-				// storage is not enabled
-				return null;
-			})(),
-
-			// hot wallet
-			(async() => {
-				// storage is enabled
-				if(gc_handle.features.hotWallet) {
-					// init storage
-					return StorageModule.create(k_handle, g_fields.k_channel);
-				}
-
-				// storage is not enabled
-				return null;
-			})(),
-
-		]);
-
-		// update modules
-		Object.assign(g_fields, {
-			km_storage,
-			km_hotwallet,
-		});
+		// map dict of async module loaders to their resolved values
+		await Promise.all(oderac(H_MODULES, async(si_module, dc_module) => {
+			// module is enabled
+			if(gc_handle.features[si_module]) {
+				// init module
+				g_fields[si_module] = await dc_module.create(k_handle, k_channel, gc_handle);
+			}
+		}));
 
 		// return instance
 		return k_handle;
@@ -188,9 +200,18 @@ export class ConnectionHandle {
 		hm_fields.set(this, {
 			k_channel: k_channel,
 			c_comands: 0,
+			km_doxx: null,
 			km_storage: null,
 			km_hotwallet: null,
 		});
+	}
+
+
+	/**
+	 * Fetch the doxx module for this connection
+	 */
+	get doxx(): DoxxModule | null {
+		return hm_fields.get(this)!.km_doxx;
 	}
 
 

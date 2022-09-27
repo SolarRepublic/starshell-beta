@@ -1,8 +1,7 @@
 <script lang="ts">
-	import {F_NOOP, timeout} from '#/util/belt';
+	import {F_NOOP, microtask, timeout, timeout_exec} from '#/util/belt';
 
 	import {
-B_NATIVE_POPUP,
 		yw_menu_expanded, yw_navigator,
 	} from '#/app/mem';
 
@@ -12,13 +11,12 @@ B_NATIVE_POPUP,
 	import SX_ICON_TAGS from '#/icon/bookmarks.svg?raw';
 	import SX_ICON_CONNECTIONS from '#/icon/account_tree.svg?raw';
 	import SX_ICON_SETTINGS from '#/icon/settings.svg?raw';
+	import SX_ICON_CUBES from '#/icon/cubes.svg?raw';
 	import SX_ICON_LOGOUT from '#/icon/sensor_door.svg?raw';
 	import SX_ICON_POPOUT from '#/icon/pop-out.svg?raw';
 	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import {ThreadId} from '#/app/def';
-	import {getContext} from 'svelte';
-	import type {Page} from '##/screen/_screens';
 	import {logout} from '#/share/auth';
 
 	interface Item {
@@ -27,8 +25,6 @@ B_NATIVE_POPUP,
 		// icon: Icon;
 		icon: string;
 	}
-
-	const k_page = getContext<Page>('page');
 
 	function activate(si_thread: ThreadId) {
 		$yw_menu_expanded = false;
@@ -51,6 +47,13 @@ B_NATIVE_POPUP,
 		// 		void $yw_navigator.activateThread(ThreadId.CONTACTS);
 		// 	},
 		// },
+		{
+			label: 'Apps',
+			icon: SX_ICON_CUBES,
+			click() {
+				activate(ThreadId.APPS);
+			},
+		},
 		{
 			label: 'Accounts',
 			// icon: Icon.fromHtml(SX_ICON_ACCOUNTS),
@@ -79,15 +82,6 @@ B_NATIVE_POPUP,
 		// 	},
 		// },
 		// {
-		// 	label: 'Sites',
-		// 	// icon: Icon.fromHtml(SX_ICON_CONNECTIONS),
-		// 	icon: SX_ICON_CONNECTIONS,
-		// 	click() {
-		// 		$yw_menu_expanded = false;
-		// 		void $yw_navigator.activateThread(ThreadId.SITES);
-		// 	},
-		// },
-		// {
 		// 	label: 'Settings',
 		// 	// icon: Icon.fromHtml(SX_ICON_SETTINGS),
 		// 	icon: SX_ICON_SETTINGS,
@@ -101,19 +95,35 @@ B_NATIVE_POPUP,
 	];
 
 	import {open_window, P_POPUP} from '#/extension/browser';
-	import {flow_broadcast} from '#/script/msg-flow';
+	import {open_flow} from '#/script/msg-flow';
+	import {B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER} from '#/share/constants';
+	import ScanQr from '#/app/screen/ScanQr.svelte';
 
 	const A_UTILITY_ITEMS = [
 		{
 			label: 'Scan QR',
 			icon: SX_ICON_SCAN,
 			async click() {
-				// wait for up to a few seconds
-				await Promise.race([
-					timeout(4e3),
+				if(B_WITHIN_PWA) {
+					// activate scratch thread
+					await $yw_navigator.activateThread(ThreadId.SCRATCH);
 
+					// reset the thread in case something else was using the scratch space
+					$yw_navigator.activeThread.reset();
+
+					await microtask();
+
+					// push qr code scanner
+					$yw_navigator.activePage.push({
+						creator: ScanQr,
+						props: {
+							exittable: true,
+						},
+					});
+				}
+				else {
 					// open qr code scanner
-					flow_broadcast({
+					await timeout_exec(4e3, () => open_flow({
 						flow: {
 							type: 'scanQr',
 							value: {
@@ -124,19 +134,19 @@ B_NATIVE_POPUP,
 						open: {
 							popout: true,
 						},
-					}),
-				]);
+					}));
+				}
 
 				// collapse side menu
 				$yw_menu_expanded = false;
 			},
 		},
 		{
-			label: B_NATIVE_POPUP? 'Pop Out': 'New Tab',
+			label: B_WITHIN_WEBEXT_POPOVER? 'Pop Out': 'New Tab',
 			icon: SX_ICON_POPOUT,
 			async click() {
 				// open pop-out
-				await open_window(`${P_POPUP}?tab=launch`, {popout:true});
+				await open_window(P_POPUP, {popout:true});
 
 				// close this popup
 				globalThis.close();
@@ -201,7 +211,7 @@ B_NATIVE_POPUP,
 	.side-menu {
 		--item-padding: 30px;
 
-		.absolute();
+		.absolute(@from: right);
 		.font(regular);
 		z-index: 1001;
 		user-select: none;
@@ -216,6 +226,7 @@ B_NATIVE_POPUP,
 			position: absolute;
 			top: 0;
 			width: var(--bar-width);
+			max-width: 320px;
 			height: 100%;
 			background-color: var(--theme-color-bg);
 			right: 0%;

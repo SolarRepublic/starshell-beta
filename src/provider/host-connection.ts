@@ -1,7 +1,6 @@
-import { Dict, fodemtv, oderom } from "#/util/belt";
-import type { ChainDescriptor } from "#/script/common";
-import type { HostToRelay, RelayToHost } from "#/script/messages";
-import type { Vocab } from "#/meta/vocab";
+import {fodemtv, oderom} from '#/util/belt';
+import type {HostToRelay, RelayToHost} from '#/script/messages';
+import type {Vocab} from '#/meta/vocab';
 
 type Features = {
 	storage: {};
@@ -19,15 +18,14 @@ export class HostConnection {
 	protected _h_handlers: Vocab.Handlers<RelayToHost.ConnectionVocab>;
 
 	constructor(g_chain: ChainDescriptor, d_port: Vocab.TypedPort<HostToRelay.ConnectionVocab, RelayToHost.ConnectionVocab>) {
-
 		const h_handlers = this._h_handlers = oderom({
 			storage: {
 				downloadStore() {
 				},
 			},
-		}, (si_feature, h_handlers) => fodemtv(h_handlers, (f_entry) => {
+		}, (si_feature, h_handlers) => fodemtv(h_handlers, f_entry =>
 			// wrap with module access control guard
-			return (...a_args: any[]) => {
+			 (...a_args: any[]) => {
 				// check permission
 				if(!this._h_features[si_feature]) {
 					return;
@@ -35,8 +33,8 @@ export class HostConnection {
 
 				// forward to handler
 				return f_entry.apply(null, a_args);
-			};
-		}));
+			}
+		));
 
 		d_port.onmessage = (d_event) => {
 

@@ -162,6 +162,7 @@ module.exports = {
 			'padding-line-between-statements',
 			'quotes',
 			'no-redeclare',
+			'no-throw-literal',
 		]),
 
 		...under({
@@ -176,17 +177,17 @@ module.exports = {
 			},
 
 			'@typescript-eslint/': {
-				'array-type': 'off',
-
 				'consistent-indexed-object-style': ['warn', 'record'],
 
 				'explicit-module-boundary-types': ['warn'],
 
 				...off([
+					'array-type',
 					'restrict-plus-operands',
 					'ban-types',
 					'consistent-type-definitions',
 					'no-dynamic-delete',
+					'no-invalid-void-type',
 				]),
 
 				...warn([

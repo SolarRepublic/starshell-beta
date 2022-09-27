@@ -1,33 +1,126 @@
+import {dm_log, domlog} from './fallback';
+
+domlog(`Pre-init: registering uncaught error handler`);
+window.addEventListener('error', (d_event) => {
+	domlog(`Fatal uncaught error: ${d_event.message}`);
+	domlog(`${d_event.filename}:${d_event.lineno}:${d_event.colno}`);
+	console.error(d_event.error);
+});
+
+
 import SystemSvelte from '#/app/container/System.svelte';
 import BlankSvelte from '#/app/screen/Blank.svelte';
 import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
 
-
 import type {SvelteComponent} from 'svelte';
 import type {PageConfig} from '#/app/nav/page';
-import {session_storage_clear, Vault} from '#/crypto/vault';
-import {qs, qsa} from '#/util/dom';
+import {Vault} from '#/crypto/vault';
+import {qs} from '#/util/dom';
 import {initialize_caches, yw_navigator} from '#/app/mem';
 import {ThreadId} from '#/app/def';
-import {F_NOOP, microtask, ode} from '#/util/belt';
-import {dm_log, domlog} from './fallback';
+import {F_NOOP, ode, timeout} from '#/util/belt';
 import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
 import {global_receive} from '#/script/msg-global';
 import {Accounts} from '#/store/accounts';
 import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
 import {login, register} from '#/share/auth';
-import {B_MOBILE, B_SAFARI_MOBILE, XT_SECONDS} from '#/share/constants';
+import {B_MOBILE, XT_SECONDS} from '#/share/constants';
 import {check_restrictions} from '#/extension/restrictions';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
 import type {Vocab} from '#/meta/vocab';
 import type {IntraExt} from '#/script/messages';
 import {storage_clear} from '#/extension/public-storage';
+import type {Dict} from '#/meta/belt';
+import {Apps} from '#/store/apps';
+import {AppApiMode, AppInterface} from '#/meta/app';
+import {SessionStorage} from '#/extension/session-storage';
+
+const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
 
 // parse search params from URL
 const h_params = Object.fromEntries(new URLSearchParams(location.search.slice(1)).entries());
 
+const dp_cause = (async() => {
+	const a_tabs = await chrome.tabs?.query({
+		active: true,
+		currentWindow: true,
+	});
+
+	if(1 === a_tabs?.length) {
+		const g_tab = a_tabs[0];
+
+		// prep app struct
+		let g_app: AppInterface | null = null;
+
+		// app registration state
+		let b_registered = false;
+
+		// logged in state
+		let b_authed = false;
+
+		// page has url
+		const p_tab = g_tab.url;
+		if(p_tab) {
+			// parse page
+			const d_url = new URL(p_tab);
+			const s_host = d_url.host;
+			const s_scheme = d_url.protocol.replace(/:$/, '') as 'https';
+
+			// foreign scheme
+			if(!/^(file|https?)$/.test(s_scheme)) {
+				return null;
+			}
+
+			// logged in
+			if(await Vault.isUnlocked()) {
+				b_authed = true;
+
+				// lookup app in store
+				g_app = await Apps.get(s_host, s_scheme);
+			}
+
+			// app definition exists
+			if(g_app) {
+				// app is registered and enabled; mark it such
+				if(g_app.on) {
+					b_registered = true;
+				}
+				// app is disabled
+				else {
+					// do nothing
+				}
+			}
+			// app is not yet registered; create temporary app object in memory
+			else {
+				g_app = {
+					on: 1,
+					api: AppApiMode.UNKNOWN,
+					name: (await SessionStorage.get(`profile:${d_url.origin}`))?.name as string
+						|| g_tab.title || s_host,
+					scheme: s_scheme,
+					host: s_host,
+					connections: {},
+					pfp: `pfp:${d_url.origin}`,
+				};
+			}
+		}
+
+		const g_window = await chrome.windows?.get(g_tab.windowId) || null;
+
+		return {
+			tab: g_tab,
+			window: g_window,
+			app: g_app,
+			registered: b_registered,
+			authenticated: b_authed,
+		};
+	}
+})();
+
+
 // wait for DOM
 window.addEventListener('DOMContentLoaded', () => {
+	debug('dom content loaded');
 	// ref document element
 	const dm_html = document.documentElement;
 
@@ -63,7 +156,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 		// 	// debugger;
 		// 	// Object.assign(document.documentElement.style, {
-				
+
 		// 	// });
 
 		// 	// globalThis.addEventListener('scroll', () => {
@@ -107,7 +200,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	// bind factory reset button
 	document.getElementById('factory-reset')?.addEventListener('click', async() => {
-		await session_storage_clear();
+		await SessionStorage.clear();
 		await storage_clear();
 		await reload();
 	});
@@ -124,6 +217,7 @@ let b_busy = false;
 
 // reload the entire system
 async function reload() {
+	debug(`reload called; busy: ${b_busy}`);
 	if(b_busy) return;
 
 	b_busy = true;
@@ -149,20 +243,26 @@ async function reload() {
 	let gc_page_start: PageConfig;
 
 	// context
-	let h_context = {};
+	const g_cause = await Promise.race([
+		dp_cause,
+		timeout(300).then(() => null),
+	]);
 
-	// check if root key is accessible
-	const dk_root = await Vault.getRootKey();
-
+	const h_context: Dict<any> = {
+		cause: g_cause,
+	};
+	debug('checking restrictions');
 	// restrictions
 	const a_restrictions = await check_restrictions();
+
+	debug('checking vault');
 	if(a_restrictions.length) {
 		gc_page_start = {
 			creator: RestrictedSvelte,
 		};
 	}
 	// vault is unlocked
-	else if(dk_root) {
+	else if(await Vault.isUnlocked()) {
 		// register for global events
 		const f_unregister = global_receive({
 			// system received logout command
@@ -175,9 +275,11 @@ async function reload() {
 			},
 		});
 
+		debug('initializing caches');
 		// load caches
 		await initialize_caches();
 
+		debug('reading account');
 		// check for account(s)
 		const ks_accounts = await Accounts.read();
 
@@ -188,10 +290,7 @@ async function reload() {
 			};
 
 			// set complete function in context
-			h_context = {
-				completed: reload,
-				// completed: F_NOOP,
-			};
+			h_context.completed = reload;
 		}
 		// account exists; load default homescreen
 		else {
@@ -217,6 +316,7 @@ async function reload() {
 			},
 		});
 
+		debug('getting base');
 		// retrieve root
 		const g_root = await Vault.getBase();
 
@@ -234,10 +334,7 @@ async function reload() {
 		}
 
 		// in either case, set complete function in context
-		h_context = {
-			// completed: reload,
-			completed: F_NOOP,
-		};
+		h_context.completed = F_NOOP;
 	}
 
 	// wait for navigator to be initialized
@@ -296,6 +393,7 @@ async function reload() {
 			}
 		}
 	});
+	debug('launching system');
 
 	// create system component
 	yc_system = new SystemSvelte({

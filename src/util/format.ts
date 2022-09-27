@@ -187,7 +187,7 @@ export function format_fiat(x_amount: number, si_fiat: CoinGeckoFiat='usd', b_om
 // 	return format_fiat(H_VERSUS_USD[k_token.def.iri].value * x_amount, b_omit_sign);
 // }
 
-export function abbreviate_addr(sa_addr: string) {
+export function abbreviate_addr(sa_addr: string): string {
 	return sa_addr.replace(/^(\w+1...).+(.{7})/, '$1[...]$2');
 }
 

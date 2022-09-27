@@ -1,37 +1,35 @@
-import { CosmosNetwork } from '#/chain/main';
-import type { Account, AccountPath } from '#/meta/account';
-import type { PlainObject } from '#/meta/belt';
-import { Bech32, Chain, ChainPath, FamilyKey } from '#/meta/chain';
-import { Network, NetworkPath } from '#/meta/network';
-import type { Resource } from '#/meta/resource';
-import type { Store, StoreKey } from '#/meta/store';
-import type { ParametricSvelteConstructor } from '#/meta/svelte';
-import type { Token } from '#/meta/token';
-import { global_receive } from '#/script/msg-global';
-import { B_MOBILE, B_SAFARI_MOBILE, N_PX_HEIGHT_POPUP, N_PX_WIDTH_POPUP, SI_STORE_MEDIA, SI_STORE_TAGS } from '#/share/constants';
-import { Accounts } from '#/store/accounts';
-import { Chains } from '#/store/chains';
-import { Medias } from '#/store/medias';
-import { ActiveNetwork, Networks } from '#/store/networks';
-import { Tags } from '#/store/tags';
-import type { H_STORE_REGISTRY, StoreRegistry } from '#/store/_registry';
-import { Dict, F_NOOP, microtask, Promisable, timeout } from '#/util/belt';
-import type { SvelteComponent, SvelteComponentTyped } from 'svelte';
+import type {AccountInterface, AccountPath} from '#/meta/account';
+import type {Bech32, ChainPath, ChainNamespaceKey, ChainInterface, ContractInterface} from '#/meta/chain';
+import type {Network, NetworkPath} from '#/meta/network';
+import type {StoreKey} from '#/meta/store';
+import type {ParametricSvelteConstructor} from '#/meta/svelte';
+import {global_receive} from '#/script/msg-global';
+import {B_FIREFOX_ANDROID, B_MOBILE, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
+import {Accounts} from '#/store/accounts';
+import {Chains} from '#/store/chains';
+import {Medias} from '#/store/medias';
+import {
+	type ActiveNetwork,
+	Networks,
+} from '#/store/networks';
+import {Tags} from '#/store/tags';
+import type {StoreRegistry} from '#/store/_registry';
+import {F_NOOP, microtask, timeout} from '#/util/belt';
+import type {Dict} from '#/meta/belt';
 import {
 	derived,
-	Subscriber,
-	Unsubscriber,
-	Updater,
 	writable,
 	type Readable,
 	type Writable,
 } from 'svelte/store';
-import { ThreadId } from './def';
-import type { Navigator } from './nav/navigator';
-import type { Page } from './nav/page';
-import type { Thread } from './nav/thread';
-import { once_store_updates } from './svelte';
+import type {ThreadId} from './def';
+import type {Navigator} from './nav/navigator';
+import type {Page} from './nav/page';
+import type {Thread} from './nav/thread';
+import {once_store_updates} from './svelte';
 import PopupReceive from './ui/PopupReceive.svelte';
+import type { Vocab } from '#/meta/vocab';
+import type { Pwa } from '#/script/messages';
 
 
 /**
@@ -150,11 +148,12 @@ export function derivedSync<
  */
 export const yw_navigator = writableSync<Navigator>(null! as Navigator);
 
+
 /**
  * Selects the active chain
  */
 export const yw_chain_ref = writableSync<ChainPath>('' as ChainPath);
-export const yw_chain = derivedSync<Chain['interface']>(yw_chain_ref, (p_chain, fk_set) => {
+export const yw_chain = derivedSync<ChainInterface>(yw_chain_ref, (p_chain, fk_set) => {
 	void Chains.read().then(ks => fk_set(ks.at(p_chain as ChainPath)!))
 		.catch((e_auth) => {
 			fk_set(null);
@@ -203,35 +202,36 @@ export const yw_network_active = derivedSync<ActiveNetwork>(yw_network_ref, (p_n
 	}
 });
 
-// export const yw_chain = writableSync<Chain['interface']>(null! as Chain['interface']);
+// export const yw_chain = writableSync<ChainInterface>(null! as ChainInterface);
 // yw_chain_ref.subscribe(async(p_chain) => {
 // 	const ks_chains = await Chains.read();
 // 	yw_chain.set(ks_chains.at(p_chain)!);
 // })
 
 /**
- * Derive family from chain
+ * Derive namespace from chain
  */
-export const yw_family = writableSync<FamilyKey>('' as FamilyKey);
-yw_chain.subscribe(g_chain => yw_family.set(g_chain?.family || ''));
+export const yw_chain_namespace = writableSync<ChainNamespaceKey>('' as ChainNamespaceKey);
+yw_chain.subscribe(g_chain => yw_chain_namespace.set(g_chain?.namespace || ''));
 
 
 /**
  * Selects the active account
  */
 export const yw_account_ref = writableSync<AccountPath>('' as AccountPath);
-export const yw_account = derivedSync<Account['interface']>(yw_account_ref, (p_account, fk_set) => {
+export const yw_account = derivedSync<AccountInterface>(yw_account_ref, (p_account, fk_set) => {
 	void Accounts.read().then(ks => fk_set(ks.at(p_account as AccountPath)!))
 		.catch((e_auth) => {
 			fk_set(null);
 		});
 });
+export const yw_account_editted = writableSync(0);
 
-export const yw_owner: Readable<Bech32.String> = derived([yw_account, yw_chain], ([g_account, g_chain], fk_set) => {
+export const yw_owner: Readable<Bech32> = derived([yw_account, yw_chain], ([g_account, g_chain], fk_set) => {
 	fk_set(Chains.addressFor(g_account.pubkey, g_chain));
 });
 
-// export const yw_account = writableSync<Account['interface']|null>(null);
+
 
 /**
  * Shows/hides the vendor menu
@@ -248,6 +248,10 @@ export const yw_overlay_account = writableSync(false);
  */
 export const yw_overlay_network = writableSync(false);
 
+/**
+ * Shows/hides the app selector overlay
+ */
+export const yw_overlay_app = writableSync(false);
 
 /**
  * Store caches
@@ -258,7 +262,7 @@ const store_cache = <
 >(si_store: si_store) => writableSync<InstanceType<StoreRegistry<si_store>> | null>(null);
 
 // reload a given store
-async function reload(si_store: StoreKey) {
+async function reload(si_store: StoreKey): Promise<void> {
 	switch(si_store) {
 		case SI_STORE_MEDIA: {
 			const ks_medias = await Medias.read();
@@ -271,6 +275,7 @@ async function reload(si_store: StoreKey) {
 			const ks_tags = await Tags.read();
 
 			yw_store_tags.update(() => ks_tags);
+			break;
 		}
 
 		default: {
@@ -286,8 +291,8 @@ export const yw_store_tags = store_cache(SI_STORE_TAGS);
 
 // register for updates
 global_receive({
-	'updateStore'({key:si_store}) {
-		void reload(si_store);
+	async 'updateStore'({key:si_store}) {
+		await reload(si_store);
 	},
 });
 
@@ -330,7 +335,7 @@ export const yw_cancel_search = writableSync<VoidFunction>(F_NOOP);
 
 // export const yw_fuse = writable<Fuse<SearchItem>>();
 
-export const yw_send_asset = writableSync<Token['interface'] | null>(null);
+export const yw_send_asset = writableSync<ContractInterface | null>(null);
 
 
 // export const yw_params = writableSync({
@@ -362,6 +367,7 @@ export const yw_context_popup = writableSync<Dict<any> | null>(null);
  */
 export const yw_popup = writableSync<ParametricSvelteConstructor | null>(null);
 
+
 export function popup_receive(p_account: AccountPath): void {
 	yw_context_popup.set({
 		account: p_account,
@@ -370,10 +376,23 @@ export function popup_receive(p_account: AccountPath): void {
 }
 
 
+/**
+ * Toggles the curtain flag for screens that use the Curtain component
+ */
+export const yw_curtain = writableSync<boolean>(false);
+
+
 // export const yw_popup_receive = writableSync<Account | null>(null);
 
 
 export const yw_blur = writableSync(false);
+
+export const yw_doc_visibility = writableSync('unset');
+if('object' === typeof document) {
+	document.addEventListener('visibilitychange', () => {
+		yw_doc_visibility.set(document.visibilityState);
+	});
+}
 
 // export const yw_holding_send = derived([yw_asset_send, yw_account, yw_chain], ([$yw_asset, $yw_acc, $yw_ch]) => {
 // 	if($yw_asset && $yw_acc) {
@@ -393,18 +412,36 @@ export function arrival(dm_screen: HTMLElement, fk_arrive: VoidFunction) {
 }
 
 
-// get URL params
-export const H_PARAMS = Object.fromEntries(new URL(location.href).searchParams.entries());
-
-// whether or not this window is part of a native popup or not
-export const B_NATIVE_POPUP = !('tab' in H_PARAMS);
+// ref viewport object
+const d_viewport = globalThis.visualViewport || {
+	width: globalThis.window?.innerWidth || 0,
+	height: globalThis.window?.innerHeight || 0,
+} as VisualViewport;
 
 // fits the app to the full viewport dimensions
 function fit_viewport() {
 	const d_style_root = document.documentElement.style;
-	const d_viewport = globalThis.visualViewport;
-	d_style_root.setProperty('--app-window-width', d_viewport.width+'px');
-	d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
+	if(d_viewport) {
+		const xl_width = d_viewport.width;
+		const xl_height = d_viewport.height;
+
+		if(xl_width * xl_height > 100) {
+			d_style_root.setProperty('--app-window-width', Math.floor(d_viewport.width)+'px');
+			d_style_root.setProperty('--app-window-height', Math.floor(d_viewport.height)+'px');
+		}
+	}
+}
+
+// watches the viewport height for changes and updates the view accordingly
+function continually_adjust_height(xl_offset=0, fk_resized?: VoidFunction) {
+	// anytime browser resizes the visual viewport (e.g., keyboard overlay or toolbar visibility)
+	d_viewport.addEventListener?.('resize', () => {
+		// adjust window height variable
+		document.documentElement.style.setProperty('--app-window-height', Math.floor(d_viewport.height+xl_offset)+'px');
+
+		// callback
+		fk_resized?.();
+	});
 }
 
 // states of scrollable area
@@ -469,20 +506,15 @@ if('undefined' !== typeof document) {
 				}
 
 				// (re)set max-height of html
-				if(B_SAFARI_MOBILE && B_NATIVE_POPUP) {
+				if(B_SAFARI_MOBILE && B_WITHIN_WEBEXT_POPOVER) {
 					d_style_root.maxHeight = 'var(--app-window-height)';
 				}
 			}
 
-			// immediately resize app on mobile
-			await resize_app();
-
 			// safari mobile
 			if(B_SAFARI_MOBILE) {
-				const d_viewport = globalThis.visualViewport;
-
 				// within native popup
-				if(B_NATIVE_POPUP) {
+				if(B_WITHIN_WEBEXT_POPOVER) {
 					// set padding bottom in order to clear home bar
 					d_style_root.setProperty('--app-window-padding-bottom', '15px');
 					d_style_root.background = 'var(--theme-color-bg)';
@@ -498,9 +530,15 @@ if('undefined' !== typeof document) {
 
 					// show terminus
 					document.getElementById('terminus')!.style.display = 'block';
+
+					// dynamic app height
+					continually_adjust_height(0, () => {
+						// scroll document to nearly top
+						dm_html.scrollTo({top:1, behavior:'smooth'});
+					});
 				}
-				// launch URL
-				else if('launch' === H_PARAMS.tab) {
+				// within tab
+				else if('tab' === H_PARAMS.within) {
 					// on ios, require user to scroll down to hide UI
 					extend_scrollable();
 
@@ -542,117 +580,169 @@ if('undefined' !== typeof document) {
 						}
 					});
 
-					// anytime safari resizes the visual viewport (e.g., keyboard overlay or toolbar visibility)
-					d_viewport.addEventListener('resize', () => {
-						// adjust window height variable
-						d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
-
+					// dynamic app height
+					continually_adjust_height(0, () => {
 						// scroll document to nearly top
 						dm_html.scrollTo({top:1, behavior:'smooth'});
 					});
-
-					return;
 				}
 
-				// 
-				if('launch' !== H_PARAMS.tab) {
-					// viewport is resized (e.g., from virtual keyboard overlay)
-					d_viewport.addEventListener('resize', () => {
-						console.log('#resize %o', {
-							viewportHeight: d_viewport.height,
-							innerHeight: window.innerHeight,
-							scrollHeight: document.documentElement.scrollHeight,
-							scrollTop: document.documentElement.scrollTop,
-						});
+				// // 
+				// if(B_WITHIN_WEBEXT_POPOVER) {
+				// 	// viewport is resized (e.g., from virtual keyboard overlay)
+				// 	d_viewport.addEventListener('resize', () => {
+				// 		console.log('#resize %o', {
+				// 			viewportHeight: d_viewport.height,
+				// 			innerHeight: window.innerHeight,
+				// 			scrollHeight: document.documentElement.scrollHeight,
+				// 			scrollTop: document.documentElement.scrollTop,
+				// 		});
 
-						// returning to actual height, resize immediately
-						if(d_viewport.height === dm_html.scrollHeight) {
-							void resize_app();
-						}
-						// viewport is shrinking, debounce rapid resize events
-						else if(d_viewport.height < window.innerHeight) {
-							void resize_app();
-						}
-						// within native popup
-						else if(B_NATIVE_POPUP) {
-							void resize_app();
+				// 		// returning to actual height, resize immediately
+				// 		if(d_viewport.height === dm_html.scrollHeight) {
+				// 			void resize_app();
+				// 		}
+				// 		// viewport is shrinking, debounce rapid resize events
+				// 		else if(d_viewport.height < window.innerHeight) {
+				// 			void resize_app();
+				// 		}
+				// 		// within native popup
+				// 		else if(B_WITHIN_WEBEXT_POPOVER) {
+				// 			void resize_app();
+				// 		}
+				// 	});
+				// }
+			}
+			// firefox for android
+			else if(B_FIREFOX_ANDROID) {
+				// // set padding bottom in order to clear home bar
+				// d_style_root.setProperty('--app-window-padding-bottom', '15px');
+
+				// in PWA mode
+				if(B_WITHIN_PWA) {
+					// listen for resize messages from top frame
+					(window as Vocab.TypedWindow<Pwa.TopToIframe>).addEventListener('message', (d_event) => {
+						const {
+							type: si_type,
+							value: g_value,
+						} = d_event.data;
+
+						if('visualViewportResize' === si_type) {
+							// adjust window height variable
+							document.documentElement.style.setProperty('--app-window-height', Math.floor(g_value.height)+'px');
 						}
 					});
+
+					// request size
+					(window.top as Vocab.TypedWindow<Pwa.IframeToTop>).postMessage({
+						type: 'fetchVisualViewportSize',
+					}, 'https://launch.starshell.net');
 				}
+				// in firefox
+				else {
+					// adjust window height
+					let xl_height = Math.floor(d_viewport.height);
+
+					// in browser tab
+					if(!B_WITHIN_WEBEXT_POPOVER) {
+						// adjust window height by offset
+						xl_height -= N_PX_FIREFOX_TOOLBAR;
+					}
+
+					// make sure height is reasonable
+					if(xl_height > 100) {
+						console.log(`Adjusting new height to ${Math.floor(xl_height)}`);
+						d_style_root.setProperty('--app-window-height', `${Math.floor(xl_height)}px`);
+					}
+
+					// dynamic app height. firefox toolbar takes up about 56 pixels
+					continually_adjust_height(-N_PX_FIREFOX_TOOLBAR);
+				}
+
+				// set body height
+				document.body.style.height = '100vh';
+				document.body.style.maxHeight = 'var(--app-window-height)';
 			}
+
+			// resize app on mobile
+			await resize_app();
 		}
 		// desktop
 		else {
+			fit_viewport();
+
 			// window
 			if('window' === H_PARAMS.tab) {
-				d_style_root.setProperty('--app-window-width', '100%');
-				d_style_root.setProperty('--app-window-height', '100%');
+				fit_viewport();
+
+				// take up fill window
+				d_style_root.width = d_style_root.height = '100%';
 			}
 		}
 
-		let c_resizes = 0;
+		// const c_resizes = 0;
 
-		let x_prev_width = N_PX_WIDTH_POPUP;
-		let x_prev_height = N_PX_HEIGHT_POPUP;
+		// let x_prev_width = N_PX_WIDTH_POPUP;
+		// let x_prev_height = N_PX_HEIGHT_POPUP;
 
-		function resize(i_resize: number) {
-			// ignore late delayed resizes
-			if(c_resizes !== i_resize) return;
+		// function resize(i_resize: number) {
+		// 	// ignore late delayed resizes
+		// 	if(c_resizes !== i_resize) return;
 
-			const x_window_width = window.innerWidth;
-			const x_window_height = window.innerHeight;
+		// 	const x_window_width = window.innerWidth;
+		// 	const x_window_height = window.innerHeight;
 
-			let x_app_width = 0;
-			let x_app_height = 0;
+		// 	let x_app_width = 0;
+		// 	let x_app_height = 0;
 
-			console.log(`Window resize event: [${x_window_width}, ${x_window_height}]`);
+		// 	console.log(`Window resize event: [${x_window_width}, ${x_window_height}]`);
 
-			// on mobile
-			if(B_MOBILE) {
-				// temporarily assign full width/height
-				maximize_viewport();
+		// 	// on mobile
+		// 	if(B_MOBILE) {
+		// 		// temporarily assign full width/height
+		// 		maximize_viewport();
 
-				// get full viewport dimensions
-				const {
-					width: sx_viewport_width,
-					height: sx_viewport_height,
-				} = globalThis.getComputedStyle(dm_html);
+		// 		// get full viewport dimensions
+		// 		const {
+		// 			width: sx_viewport_width,
+		// 			height: sx_viewport_height,
+		// 		} = globalThis.getComputedStyle(dm_html);
 
-				console.log(`Full viewport dimensions: [${sx_viewport_width}, ${sx_viewport_height}]`);
+		// 		console.log(`Full viewport dimensions: [${sx_viewport_width}, ${sx_viewport_height}]`);
 
-				// width or height is being constrained by viewport
-				if(x_window_width < +sx_viewport_width.replace(/px$/, '')) {
-					x_app_width = x_window_width;
-					console.log(`width ${x_window_width} < ${+sx_viewport_width.replace(/px$/, '')}`);
-				}
+		// 		// width or height is being constrained by viewport
+		// 		if(x_window_width < +sx_viewport_width.replace(/px$/, '')) {
+		// 			x_app_width = x_window_width;
+		// 			console.log(`width ${x_window_width} < ${+sx_viewport_width.replace(/px$/, '')}`);
+		// 		}
 
-				if(x_window_height < +sx_viewport_height.replace(/px$/, '')) {
-					x_app_height = x_window_height;
-					console.log(`height ${x_window_height} < ${+sx_viewport_height.replace(/px$/, '')}`);
-				}
-			}
-			else {
-				x_app_width = x_window_width;
-				x_app_height = x_window_height;
-			}
+		// 		if(x_window_height < +sx_viewport_height.replace(/px$/, '')) {
+		// 			x_app_height = x_window_height;
+		// 			console.log(`height ${x_window_height} < ${+sx_viewport_height.replace(/px$/, '')}`);
+		// 		}
+		// 	}
+		// 	else {
+		// 		x_app_width = x_window_width;
+		// 		x_app_height = x_window_height;
+		// 	}
 
-			console.log({
-				x_prev_width,
-				x_prev_height,
-				x_app_width,
-				x_app_height,
-			});
+		// 	console.log({
+		// 		x_prev_width,
+		// 		x_prev_height,
+		// 		x_app_width,
+		// 		x_app_height,
+		// 	});
 
-			if(x_app_width && x_app_width !== x_prev_width) {
-				d_style_root.setProperty('--app-window-width', `${x_app_width}px`);
-				x_prev_width = x_window_width;
-			}
+		// 	if(x_app_width && x_app_width !== x_prev_width) {
+		// 		d_style_root.setProperty('--app-window-width', `${x_app_width}px`);
+		// 		x_prev_width = x_window_width;
+		// 	}
 
-			if(x_app_height && x_app_height !== x_prev_height) {
-				d_style_root.setProperty('--app-window-height', `${x_app_height}px`);
-				x_prev_height = x_window_height;
-			}
-		}
+		// 	if(x_app_height && x_app_height !== x_prev_height) {
+		// 		d_style_root.setProperty('--app-window-height', `${x_app_height}px`);
+		// 		x_prev_height = x_window_height;
+		// 	}
+		// }
 
 		// // respond to window resize events in order to update root css variable
 		// const d_style_root = dm_html.style;

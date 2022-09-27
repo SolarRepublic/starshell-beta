@@ -1,9 +1,9 @@
-import type {PfpPath} from './pfp';
+import type {PfpTarget} from './pfp';
 
 export type Nameable = {
 	name: string;
 };
 
 export type Pfpable = {
-	pfp: PfpPath;
+	pfp: PfpTarget;
 };

@@ -1,4 +1,4 @@
-import type { Dict } from "#/util/belt";
+import type {Dict} from '#/meta/belt';
 
 export type ParametricSvelteConstructor<
 	h_params extends Dict<any>=Dict<unknown>,

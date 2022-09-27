@@ -1,4 +1,4 @@
-import type { Promisable } from "#/util/belt";
+import type {Promisable} from '#/meta/belt';
 
 export interface ErrorReport {
 	title: string;

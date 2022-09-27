@@ -1,6 +1,10 @@
-import type {JsonValue} from '#/util/belt';
+import {Ripemd160 as Ripemd160Js} from '#/crypto/ripemd160';
+import SensitiveBytes from '#/crypto/sensitive-bytes';
+import type {SerializeToJson} from '#/meta/belt';
+import type {JsonValue} from '#/meta/belt';
 import {instantiateRipemd160, instantiateSha256, Ripemd160, Sha256} from '@solar-republic/wasm-secp256k1';
 import {createHash} from 'sha256-uint8array';
+import {is_dict} from './belt';
 
 /**
  * Performs SHA-256 hash on the given data.
@@ -12,8 +16,10 @@ export async function sha256(atu8_data: Uint8Array): Promise<Uint8Array> {
 }
 
 
-/*
+/**
 * Performs SHA-256 hash on the given data synchronously (only suitable for non-secure applications).
+* The only reason this function is needed is in cases when a constant is declared at the top-level
+* before it can await for the WASM module to load, which must happen asynchronously.
 * @param atu8_data data to hash
 * @returns the hash digest
 */
@@ -21,18 +27,51 @@ export const sha256_sync_insecure = (atu8_data: Uint8Array): Uint8Array => creat
 
 
 let y_sha256: Sha256;
-void instantiateSha256().then(y => y_sha256 = y);
+void instantiateSha256().then(y => y_sha256 = y).catch((e_instantiate) => {
+	console.warn(`Failed to instantiate WASM module for SHA-256; falling back to less secure implementation. \n${e_instantiate.stack || e_instantiate}`);
+	y_sha256 = {
+		init: () => new Uint8Array(0),
+		update: (atu8_a, atu8_b) => concat([atu8_a, atu8_b]),
+		final: atu8 => sha256_sync_insecure(atu8),
+		hash: atu8 => sha256_sync_insecure(atu8),
+	};
+});
 
-/*
+/**
 * Performs SHA-256 hash on the given data synchronously
 * @param atu8_data data to hash
 * @returns the hash digest
 */
-export const sha256_sync = (atu8_data: Uint8Array): Uint8Array => y_sha256.final(y_sha256.update(y_sha256.init(), atu8_data));
+export const sha256_sync = (atu8_data: Uint8Array): Uint8Array => y_sha256.hash(atu8_data);
+
+
+/**
+* Performs SHA-256 hash on the given data synchronously (only suitable for non-secure applications).
+* The only reason this function is needed is in cases when a constant is declared at the top-level
+* before it can await for the WASM module to load, which must happen asynchronously.
+* @param atu8_data data to hash
+* @returns the hash digest
+*/
+export const ripemd160_sync_insecure = (atu8_data: Uint8Array): Uint8Array => new Ripemd160Js().update(atu8_data).digest();
 
 let y_ripemd: Ripemd160;
-void instantiateRipemd160().then(y => y_ripemd = y);
-export const ripemd160_sync = (atu8_data: Uint8Array): Uint8Array => y_ripemd.final(y_ripemd.update(y_ripemd.init(), atu8_data));
+void instantiateRipemd160().then(y => y_ripemd = y).catch((e_instantiate) => {
+	console.warn(`Failed to instantiate WASM module for RIPEMD-160; falling back to less secure implementation. \n${e_instantiate.stack || e_instantiate}`);
+	y_ripemd = {
+		init: () => new Uint8Array(0),
+		update: (atu8_a, atu8_b) => concat([atu8_a, atu8_b]),
+		final: atu8 => ripemd160_sync_insecure(atu8),
+		hash: atu8 => ripemd160_sync_insecure(atu8),
+	};
+});
+
+/**
+ * Performs RIPEMD-160 hash on the given data synchronously
+ * @param atu8_data data to hash
+ * @returns the hash digest
+ */
+export const ripemd160_sync = (atu8_data: Uint8Array): Uint8Array => y_ripemd.hash(atu8_data);
+
 
 /**
  * Performs SHA-512 hash on the given data.
@@ -74,13 +113,63 @@ export function zero_out(atu8_data: number[] | Uint8Array): void {
 	if(0 !== atu8_data.reduce((c, x) => c + x, 0)) throw new Error('Failed to zero out sensitive memory region');
 }
 
+export function serialize_private_key(kn_sk: SensitiveBytes): [Uint8Array, string] {
+	// cache private key byte length
+	const nb_sk = kn_sk.data.byteLength;
+
+	// // prepopulate an array with a bunch of noise
+	// let a_noise = new Array(1024);
+	// for(let i_noise=0; i_noise<1024; i_noise++) {
+	// 	a_noise[i_noise] = crypto.getRandomValues(new Uint8Array(nb_sk));
+	// }
+
+	// // derive an index list
+	// const atu8_indices = crypto.getRandomValues(new Uint8Array(256));
+
+	// derive a random 'one-time pad' key
+	const atu8_otp = crypto.getRandomValues(new Uint8Array(nb_sk));
+
+	// wrap as sensitive bytes
+	const kn_otp = new SensitiveBytes(atu8_otp);
+
+	// compute the delta key
+	const kn_xor = kn_sk.xor(kn_otp);
+
+	// serialize the otp to string
+	const sx_otp = buffer_to_base93(kn_otp.data);
+
+	// wipe key materials
+	kn_sk.wipe();
+	kn_otp.wipe();
+
+	// return the pair
+	return [kn_xor.data, sx_otp];
+}
+
+
+export function deserialize_private_key(kn_xor: SensitiveBytes, sx_otp: string): SensitiveBytes {
+	// decode otp
+	const kn_otp = new SensitiveBytes(base93_to_buffer(sx_otp));
+
+	// apply otp
+	const kn_sk = kn_xor.xor(kn_otp);
+
+	// wipe key materials
+	kn_xor.wipe();
+	kn_otp.wipe();
+
+	// return key
+	return kn_sk;
+}
+
+
 
 /**
  * UTF-8 encodes the given text to an Uint8Array.
  * @param s_text text to encode
  * @returns UTF-8 encoded Uint8Array
  */
-export function text_to_buffer(s_text: string): Uint8Array {
+ export function text_to_buffer(s_text: string): Uint8Array {
 	return new TextEncoder().encode(s_text);
 }
 
@@ -92,6 +181,26 @@ export function text_to_buffer(s_text: string): Uint8Array {
  */
 export function buffer_to_text(atu8_text: Uint8Array): string {
 	return new TextDecoder().decode(atu8_text);
+}
+
+
+/**
+ * Converts the given base64-encoded string to a buffer, then UTF-8 decodes it.
+ * @param sx_buffer input base64-encoded string
+ * @returns text
+ */
+export function base64_to_text(sx_buffer: string): string {
+	return buffer_to_text(base64_to_buffer(sx_buffer));
+}
+
+
+/**
+ * UTF-8 encodes the given text, then converts it to a base64-encoded string.
+ * @param s_text text to encode
+ * @returns output base64-encoded string
+ */
+export function text_to_base64(s_text: string): string {
+	return buffer_to_base64(text_to_buffer(s_text));
 }
 
 
@@ -112,6 +221,36 @@ export function json_to_buffer(w_json: JsonValue): Uint8Array {
  */
 export function buffer_to_json(atu8_json: Uint8Array): JsonValue {
 	return JSON.parse(buffer_to_text(atu8_json));
+}
+
+
+/**
+ * Converts a JSON object into its canonical form.
+ * @param w_json JSON-compatible value to canonicalize
+ * @returns canonicalized JSON value
+ */
+export function canonicalize_json(w_json: JsonValue): JsonValue {
+	if(is_dict(w_json)) {
+		// sort all keys
+		const h_sorted = Object.fromEntries(Object.entries(w_json).sort((a_a, a_b) => a_a[0] < a_b[0]? -1: 1));
+
+		// traverse on children
+		for(const si_key in h_sorted) {
+			h_sorted[si_key] = canonicalize_json(h_sorted[si_key]);
+		}
+	}
+
+	return w_json;
+}
+
+
+/**
+ * Attempts to JSON stringify the canonicalized version of the primitive/object and subsequently hash it.
+ * @param w_json JSON-compatible value to hash
+ * @returns hashed JSON value in base64
+ */
+export function hash_json(w_json: JsonValue): string {
+	return buffer_to_base64(sha256_sync(json_to_buffer(canonicalize_json(w_json))));
 }
 
 
@@ -308,3 +447,42 @@ export function base93_to_buffer(sx_buffer: string): Uint8Array {
 
 	return Uint8Array.from(a_out.slice(0, Math.ceil(sx_buffer.length * 7 / 8)));
 }
+
+
+
+interface SerializableObject {
+	[si_key: string]: JsonValue | Uint8Array | SerializableObject;
+}
+
+export function serialize_to_json<
+	z_input extends any,
+>(z_input: z_input): SerializeToJson<z_input> {
+	if(!z_input) return z_input;
+
+	if(Array.isArray(z_input)) return z_input.map(w => serialize_to_json(w));
+
+	if(z_input instanceof Uint16Array) return buffer_to_base93(z_input);
+
+	if('object' === typeof z_input) {
+		const h_out = {};
+
+		for(const si_key in z_input) {
+			h_out[si_key] = serialize_to_json(z_input[si_key]);
+		}
+
+		return h_out;
+	}
+
+	return z_input;
+}
+
+
+// // testing
+// const fffff = serialize_to_json({
+// 	test: new Uint8Array(),
+// } as {
+// 	bodyBytes?: Uint8Array | null;
+// 	authInfoBytes?: Uint8Array | null;
+// 	chainId?: string | null;
+// 	// accountNumber?: Long | null;
+// });

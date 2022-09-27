@@ -1,4 +1,4 @@
-import type {Dict} from '#/util/belt';
+import type {Dict} from '#/meta/belt';
 import {Vault} from './vault';
 import RuntimeKey from './runtime-key';
 import {Secp256k1Key} from './secp256k1';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { F_NOOP } from '#/util/belt';
-import {onDestroy, onMount} from 'svelte';
-	import { ErrorReport, on_error } from '../../common';
+	import {onDestroy, onMount} from 'svelte';
+	import {type ErrorReport, on_error} from '../../common';
 	import Notice from '../../ui/Notice.svelte';
 
 	let a_errors: ErrorReport[] = [];

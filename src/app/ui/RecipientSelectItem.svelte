@@ -1,9 +1,5 @@
 <script lang="ts">
-	import type { Chain } from '#/meta/chain';
-
-	import type { ContactPath} from '#/meta/contact';
-
-	import InlineContactSelection, { ContactOption } from './InlineContactSelection.svelte';
+	import InlineContactSelection, {type ContactOption} from './InlineContactSelection.svelte';
 
 	export let isActive = false;
 	export let isFirst = false;

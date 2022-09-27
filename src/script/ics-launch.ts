@@ -1,98 +1,222 @@
-import type * as Utils from './utils';
+import type * as ConstantsImport from '#/share/constants';
+import type * as DomImport from '#/util/dom';
+import type * as BrowserImport from '#/extension/browser';
+import type * as UtilsImport from './utils';
+import type * as SessionStorageImport from '#/extension/session-storage';
+import type { Dict } from '#/meta/belt';
+import { base64_to_buffer, text_to_buffer } from '#/util/data';
+import { Vault } from '#/crypto/vault';
 
-import {
-	locate_script,
-} from './utils';
+const P_LAUNCH = 'https://launch.starshell.net/';
 
-import {B_SAFARI_MOBILE, G_USERAGENT} from '#/share/constants';
-
-import {qs, dd} from '#/util/dom';
-import {P_POPUP} from '#/extension/browser';
-import { idText } from 'typescript';
-
-console.log(`StarShell.ics-launch: Launched on <${location.href}>`);
+// verbose
+const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.ics-launch: ${s}`, ...a_args);
+debug(`Launched on <${location.href}>`);
 
 (function() {
+	const {
+		B_FIREFOX_ANDROID,
+		B_IPHONE_IOS,
+		B_SAFARI_MOBILE,
+		G_USERAGENT,
+	} = inline_require('#/share/constants.ts') as typeof ConstantsImport;
+
+	const {qs, dd, parse_params, stringify_params} = inline_require('#/util/dom.ts') as typeof DomImport;
+
+	const {locate_script} = inline_require('./utils.ts') as typeof UtilsImport;
+
+	const {SessionStorage} = inline_require('#/extension/session-storage.ts') as typeof SessionStorageImport;
+
+	const P_POPUP = chrome.runtime?.getURL?.('src/entry/popup.html') || '/src/entry/popup.html';
+
 	// const {
-	// 	locate_script,
-	// } = inline_require('./utils.ts') as typeof Utils;
+	// 	P_POPUP,
+	// } = inline_require('#/extension/browser.ts') as typeof BrowserImport;
 
-	// const {G_USERAGENT} = inline_require('#/share/constants.ts');
+	const h_params_search = parse_params(location.search);
+	const h_params_hash = parse_params(location.hash);
 
-	// const {qs, dd} = inline_require('#/util/dom.ts');
-
-	const h_query = Object.fromEntries([...new URLSearchParams(location.search.slice(1))]);
-
-	const b_setup = 'setup' in h_query;
-	const b_pwa = 'pwa' in h_query;
+	const b_setup = 'setup' in h_params_search;
+	const b_pwa = 'pwa' in h_params_search;
+	const b_installed = 'installed' in h_params_search;
+	const b_debug = 'debug' in h_params_search;
 
 	let b_started = false;
 
-	function startup() {
+	async function startup() {
 		if(b_started) return;
+		if(b_debug) return;
+		if(b_installed) return;
 
 		b_started = true;
 
-		const dm_body = document.body;
+		debug('Fired startup');
 
-		dm_body.style = 'margin: 0;';
+		const dm_body = document.body as HTMLBodyElement;
 
+		// setup mode
 		if(b_setup) {
-			history.pushState({}, '', 'https://launch.starshell.net/');
+			debug('Initializing setup');
 
-			const dm_main = document.querySelector('main')!;
+			// select main
+			const dm_main = qs(document, 'main')!;
 
+			// remove the main contents so that page knows extension is here
+			dm_main.innerHTML = '';
+
+			// remove query parameters in case user tries to reload or bookmark
+			history.pushState({}, '', P_LAUNCH);
+
+			// prep setup
 			let si_setup = '';
 
-			if('Android' === G_USERAGENT.os.name) {
-				if('Firefox' === G_USERAGENT.browser.name) {
-					si_setup = 'firefox';
-				}
+			// on firefox; guide thru pwa setup
+			if(B_FIREFOX_ANDROID) {
+				si_setup = 'android-firefox-pwa';
 			}
-			else if('iOS' === G_USERAGENT.os.name) {
-				if('iPhone' === G_USERAGENT.device.model) {
-					si_setup = 'iphone';
-				}
+			// on iphone, setup is already complete
+			else if(B_IPHONE_IOS) {
+				// see if can embed in iframe
+				debugger;
 			}
 
+			// extension wants to use predefined setup from page
 			if(si_setup) {
-				dm_main.innerHTML = '';
+				debug(`Triggering setup instructions for ${si_setup}`);
+
+				// move corresponding setup dom into place
 				const dm_setup = document.getElementById(`setup-${si_setup}`)!;
 				dm_main.appendChild(dm_setup);
+
+				// firefox toolbar is on top
+				if(B_FIREFOX_ANDROID && window.screenY >= 55) {
+					// move arrow to top
+					const dm_arrow = qs(dm_main, 'img.arrow');
+					Object.assign(dm_arrow?.style || {}, {
+						top: '0',
+						bottom: 'initial',
+						transform: 'scaleY(-1)',
+					});
+				}
+
+				// watch for pwa opened status
+				document.addEventListener('visibilitychange', async() => {
+					if('visible' === document.visibilityState) {
+						if(await SessionStorage.get('pwa')) {
+							location.href = '?installed';
+						}
+					}
+				});
+			}
+			// no setup needed
+			else {
+				debug(`No setup`);
+
+				// redirect to launch URL
+				location.href = P_LAUNCH;
 			}
 		}
-		// pwa
+		// pwa mode
 		else if(b_pwa) {
-			const dm_html = document.documentElement;
+			debug('Initializing pwa');
 
+			// clear body
 			dm_body.innerHTML = '';
 
-			const dm_iframe = dd('iframe', {
-				src: `${P_POPUP}?tab=iframe`,
-				style: `
-					position: absolute;
-					top: ${B_SAFARI_MOBILE? '200px': '0'};
-					left: 0;
-					width: 100%;
-					height: 100vh;
-					margin: 0;
-					padding: 0;
-					border: none;
-				`,
-			});
+			// default open target
+			let p_open = P_POPUP;
 
-			document.body.appendChild(dm_iframe);
+			// deduce launch intent
+			if(h_params_hash.flow) {
+				// missing signature
+				if(44 !== h_params_hash.signature?.length) {
+					throw new Error(`Launch URL is missing auth signature`);
+				}
+
+				// produce presigned url
+				const h_presigned = {...h_params_hash} as Dict;
+				delete h_presigned.signature;
+				const d_url_presigned = new URL(location.href);
+				d_url_presigned.hash = `#${stringify_params(h_presigned)}`;
+
+				// parse signature
+				const atu8_signature = base64_to_buffer(h_params_hash.signature as string);
+
+				// verify signature
+				const b_verify = await Vault.symmetricVerify(text_to_buffer(d_url_presigned.toString()), atu8_signature);
+
+				if(!b_verify) {
+					throw new Error(`Failed to verify launch URL`);
+				}
+
+				// open flow
+				p_open = h_params_hash.flow as string;
+			}
+			else {
+				// note that pwa has been installed
+				void SessionStorage.set({
+					pwa: Date.now(),
+				});
+			}
+
+			// embed extension's popup
+			{
+				// construct iframe
+				const dm_iframe = dd('iframe', {
+					id: 'starshell-app',
+					src: `${p_open}?${stringify_params({
+						within: 'pwa',
+					})}`,
+					style: `
+						position: absolute;
+						top: ${B_SAFARI_MOBILE? '200px': '0'};
+						left: 0;
+						width: 100%;
+						height: 100vh;
+						margin: 0;
+						padding: 0;
+						border: none;
+					`,
+				});
+
+				// append to body
+				document.body.appendChild(dm_iframe);
+			}
+
+			// pwa parent script
+			{
+				// construct script
+				const dm_script = document.createElement('script');
+
+				// locate pwa helper script
+				const p_pwa = locate_script('assets/src/script/mcs-pwa');
+
+				// not found
+				if(!p_pwa) {
+					throw new Error('Unable to locate pwa script!');
+				}
+
+				// set the script src
+				dm_script.src = chrome.runtime.getURL(p_pwa);
+
+				// inject the script
+				document.head.append(dm_script);
+			}
 		}
 		// launching app
 		else {
-			location.href = `${P_POPUP}?tab=launch`;
+			debug(`Launching app`);
+
+			location.href = `${P_POPUP}?${stringify_params({
+				within: 'tab',
+			})}`;
 		}
 	}
 
-	window.addEventListener('DOMContentLoaded', startup);
-
-	setTimeout(startup, 250e3);
-	setTimeout(startup, 500e3);
-	setTimeout(startup, 1e3);
-	setTimeout(startup, 2e3);
+	if('loading' !== document.readyState) {
+		startup();
+	}
+	else {
+		window.addEventListener('DOMContentLoaded', startup);
+	}
 })();

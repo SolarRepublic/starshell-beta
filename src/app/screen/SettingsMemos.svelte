@@ -1,18 +1,22 @@
 <script lang="ts">
 	import {Chains} from '#/store/chains';
-	import {getContext, onMount} from 'svelte';
+	import {getContext} from 'svelte';
 	import type {Intent} from '../svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Header from '../ui/Header.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
 	import Toggle from '@solar-republic/svelte-toggle';
-	import {Page, Screen} from './_screens';
-	import type {Chain, ChainPath} from '#/meta/chain';
-	import {Settings, SettingsRegistry} from '#/store/settings';
-	import {yw_account, yw_network_active, yw_owner} from '../mem';
+	import {Screen, type Page} from './_screens';
+	import type {ChainInterface, ChainPath} from '#/meta/chain';
+	import {Settings, type SettingsRegistry} from '#/store/settings';
+	import {yw_account, yw_owner} from '../mem';
 	import {syserr} from '../common';
-	import { ActiveNetwork, Networks, UnpublishedAccountError } from '#/store/networks';
+	import {
+		type ActiveNetwork,
+		Networks,
+		UnpublishedAccountError,
+	} from '#/store/networks';
 
 	const k_page = getContext<Page>('page');
 	const g_intent = getContext<Intent | null>('intent') || null;
@@ -26,7 +30,7 @@
 		h_settings = await Settings.get('e2e_encrypted_memos') || {};
 	})();
 
-	async function toggle_chain(p_chain: ChainPath, g_chain: Chain['interface'], b_state: boolean) {
+	async function toggle_chain(p_chain: ChainPath, g_chain: ChainInterface, b_state: boolean) {
 		// do not apply if busy
 		if(b_busy) return;
 

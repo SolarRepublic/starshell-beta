@@ -1,8 +1,7 @@
-import type { IntraExt } from './messages';
-import type { Vocab } from '#/meta/vocab';
-import type { JsonValue, Promisable } from '#/util/belt';
-
-import type { Union } from 'ts-toolbelt';
+import type {Union} from 'ts-toolbelt';
+import type {JsonValue, Promisable} from '#/meta/belt';
+import type {Vocab} from '#/meta/vocab';
+import type {IntraExt} from './messages';
 
 const d_broadcast_global: Vocab.TypedBroadcast<IntraExt.GlobalVocab> = new BroadcastChannel('global');
 
@@ -67,7 +66,7 @@ export async function global_wait<
 	si_key extends keyof IntraExt.GlobalVocab,
 >(
 	si_key: si_key,
-	fk_test: (w_value: Vocab.MessageValue<IntraExt.GlobalVocab, si_key>) => Promisable<boolean>,
+	fk_test: (w_value: Vocab.MessageValue<IntraExt.GlobalVocab, si_key>) => Promisable<boolean> = () => true,
 	xt_timeout=0
 ): Promise<void> {
 	// capture stack trace
@@ -107,12 +106,4 @@ export async function global_wait<
 			}, xt_timeout);
 		}
 	});
-}
-
-export async function local_wait(
-	si_key: keyof IntraExt.GlobalVocab,
-	fk_test: (w_value: Vocab.MessageValue<IntraExt.GlobalVocab, typeof si_key>) => Promisable<boolean>,
-	xt_timeout=0,
-): Promise<void> {
-	
 }

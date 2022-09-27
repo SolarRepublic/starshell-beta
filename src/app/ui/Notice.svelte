@@ -1,11 +1,11 @@
 <script lang="ts">
 	import {slide} from 'svelte/transition';
-	import {createEventDispatcher, onMount} from 'svelte';
+	import {createEventDispatcher} from 'svelte';
 
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import SX_ICON_ERROR from '#/icon/error.svg?raw';
 
-	import {Settings, SettingsKey} from '#/store/settings';
+	import {Settings, type SettingsKey} from '#/store/settings';
 	import Close from './Close.svelte';
 
 	const dispatch = createEventDispatcher();
@@ -105,7 +105,7 @@
 
 {#if b_display}
 	<div class="notice" style={rootStyle} transition:slide>
-		<div class="header">
+		<div class="header no-blur">
 			{#if icon}
 				<span class="global_svg-icon" style={`color:${H_ICONS[icon].color};`}>
 					{@html H_ICONS[icon].svg}

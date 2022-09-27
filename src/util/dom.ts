@@ -1,7 +1,9 @@
-import { G_USERAGENT } from '#/share/constants';
-import { JsonValue, ode } from './belt';
+import {B_FIREFOX_ANDROID, B_WITHIN_PWA, G_USERAGENT, N_FIREFOX_ANDROID_BETA_VERSION, N_FIREFOX_ANDROID_NIGHTLY_ABOVE} from '#/share/constants';
+import type {Dict, JsonValue} from '#/meta/belt';
+import {ode, timeout} from './belt';
+import type { ImageDataUrl } from '#/meta/media';
 
-
+// const B_WITHIN_PWA = '?pwa' === globalThis.location?.search && window.top !== window;
 
 type Split<S extends string, D extends string> = S extends `${infer T}${D}${infer U}` ? [T, ...Split<U, D>] : [S];
 
@@ -109,11 +111,11 @@ const S_UUID_V4 = 'xxxxxxxx_xxxx_4xxx_yxxx_xxxxxxxxxxxx';
 const R_UUID_V4 = /[xy]/g;
 
 export const uuid_v4 = crypto.randomUUID? () => crypto.randomUUID(): (): string => {
-	let dt_now = Date.now();
-	if('undefined' !== typeof performance) dt_now += performance.now();
+	let xt_now = Date.now();
+	if('undefined' !== typeof performance) xt_now += performance.now();
 	return S_UUID_V4.replace(R_UUID_V4, (s) => {
-		const x_r = (dt_now + (Math.random()*16)) % 16 | 0;
-		dt_now = Math.floor(dt_now / 16);
+		const x_r = (xt_now + (Math.random()*16)) % 16 | 0;
+		xt_now = Math.floor(xt_now / 16);
 		return ('x' === s? x_r: (x_r & 0x3) | 0x8).toString(16);
 	});
 };
@@ -174,17 +176,217 @@ export function delete_cookie(si_cookie: string) {
 	}, 0);
 }
 
-export function open_external_link(p_url: string) {
+export interface ExternalLinkConfig {
+	exitPwa?: boolean;
+}
+
+export async function open_external_link(p_url: string, gc_external: ExternalLinkConfig={}): Promise<void> {
 	if('function' === typeof chrome.tabs?.create) {
 		void chrome.tabs.create({
 			url: p_url,
 		});
 
-		if('Android' === G_USERAGENT.os.name && 'Firefox' === G_USERAGENT.browser.name) {
+		if(B_FIREFOX_ANDROID) {
 			globalThis.close();
 		}
 	}
 	else {
+		if(B_FIREFOX_ANDROID && B_WITHIN_PWA && gc_external?.exitPwa) {
+			const a_fenixes = [
+				'fenix',
+				'fenix-beta',
+				'fenix-nightly',
+			];
+
+			// parse major version
+			const m_version = /^(\d+)(?:\.|$)/.exec(G_USERAGENT.browser.version || '');
+			if(m_version) {
+				const n_version = +m_version[1];
+				const f_mv_0 = (s_tag: string) => a_fenixes.unshift(a_fenixes.splice(a_fenixes.indexOf(s_tag), 1)[0]);
+
+				// firefox-beta
+				if(N_FIREFOX_ANDROID_BETA_VERSION === n_version) {
+					f_mv_0('fenix-beta');
+				}
+				// firefox-nightly
+				else if(n_version > N_FIREFOX_ANDROID_NIGHTLY_ABOVE) {
+					f_mv_0('fenix-nightly');
+				}
+			}
+
+			// monitor visibilityChange event to deduce if browser was installed and opened link
+			let b_opened = false;
+			{
+				const f_visibility_monitor = () => {
+					if('hidden' === document.visibilityState) {
+						b_opened = true;
+						document.removeEventListener('visibilitychange', f_visibility_monitor);
+					}
+				};
+
+				document.addEventListener('visibilitychange', f_visibility_monitor);
+			}
+
+			// try each protocol in order
+			for(const s_protocol of a_fenixes) {
+				// open the URL
+				location.href = `${s_protocol}://open?${new URLSearchParams(Object.entries({url:p_url})).toString()}`;
+
+				// pause
+				await timeout(300);
+
+				// link opened the app; all done
+				if(b_opened) return;
+			}
+		}
+
+		// open as an external link
 		globalThis.open(p_url, '_blank');
 	}
+}
+
+type Renders<
+	a_sizes extends number[]=number[],
+> = {
+	[si_dim in a_sizes[number]]: ImageDataUrl;
+};
+
+export async function render_svg_squarely<
+	a_sizes extends number[]=number[],
+>(dm_svg: SVGSVGElement, a_sizes: a_sizes): Promise<Renders<a_sizes>> {
+	// prep output
+	const h_renders = {} as Renders<a_sizes>;
+
+	// get dimensions
+	const {
+		width: xl_width_view,
+		height: xl_height_view,
+		x: xl_x_view,
+		y: xl_y_view,
+	} = dm_svg.viewBox.baseVal;
+
+	// get dimensions within viewbox
+	const xl_width_svg = xl_width_view - xl_x_view;
+	const xl_height_svg = xl_height_view - xl_y_view;
+
+	// shorter and longer dimensions
+	const xl_dim_min_svg = Math.min(xl_width_svg, xl_height_svg);
+	// const xl_dim_max_svg = Math.max(xl_width_svg, xl_height_svg);
+
+	// // amount needed to scale svg
+	// const xs_svg_to_canvas = xl_dim_min_svg / N_PX_DIM_ICON;
+
+	// // orientation
+	// const b_landscape = xl_width_svg >= xl_height_svg;
+
+	// // destination for other dimension
+	// const xl_dim_other_canvas = Math.ceil(xs_svg_to_canvas * xl_dim_max_svg);
+
+	// // assign to named references
+	// const xl_width_canvas = b_landscape? xl_dim_other_canvas: N_PX_DIM_ICON;
+	// const xl_height_canvas = b_landscape? N_PX_DIM_ICON: xl_dim_other_canvas;
+
+	// // create canvas at minimum necessary dimensions
+	// const dm_canvas = dd('canvas', {
+	// 	width: xl_width_canvas,
+	// 	height: xl_height_canvas,
+	// });
+
+	// force full svg dimensions
+	dm_svg.setAttribute('width', xl_width_svg+'');
+	dm_svg.setAttribute('height', xl_height_svg+'');
+
+	// load into blob
+	const d_blob = new Blob([dm_svg.outerHTML], {
+		type: 'image/svg+xml',
+	});
+
+	// create data URL for the blob
+	const p_data_url = URL.createObjectURL(d_blob);
+
+	// load full-scale image
+	const d_img = new Image(xl_width_svg, xl_height_svg);
+	await new Promise((fk_resolve) => {
+		// wait for img to load
+		d_img.onload = () => {
+			// render at the various resolutions
+			for(const n_px_render of a_sizes) {
+				// create canvas at minimum necessary dimensions
+				const dm_canvas_square = dd('canvas', {
+					width: n_px_render,
+					height: n_px_render,
+				});
+
+				// render svg
+				const d_2d = dm_canvas_square.getContext('2d')!;
+
+				// draw cropped, square image
+				const xl_x_src = ((xl_width_svg - xl_dim_min_svg) / 2) + xl_x_view;
+				const xl_y_src = ((xl_height_svg - xl_dim_min_svg) / 2) + xl_y_view;
+				d_2d.drawImage(d_img, xl_x_src, xl_y_src, xl_dim_min_svg, xl_dim_min_svg, 0, 0, n_px_render, n_px_render);
+
+				// export image data
+				const sx_data_webp = dm_canvas_square.toDataURL('image/webp', 1) as `data:image/webp;base64,${string}`;
+				const sx_data_png = dm_canvas_square.toDataURL('image/png', 1) as `data:image/png;base64,${string}`;
+
+				// add the smaller one to dict
+				h_renders[n_px_render] = sx_data_webp.length < sx_data_png.length? sx_data_webp: sx_data_png;
+			}
+
+			// free object URL
+			URL.revokeObjectURL(p_data_url);
+
+			// resolve
+			fk_resolve(void 0);
+		};
+
+		// set image src to begin loading
+		d_img.src = p_data_url;
+	});
+
+	// return set of renders
+	return h_renders;
+}
+
+export function parse_params<w_values extends string|string[]=string|string[]>(sx_params=location.search.slice(1)): Dict<w_values> {
+	const h_params = {};
+
+	// firefox-android gets polyfilled with a broken entries iterator for some reason...
+	new URLSearchParams(sx_params.replace(/^[?#]?/, '')).forEach((s_value, si_param) => {
+		if(si_param in h_params) {
+			if(Array.isArray(h_params[si_param])) {
+				h_params[si_param].push(s_value);
+			}
+			else {
+				h_params[si_param] = [h_params[si_param], s_value];
+			}
+		}
+		else {
+			h_params[si_param] = s_value;
+		}
+	});
+
+	return h_params;
+}
+
+export function stringify_params(h_params: Dict<string | string[]>): string {
+	return new URLSearchParams(Object.entries(h_params as Dict)).toString();
+}
+
+
+interface PolyfilledAbortController {
+	signal: AbortSignal;
+	cancel: VoidFunction;
+}
+
+export function abort_signal_timeout(xt_timeout: number): PolyfilledAbortController {
+	const d_controller = new AbortController();
+	const i_abort = setTimeout(() => {
+		d_controller.abort();
+	}, xt_timeout);
+
+	return {
+		signal: d_controller.signal,
+		cancel: () => clearTimeout(i_abort),
+	};
 }

@@ -103,7 +103,7 @@
 }
 
 
-.hide-scrollbar {
+.hide-scrollbar() {
 	scrollbar-width: none;
 
 	&::-webkit-scrollbar {
@@ -120,10 +120,10 @@
 }
 
 
-.absolute(@dims: '') {
+.absolute(@dims: ''; @from: left) {
 	position: absolute;
 	top: 0;
-	left: 0;
+	@{from}: 0;
 
 	width: if('' = @dims, var(--app-window-width), @dims);
 	height: if('' = @dims, var(--app-window-height), @dims);

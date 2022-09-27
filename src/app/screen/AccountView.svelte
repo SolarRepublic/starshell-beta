@@ -1,33 +1,32 @@
 <script lang="ts">
-	import type {Account, AccountPath} from '#/meta/account';
+	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
+	import type { SecretInterface } from '#/meta/secret';
 	import {Accounts} from '#/store/accounts';
 	import {Chains} from '#/store/chains';
+	import { Secrets } from '#/store/secrets';
 
-	import {getContext} from 'svelte';
-	import {popup_receive} from '../mem';
+	import {popup_receive, yw_chain} from '../mem';
+	import { load_page_context } from '../svelte';
 	import Address from '../ui/Address.svelte';
 	import Portrait from '../ui/Portrait.svelte';
 	import AccountEdit from './AccountEdit.svelte';
 	import Send from './Send.svelte';
 
-	import {
-		Screen,
-		Header,
-		type Page,
-	} from './_screens';
+	import {Screen, Header} from './_screens';
 
-	export let accountRef: AccountPath;
-	const p_account = accountRef;
+	const {k_page} = load_page_context();
 
-	let g_account: Account['interface'];
+	export let accountPath: AccountPath;
+	const p_account = accountPath;
 
-	const k_page = getContext<Page>('page');
+	let g_account: AccountInterface;
+	let g_secret: SecretInterface;
 
-
-	async function load_account(): Promise<Account['interface']> {
+	async function load_account() {
 		const ks_accounts = await Accounts.read();
 
-		return g_account = ks_accounts.at(p_account)!;
+		g_account = ks_accounts.at(p_account)!;
+		g_secret = await Secrets.metadata(g_account.secret)!;
 	}
 
 	const gc_actions = {
@@ -37,7 +36,7 @@
 				k_page.push({
 					creator: Send,
 					props: {
-						from: Chains.addressFor(g_account.pubkey),
+						from: Chains.addressFor(g_account.pubkey, $yw_chain),
 					},
 				});
 			},
@@ -54,7 +53,7 @@
 				k_page.push({
 					creator: AccountEdit,
 					props: {
-						account: p_account,
+						accountPath: p_account,
 					},
 				});
 			},
@@ -88,7 +87,7 @@
 			actions={gc_actions}
 		>
 			<svelte:fragment slot="subtitle">
-				<Address copyable address={Chains.addressFor(g_account.pubkey)} />
+				<Address copyable address={Chains.addressFor(g_account.pubkey, $yw_chain)} />
 			</svelte:fragment>
 		</Portrait>
 	{/await}

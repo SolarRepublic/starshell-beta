@@ -1,9 +1,15 @@
+<script lang="ts" context="module">
+	export type Status = 'connected' | 'disconnected' | 'blocked';
+</script>
+
 <script lang="ts">
 	import {yw_blur} from '##/mem';
 	import SX_ICON_ADD_SMALL from '#/icon/add-small.svg?raw';
 	
 	export let title: string;
 	export let open = true;
+
+	export let status: Status | null = null;
 
 	$: $yw_blur = open;
 
@@ -17,6 +23,19 @@
 			duration: 200,
 		};
 	}
+
+	const H_LOCALIZATION: Record<Status, {text:string}> = {
+		connected: {
+			text: 'Connected',
+		},
+		disconnected: {
+			text: 'Disconnected',
+		},
+		blocked: {
+			text: 'Blocked',
+		},
+	};
+
 </script>
 
 <style lang="less">
@@ -80,6 +99,40 @@
 						--icon-color: var(--theme-color-primary);
 					}
 				}
+
+				.status-bulb(@bg) {
+					content: "\a0";
+					border-radius: 6px;
+					background-color: @bg;
+					width: 6px;
+					height: 6px;
+					display: inline-flex;
+					vertical-align: middle;
+					margin-right: 5px;
+					margin-top: -2px;
+				}
+
+				>.status {
+					font-size: 12px;
+					color: var(--theme-color-text-med);
+
+					&.connected {
+						color: var(--theme-color-grass);
+
+						&::before {
+							position: relative;
+							.status-bulb(var(--theme-color-grass));
+						}
+					}
+
+					&.blocked {
+						color: var(--theme-color-caution);
+
+						&::before {
+							.status-bulb(var(--theme-color-caution));
+						}
+					}
+				}
 			}
 
 			>.rows {
@@ -130,6 +183,12 @@
 					Add New
 				</span>
 			</button> -->
+
+			{#if status}
+				<span class={`status ${status}`}>
+					{H_LOCALIZATION[status].text}
+				</span>
+			{/if}
 		</div>
 
 		<div class="rows">

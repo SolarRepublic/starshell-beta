@@ -1,25 +1,25 @@
-import type { String, Union } from 'ts-toolbelt';
-import type { Compute } from 'ts-toolbelt/out/Any/Compute';
-import type { MergeAll } from 'ts-toolbelt/out/Object/MergeAll';
-import type { Dict, JsonObject, JsonValue } from '#/util/belt';
-import type { Account, AccountPath } from './account';
-import type { App } from './app';
-import type { StringFormat } from './belt';
-import type { Agent, Bech32, Chain, ChainPath, Contract, Entity, Holding, HoldingPath } from './chain';
-import type { Resource } from './resource';
-import type { Token, TokenPath, TokenSpec, TokenSpecKey } from './token';
+import type {String, Union} from 'ts-toolbelt';
+import type {Compute} from 'ts-toolbelt/out/Any/Compute';
+import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
+import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
+import type {Account, AccountPath} from './account';
+import type {App} from './app';
+import type {StringFormat} from './belt';
+import type {Agent, Bech32, Chain, ChainPath, Contract, Entity, Holding, HoldingPath} from './chain';
+import type {Resource} from './resource';
+import type {Token, TokenPath, TokenSpec, TokenSpecKey} from './token';
 
-import type { SettingsRegistry } from '#/store/settings';
-import type { AppPolicy } from '#/store/policies';
-import type { Cast } from 'ts-toolbelt/out/Any/Cast';
-import type { Media } from './media';
-import type { Pfp } from './pfp';
-import type { Tag } from './tag';
-import type { Network } from './network';
-import type { Secret } from './secret';
-import type { ResponseCache, WebApi } from './web-api';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import type { Incident, IncidentPath } from './incident';
+import type {SettingsRegistry} from '#/store/settings';
+import type {AppPolicy} from '#/store/policies';
+import type {Cast} from 'ts-toolbelt/out/Any/Cast';
+import type {Media} from './media';
+import type {Pfp} from './pfp';
+import type {Tag} from './tag';
+import type {Network} from './network';
+import type {Secret} from './secret';
+import type {ResponseCache, WebApi} from './web-api';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+import type {Incident, IncidentPath} from './incident';
 
 // associates a resource to arbitrary data in some typed category
 export type DataMap<
@@ -121,14 +121,14 @@ export namespace LinkTree {
 // interface SubmittedTxn extends JsonObject {
 // 	hash: string;
 // 	chain: ChainPath;
-// 	owner: Bech32.String;
+// 	owner: Bech32;
 // }
 
 export interface SyncInfo extends JsonObject {
 	height: string;
 }
 
-export type Store = {
+export type Store = Merge<{
 	// root elements
 	accounts: RootDoc<Account>;
 	chains: RootDoc<Chain>;
@@ -138,6 +138,7 @@ export type Store = {
 	pfps: RootDoc<Pfp>;
 	secrets: RootDoc<Secret>;
 	web_apis: RootDoc<WebApi>;
+	contracts: RootDoc<Contract>;
 
 	// app policies
 	app_policies: {
@@ -185,7 +186,9 @@ export type Store = {
 		]],
 		[Holding],
 	]>;
-};
+}, {
+	[si: `:${string}`]: string;
+}>;
 
 export namespace Store {
 	export type Key<si_store extends StoreKey> = keyof Store[si_store];

@@ -1,12 +1,12 @@
-import type { Dict, JsonObject, JsonValue } from '#/util/belt';
+import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
 
 import SX_SUFFIXES_BUNDLED from '#/../submodules/publicsuffix-list/public_suffix_list.dat?raw';
 
 import {
 	P_PUBLIC_SUFFIX_LIST,
 	P_STARSHELL_DECREES,
-} from "#/share/constants";
-import { storage_get, storage_set } from '#/extension/public-storage';
+} from '#/share/constants';
+import {storage_get, storage_set} from '#/extension/public-storage';
 
 const $_EXISTING = Symbol('use-existing-cache');
 
@@ -41,7 +41,7 @@ export interface Decree extends JsonObject {
 const H_REGISTRY = {
 	[P_PUBLIC_SUFFIX_LIST]: {
 		format: 'text',
-		parse(sx_data): $_EXISTING | string[] {	
+		parse(sx_data): $_EXISTING | string[] {
 			// failed for some reason; not critical
 			if(!sx_data) return $_EXISTING;
 
@@ -60,9 +60,7 @@ const H_REGISTRY = {
 	[P_STARSHELL_DECREES]: {
 		format: 'json',
 		filter(z_data: JsonValue): JsonValue {
-			return (z_data as Decree[]).filter((g_decree) => {
-				return true;
-			}) as JsonValue;
+			return (z_data as Decree[]).filter(g_decree => true) as JsonValue;
 		},
 	},
 } as const;

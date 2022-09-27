@@ -7,17 +7,17 @@
 	import Info from './Info.svelte';
 	import Address from './Address.svelte';
 	import Close from './Close.svelte';
-	import StarSelect, {SelectOption} from './StarSelect.svelte';
+	import StarSelect, {type SelectOption} from './StarSelect.svelte';
 	import {Chains} from '#/store/chains';
 	import {ode, oderac, ofe} from '#/util/belt';
-	import type {Chain, ChainPath} from '#/meta/chain';
+	import type {ChainInterface, ChainPath} from '#/meta/chain';
 	import {Accounts} from '#/store/accounts';
 	import type {Account, AccountPath} from '#/meta/account';
-	import type { PfpPath } from '#/meta/pfp';
+	import type {PfpTarget} from '#/meta/pfp';
 	import PfpDisplay from './PfpDisplay.svelte';
-	import { dd } from '#/util/dom';
-	import type { Resource } from '#/meta/resource';
-	import type { Nameable, Pfpable } from '#/meta/able';
+	import {dd} from '#/util/dom';
+	import type {Resource} from '#/meta/resource';
+	import type {Nameable, Pfpable} from '#/meta/able';
 
 	// selected account
 	let g_option_selected_account: Pick<SelectOption<AccountPath>, 'value'> = {value:$yw_account_ref};
@@ -42,7 +42,7 @@
 	});
 
 	// prep account pfps
-	let h_pfps_account: Record<PfpPath, HTMLElement> = {};
+	let h_pfps_account: Record<PfpTarget, HTMLElement> = {};
 
 	// loads account from store and produces list of select options
 	async function load_account_options(): Promise<SelectOption<AccountPath>[]> {
@@ -53,7 +53,7 @@
 		h_pfps_account = ofe(
 			await Promise.all(
 				ode(ks_accounts.raw).map(([_, g_account]) => new Promise(
-					(fk_resolve: (a_entry: [PfpPath, HTMLElement]) => void) => {
+					(fk_resolve: (a_entry: [PfpTarget, HTMLElement]) => void) => {
 						const dm_dummy = dd('span');
 						const yc_pfp = new PfpDisplay({
 							target: dm_dummy,
@@ -81,7 +81,7 @@
 	$: p_chain_selected = g_option_selected_chain.value;
 
 	// reactively update selected chain
-	let g_chain_selected: Chain['interface'];
+	let g_chain_selected: ChainInterface;
 	$: {
 		if(p_chain_selected) {
 			void Chains.read().then((ks_chains) => {
@@ -91,11 +91,11 @@
 	}
 
 	// convert a chain path+interface to a select option
-	const chain_to_option = (p_chain: ChainPath, g_chain: Chain['interface']) => ({
+	const chain_to_option = (p_chain: ChainPath, g_chain: ChainInterface) => ({
 		object: g_chain,
 		value: p_chain,
 		primary: g_chain.name,
-		secondary: g_chain.id,
+		secondary: g_chain.reference,
 		pfp: g_chain.pfp,
 	});
 
@@ -127,7 +127,7 @@
 		if(dm_qr && g_account_selected && g_chain_selected) {
 			const y_qrcode = new QRCode({
 				// use hash fragment to encode the data so that is never leaves device
-				content: `https://link.starshell.net/qr#family.cosmos/chain.${g_chain_selected.id}/address.${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}`,
+				content: `https://link.starshell.net/qr#family.cosmos/chain.${g_chain_selected.reference}/address.${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}`,
 				width: 220,
 				height: 220,
 				padding: 3,

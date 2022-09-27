@@ -113,6 +113,7 @@ interface RuntimePrivateKeyFields {
 	atu8_salt: Uint8Array;
 	kn_xor: SensitiveBytes | null;
 	dk_base: CryptoKey | null;
+	ni_bits: number;
 }
 
 
@@ -120,7 +121,7 @@ const hm_privates = new Map<RuntimeKey, RuntimePrivateKeyFields>();
 
 
 /**
- * Maintains a private key that needs to exist in process memory when used, but can otherwise benefit from
+ * Maintains a private key that needs to exist in process memory when used, but can otherwise benefit from
  * cryptographic subsystem security at rest. This is necessary for elliptic curves that are not supported
  * by the Web Crypto API such as secp256k1 .
  */
@@ -143,6 +144,7 @@ export default class RuntimeKey {
 		Object.assign(g_private, {
 			dk_base,
 			kn_xor,
+			ni_bits,
 		});
 
 		// return key object
@@ -170,6 +172,7 @@ export default class RuntimeKey {
 			atu8_salt,
 			kn_xor: null,
 			dk_base: null,
+			ni_bits: 256,
 		});
 	}
 
@@ -177,23 +180,27 @@ export default class RuntimeKey {
 	/**
 	 * Recreate the private key, only allowing it to exist in stack memory within a single event loop tick.
 	 */
-	async access<w_return=unknown>(fk_use: (atu8_sk: Uint8Array) => w_return): Promise<w_return> {
+	async access<w_return=unknown>(fk_use: (atu8_sk: Uint8Array) => w_return): Promise<Awaited<w_return>> {
 		// ref and destructure private fields
 		const g_privates = hm_privates.get(this)!;
 		const {
 			dk_base,
 			atu8_salt,
 			kn_xor,
+			ni_bits,
 		} = g_privates;
 
 		// prepare to capture whatever the callback does
 		let w_return!: w_return;
 		let e_thrown: unknown;
 
+		// prep a temporary use buffer
+		let atu8_use!: Uint8Array;
+
 		// prepare the next one-time pad
 		const [dk_base_new, kn_xor_new] = await generate_pair(() => new Promise(async(fk_resolve) => {
 			// fetch the 'derived' key
-			const kn_derived = new SensitiveBytes(await fetch_derived(dk_base!, atu8_salt, 256));
+			const kn_derived = new SensitiveBytes(await fetch_derived(dk_base!, atu8_salt, ni_bits));
 
 			// compute the private key
 			const kn_sk = kn_xor!.xor(kn_derived);
@@ -201,14 +208,20 @@ export default class RuntimeKey {
 			// wipe the derived key
 			kn_derived.wipe();
 
+			// copy the key for use
+			atu8_use = kn_sk.data.slice();
+
 			// attempt to perform synchronous callback
 			try {
 				// allow the caller to use the private key
-				w_return = fk_use(kn_sk.data);
+				w_return = fk_use(atu8_use);
 			}
 			// catch whatever was thrown and save it
 			catch(_e_thrown) {
 				e_thrown = _e_thrown;
+
+				// immediately wipe the use buffer
+				zero_out(atu8_use);
 			}
 
 			// callback generate pair
@@ -218,7 +231,7 @@ export default class RuntimeKey {
 			queueMicrotask(() => {
 				kn_sk.wipe();
 			});
-		}), atu8_salt);
+		}), atu8_salt, ni_bits);
 
 		// rotate keys
 		g_privates.dk_base = dk_base_new;
@@ -226,11 +239,18 @@ export default class RuntimeKey {
 
 		// emulate whatever the callback did
 		if(e_thrown) {
-			throw e_thrown;
+			throw e_thrown;  // eslint-disable-line @typescript-eslint/no-throw-literal
 		}
 		// return whatever the caller returned
 		else {
-			return w_return;
+			// resolve it first
+			const w_resolved = await w_return;  // eslint-disable-line @typescript-eslint/await-thenable
+
+			// wipe the used key
+			zero_out(atu8_use);
+
+			// return resolved value
+			return w_resolved;
 		}
 	}
 
@@ -252,5 +272,12 @@ export default class RuntimeKey {
 
 		// remove pointer
 		hm_privates.delete(this);
+	}
+
+	/**
+	 * Clones the instance and it's backing buffer
+	 */
+	clone(): Promise<RuntimeKey> {
+		return this.access(atu8_sk => RuntimeKey.createRaw(atu8_sk.slice()));
 	}
 }

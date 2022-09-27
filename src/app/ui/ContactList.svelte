@@ -1,6 +1,6 @@
 <script lang="ts">
 	import {quintOut} from 'svelte/easing';
-	import {yw_family} from '##/mem';
+	import {yw_chain, yw_chain_namespace} from '##/mem';
 
 	import SX_ICON_DOTS from '#/icon/more-vert.svg?raw';
 	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
@@ -13,8 +13,7 @@
 	import {slide} from 'svelte/transition';
 	import Address from './Address.svelte';
 	import Row from './Row.svelte';
-	import Put from './Put.svelte';
-	import type {Dict, JsonPrimitive} from '#/util/belt';
+	import type {Dict, JsonPrimitive} from '#/meta/belt';
 
 	import InlineTags from './InlineTags.svelte';
 
@@ -23,7 +22,7 @@
 	import DeadEnd from '##/screen/DeadEnd.svelte';
 	import ContactView from '##/screen/ContactView.svelte';
 
-	import type {Contact, ContactPath} from '#/meta/contact';
+	import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
 
@@ -34,26 +33,26 @@
 	const k_page = getContext<Page>('page');
 
 
-	export let filter: (g_contact: Contact['interface']) => boolean = g => true;
+	export let filter: (g_contact: ContactInterface) => boolean = g => true;
 
-	export let sort: (g_a: Contact['interface'], g_b: Contact['interface']) => number = (g_a, g_b) => g_a.name < g_b.name? -1: 1;
+	export let sort: (g_a: ContactInterface, g_b: ContactInterface) => number = (g_a, g_b) => g_a.name < g_b.name? -1: 1;
 
-	export let append: Contact['interface'][] = [];
+	export let append: ContactInterface[] = [];
 
 
 	// load all contacts for the current chain's family as a list
-	async function load_contacts(): Promise<[ContactPath, Contact['interface']][]> {
+	async function load_contacts(): Promise<[ContactPath, ContactInterface][]> {
 		// read from agents store
 		const ks_agents = await Agents.read();
 
 		// spread iterator into array
-		return [...ks_agents.contacts($yw_family)];
+		return [...ks_agents.contacts($yw_chain_namespace)];
 	}
 
 	const hm_events = new WeakMap<Event, Dict<JsonPrimitive>>();
 
 	let si_overlay = '';
-	function activate_overlay(p_contact: string, g_contact: Contact['interface']): (d: MouseEvent) => void {
+	function activate_overlay(p_contact: string, g_contact: ContactInterface): (d: MouseEvent) => void {
 		return (d_event: MouseEvent) => {
 			// prevent event from bubbling
 			d_event.stopImmediatePropagation();
@@ -86,12 +85,12 @@
 	const a_overlay_actions: {
 		label: string;
 		icon: string;
-		click(g_contact: Contact['interface']): void;
+		click(g_contact: ContactInterface): void;
 	}[] = [
 		{
 			label: 'Edit',
 			icon: SX_ICON_EDIT,
-			click(g_contact: Contact['interface']) {
+			click(g_contact: ContactInterface) {
 				k_page.push({
 					creator: ContactEdit,
 					props: {
@@ -103,11 +102,11 @@
 		{
 			label: 'Send',
 			icon: SX_ICON_SEND,
-			click(g_contact: Contact['interface']) {
+			click(g_contact: ContactInterface) {
 				k_page.push({
 					creator: Send,
 					props: {
-						recipient: Chains.bech32(g_contact.address),
+						recipient: Chains.transformBech32(g_contact.address, $yw_chain),
 					},
 				});
 			},
@@ -115,7 +114,7 @@
 		{
 			label: 'Delete',
 			icon: SX_ICON_DELETE,
-			click(g_contact: Contact['interface']) {
+			click(g_contact: ContactInterface) {
 				// TODO:
 				k_page.push({
 					creator: DeadEnd,
@@ -232,7 +231,7 @@
 				}}
 			>
 				<svelte:fragment slot="detail">
-					<Address address={Chains.bech32(g_contact.address+'')} />
+					<Address address={Agents.addressFor(g_contact, $yw_chain)} />
 				</svelte:fragment>
 
 				<svelte:fragment slot="tags">

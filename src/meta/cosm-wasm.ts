@@ -1,5 +1,5 @@
-import type { JsonValue } from "#/util/belt";
-import type { Bech32 as B32 } from "./chain";
+import type {JsonValue} from '#/meta/belt';
+import type {Bech32 as B32} from './chain';
 
 /**
  * === _**@starshell/meta**_ ===
@@ -52,7 +52,7 @@ export namespace Cw {
 
 	export type Uint128 = Cw<`${bigint}`, 'Uint128'>;
 
-	export type Bech32 = Cw<B32.String, 'Bech32'>;
+	export type Bech32 = Cw<B32, 'Bech32'>;
 
 	export type ViewingKey = Cw<`${string}`, 'ViewingKey'>;
 

@@ -6,13 +6,10 @@
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
-	import {Incidents} from '#/store/incidents';
 	import {CoinGecko} from '#/store/web-apis';
-	import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_string8, buffer_to_text, concat, sha256, string8_to_buffer, text_to_buffer} from '#/util/data';
+	import {base93_to_buffer, buffer_to_text, text_to_buffer} from '#/util/data';
 	import {format_fiat} from '#/util/format';
 	import BigNumber from 'bignumber.js';
-
-	import {Tabs, Tab, TabList, TabPanel} from 'svelte-tabs';
 
 	import {getContext} from 'svelte';
 	import {syserr} from '../common';
@@ -23,9 +20,9 @@
 	import Field from '../ui/Field.svelte';
 	import {Screen, Header, type Page} from './_screens';
 	import MemoReview from '../ui/MemoReview.svelte';
-	import type { Vocab } from '#/meta/vocab';
-	import type { IntraExt } from '#/script/messages';
-	import { compileMemoPlaintext, ecdhNonce } from '#/crypto/privacy';
+	import type {Vocab} from '#/meta/vocab';
+	import type {IntraExt} from '#/script/messages';
+	import {compileMemoPlaintext, ecdhNonce} from '#/crypto/privacy';
 
 	const k_page = getContext<Page>('page');
 
@@ -41,12 +38,12 @@
 
 	export let accountRef: AccountPath;
 	let g_account: Account['interface'];
-	let sa_sender: Bech32.String;
+	let sa_sender: Bech32;
 
 	export let amount: string;
 	const s_amount = amount;
 
-	export let recipient: Bech32.String;
+	export let recipient: Bech32;
 	const sa_recipient = recipient;
 
 	export let encryptMemo = false;
@@ -84,9 +81,9 @@
 		const ks_accounts = await Accounts.read();
 
 		g_account = ks_accounts.at(accountRef)!;
-		sa_sender = Chains.addressFor(g_account.pubkey);
+		sa_sender = Chains.addressFor(g_account.pubkey, $yw_chain);
 
-		const p_contact = Agents.pathForContact(sa_recipient);
+		const p_contact = Agents.pathForContactFromAddress(sa_recipient);
 		g_contact = await Agents.getContact(p_contact);
 
 		s_recipient_title = g_contact?.name || '';

@@ -1,10 +1,10 @@
-import type { JsonObject } from '#/util/belt';
-import type { Append } from 'ts-toolbelt/out/List/Append';
-import type { Concat } from 'ts-toolbelt/out/List/Concat';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import type { MergeAll } from 'ts-toolbelt/out/Object/MergeAll';
-import type { Join } from 'ts-toolbelt/out/String/Join';
-import type { Auto } from './belt';
+import type {JsonObject} from '#/meta/belt';
+import type {Append} from 'ts-toolbelt/out/List/Append';
+import type {Concat} from 'ts-toolbelt/out/List/Concat';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
+import type {Join} from 'ts-toolbelt/out/String/Join';
+import type {Auto} from './belt';
 
 // root data type for all individuals
 export type Resource<

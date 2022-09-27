@@ -1,5 +1,5 @@
 import type {ContentScripts} from 'webextension-polyfill';
-import type { Values } from './meta/belt';
+import type {Values} from './meta/belt';
 
 type ManifestV2 = chrome.runtime.ManifestV2;
 type ManifestV3 = chrome.runtime.ManifestV3;
@@ -7,11 +7,18 @@ type ManifestV3 = chrome.runtime.ManifestV3;
 type Mv2ContentScript = Values<NonNullable<Required<ManifestV2>['content_scripts']>>;
 type Mv3ContentScript = Values<NonNullable<Required<ManifestV3>['content_scripts']>>;
 
+const SX_CSP_SELF = `'self'`;
+const SX_CSP_WASM_UNSAFE_EVAL = `'wasm-unsafe-eval'`;
+const SX_CSP_UNSAFE_INLINE = `'unsafe-inline'`;
+
 const H_CONTENT_SECURITY_POLICY = {
-	'default-src': ['self'],
-	'script-src': ['self', 'wasm-unsafe-eval'],
-	'object-src': ['self'],
-	'frame-ancestors': ['self', 'https://launch.starshel.net'],
+	'default-src': [SX_CSP_SELF],
+	'script-src': [SX_CSP_SELF, SX_CSP_WASM_UNSAFE_EVAL],
+	'object-src': [SX_CSP_SELF],
+	'connect-src': ['https:', 'data:', 'wss:'],
+	'frame-ancestors': [SX_CSP_SELF, 'https://launch.starshel.net'],
+	'style-src': [SX_CSP_UNSAFE_INLINE],
+	'img-src': [SX_CSP_SELF, 'blob:', 'data:', 'https://png.starshell.net', 'https://s3.amazonaws.com/keybase_processed_uploads/'],
 };
 
 function csp(h_merge: Record<string, string[]>={}): string {
@@ -20,10 +27,9 @@ function csp(h_merge: Record<string, string[]>={}): string {
 		...h_merge,
 	}).reduce((a_out, [si_key, a_values]) => [
 		...a_out,
-		`${si_key} ${a_values.map(s => `'${s}'`).join(' ')}`,
+		`${si_key} ${a_values.map(s => `${s}`).join(' ')}`,
 	], []).join('; ');
 }
-// const SX_CONTENT_SECURITY_POLICY = `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; object-src 'self'`;
 
 const H_ICONS = {
 	16: 'media/vendor/icon_16.png',
@@ -42,9 +48,15 @@ const H_ICONS = {
 // const pd_media = path.resolve(__dirname, './media');
 // fs.readdirSync(pd_media);
 
+const A_MATCH_LOCALHOST = [
+	'http://localhost/*',
+	'http://127.0.0.1/*',
+];
+
 const A_MATCH_ALL = [
 	'file://*/*',
-	'http://*/*',
+	// 'http://*/*',
+	...A_MATCH_LOCALHOST,
 	'https://*/*',
 ];
 
@@ -80,16 +92,6 @@ const G_CONTENT_SCRIPTS = {
 		};
 	},
 
-	mcs_keplr(h_overrides?: ContentScriptOverrides) {
-		return {
-			js: ['src/script/mcs-keplr.ts'],
-			matches: A_MATCH_ALL,
-			run_at: 'document_start',
-			all_frames: true,
-			...h_overrides,
-		};
-	},
-
 	ics_launch(h_overrides?: ContentScriptOverrides) {
 		return {
 			js: ['src/script/ics-launch.ts'],
@@ -108,34 +110,61 @@ const G_CONTENT_SCRIPTS = {
 		};
 	},
 
-	about_blank() {
+	ics_witness(h_overrides?: ContentScriptOverrides) {
 		return {
-			js: ['src/script/about-blank.ts'],
-			matches: [
-				'file:///:never',
-			],
+			js: ['src/script/ics-witness.ts'],
+			matches: A_MATCH_ALL,
 			run_at: 'document_start',
-			match_about_blank: true,
 			all_frames: true,
+			...h_overrides,
 		};
 	},
+
+	// mcs_keplr(h_overrides?: ContentScriptOverrides) {
+	// 	return {
+	// 		js: ['src/script/mcs-keplr.ts'],
+	// 		matches: A_MATCH_ALL,
+	// 		run_at: 'document_start',
+	// 		all_frames: true,
+	// 		...h_overrides,
+	// 	};
+	// },
+
+	// about_blank() {
+	// 	return {
+	// 		js: ['src/script/about-blank.ts'],
+	// 		matches: [
+	// 			'file:///:never',
+	// 		],
+	// 		run_at: 'document_start',
+	// 		match_about_blank: true,
+	// 		all_frames: true,
+	// 	};
+	// },
 };
 
 const G_MANIFEST_COMMON: Partial<chrome.runtime.ManifestBase> = {
 	icons: H_ICONS,
 	permissions: [
 		'alarms',
-		'storage',
 		'tabs',
+		'storage',
+		'scripting',
+		'unlimitedStorage',
 		'notifications',
 		'system.display',
 	],
 };
 
 const A_WA_RESOURCES = [
-	'src/script/mcs-keplr.ts',
 	'src/script/mcs-relay.ts',
+	'src/script/ics-witness.ts',
+	'src/script/mcs-keplr.ts',
+	'src/script/mcs-pwa.ts',
 	'src/entry/flow.html',
+
+	// allow content scripts to load the word list
+	'data/bip-0039-english.txt',
 	'media/*',
 ];
 
@@ -146,43 +175,47 @@ const G_BROWSER_ACTION = {
 
 export const GC_MANIFEST_V2: Partial<ManifestV2> = {
 	...G_MANIFEST_COMMON,
+
 	manifest_version: 2,
+
+	browser_action: G_BROWSER_ACTION,
+
 	permissions: [
 		...G_MANIFEST_COMMON.permissions,
 		'*://*/*',
 	],
-	browser_action: G_BROWSER_ACTION,
 
 	web_accessible_resources: [
 		...A_WA_RESOURCES,
 		G_BROWSER_ACTION.default_popup,
 	],
+
 	content_scripts: [
 		G_CONTENT_SCRIPTS.ics_spotter(),
 		G_CONTENT_SCRIPTS.ics_launch(),
 		G_CONTENT_SCRIPTS.ics_link(),
-		// G_CONTENT_SCRIPTS.mcs_keplr(),
 	] as Mv2ContentScript[],
+
 	background: {
 		persistent: false,
 		scripts: [
 			'src/script/service.ts',
 		],
 	},
+
 	content_security_policy: csp({
-		'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], 'unsafe-eval'],
+		'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
 	}),
 };
 
 export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 	...G_MANIFEST_COMMON,
-	permissions: [
-		...G_MANIFEST_COMMON.permissions,
-		'scripting',
-	],
+
 	manifest_version: 3,
-	host_permissions: ['*://*/*'],
+
 	action: G_BROWSER_ACTION,
+
+	host_permissions: ['*://*/*'],
 
 	web_accessible_resources: [
 		{
@@ -194,6 +227,7 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 			matches: A_MATCH_LAUNCH,
 		},
 	],
+
 	content_scripts: [
 		G_CONTENT_SCRIPTS.ics_spotter({
 			world: 'ISOLATED',
@@ -204,14 +238,13 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 		G_CONTENT_SCRIPTS.ics_link({
 			world: 'ISOLATED',
 		}),
-		// G_CONTENT_SCRIPTS.mcs_keplr({
-		// 	world: 'MAIN',
-		// }),
 	] as Mv3ContentScript[],
+
 	background: {
 		service_worker: 'src/script/service.ts',
 		type: 'module',
 	},
+
 	content_security_policy: {
 		extension_pages: csp(),
 	},
@@ -221,12 +254,27 @@ export const H_BROWSERS = {
 	chrome: {
 		manifest: {
 			...GC_MANIFEST_V3,
+			permissions: [
+				...GC_MANIFEST_V3.permissions || [],
+				'management',
+			],
 		},
 	},
 
 	firefox: {
 		manifest: {
 			...GC_MANIFEST_V2,
+			content_security_policy: csp({
+				'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
+				'frame-ancestors': [
+					SX_CSP_SELF,
+					'https://launch.starshell.net',
+				],
+			}),
+			permissions: [
+				...GC_MANIFEST_V2.permissions || [],
+				'management',
+			],
 			browser_specific_settings: {
 				gecko: {
 					id: 'wallet-beta@starshell.net',
@@ -238,9 +286,30 @@ export const H_BROWSERS = {
 	safari: {
 		manifest: {
 			...GC_MANIFEST_V2,
+			content_security_policy: csp({
+				'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
+				'connect-src': [
+					SX_CSP_SELF,
+					'https://raw.githubusercontent.com',
+					'https://api.coingecko.com',
+					...[
+						'githubusercontent.com',
+						'secretsaturn.net',
+						'starshell.net',
+					].flatMap(s => [`https://*.${s}`, `https://${s}`]),
+					'wss://rpc.testnet.secretsaturn.net',
+					'wss:',
+					'data:',
+				],
+			}),
 			permissions: [
 				...GC_MANIFEST_V2.permissions || [],
 				'nativeMessaging',
+			],
+			// safari does not yet support dynamic script registration from `browser.scripting`
+			content_scripts: [
+				...GC_MANIFEST_V2.content_scripts!,
+				G_CONTENT_SCRIPTS.ics_witness(),
 			],
 		},
 	},

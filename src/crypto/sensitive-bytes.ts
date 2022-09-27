@@ -1,3 +1,4 @@
+import { F_NOOP } from "#/util/belt";
 
 function destroyed() {
 	throw new Error('Method called on destroyed SensitiveBytes instance');
@@ -91,7 +92,8 @@ export default class SensitiveBytes {
 
 		// mark as destroyed
 		// @ts-expect-error for overriding all methods
-		this.clone = this.wipe = this.diff = this.compare = this.mod = destroyed;
+		this.clone = this.diff = this.compare = this.mod = destroyed;
+		this.wipe = F_NOOP;
 
 		// override getters
 		Object.defineProperties(this, {

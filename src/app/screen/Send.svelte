@@ -39,7 +39,7 @@
 	import {Entities} from '#/store/entities';
 	import SenderSelect from '../ui/SenderSelect.svelte';
 	import RecipientSelect from '../ui/RecipientSelect.svelte';
-	import type {Chain, EntityPath, NativeCoin} from '#/meta/chain';
+	import type {Bech32, Chain, EntityPath, NativeCoin} from '#/meta/chain';
 	import type {Contact, ContactPath} from '#/meta/contact';
 	import {subscribe_store} from '#/store/_base';
 	import {Agents} from '#/store/agents';
@@ -54,7 +54,7 @@
 	import Notice from '../ui/Notice.svelte';
 	import SettingsMemos from './SettingsMemos.svelte';
 	import { global_receive } from '#/script/msg-global';
-	import { string8_to_buffer } from '#/util/data';
+	import { buffer_to_base93, text_to_buffer } from '#/util/data';
 
 	const G_SLIDE_IN = {
 		duration: 350,
@@ -149,7 +149,7 @@
 
 	function check_recipient_publicity() {
 		b_private_memo_recipient_published = false;
-		$yw_network_active.e2eInfoFor(sa_recipient).then((g_info) => {
+		$yw_network_active.e2eInfoFor(sa_recipient as Bech32).then((g_info) => {
 			b_private_memo_recipient_published = !!g_info.sequence;
 		}).catch(() => {
 			b_memo_private = false;
@@ -176,7 +176,7 @@
 
 		// replace address lookup cache
 		h_addr_to_contact = fold(a_contacts, ([p_contact, g_contact]) => ({
-			[Chains.bech32(g_contact.address)]: p_contact,
+			[Agents.addressFor(g_contact, $yw_chain)]: p_contact,
 		}));
 
 		// no longer busy
@@ -345,7 +345,7 @@
 		else {
 			si_address_type = 'unknown';
 
-			void $yw_network_active.isContract(sa_recipient).then((b_contract) => {
+			void $yw_network_active.isContract(sa_recipient as Bech32).then((b_contract) => {
 				if(b_contract) {
 					si_address_type = 'contract';
 				}
@@ -859,7 +859,7 @@
 					{/if}
 				{:else}
 					<span class="memo-length-indicator" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
-						{string8_to_buffer(s_memo || '').byteLength} / {NB_MAX_MEMO}
+						{buffer_to_base93(text_to_buffer(s_memo || '')).length} / {NB_MAX_MEMO}
 					</span>
 
 					<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>

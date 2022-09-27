@@ -1,29 +1,26 @@
 <script lang="ts">
-	import { getAllContexts, getContext } from 'svelte';
-	import { Page, Screen } from './_screens';
+	import {getContext} from 'svelte';
+	import {Screen, type Page} from './_screens';
 
 	import Field from '#/app/ui/Field.svelte';
-	import Log, { Logger } from '#/app/ui/Log.svelte';
+	import Log, {Logger} from '#/app/ui/Log.svelte';
 
-	import { Vault } from '#/crypto/vault';
+	import {Vault} from '#/crypto/vault';
 	import {
-		ATU8_DUMMY_PHRASE,
-		ATU8_DUMMY_VECTOR,
 		acceptable,
 		login,
 		register,
-		AlreadyRegisteredError,
-		InvalidPassphraseError,
-		NL_PASSPHRASE_MINIMUM,
-		NL_PASSPHRASE_MAXIMUM,
 	} from '#/share/auth';
 
-	import type { Completed } from '#/entry/flow';
+
+	import type {Completed} from '#/entry/flow';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import { slide } from 'svelte/transition';
+	import {slide} from 'svelte/transition';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
 	import StarShellTitle from '../ui/StarShellTitle.svelte';
 	import RegisterWeakPasswordSvelte from './RegisterWeakPassword.svelte';
+	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM} from '#/share/constants';
+	import {AlreadyRegisteredError, InvalidPassphraseError} from '#/share/errors';
 
 	// get page from context
 	const k_page = getContext<Page>('page');
@@ -151,6 +148,10 @@
 			const xt_elapsed_est = xt_finish_est - xt_start_est;
 			const xt_estimate = 2 * (2 * (xt_elapsed_est * 50));
 			log(`About ${(xt_estimate / 1000).toFixed(1)} seconds`);
+
+			if(xt_estimate > 10e3) {
+				log(`This could take a while. Please be patient`);
+			}
 		}
 
 		// attempt to register
@@ -173,6 +174,7 @@
 			return exit();
 		}
 
+		debugger;
 		log('Verifying passphrase');
 
 		// attempt login

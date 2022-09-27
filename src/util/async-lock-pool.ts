@@ -1,4 +1,4 @@
-import type {Promisable} from './belt';
+import type {Promisable} from '#/meta/belt';
 
 interface AsyncLock {
 	data: any;  // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -53,6 +53,7 @@ export class AsyncLockPool {
 	_a_awaits: ConfirmableAsyncLock[] = [];
 	_a_locks: AsyncLock[] = [];
 
+
 	/**
 	 * Create a new AsyncLockPool
 	 * @param {number} n_locks - number of locks to allocate for this pool
@@ -61,12 +62,21 @@ export class AsyncLockPool {
 		this._c_free = n_locks;
 	}
 
+
+	/**
+	 * Get the number of free slots available.
+	 * @return number of slots available
+	 */
+	get free(): number {
+		return this._c_free;
+	}
+
+
 	/**
 	 * Acquire a lock. If one is free in the pool it will return immediately,
 	 *   otherwise it will be queued to receive lock when one becomes avail.
 	 * @param {any} w_data - data to associate with this lock
-	 * @return {Promise<Release>} - resolves with function to call when user
-	 *   is ready to release this lock
+	 * @return callback function to release this lock
 	 */
 	acquire(w_data: any=null, xt_timeout=0): Promise<VoidFunction> {
 		// at least one free lock

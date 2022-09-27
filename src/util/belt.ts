@@ -1,48 +1,4 @@
-import type {PlainObject} from '#/meta/belt';
-
-/**
- * Shortcut for a very common type pattern
- */
-export type Dict<w_value=string> = Record<string, w_value>;
-
-
-/**
- * Shortcut for another common type pattern
- */
-export type Promisable<w_value> = w_value | Promise<w_value>;
-
-
-/**
- * Root type for all objects considered to be parsed JSON objects
- */
-export interface JsonObject {  // eslint-disable-line
-	[k: string]: JsonValue | undefined;
-}
-
-/**
- * Union of "valuable", primitive JSON value types
- */
-export type JsonPrimitive =
-	| boolean
-	| number
-	| string;
-
-/**
- * All primitive JSON value types
- */
-export type JsonPrimitiveNullable =
-	| JsonPrimitive
-	| null;
-
-/**
- * All JSON value types
- */
-export type JsonValue =
-	| JsonPrimitiveNullable
-	| JsonValue[]
-	| JsonObject
-	| undefined;
-
+import type {Dict, JsonObject, PlainObject} from '#/meta/belt';
 
 /**
  * The frequently-used "no-operation" function
@@ -53,13 +9,13 @@ export const F_NOOP = () => {};  // eslint-disable-line
 /**
  * The seldomnly-used "identity" function
  */
-export const F_IDENTITY = w => w;  // eslint-disable-line
+export const F_IDENTITY =(w: any) => w;  // eslint-disable-line
 
 
 /**
  * Creates a proper-case string
  */
-export const proper = (s_input: string): string => s_input.split(/\s+/g).map(s => s[0].toUpperCase()+s.slice(1)).join(' ');
+export const proper = (s_input: string): string => s_input.split(/[\s_]+/g).map(s => s[0].toUpperCase()+s.slice(1)).join(' ');
 
 
 /**
@@ -79,6 +35,12 @@ export function objects_might_differ(h_a: PlainObject, h_b: PlainObject): boolea
 
 	return false;
 }
+
+
+/**
+ * Simple test for whether a deserialized JSON value is a plain object (dict) or not
+ */
+export const is_dict = (z: unknown): z is JsonObject => z? 'object' === typeof z && !Array.isArray(z): false;
 
 
 /**
@@ -109,7 +71,7 @@ export const escape_regex = (s_input: string): string => s_input.replace(/[-[\]{
  */
 export function ode<
 	h_object extends Record<string, any>,
-	as_keys extends keyof h_object=keyof h_object,
+	as_keys extends Extract<keyof h_object, string>=Extract<keyof h_object, string>,
 >(h_object: h_object): Array<[as_keys, h_object[as_keys]]> {
 	return Object.entries(h_object) as Array<[as_keys, h_object[as_keys]]>;
 }
@@ -167,10 +129,14 @@ export function oderac<
 	w_out extends any,
 	w_value extends any,
 >(h_thing: Dict<w_value>, f_concat: (si_key: string, w_value: w_value, i_entry: number) => w_out, b_add_undefs=false): w_out[] {
-	return ode(h_thing).reduce((a_out, [si_key, w_value], i_entry) => [
-		...a_out,
-		f_concat(si_key, w_value, i_entry),
-	], []);
+	return ode(h_thing).reduce<w_out[]>((a_out, [si_key, w_value], i_entry) => {
+		const w_add = f_concat(si_key, w_value, i_entry);
+		if('undefined' !== typeof w_add || b_add_undefs) {
+			a_out.push(w_add);
+		}
+
+		return a_out;
+	}, []);
 }
 
 
@@ -200,7 +166,7 @@ export function oderom<
 >(h_thing: h_thing, f_merge: (si_key: as_keys_in, w_value: w_value_in) => Record<as_keys_out, w_out>): Record<as_keys_out, w_out> {
 	return ode(h_thing).reduce((h_out, [si_key, w_value]) => ({
 		...h_out,
-		...f_merge(si_key as as_keys_in, w_value),
+		...f_merge(si_key as string as as_keys_in, w_value),
 	}), {}) as Record<as_keys_out, w_out>;
 }
 
@@ -225,6 +191,40 @@ export function timeout(xt_wait: number): Promise<void> {
 	return new Promise((fk_resolve) => {
 		setTimeout(() => {
 			fk_resolve();
+		}, xt_wait);
+	});
+}
+
+
+export function timeout_exec<
+	w_return extends any=any,
+>(xt_wait: number, f_attempt?: () => Promise<w_return>): Promise<[w_return | undefined, 0 | 1]> {
+	return new Promise((fk_resolve, fe_reject) => {
+		let b_timed_out = false;
+
+		// attempt callback
+		f_attempt?.()
+			.then((w_return: w_return) => {
+				// already timed out
+				if(b_timed_out) return;
+
+				// cancel pending timer
+				clearTimeout(i_pending);
+
+				// resolve promise
+				fk_resolve([w_return, 0]);
+			})
+			.catch((e_attempt) => {
+				fe_reject(e_attempt);
+			});
+
+		// start waiting
+		const i_pending = setTimeout(() => {
+			// mark as timed out
+			b_timed_out = true;
+
+			// resolve promise
+			fk_resolve([void 0, 1]);
 		}, xt_wait);
 	});
 }
@@ -272,7 +272,7 @@ export function with_timeout<w_value extends any>(g_with: WithTimeoutConfig<w_va
 /**
  * A Promise that never fulfills nor rejects
  */
-export function forever<w_type=void>(w_type?: w_type): Promise<w_type> {
+export function forever<w_type=void>(w_type?: w_type): Promise<w_type> {  // eslint-disable-line @typescript-eslint/no-invalid-void-type
 	return new Promise(F_NOOP);
 }
 

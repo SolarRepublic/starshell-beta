@@ -1,32 +1,29 @@
 <script lang="ts">
-	import type { TokenSpecKey } from '#/meta/token';
+	import type {TokenSpecKey} from '#/meta/token';
 
-	import { Entities, TokenDict } from '#/store/entities';
-	import { Dict, forever, ode, oderom, Promisable } from '#/util/belt';
-	import { getContext } from 'svelte';
-	import { yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_popup, yw_context_popup, popup_receive, yw_network, yw_network_active, yw_owner } from '../mem';
+	import {Entities, type TokenDict} from '#/store/entities';
+	import {forever, ode, oderom} from '#/util/belt';
+	import {getContext, onDestroy} from 'svelte';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network_active, yw_owner, yw_doc_visibility} from '../mem';
 	import Portrait from '../ui/Portrait.svelte';
 	import Send from './Send.svelte';
-	import PopupReceive from '../ui/PopupReceive.svelte';
 	import Row from '../ui/Row.svelte';
-	import { Header, Screen, type Page } from './_screens';
-	import { Chains } from '#/store/chains';
-	import { CoinGecko } from '#/store/web-apis';
-	import { format_amount, format_fiat } from '#/util/format';
-	import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-	import type { Chain, NativeCoin } from '#/meta/chain';
-	import type { Values } from '#/meta/belt';
+	import {Header, Screen, type Page} from './_screens';
+	import {format_fiat} from '#/util/format';
+	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+	import type {ContractInterface, NativeCoin} from '#/meta/chain';
+	import type {Dict, Promisable} from '#/meta/belt';
 	import BigNumber from 'bignumber.js';
 	import Address from '../ui/Address.svelte';
-	import Gap from '../ui/Gap.svelte';
-	import { open_external_link } from '#/util/dom';
-	import TokensAdd from './TokensAdd.svelte';
-	import { as_amount, to_fiat } from '#/chain/coin';
+	import {abort_signal_timeout, open_external_link} from '#/util/dom';
+	import {as_amount, to_fiat} from '#/chain/coin';
 	import HoldingView from './HoldingView.svelte';
-	import type { BalanceBundle } from '#/store/networks';
-	import { syserr } from '../common';
-	import { Accounts } from '#/store/accounts';
-	import { global_receive } from '#/script/msg-global';
+	import type {BalanceBundle} from '#/store/networks';
+	import {syserr} from '../common';
+	import {Accounts} from '#/store/accounts';
+	import {global_receive} from '#/script/msg-global';
+	import {Contracts} from '#/store/contracts';
+	import {Secrets} from '#/store/secrets';
 
 	// $: sa_owner = Chains.addressFor($yw_account.pubkey, $yw_chain);
 
@@ -37,20 +34,31 @@
 
 	let yg_total = new BigNumber(0);
 	let c_balances = 0;
-	let b_balances_ready = true;
+	const b_balances_ready = true;
 	let a_no_gas: string[] = [];
 
 	let c_updates = 0;
 
-	global_receive({
+	const f_unregister = global_receive({
 		transferReceive() {
 
 		},
+
 		updateStore({key:si_key}) {
 			if('' === si_key) {
 				c_updates += 1;
 			}
 		},
+	});
+
+	yw_doc_visibility.subscribe((s_state) => {
+		if('visible' === s_state) {
+			c_updates += 1;
+		}
+	});
+
+	onDestroy(() => {
+		f_unregister();
 	});
 
 	let fk_resolve_total: (s_total: string) => void;
@@ -83,6 +91,7 @@
 			void Accounts.open(ks => ks.put({
 				...g_account,
 				extra: {
+					...g_account.extra,
 					total_fiat_cache: s_total,
 				},
 			}));
@@ -115,10 +124,29 @@
 			h_balances = await $yw_network_active.bankBalances($yw_owner);
 		}
 		catch(e_network) {
-			syserr({
-				title: 'Network Error',
-				error: e_network as Error,
-			});
+			if(e_network instanceof Error) {
+				if(e_network.message.includes('Response closed without headers')) {
+					const g_network = $yw_network_active.network;
+
+					syserr({
+						title: 'Network Error',
+						text: `Your network provider "${g_network.name}" is offline: <${g_network.grpcWebUrl}>`,
+					});
+				}
+				else {
+					syserr({
+						title: 'Network Error',
+						error: e_network,
+					});
+				}
+			}
+			else {
+				syserr({
+					title: 'Unknown Error',
+					text: e_network+'',
+				});
+			}
+
 			return [];
 		}
 
@@ -159,11 +187,54 @@
 	}
 
 
-	const H_FAUCETS = {
-		'theta-testnet-001': 'https://discord.com/channels/669268347736686612/953697793476821092',
-		// 'pulsar-2': 'https://faucet.secrettestnet.io/',
-		'pulsar-2': 'https://faucet.pulsar.scrttestnet.com/',
+	const H_FAUCETS: Dict<string[]> = {
+		'theta-testnet-001': [
+			'https://discord.com/channels/669268347736686612/953697793476821092',
+		],
+		'pulsar-2': [
+			'https://faucet.pulsar.scrttestnet.com/',
+			'https://faucet.secrettestnet.io/',
+		],
 	};
+
+	async function best_faucet(): Promise<string> {
+		const a_faucets = H_FAUCETS[$yw_chain.reference];
+
+		// ping each faucet to find best one
+		try {
+			// send preflight requests
+			const d_res = await Promise.any(a_faucets.map(async p => fetch(p, {
+				headers: {
+					accept: 'text/html',
+				},
+				method: 'OPTIONS',
+				credentials: 'omit',
+				cache: 'no-store',
+				referrer: '',
+				redirect: 'error',
+				signal: abort_signal_timeout(6e3).signal,
+			})));
+
+			console.log(`Using best faucet: ${d_res.url}`);
+
+			// return first valid response
+			return d_res.url;
+		}
+		// ignore network errors and timeouts
+		catch(e) {}
+
+		// default to original
+		return a_faucets[0];
+	}
+
+	function authorize_token(g_token: ContractInterface) {
+		// k_page.push({
+		// 	type: TokensAuthority,
+		// 	props: {
+
+		// 	},
+		// });
+	}
 </script>
 
 <style lang="less">
@@ -257,7 +328,11 @@
 
 					<div class="buttons">
 						{#if $yw_chain.testnet}
-							<button class="pill" on:click={() => open_external_link(H_FAUCETS[$yw_chain.id])}>Get {a_no_gas.join(' or ')} from faucet</button>
+							{#await best_faucet()}
+								<button class="pill" on:click={() => open_external_link(H_FAUCETS[$yw_chain.reference][0])}>Get {a_no_gas.join(' or ')} from faucet</button>
+							{:then p_faucet}
+								<button class="pill" on:click={() => open_external_link(p_faucet)}>Get {a_no_gas.join(' or ')} from faucet</button>
+							{/await}
 						{:else}
 							<button class="pill">Buy {a_no_gas.join(' or ')}</button>
 						{/if}
@@ -279,14 +354,12 @@
 			/>
 		</div> -->
 
-		<Gap />
-
 		<!-- {#key a_holdings}
 			<HoldingsList holdings={a_holdings} />
 		{/key} -->
 
 		{#key $yw_network_active}
-			<div class="rows no-margin">
+			<div class="rows no-margin border-top_black-8px">
 				<!-- native coin(s) -->
 				{#await load_native_balances()}
 					{#each ode($yw_chain.coins) as [si_coin, g_bundle]}
@@ -330,14 +403,44 @@
 					{/each}
 				{/await}
 
+				{#await Contracts.filterTokens({chain:$yw_chain_ref, interfaces:{snip20:{}}})}
+					Loading tokens...
+				{:then a_tokens}
+					{#each a_tokens as g_token}
+						<Row
+							name={g_token.interfaces.snip20.symbol}
+							detail={g_token.name}
+							pfp={g_token.pfp}
+						>
+							<svelte:fragment slot="right">
+								{#if g_token.interfaces.snip20.viewingKey}
+									Viewing Key balance...
+								{:else}
+									{#await Secrets.filter({type:'query_permit', permissions:['balance', 'history'], activeContracts:[g_token.bech32]})}
+										...
+									{:then a_permits}
+										<!-- use query permit to display balance -->
+										{#if a_permits.length}
+											Query Permit balance...
+										{:else}
+											<button class="pill" on:click={() => authorize_token(g_token)}>
+												Authorize
+											</button>
+										{/if}
+									{/await}
+								{/if}
+							</svelte:fragment>
+						</Row>
+					{/each}
+				{/await}
 
-				{#await Entities.readFungibleTokens($yw_chain)}
+				<!-- {#await Entities.readFungibleTokens($yw_chain)}
 					Loading tokens...
 				{:then h_fungibles}
 					{#each ode(merge_fungible_tokens(h_fungibles)) as [p_token, g_token]}
 						{g_token.spec}
 					{/each}
-				{/await}
+				{/await} -->
 			</div>
 		{/key}
 	{/key}

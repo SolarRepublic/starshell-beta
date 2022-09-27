@@ -1,5 +1,5 @@
 <script lang="ts">
-	import {yw_account, yw_chain, yw_family, yw_help} from '##/mem';
+	import {yw_account, yw_chain, yw_chain_namespace, yw_help} from '##/mem';
 
 	import RecipientSelectItem from './RecipientSelectItem.svelte';
 
@@ -26,7 +26,7 @@
 	let a_contacts: [AgentPath, Contact['interface']][];
 
 	const contact_to_option = (g: Contact['interface']): ContactOption => ({
-		value: Chains.bech32(g.address),
+		value: Agents.addressFor(g, $yw_chain),
 		label: g.name,
 		contact: g,
 	});
@@ -40,11 +40,11 @@
 			contact: null!,
 		}];
 
-		a_contacts = [...ks_agents.contacts($yw_family)];
+		a_contacts = [...ks_agents.contacts($yw_chain_namespace)];
 		for(const [, g_contact] of a_contacts) {
 			const g_option = contact_to_option(g_contact);
 
-			const sa_contact = Chains.bech32(g_contact.address);
+			const sa_contact = Agents.addressFor(g_contact, $yw_chain);
 			if(sa_input && sa_contact === sa_input) {
 				g_item_select = g_option;
 			}
@@ -98,7 +98,7 @@
 			// search for address in contacts
 			for(const [, g_contact] of a_contacts) {
 				// contact exists
-				if(s_manual_input === Chains.bech32(g_contact.address)) {
+				if(s_manual_input === Agents.addressFor(g_contact, $yw_chain)) {
 					// clear filter text
 					s_manual_input = '';
 	

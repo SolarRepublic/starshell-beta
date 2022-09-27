@@ -1,7 +1,7 @@
 <script context="module" lang="ts">
 	export interface PillItem<w_data extends any=any> {
 		id: string;
-		pfpPath: PfpPath;
+		pfpPath: PfpTarget;
 		name: string;
 		data: w_data;
 		color?: string;
@@ -22,7 +22,7 @@
 	import SX_ICON_EDIT from '#/icon/edit-small.svg?raw';
 
 	import PfpDisplay from './PfpDisplay.svelte';
-	import type { PfpPath } from '#/meta/pfp';
+	import type { PfpTarget } from '#/meta/pfp';
 
 	/**
 	 * List of items being displayed

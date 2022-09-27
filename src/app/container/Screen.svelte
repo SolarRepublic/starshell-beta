@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-	import {yw_blur, yw_help, yw_nav_collapsed, yw_nav_visible, yw_overscroll_pct, yw_progress} from '#/app/mem';
+	import {yw_blur, yw_curtain, yw_help, yw_nav_collapsed, yw_nav_visible, yw_overscroll_pct, yw_progress} from '#/app/mem';
 
 	import type {Page} from '../screen/_screens';
 
@@ -34,12 +34,9 @@
 
 	let dm_screen: HTMLElement;
 
-	// @mvp
-	let dm_help: HTMLElement | null = null;
-
 	const si_exit = leaves? 'leaves': swipes? 'swipes': '';
 
-	const dispatchEvent = createEventDispatcher();
+	const dispatch = createEventDispatcher();
 	onMount(() => {
 		if(!k_page) {
 			console.warn(`${debug || 'unknown'} Screen missing page context`);
@@ -54,6 +51,8 @@
 				},
 			});
 		}
+
+		dispatch('dom', dm_screen);
 
 		// // scrolling
 		// dm_screen.addEventListener('wheel', (de_wheel) => {
@@ -132,7 +131,18 @@
 		left: 0;
 		width: 100%;
 		height: 100%;
-		padding-left: calc(50vw - (var(--app-max-width) / 2));
+
+		// this was previously part of the form, move it out so that form children can use full relative height
+		overflow: hidden;
+		&.scroll {
+			overflow-y: scroll;
+			overscroll-behavior-y: contain;
+			.hide-scrollbar();
+
+			&.curtained {
+				overflow-y: hidden;
+			}
+		}
 	}
 
 	.slides {
@@ -155,7 +165,15 @@
 		box-sizing: border-box;
 
 		width: 100%;
-		height: 100%;
+		height: auto;
+
+		min-height: 100%;
+
+		// not necessary
+		// @media screen and (max-width: 500px) {
+		// 	min-height: calc(100% - 70px);
+		// 	padding-bottom: 70px;
+		// }
 
 		.font(regular);
 
@@ -191,7 +209,7 @@
 			}
 
 			&>* {
-				:global(&) {
+				:global(&:not(.no-flex)) {
 					flex: 0;
 				}
 
@@ -199,13 +217,6 @@
 					margin: 0 var(--ui-padding);
 				}
 			}
-		}
-
-		overflow: hidden;
-		&.scroll {
-			overflow-y: scroll;
-			overscroll-behavior-y: contain;
-			.hide-scrollbar();
 		}
 
 		// &.slides {
@@ -330,14 +341,14 @@
 
 		}
 
-		>*:not(.header) {
+		>*:not(.no-blur) {
 			:global(&) {
 				transition: filter 400ms var(--ease-out-cubic);
 			}
 		}
 
 		&.blur {
-			>*:not(.header) {
+			>*:not(.no-blur) {
 				:global(&) {
 					filter: blur(2px);
 				}
@@ -363,16 +374,17 @@
 
 <div class="bounds"
 	class:slides={b_slides}
+	class:scroll={true}
 >
 	<form
 		class="screen {classNames}"
 		class:flex={true}
-		class:scroll={true}
 		class:nav={b_nav}
 		class:progress={progress}
 		class:transparent={transparent}
 		class:sublimate={false}
 		class:blur={$yw_blur}
+		class:curtained={$yw_curtain}
 		data-s2-exit={si_exit}
 		bind:this={dm_screen}
 		on:submit={(d_event) => {
@@ -383,11 +395,5 @@
 		autocomplete="off"
 	>
 		<slot></slot>
-
-		{#if 'help' in $$slots}
-			<div class="display_none" bind:this={dm_help}>
-				<slot name="help" />
-			</div>
-		{/if}
 	</form>
 </div>

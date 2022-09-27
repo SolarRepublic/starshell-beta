@@ -1,18 +1,21 @@
-import type { Bech32, BlockExplorerConfig, Chain, ChainPath, Family, FamilyKey } from '#/meta/chain';
-import type { Resource } from '#/meta/resource';
+import type {Bech32, BlockExplorerConfig, Chain, ChainPath, ChainNamespaceKey, ChainInterface, Caip2, ChainNamespace} from '#/meta/chain';
 
-import {bech32} from 'bech32';
+import {fromBech32, toBech32} from '@cosmjs/encoding';
 
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
 
-import { R_BECH32, SI_STORE_CHAINS } from '#/share/constants';
-import { yw_chain } from '#/app/mem';
-import { Dict, ode } from '#/util/belt';
-import { base64_to_buffer, ripemd160_sync, sha256_sync } from '#/util/data';
-import { binToBase58, binToBech32Padded, encodeBech32, instantiateRipemd160, Ripemd160 } from '@solar-republic/wasm-secp256k1';
+import {R_BECH32, SI_STORE_CHAINS} from '#/share/constants';
+import type {Dict} from '#/meta/belt';
+import {ode} from '#/util/belt';
+import {base64_to_buffer, ripemd160_sync, sha256_sync} from '#/util/data';
+import type { Coin } from '@cosmjs/proto-signing';
+import BigNumber from 'bignumber.js';
+import { format_amount } from '#/util/format';
+import type { Writable } from 'ts-toolbelt/out/Object/Writable';
+import { pubkey_to_bech32 } from '#/crypto/bech32';
 
 // type so = {
 // 	pathArgs: [FamilyKey, string];
@@ -30,71 +33,62 @@ import { binToBase58, binToBech32Padded, encodeBech32, instantiateRipemd160, Rip
 // const fff: test = <S extends number>(s: S) => s;
 
 class ChainLink {
-	constructor(protected _g_res: Chain['interface']) {
+	constructor(protected _g_res: ChainInterface) {
 
 	}
 
 	get data() {
 		return this._g_res;
 	}
-	
-	
 }
 
+const R_CHAIN_PATH = /^\/family\.([^/]+)\/chain\.([^/]+)(\/|$)/;
+
 type PathFor<
-	si_family extends FamilyKey,
+	si_family extends ChainNamespaceKey,
 	si_chain extends string,
 > = `/family.${si_family}/chain.${si_chain}`;
 
 type PathFrom<
-	g_chain extends Chain['interface'],
-> = PathFor<g_chain['family'], g_chain['id']>;
-
-let y_ripemd: Ripemd160;
-(async() => {
-	y_ripemd = await instantiateRipemd160();
-})();
+	g_chain extends ChainInterface,
+> = PathFor<g_chain['namespace'], g_chain['reference']>;
 
 export const Chains = create_store_class({
 	store: SI_STORE_CHAINS,
 	extension: 'map',
 	class: class ChainsI extends WritableStoreMap<typeof SI_STORE_CHAINS> {
-		static pathFor(si_family: FamilyKey, si_chain: string): PathFor<typeof si_family, typeof si_chain> {
+		static pathFor(si_family: ChainNamespaceKey, si_chain: string): PathFor<typeof si_family, typeof si_chain> {
 			return `/family.${si_family}/chain.${si_chain}`;
 		}
 
-		static pathFrom(g_chain: Chain['interface']): PathFrom<typeof g_chain> {
-			return ChainsI.pathFor(g_chain.family, g_chain.id);
+		static pathFrom(g_chain: ChainInterface): PathFrom<typeof g_chain> {
+			return ChainsI.pathFor(g_chain.namespace, g_chain.reference);
 		}
 
-		static addressFor(s_pubkey: string, g_chain: Chain['interface']=yw_chain.get(), g_bech32: Bech32=g_chain.bech32s.acc): string {
-			// perform sha-256 hashing on the public key
-			const atu8_sha256 = sha256_sync(base64_to_buffer(s_pubkey));
-
-			// perform ripemd-160 hashing on the result
-			const atu8_ripemd160 = ripemd160_sync(atu8_sha256);
-
-			// const s_addr = binToBech32Padded(atu8_ripemd160);
-
-			// return `${g_bech32.hrp}${g_bech32.separator}${s_addr}${s_checksum}`;
-
-			// convert to bech32 string
-			return bech32.encode(g_bech32.hrp, bech32.toWords(atu8_ripemd160));
+		static caip2From(g_chain: ChainInterface): Caip2.String {
+			return `${g_chain.namespace}:${g_chain.reference}`;
 		}
 
-		static bech32(s_addr: string, g_chain: Chain['interface']=yw_chain.get(), g_bech32: Bech32=g_chain.bech32s.acc): string {
-			return `${g_bech32.hrp}${g_bech32.separator}${s_addr}`;
+		static parsePath(p_chain: ChainPath): [ChainNamespaceKey, string] {
+			const m_path = R_CHAIN_PATH.exec(p_chain);
+			if(!m_path) throw new Error(`Invalid chain path: "${p_chain}"`);
+
+			return [m_path[1] as ChainNamespaceKey, m_path[2]];
 		}
 
-		static get(si_family: FamilyKey, si_chain: string): Promise<null | Chain['interface']> {
+		static addressFor(s_pubkey: string, z_context: ChainInterface | string): Bech32 {
+			return pubkey_to_bech32(s_pubkey, z_context);
+		}
+
+		static transformBech32(sa_src: string, g_chain: ChainInterface, si_hrp: string=g_chain.bech32s.acc): Bech32 {
+			return toBech32(si_hrp, fromBech32(sa_src).data) as Bech32;
+		}
+
+		static get(si_family: ChainNamespaceKey, si_chain: string): Promise<null | ChainInterface> {
 			return Chains.read().then(ks => ks.get(si_family, si_chain));
 		}
 
-		// static at(p_chain: ChainPath): Promise<null | Chain['interface']> {
-		// 	return Chains.read().then(ks => ks.at(p_chain));
-		// }
-
-		static blockExplorer(si_type: Exclude<keyof BlockExplorerConfig, 'base'>, g_data: Dict, g_chain: Chain['interface']=yw_chain.get()): string {
+		static blockExplorer(si_type: Exclude<keyof BlockExplorerConfig, 'base'>, g_data: Dict, g_chain: ChainInterface): string {
 			let sx_url = g_chain.blockExplorer.base+g_chain.blockExplorer[si_type];
 
 			for(const si_key in g_data) {
@@ -104,12 +98,12 @@ export const Chains = create_store_class({
 			return sx_url;
 		}
 
-		static isValidAddressFor(g_chain: Chain['interface'], s_address: Chain.Bech32String<typeof g_chain['bech32s']>, si_purpose: keyof Family.Bech32s<typeof g_chain['family']>='acc') {
+		// TODO: return normalized address using `normalizeBech32()`
+		static isValidAddressFor(g_chain: ChainInterface, s_address: Chain.Bech32String, si_purpose: keyof ChainNamespace.Bech32s<typeof g_chain['namespace']>='acc') {
 			if(g_chain.bech32s) {
 				const m_bech32 = R_BECH32.exec(s_address);
 				return m_bech32
-					&& m_bech32[1] === g_chain.bech32s[si_purpose].hrp
-					&& m_bech32[2] === g_chain.bech32s[si_purpose].separator;
+					&& m_bech32[1] === g_chain.bech32s[si_purpose];
 			}
 			else {
 				// TODO: non-bech32 chains
@@ -117,7 +111,21 @@ export const Chains = create_store_class({
 			}
 		}
 
-		static coinFromDenom(si_denom: string, g_chain=yw_chain.get()): string {
+		static summarizeAmount(g_amount: Writable<Coin>, g_chain: ChainInterface): string {
+			// identify coin by its denom
+			const si_coin = ChainsI.coinFromDenom(g_amount.denom, g_chain);
+
+			// lookup coin
+			const g_coin = g_chain.coins[si_coin];
+
+			// convert to amount
+			const x_amount = new BigNumber(g_amount.amount).shiftedBy(-g_coin.decimals).toNumber();
+
+			// 
+			return `${format_amount(x_amount)} ${si_coin}`;
+		}
+
+		static coinFromDenom(si_denom: string, g_chain: ChainInterface): string {
 			for(const [si_coin, g_coin] of ode(g_chain.coins)) {
 				if(si_denom === g_coin.denom) {
 					return si_coin;
@@ -127,9 +135,9 @@ export const Chains = create_store_class({
 			return '';
 		}
 
-		* inFamily(si_family: FamilyKey): IterableIterator<[ChainPath, Chain['interface']]> {
+		* inNamespace(si_namespace: ChainNamespaceKey): IterableIterator<[ChainPath, ChainInterface]> {
 			// create prefix
-			const p_prefix = ChainsI.pathFor(si_family, '');
+			const p_prefix = ChainsI.pathFor(si_namespace, '');
 
 			// filter entriees
 			for(const [p_chain, g_chain] of ode(this._w_cache)) {
@@ -139,7 +147,7 @@ export const Chains = create_store_class({
 			}
 		}
 
-		get(si_family: FamilyKey, si_chain: string): Chain['interface'] | null {
+		get(si_family: ChainNamespaceKey, si_chain: string): ChainInterface | null {
 			// prepare path
 			const p_res = ChainsI.pathFor(si_family, si_chain);
 
@@ -147,7 +155,7 @@ export const Chains = create_store_class({
 			return this._w_cache[p_res] ?? null;
 		}
 
-		async put(g_res: Chain['interface']): Promise<PathFrom<typeof g_res>> {
+		async put(g_res: ChainInterface): Promise<PathFrom<typeof g_res>> {
 			// prepare app path
 			const p_res = ChainsI.pathFrom(g_res);
 

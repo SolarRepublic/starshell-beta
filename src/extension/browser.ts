@@ -1,16 +1,27 @@
-import {session_storage_get} from '#/crypto/vault';
+import { Vault } from '#/crypto/vault';
+import type {Dict, JsonObject} from '#/meta/belt';
+import type {PageInfo} from '#/script/messages';
 import {once_storage_changes} from '#/script/service';
 import {
 	G_USERAGENT,
 	XT_SECONDS,
 	N_PX_WIDTH_POPUP,
 	N_PX_HEIGHT_POPUP,
+	N_PX_WIDTH_POPOUT,
+	N_PX_HEIGHT_POPOUT,
+	B_WITHIN_PWA,
+	B_WEBEXT_ACTION,
+	B_WEBEXT_BROWSER_ACTION,
 } from '#/share/constants';
-import {F_NOOP, JsonObject} from '#/util/belt';
+import {F_NOOP} from '#/util/belt';
+import { buffer_to_base64, text_to_buffer } from '#/util/data';
+import {open_external_link, parse_params, stringify_params} from '#/util/dom';
+import type { BrowserAction } from 'webextension-polyfill';
+import { SessionStorage } from './session-storage';
 
 export type PopoutWindowHandle = {
 	window: chrome.windows.Window | null;
-	tab: chrome.tabs.Tab;
+	tab: chrome.tabs.Tab | null;
 };
 
 export interface ScreenInfo {
@@ -22,20 +33,30 @@ export interface ScreenInfo {
 	devicePixelRatio: number;
 }
 
+export interface PositionConfig extends JsonObject {
+	centered?: boolean;
+	centered_x?: boolean;
+	left?: number;
+	top?: number;
+}
+
 // get popup URL
 export const P_POPUP = chrome.runtime?.getURL?.('src/entry/popup.html');
 
 // get flow URL
 export const P_FLOW = chrome.runtime?.getURL?.('src/entry/flow.html');
 
-async function center_window_position(): Promise<{left?: number; top?: number}> {
+/**
+ * Computes the center position of the entire desktop screen
+ */
+async function center_over_screen(): Promise<PositionConfig> {
 	// not mobile
 	if(['mobile', 'wearable', 'embedded'].includes(G_USERAGENT.device.type || '')) {
 		return {};
 	}
 
 	// cannot create windows
-	if(!chrome.windows.create) {
+	if(!chrome.windows?.create) {
 		return {};
 	}
 
@@ -48,7 +69,7 @@ async function center_window_position(): Promise<{left?: number; top?: number}> 
 
 		(async(): Promise<ScreenInfo | undefined> => {
 			// create popup to determine screen dimensions
-			const g_info = (await session_storage_get('display_info'))?.display_info;
+			const g_info = await SessionStorage.get('display_info');
 			if(g_info) return g_info;
 
 			// create center-gathering window
@@ -56,8 +77,8 @@ async function center_window_position(): Promise<{left?: number; top?: number}> 
 				type: 'popup',
 				url: P_FLOW+'?'+new URLSearchParams({headless:'info'}).toString(),
 				focused: true,
-				width: N_PX_WIDTH_POPUP,
-				height: N_PX_HEIGHT_POPUP,
+				width: N_PX_WIDTH_POPOUT,
+				height: N_PX_HEIGHT_POPOUT,
 			}, F_NOOP);
 
 			try {
@@ -81,8 +102,9 @@ async function center_window_position(): Promise<{left?: number; top?: number}> 
 		const g_display = h_displays[si_display];
 		if(g_display) {
 			return {
-				left: g_display.bounds.left + Math.round((g_screen_info.width / 2) - (N_PX_WIDTH_POPUP / 2)),
-				top: g_display.bounds.top + Math.round((g_screen_info.height * 0.45) - (N_PX_HEIGHT_POPUP / 2)),
+				centered: true,
+				left: g_display.bounds.left + (g_screen_info.width / 2),
+				top: g_display.bounds.top + (g_screen_info.height * 0.45),
 			};
 		}
 	}
@@ -91,23 +113,30 @@ async function center_window_position(): Promise<{left?: number; top?: number}> 
 }
 
 export interface OpenWindowConfig extends JsonObject {
+	/**
+	 * Creates a standalone window in order to escape the popover
+	 */
 	popout?: boolean;
-	position?: {
-		left: number;
-		top: number;
-	};
+
+	position?: PositionConfig;
+
+	/**
+	 * If set to non-zero integer, describes the tab id to open a popover above
+	 */
+	popover?: PageInfo;
 }
 
-function center_over_position() {
+/**
+ * Computes the center position of the current popup
+ */
+function center_over_current() {
 	const x_left = globalThis.screenLeft;
 	const x_top = globalThis.screenTop;
 
-	const x_center_x = x_left + (globalThis.outerWidth / 2);
-	const x_center_y = x_top + (globalThis.outerHeight / 2);
-
 	return {
-		left: Math.round(x_center_x - (N_PX_WIDTH_POPUP / 2)),
-		top: Math.round(x_center_y - (N_PX_HEIGHT_POPUP / 2)),
+		centered_x: true,
+		left: x_left + (globalThis.outerWidth / 2),
+		top: x_top - 20,  // account for roughly 20px of window chrome
 	};
 }
 
@@ -119,31 +148,121 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 	const d_url = new URL(p_url);
 
 	// parse params
-	const h_params = Object.fromEntries(d_url.searchParams.entries());
+	const h_params = parse_params(d_url.search.slice(1));
 
 	// determine center screen position for new window
-	const g_window_position = gc_open?.position ?? gc_open?.popout? center_over_position(): await center_window_position();
+	let g_window_position: PositionConfig = {};
+	if(gc_open?.position) {
+		g_window_position = gc_open.position;
+	}
+	else if(gc_open?.popout && 'number' === typeof globalThis.screenLeft) {
+		g_window_position = center_over_current();
+	}
+	else {
+		g_window_position = await center_over_screen();
+	}
+
+	// use popover
+	if(gc_open?.popover) {
+		// update url with extended search params
+		const d_url_popover = new URL(p_url);
+		d_url_popover.search = stringify_params({
+			...h_params,
+			within: 'popover',
+		});
+
+		// reserialize
+		const p_url_popover = d_url_popover.toString();
+
+		// attempt to open popover
+		try {
+			if(B_WEBEXT_ACTION) {
+				await chrome.action.setPopup({
+					popup: p_url_popover,
+					tabId: gc_open.popover.tabId,
+				});
+
+				await chrome.action.openPopup({
+					windowId: gc_open.popover.windowId,
+				});
+			}
+			else if(B_WEBEXT_BROWSER_ACTION) {
+				await chrome.browserAction.setPopup({
+					popup: p_url_popover,
+					tabId: gc_open.popover.tabId,
+				});
+
+				await (chrome.browserAction as BrowserAction.Static).openPopup();
+			}
+
+			// popover is not referencable
+			return {
+				window: null,
+				tab: null,
+			};
+		}
+		// error opening popover, user may have navigated to other tab
+		catch(e_open) {
+			// procced with fallback
+			console.warn(`Popover attempt failed: ${e_open}; using fallback`);
+			debugger;
+		}
+		// reset popover
+		finally {
+			if(B_WEBEXT_ACTION) {
+				void chrome.action.setPopup({
+					popup: P_POPUP,
+					tabId: gc_open.popover.tabId,
+				});
+			}
+			else if(B_WEBEXT_BROWSER_ACTION) {
+				void chrome.browserAction.setPopup({
+					popup: P_POPUP,
+					tabId: gc_open.popover.tabId,
+				});
+			}
+		}
+	}
 
 	// windows is available
-	if(chrome.windows.create) {
+	if('function' === typeof chrome.windows?.create) {
 		// extend search params
-		h_params['tab'] = 'window';
+		h_params.within = 'popout';
 
 		// update url
-		d_url.search = new URLSearchParams(h_params).toString();
+		d_url.search = new URLSearchParams(h_params as Dict).toString();
 
 		// reserialize
 		p_url = d_url.toString();
+
+		// set dimensinos
+		const n_px_width = N_PX_WIDTH_POPOUT;
+		const n_px_height = N_PX_HEIGHT_POPOUT;
+
+		// whether position should be centered
+		const b_centered = true === g_window_position.centered;
+
+		// window position top
+		let n_px_top = 0;
+		if('number' === typeof g_window_position.top) {
+			n_px_top = Math.round(g_window_position.top - (b_centered? n_px_height / 2: 0));
+		}
+
+		// window position left
+		let n_px_left = 0;
+		if('number' === typeof g_window_position.left) {
+			n_px_left = Math.round(g_window_position.left - (b_centered || g_window_position.centered_x? n_px_width / 2: 0));
+		}
 
 		// create window
 		const g_window = await chrome.windows.create({
 			type: 'popup',
 			url: p_url,
 			focused: true,
-			width: N_PX_WIDTH_POPUP,
-			height: N_PX_HEIGHT_POPUP + 20,  // roughly 20 pixel chrome height
-			...g_window_position,
-			top: (g_window_position.top || 20) - 20,
+			width: n_px_width,
+			height: n_px_height,
+			top: n_px_top,
+			left: n_px_left,
 		});
 
 		// window was not created
@@ -173,7 +292,7 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 						chrome.tabs.onUpdated.removeListener(tab_update);
 
 						// resolve promise
-						fk_created(dt_updated);
+						fk_created(dt_updated as chrome.tabs.Tab);
 					}
 				}
 			});
@@ -184,17 +303,54 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 			tab: dt_created,
 		};
 	}
-	// cannot create windows
+	// cannot create windows, but can create tabs
+	else if('function' === typeof chrome.tabs?.create) {
+		// set viewing mode
+		h_params.within = 'tab';
+
+		// reserialize url
+		d_url.search = stringify_params(h_params);
+
+		return {
+			window: null,
+			tab: await chrome.tabs.create({
+				url: d_url.toString(),
+			}),
+		};
+	}
+	// within pwa
+	else if(B_WITHIN_PWA) {
+		// prep URL
+		const f_url = (h_hash_params: Dict) => `https://launch.starshell.net/?pwa#${new URLSearchParams(Object.entries({
+			flow: p_url,
+			...h_hash_params,
+		}))}`;
+
+		// sign URL
+		const p_presigned = f_url({});
+		const atu8_signature = await Vault.symmetricSign(text_to_buffer(p_presigned));
+
+		// append to hash params
+		const p_signed = f_url({
+			signature: buffer_to_base64(atu8_signature),
+		})
+
+		// open as if a remote page
+		window.open(p_signed, '_blank');
+
+		return {
+			window: null,
+			tab: null,
+		};
+	}
+	// open as link
 	else {
-		return await new Promise((fk_resolve) => {
-			chrome.tabs.create({
-				url: p_url,
-			}, (dt_created) => {
-				fk_resolve({
-					window: null,
-					tab: dt_created,
-				});
-			});
-		});
+		// treat as external link
+		open_external_link(p_url);
+
+		return {
+			window: null,
+			tab: null,
+		};
 	}
 }

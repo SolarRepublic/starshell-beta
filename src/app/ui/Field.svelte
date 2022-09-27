@@ -1,12 +1,12 @@
 <script lang="ts">
+	import {uuid_v4} from '#/util/dom';
+
 	import {
 		slide as svelte_slide,
-		type SlideParams,
-		type TransitionConfig,
 	} from 'svelte/transition';
 
-	export let name = "";
-	export let key: string;
+	export let name = '';
+	export let key = uuid_v4();
 
 	/**
 	 * Set to true to render the field on a single row
@@ -40,7 +40,7 @@
 		align-items: center;
 
 		.field-name {
-			margin-bottom: 10px;
+			// margin-bottom: 0.5em;
 			color: var(--theme-color-text-med);
 
 			font-size: 13px;
@@ -50,10 +50,22 @@
 		.field-value {
 			.font(regular);
 			color: var(--theme-color-text-light);
+			overflow: scroll;
+
+			&.hide-scrollbar {
+				scrollbar-width: none;
+			
+				&::-webkit-scrollbar {
+					width: 0;
+					height: 0;
+					background: transparent;
+				}
+			}
 		}
 
 		&.short {
 			display: flex;
+			margin-bottom: 0.5em;
 
 			>.field-name {
 				flex: 1;
@@ -69,11 +81,15 @@
 </style>
 
 <div class="field" class:short={short} id="field-{key}" class:double={double}>
-	<div class="field-name" transition:svelte_slide={{duration:slides? 350: 0}}>
-		<label for="{key}">{name}</label>
-	</div>
+	{#if name || short}
+		<div class="field-name" transition:svelte_slide={{duration:slides? 350: 0}}
+			style={short? '': 'margin-bottom:0.5em;'}
+		>
+			<label for="{key}">{name}</label>
+		</div>
+	{/if}
 
-	<div class="field-value" transition:svelte_slide={{duration:slides? 350: 0}}>
+	<div class="field-value" transition:svelte_slide={{duration:slides? 350: 0}} class:hide-scrollbar={true}>
 		<slot></slot>
 	</div>
 

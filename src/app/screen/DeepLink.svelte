@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type {Bech32, Chain, FamilyKey} from '#/meta/chain';
+	import type {Bech32, Chain, ChainNamespaceKey} from '#/meta/chain';
 	import type {Contact} from '#/meta/contact';
-	import {R_CHAIN_ID, R_BECH32} from '#/share/constants';
+	import {R_CHAIN_ID_VERSION, R_BECH32} from '#/share/constants';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
 	import {Entities} from '#/store/entities';
-	import type {Dict, JsonObject, Promisable} from '#/util/belt';
+	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
 
 	import {getContext, onMount} from 'svelte';
 	import type {Type} from 'ts-toolbelt/out/Any/Type';
@@ -30,7 +30,7 @@
 	/**
 	 * Plain address
 	*/
-	export let address: Bech32.String = '';
+	export let address: Bech32 = '';
 
 	interface BasicDetails extends JsonObject {
 		name?: string;
@@ -39,21 +39,21 @@
 	interface ChainDetails extends BasicDetails {}
 	interface ContactDetails extends BasicDetails {}
 
-	interface AugmentedFamily {
-		family: FamilyKey;
+	interface AugmentedChainNamespace {
+		namespace: ChainNamespaceKey;
 	}
 
-	interface AugmentedChain extends AugmentedFamily {
+	interface AugmentedChain extends AugmentedChainNamespace {
 		chain: {
 			id: string;
 			name: string | null;
-			resolved: Chain['interface'] | null;
+			resolved: ChainInterface | null;
 		};
 	}
 
 	interface AugmentedContact extends AugmentedChain {
 		contact: {
-			bech32: Bech32.String;
+			bech32: Bech32;
 			name: string | null;
 			resolved: Contact['interface'] | null;
 		};
@@ -61,7 +61,7 @@
 
 	interface Linked {
 		title: string;
-		existing?: Chain['interface'] | Contact['interface'] | null;
+		existing?: ChainInterface | Contact['interface'] | null;
 		fields: SimpleField[];
 	}
 
@@ -69,7 +69,7 @@
 
 	// type NestedLinkMap = Dict<LinkMap>;
 
-	type Context = {} | AugmentedFamily | AugmentedChain | AugmentedContact;
+	type Context = {} | AugmentedChainNamespace | AugmentedChain | AugmentedContact;
 
 
 	const _$_AUGMENT = Symbol('augment');
@@ -81,30 +81,31 @@
 	}>;
 
 	const H_DEEP_LINKS: LinkMap = {
+		// "family" is a human-friendly, abbreviated synonym for "namespace"
 		family: {
 			[_$_AUGMENT]: (sx_arg: string) => {
 				if('cosmos' !== sx_arg) {
 					throw syserr({
-						title: 'Rejected Unsafe Family',
-						text: `Family ID "${sx_arg}" is unsafe.`,
+						title: 'Rejected Unsafe Namespace',
+						text: `Namespace ID "${sx_arg}" is unsafe.`,
 					});
 				}
 
 				return {
-					family: sx_arg,
+					namespace: sx_arg,
 				};
 			},
 
 			chain: {
-				async [_$_AUGMENT](sx_arg: string, g_value: ChainDetails, g_context: AugmentedFamily): Promise<Pick<AugmentedChain, 'chain'>> {
-					if(!R_CHAIN_ID.test(sx_arg)) {
+				async [_$_AUGMENT](sx_arg: string, g_value: ChainDetails, g_context: AugmentedChainNamespace): Promise<Pick<AugmentedChain, 'chain'>> {
+					if(!R_CHAIN_ID_VERSION.test(sx_arg)) {
 						throw syserr({
 							title: 'Rejected Unsafe Chain',
 							text: `Chain ID "${sx_arg}" is unsafe.`,
 						});
 					}
 
-					const p_chain = Chains.pathFor(g_context.family, sx_arg);
+					const p_chain = Chains.pathFor(g_context.namespace, sx_arg);
 
 					const g_chain = await Chains.at(p_chain);
 
@@ -139,13 +140,13 @@
 							});
 						}
 
-						const p_contact = Agents.pathForContact(sx_arg, g_context.family);
+						const p_contact = Agents.pathForContactFromAddress(sx_arg, g_context.namespace);
 
 						const g_contact = await Agents.getContact(p_contact);
 
 						return {
 							contact: {
-								bech32: sx_arg,
+								bech32: sx_arg as Bech32,
 								name: g_value.name ?? null,
 								resolved: g_contact,
 							},

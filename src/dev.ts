@@ -1,10 +1,12 @@
+import type Browser from 'webextension-polyfill';
+import type { Dict, JsonValue } from './meta/belt';
+
 import {
-	type Dict,
-	type JsonValue,
 	ode,
 	fold,
 } from './util/belt';
 
+// TODO: incorporate import.meta.env.DEV
 if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) {
 	const d_chrome = globalThis['chrome'];
 
@@ -76,7 +78,83 @@ if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) 
 			},
 
 			getManifest(): chrome.runtime.Manifest {
-				debugger;
+				return {
+					web_accessible_resources: [
+						{
+							resources: [
+								'assets/src/script/ics-launch.bf4ef84c.js',
+								'assets/constants.560c7c78.js',
+								'assets/src/script/service.1b6cb813.js',
+								'assets/src/script/service.5552e446.css',
+							],
+							matches: [
+								'https://launch.starshell.net/*',
+							],
+							use_dynamic_url: true,
+						},
+						{
+							resources: [
+								'src/script/mcs-relay.js',
+								'assets/src/script/mcs-relay.19f2274c.js',
+								'assets/constants.560c7c78.js',
+								'assets/src/script/ics-witness.42bc51f9.js',
+								'assets/src/script/mcs-keplr.470c30c6.js',
+								'src/entry/flow.html',
+								'media/*',
+							],
+							matches: [
+								'file://*/*',
+								'http://*/*',
+								'https://*/*',
+							],
+							use_dynamic_url: true,
+						},
+						{
+							resources: [
+								'src/entry/popup.html',
+							],
+							matches: [
+								'https://launch.starshell.net/*',
+							],
+							use_dynamic_url: true,
+						},
+					],
+					content_scripts: [
+						{
+							js: [
+								'assets/src/script/ics-spotter.4e5d2155.js',
+							],
+							matches: [
+								'file://*/*',
+								'http://*/*',
+								'https://*/*',
+							],
+							run_at: 'document_start',
+							all_frames: true,
+							world: 'ISOLATED',
+						},
+						{
+							js: [
+								'src/script/ics-launch.js',
+							],
+							matches: [
+								'https://launch.starshell.net/*',
+							],
+							run_at: 'document_start',
+							world: 'ISOLATED',
+						},
+						{
+							js: [
+								'assets/src/script/ics-link.e4edb8cf.js',
+							],
+							matches: [
+								'https://link.starshell.net/*',
+							],
+							run_at: 'document_start',
+							world: 'ISOLATED',
+						},
+					],
+				};
 			},
 
 			sendMessage(g_msg: JsonValue): Promise<void> {
@@ -111,7 +189,7 @@ if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) 
 	if(!d_chrome['tabs']) {
 		d_chrome.tabs = {
 			create(gc_create?: chrome.tabs.CreateProperties): Promise<chrome.tabs.Tab> {
-				window.open(gc_create!.url as string, '_blank');
+				window.open(gc_create!.url, '_blank');
 			},
 
 			get(i_tab: number): Promise<chrome.tabs.Tab> {
@@ -170,11 +248,22 @@ if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) 
 		};
 	}
 
-	// polyfill extension
+	// polyfill scripting
 	if(!d_chrome['scripting']) {
+		const a_registered: Browser.Scripting.RegisteredContentScript[] = [];
+
 		d_chrome.scripting = {
 			executeScript(): Promise<chrome.scripting.InjectionResult> {
 				debugger;
+			},
+
+			registerContentScripts(a_add: Browser.Scripting.RegisteredContentScript[]): Promise<void> {
+				a_registered.push(...a_add);
+				return Promise.resolve(void 0);
+			},
+
+			getRegisteredContentScripts(): Promise<Browser.Scripting.RegisteredContentScript[]> {
+				return Promise.resolve(a_registered);
 			},
 		};
 	}

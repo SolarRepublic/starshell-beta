@@ -8,9 +8,10 @@ import {SI_STORE_WEB_APIS, XT_MINUTES} from '#/share/constants';
 import type {Resource} from '#/meta/resource';
 import type {ResponseCache, WebApi, WebApiPath} from '#/meta/web-api';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
-import type { Values } from '#/meta/belt';
-import { Dict, JsonObject, ode, oderac } from '#/util/belt';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
+import type {Values} from '#/meta/belt';
+import type {Dict, JsonObject} from '#/meta/belt';
+import {ode, oderac} from '#/util/belt';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 export const A_COINGECKO_VS = [
 	'btc',
@@ -100,60 +101,60 @@ export const CoinGecko = {
 		const a_apis = a_coins.map(si => WebApis.pathFor('GET', coingecko_url([si], si_versus)));
 
 		// read from store
-		return await WebApis.open(async(ks_apis) => {
-			// prep out map
-			const h_out: Dict<number> = {};
+		const ks_apis = await WebApis.read();
 
-			// try to use cache
-			if(xt_max_age > 0) {
-				// expiry cutoff
-				const xt_cutoff = Date.now() - xt_max_age;
+		// prep out map
+		const h_out: Dict<number> = {};
 
-				// if cache is still valid
-				let b_cache_valid = true;
+		// try to use cache
+		if(xt_max_age > 0) {
+			// expiry cutoff
+			const xt_cutoff = Date.now() - xt_max_age;
 
-				// each coin being requested
-				for(let i_coin=0; i_coin<a_coins.length; i_coin++) {
-					const g_api = ks_apis.at(a_apis[i_coin]);
+			// if cache is still valid
+			let b_cache_valid = true;
 
-					// not yet stale
-					if(g_api && g_api.time > xt_cutoff) {
-						const si_coin = a_coins[i_coin];
-						h_out[si_coin] = (g_api.response.cache as CoinGeckoSimplePrice)[si_coin][si_versus]!;
-					}
-					// encountered stale entry
-					else {
-						b_cache_valid = false;
-						break;
-					}
+			// each coin being requested
+			for(let i_coin=0; i_coin<a_coins.length; i_coin++) {
+				const g_api = ks_apis.at(a_apis[i_coin]);
+
+				// not yet stale
+				if(g_api && g_api.time > xt_cutoff) {
+					const si_coin = a_coins[i_coin];
+					h_out[si_coin] = (g_api.response.cache as CoinGeckoSimplePrice)[si_coin][si_versus]!;
 				}
-
-				// cache is still valid; return responses
-				if(b_cache_valid) {
-					return h_out;
+				// encountered stale entry
+				else {
+					b_cache_valid = false;
+					break;
 				}
 			}
 
-			// fetch from api
-			const d_res = await fetch(coingecko_url(a_coins, si_versus));
-
-			// load response
-			const h_response = await d_res.json() as CoinGeckoSimplePrice<string, typeof si_versus>;
-
-			// ref raw cache
-			const h_cache = ks_apis.raw;
-
-			// cache datetime
-			const xt_now = Date.now();
-			for(const [si_coin, g_coin] of ode(h_response)) {
-				const g_cache = h_cache[si_coin] = h_cache[si_coin] || {};
-				g_cache.response = g_coin;
-				g_cache.time = xt_now;
-				h_out[si_coin] = g_coin[si_versus]!;
+			// cache is still valid; return responses
+			if(b_cache_valid) {
+				return h_out;
 			}
+		}
 
-			return h_out;
-		});
+		// fetch from api
+		const d_res = await fetch(coingecko_url(a_coins, si_versus));
+
+		// load response
+		const h_response = await d_res.json() as CoinGeckoSimplePrice;
+
+		// ref raw cache
+		const h_cache = ks_apis.raw;
+
+		// cache datetime
+		const xt_now = Date.now();
+		for(const [si_coin, g_coin] of ode(h_response)) {
+			const g_cache = h_cache[si_coin] = h_cache[si_coin] || {};
+			g_cache.response = g_coin;
+			g_cache.time = xt_now;
+			h_out[si_coin] = g_coin[si_versus]!;
+		}
+
+		return h_out;
 	},
 };
 

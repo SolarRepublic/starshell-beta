@@ -1,30 +1,44 @@
 import {
 	create_store_class,
-	WritableStoreDict,
 	WritableStoreMap,
 } from './_base';
 
-import { SI_STORE_AGENTS } from '#/share/constants';
-import type { Resource } from '#/meta/resource';
-import type { Contact, ContactPath } from '#/meta/contact';
-import type { Agent, AgentPath, FamilyKey } from '#/meta/chain';
-import { yw_chain, yw_family } from '#/app/mem';
+import {R_BECH32, SI_STORE_AGENTS} from '#/share/constants';
+import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
+import type {AgentIntergace, AgentPath, Bech32, ChainInterface, ChainNamespaceKey} from '#/meta/chain';
+import {yw_chain_namespace} from '#/app/mem';
+import { toBech32 } from '@cosmjs/encoding';
+import { hex_to_buffer } from '#/util/data';
+import { decodeBech32 } from '@solar-republic/wasm-secp256k1';
+import bech32 from 'bech32';
+import { Chains } from './chains';
 
 
 export const Agents = create_store_class({
 	store: SI_STORE_AGENTS,
 	extension: 'map',
 	class: class AgentsI extends WritableStoreMap<typeof SI_STORE_AGENTS> {
-		static pathForAgent(sa_addr: string, si_family: FamilyKey=yw_family.get()): AgentPath {
-			return `/family.${si_family}/agent.${sa_addr.replace(/^\w+1/, '')}`;
+		static pathForAgentFromData(s_data: string, si_family: ChainNamespaceKey=yw_chain_namespace.get()): AgentPath {
+			return `/family.${si_family}/agent.${s_data}`;
 		}
 
-		static pathForContact(sa_addr: string, si_family: FamilyKey=yw_family.get()): ContactPath {
-			return `${AgentsI.pathForAgent(sa_addr, si_family)}/as.contact`;
+		static pathForAgentFromAddress(sa_addr: Bech32, si_family: ChainNamespaceKey=yw_chain_namespace.get()): AgentPath {
+			return AgentsI.pathForAgentFromData(sa_addr.replace(R_BECH32, '$3'), si_family);
+		}
+
+		static pathForContactFromData(s_data: string, si_family: ChainNamespaceKey=yw_chain_namespace.get()): ContactPath {
+			return `${AgentsI.pathForAgentFromData(s_data, si_family)}/as.contact`;
+		}
+
+		/**
+		 * Creates a ContactPath from a bech32 address and optional chain namespace
+		 */
+		static pathForContactFromAddress(sa_addr: Bech32, si_family: ChainNamespaceKey=yw_chain_namespace.get()): ContactPath {
+			return `${AgentsI.pathForAgentFromAddress(sa_addr, si_family)}/as.contact`;
 		}
 
 		static pathFromContact(g_contact: Contact['interface']): ContactPath {
-			return AgentsI.pathForContact(g_contact.address, g_contact.family);
+			return AgentsI.pathForContactFromData(g_contact.addressData, g_contact.namespace);
 		}
 
 		/**
@@ -38,7 +52,29 @@ export const Agents = create_store_class({
 			return ks_agents.at(p_contact) as Contact['interface'];
 		}
 
-		* contacts(si_family: FamilyKey=yw_family.get()): IterableIterator<[ContactPath, Contact['interface']]> {
+		/**
+		 * Produces the compplete bech32 address for the given agent on the given chain (otherwise defaults to src address)
+		 */
+		static addressFor(g_agent: AgentIntergace | ContactInterface, g_chain_dst: ChainInterface): Bech32 {
+			// decode bech32 address data (without checksum) into words
+			const a_words = decodeBech32(g_agent.addressData);
+
+			// incompatible namespaces
+			if(g_chain_dst.namespace !== g_agent.namespace) {
+				throw new Error(`Refusing to convert address from "${g_agent.namespace}" namespace to incompatible "${g_chain_dst.namespace}" namespace`);
+			}
+
+			// acces the hrp for the given chain
+			const si_hrp: string = g_chain_dst.bech32s[g_agent.addressSpace];
+
+			// encode words into bech32 with hrp to create address
+			const sa_contact = bech32.encode(si_hrp, a_words);
+
+			// return complete bech32 address
+			return sa_contact as Bech32;
+		}
+
+		* contacts(si_family: ChainNamespaceKey=yw_chain_namespace.get()): IterableIterator<[ContactPath, Contact['interface']]> {
 			// ref cache
 			const h_cache = this._w_cache;
 

@@ -1,41 +1,29 @@
 import '#/dev';
 
 import type {Store, StoreKey} from '#/meta/store';
-import {F_NOOP, JsonObject, JsonValue, ode, type Dict} from '#/util/belt';
+import type {JsonObject, JsonValue, Dict} from '#/meta/belt';
+import {F_NOOP} from '#/util/belt';
 import {
 	base93_to_buffer,
 	buffer_to_base93,
 	buffer_to_hex,
-	buffer_to_string8,
 	buffer_to_text,
 	concat,
 	hex_to_buffer,
-	string8_to_buffer,
+	sha256_sync,
 	text_to_buffer,
 	zero_out,
 } from '#/util/data';
 
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-
-
-import {default as sha256_sync} from 'crypto-js/sha256';
-import {default as sha512_sync} from 'crypto-js/sha512';
 
 import SensitiveBytes from './sensitive-bytes';
-import {NotAuthenticatedError} from '#/share/auth';
-import {global_wait, global_broadcast} from '#/script/msg-global';
-import {syserr, syswarn} from '#/app/common';
-import {H_STORE_INITS} from '#/store/_init';
-import {PublicStorage, storage_get, storage_remove, storage_set} from '#/extension/public-storage';
-import AsyncLockPool, {LockTimeoutError} from '#/util/async-lock-pool';
+import {global_broadcast} from '#/script/msg-global';
+import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {uuid_v4} from '#/util/dom';
+import {$_IS_SERVICE_WORKER, ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, XG_64_BIT_MAX} from '#/share/constants';
+import {NotAuthenticatedError} from '#/share/errors';
+import { SessionStorage } from '#/extension/session-storage';
 
-
-// sha256("starshell")
-export const ATU8_SHA256_STARSHELL = hex_to_buffer(sha256_sync('starshell').toString());
-
-// sha512("starshell")
-export const ATU8_SHA512_STARSHELL = hex_to_buffer(sha512_sync('starshell').toString());
 
 // identifies the schema version of the store
 const SI_VERSION_SCHEMA_STORE = '1';
@@ -46,7 +34,10 @@ const SI_VERSION_SCHEMA_STORE = '1';
 const N_ITERATIONS = 696969;
 // const N_ITERATIONS = 20;
 
-const NB_PADDING = 512;
+/**
+ * Sets the block size to use when padding plaintext before encrypting for storage.
+ */
+const NB_PLAINTEXT_BLOCK_SIZE = 512;
 
 // size of salt in bytes
 const NB_SALT = 256 >> 3;
@@ -60,9 +51,6 @@ const SI_PRF = 'SHA-512';
 
 // size of derived AES key in bits
 const NI_DERIVED_AES_KEY = 256;
-
-const XC_CHAR_JSON_0 = '{'.charCodeAt(0);
-const XC_CHAR_JSON_1 = '"'.charCodeAt(0);
 
 // once this threshold is exceeded, do not enqueue any more recryption operations
 const NB_RECRYPTION_THRESHOLD = 32 * 1024;  // 64 KiB
@@ -87,37 +75,37 @@ const GC_HKDF_COMMON = {
 	info: Uint8Array.from([]),
 };
 
-const A_STORE_KEYS: Array<StoreKey | 'keys'> = ['keys', ...Object.keys(H_STORE_INITS) as Array<StoreKey>];
 
 // identify this local frame
-const SI_FRAME_LOCAL = uuid_v4().slice(24);
+const SI_FRAME_LOCAL = globalThis[$_IS_SERVICE_WORKER]? `SERVICE.${uuid_v4().slice(32)}`: uuid_v4().slice(24);
 
 
 interface VaultFields {
 	atu8_ciphertext: Uint8Array;
+	atu8_extra_salt: Uint8Array;
 }
 
 
-async function unlock(atu8_import: Uint8Array) {
-	// Web Crypto does not support the secp256k1 curve, but keeping the private key in heap memory
-	// makes the user more vulnerable to key finding attacks. instead, try to leverage platform-specific
-	// solutions provided by browser that ideally store the key within secure hardware boundaries.
-	// more specifically, choose a supported elliptic curve that has larger `n` curve order than secp256k1
-	// in order to make sure the private key won't be rejected upon import for exceeding the valid range.
-	// secp256k1: <https://neuromancer.sk/std/secg/secp256k1>
-	// secp384r1 (P-384): <https://neuromancer.sk/std/secg/secp384r1>
-	await crypto.subtle.importKey('raw', atu8_import, {
-		name: 'ECDSA',
-		namedCurve: 'P-384',
-	}, true, []);
+// async function unlock(atu8_import: Uint8Array) {
+// 	// Web Crypto does not support the secp256k1 curve, but keeping the private key in heap memory
+// 	// makes the user more vulnerable to key finding attacks. instead, try to leverage platform-specific
+// 	// solutions provided by browser that ideally store the key within secure hardware boundaries.
+// 	// more specifically, choose a supported elliptic curve that has larger `n` curve order than secp256k1
+// 	// in order to make sure the private key won't be rejected upon import for exceeding the valid range.
+// 	// secp256k1: <https://neuromancer.sk/std/secg/secp256k1>
+// 	// secp384r1 (P-384): <https://neuromancer.sk/std/secg/secp384r1>
+// 	await crypto.subtle.importKey('raw', atu8_import, {
+// 		name: 'ECDSA',
+// 		namedCurve: 'P-384',
+// 	}, true, []);
 
-	// 
-	const atu8_a = crypto.getRandomValues(new Uint8Array(32));
-	crypto.subtle.importKey('raw', atu8_a, {
-		name: 'ECDSA',
-		namedCurve: 'P-384',
-	}, false, ['deriveBits']);
-}
+// 	// 
+// 	const atu8_a = crypto.getRandomValues(new Uint8Array(32));
+// 	crypto.subtle.importKey('raw', atu8_a, {
+// 		name: 'ECDSA',
+// 		namedCurve: 'P-384',
+// 	}, false, ['deriveBits']);
+// }
 
 
 /**
@@ -125,107 +113,20 @@ async function unlock(atu8_import: Uint8Array) {
  */
 const hm_privates = new WeakMap<VaultEntry, VaultFields>();
 
-// /**
-//  * Keeps track of which stores have been checked out in order to prevent lost updates.
-//  */
-// const h_checked_outs: Dict<Vault> = {};
-
-
-// /**
-//  * Loads metadata (incl. ciphertext) from storage.
-//  */
-// async function Vault$_load<
-// 	k_this extends Vault,
-// >(this: void, k_this: k_this): Promise<k_this> {
-// 	// read from storage
-// 	const w_storage = (await chrome.storage.local.get(k_this._si_key))[k_this._si_key];
-
-// 	// destructure storage and fill in defaults
-// 	const {
-// 		salt: sh_salt_read,
-// 		nonce: sh_nonce_read,
-// 		schema: si_schema_read,
-// 		data: sx_data,
-// 	} = w_storage || {
-// 		salt: '',
-// 		nonce: '',
-// 		schema: SI_VERSION_SCHEMA_STORE,
-// 		data: '',
-// 	};
-
-// 	// save to local fields
-// 	hm_privates.set(k_this, {
-// 		sh_salt_read,
-// 		sh_nonce_read,
-// 		si_schema_read,
-// 		atu8_ciphertext: string8_to_buffer(sx_data),
-// 	});
-
-// 	// mark as loaded
-// 	k_this._b_loaded = true;
-
-// 	// return instance
-// 	return k_this;
-// }
-
-
-// async function Vault$_prederive(this: void, k_this: Vault, dk_phrase: CryptoKey): Promise<void> {
-// 	// ref private struct
-// 	const g_private = hm_privates.get(k_this)!;
-
-// 	// generate salt to derive the next encryption key
-// 	const atu8_salt_write = crypto.getRandomValues(new Uint8Array(NB_SALT));
-
-// 	// derive the next encryption key
-// 	const dk_aes_write = await pbkdf2_derive(dk_phrase, atu8_salt_write);
-
-// 	// store the key so it is ready for the next encryption
-// 	Object.assign(g_private, {
-// 		dk_aes_write,
-// 		sx_salt_write: buffer_to_hex(atu8_salt_write),
-// 	});
-// }
-
-// /**
-//  * Takes the passphrase key as input and uses it to derive the current decryption key.
-//  */
-// async function Vault$_rotate(this: void, k_this: Vault, dk_phrase: CryptoKey) {
-// 	// ref private struct
-// 	const g_private = hm_privates.get(k_this)!;
-
-// 	// ref the salt to derive the decryption key
-// 	const atu8_salt_read = hex_to_buffer(g_private.sh_salt_read);
-
-// 	// derive the decryption key
-// 	const dk_aes_read = await pbkdf2_derive(dk_phrase, atu8_salt_read);
-
-// 	// return the decryption key
-// 	return dk_aes_read;
-// }
-
-// async function Vault$_decrypt(this: void, k_this: Vault, dk_aes_read: CryptoKey): Promise<Uint8Array> {
-// 	// destructure private field(s)
-// 	const {
-// 		sh_nonce_read,
-// 		atu8_ciphertext,
-// 	} = hm_privates.get(k_this)!;
-
-// 	// prep the iv to decrypt the store
-// 	const atu8_nonce_read = hex_to_buffer(sh_nonce_read);
-
-// 	// return decrypted data
-// 	return await crypto.subtle.decrypt({
-// 		name: 'AES-GCM',
-// 		iv: atu8_nonce_read,
-// 	}, dk_aes_read, atu8_ciphertext);
-// }
-
-async function test_encryption_integrity(atu8_data: Uint8Array, dk_cipher: CryptoKey, atu8_vector: Uint8Array, atu8_verify=ATU8_SHA256_STARSHELL) {
+/**
+ * Verifies the integrity of the crypto API by checking the round trip values
+ */
+export async function test_encryption_integrity(
+	atu8_data: Uint8Array,
+	dk_cipher: CryptoKey,
+	atu8_nonce: Uint8Array,
+	atu8_verify=ATU8_SHA256_STARSHELL
+): Promise<void> {
 	try {
-		const atu8_encrypted = await encrypt(atu8_data, dk_cipher, atu8_vector, atu8_verify);
-		const s_encrypted = buffer_to_string8(atu8_encrypted);
-		const atu8_encrypted_b = string8_to_buffer(s_encrypted);
-		const atu8_decrypted = await decrypt(atu8_encrypted_b, dk_cipher, atu8_vector, atu8_verify);
+		const atu8_encrypted = await encrypt(atu8_data, dk_cipher, atu8_nonce, atu8_verify);
+		const s_encrypted = buffer_to_base93(atu8_encrypted);
+		const atu8_encrypted_b = base93_to_buffer(s_encrypted);
+		const atu8_decrypted = await decrypt(atu8_encrypted_b, dk_cipher, atu8_nonce, atu8_verify);
 
 		if(atu8_data.byteLength !== atu8_decrypted.byteLength) {
 			throw new Error(`Byte length mismatch`);
@@ -242,58 +143,11 @@ async function test_encryption_integrity(atu8_data: Uint8Array, dk_cipher: Crypt
 	}
 }
 
-export type SessionStorage = Merge<{
-	root: {
-		native: CryptoKey;
-		wrapped: number[];
-	};
-	vector: {
-		native: Uint8Array;
-		wrapped: number[];
-	};
-	flow: {
-		native: string;
-		wrapped: string;
-	};
-	display_info: {
-		native: ScreenInfo;
-		wrapped: ScreenInfo;
-	};
-}, {
-	[si_lock in `lock_${string}`]: {
-		native: string;
-		wrapped: string;
-	};
-}>;
 
-export type SessionStorageKey = keyof SessionStorage;
-
-export namespace SessionStorage {
-	export type Native<
-		si_key extends SessionStorageKey=SessionStorageKey,
-	> = SessionStorage[si_key] extends {native: infer w_native}
-		? w_native
-		: never;
-
-	export type Wrapped<
-		si_key extends SessionStorageKey=SessionStorageKey,
-	> = SessionStorage[si_key] extends {wrapped: infer w_wrapped}
-		? w_wrapped
-		: never;
-
-	export type Struct<
-		si_which extends 'native' | 'wrapped',
-	> = {
-		[si_key in SessionStorageKey]: {
-			native: Native<si_key>;
-			wrapped: Wrapped<si_key>;
-		}[si_which];
-	};
-}
 
 export async function restore_as_key(
 	z_data: null | number[] | CryptoKey,
-	w_kdf: AlgorithmIdentifier,
+	w_kdf: AlgorithmIdentifier | RsaHashedImportParams | EcKeyImportParams | HmacImportParams | AesKeyAlgorithm,
 	b_extractable: boolean,
 	a_usages: KeyUsage[]
 ): Promise<null | CryptoKey> {
@@ -313,209 +167,6 @@ export function restore_as_buffer(z_data: null | number[] | Uint8Array): null | 
 }
 
 
-type SetNative = Partial<SessionStorage.Struct<'native'>>;
-type SetWrapped = Partial<SessionStorage.Struct<'wrapped'>>;
-
-// eslint-disable-next-line @typescript-eslint/unbound-method
-export const {
-	session_storage_get,
-	session_storage_set_native,
-	session_storage_set_wrapped,
-	session_storage_remove,
-	session_storage_clear,
-	session_storage_is_native,
-} = (() => {
-	if(chrome.storage['session']) {
-		const d_session = (chrome.storage as unknown as {
-			session: chrome.storage.StorageArea;
-		}).session;
-
-		return {
-			async session_storage_get<
-				si_key extends SessionStorageKey,
-			>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
-				return (await d_session.get([si_key]) as {
-					[si in typeof si_key]: SessionStorage.Wrapped<si_key> | null;
-				})[si_key];
-			},
-
-			session_storage_set_native(h_set_native: SetNative): Promise<void> {
-				throw new Error('Implementation bug; cannot use native session storage');
-			},
-
-			async session_storage_set_wrapped(h_set_wrapped: SetWrapped): Promise<void> {
-				return await d_session.set(h_set_wrapped);
-			},
-
-			async session_storage_remove(si_key: SessionStorageKey): Promise<void> {
-				return await d_session.remove(si_key);
-			},
-
-			async session_storage_clear(): Promise<void> {
-				return await d_session.clear();
-			},
-
-			session_storage_is_native: false,
-		};
-	}
-	else {
-		interface IsoStorage {
-			get(si_key: string): string | null;
-			set(si_key: string, s_value: string): void;
-			remove(si_key: string): void;
-			clear(): void;
-		}
-
-		const session = (): IsoStorage | null => {
-			const dw_background = chrome.extension.getBackgroundPage?.();
-			let d_session!: Window['sessionStorage'];
-			if(dw_background) {
-				d_session = dw_background.sessionStorage;
-			}
-			else if(globalThis.sessionStorage) {
-				d_session = sessionStorage;
-			}
-
-			if(d_session) {
-				return {
-					get(si_key) {
-						return d_session.getItem(si_key);
-					},
-					set(si_key, s_value) {
-						console.log('debug: setItem: %o => %o', si_key, s_value);
-						return d_session.setItem(si_key, s_value);
-					},
-					remove(si_key) {
-						return d_session.removeItem(si_key);
-					},
-					clear() {
-						return d_session.clear();
-					},
-				};
-			}
-
-			return null;
-		};
-
-		if(!session()) {
-			throw new Error('Browser does not support any type of session storage');
-		}
-
-		// // mobile
-		// if(B_MOBILE) {
-			const k_session = session()!;
-
-			return {
-				/* eslint-disable @typescript-eslint/require-await */
-				async session_storage_get<
-					si_key extends SessionStorageKey,
-				>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
-					const s_raw = k_session.get(si_key);
-					return s_raw? JSON.parse(s_raw) as SessionStorage.Wrapped<si_key>: null;
-				},
-
-				async session_storage_set_native(h_set_native: SetNative): Promise<void> {
-					throw new Error('Implementation bug; cannot use native session storage');
-				},
-
-				async session_storage_set_wrapped(h_set_wrapped: SetWrapped): Promise<void> {
-					for(const [si_key, w_value] of ode(h_set_wrapped)) {
-						k_session.set(si_key, JSON.stringify(w_value));
-					}
-				},
-
-				async session_storage_remove(si_key: SessionStorageKey): Promise<void> {
-					k_session.remove(si_key);
-				},
-
-				async session_storage_clear(): Promise<void> {
-					k_session.clear();
-				},
-
-				session_storage_is_native: false,
-
-				/* eslint-enable @typescript-eslint/require-await */
-			};
-		// }
-		// // desktop
-		// else {
-		// 	// function bg_session(): SetNative {
-		// 	// 	const dw_background = chrome.extension.getBackgroundPage();
-		// 	// 	dw_background['_g_session'] = dw_background['_g_session'] || {};
-		// 	// 	if(dw_background) {
-		// 	// 		return {
-		// 	// 			get(si_key):  {
-		// 	// 			},
-		// 	// 		};
-		// 	// 	}
-		// 	// 	else {
-		// 	// 		throw new Error(`Attempted to use non-existent background page for session storage`);
-		// 	// 	}
-		// 	// }
-
-		// 	return {
-		// 		/* eslint-disable @typescript-eslint/require-await */
-		// 		async session_storage_get<
-		// 			si_key extends SessionStorageKey,
-		// 		>(si_key: si_key): Promise<SessionStorage.Native<si_key> | null> {
-		// 			return bg_session()[si_key] ?? null;
-		// 		},
-
-		// 		async session_storage_set_native(h_set_native: SetNative): Promise<void> {
-		// 			const g_session = bg_session();
-
-		// 			for(const [si_key, w_value] of ode(h_set_native)) {
-		// 				await session_storage_remove(si_key);
-		// 				g_session[si_key as string] = w_value!;
-		// 			}
-		// 		},
-
-		// 		async session_storage_set_wrapped(h_set_wrapped: SetWrapped): Promise<void> {
-		// 			throw new Error('Implementation bug; cannot use wrapped session storage');
-		// 		},
-
-		// 		async session_storage_remove(si_key: SessionStorageKey): Promise<void> {
-		// 			const g_session = bg_session();
-
-		// 			const z_value = g_session[si_key];
-		// 			if(z_value && 'object' === typeof z_value) {
-		// 				if(Array.isArray(z_value) || ArrayBuffer.isView(z_value)) {
-		// 					zero_out(z_value as any[] | Uint8Array);
-		// 				}
-		// 			}
-
-		// 			delete g_session[si_key];
-		// 		},
-
-		// 		async session_storage_clear(): Promise<void> {
-		// 			const g_session = bg_session();
-
-		// 			for(const [si_key, w_value] of ode(g_session)) {
-		// 				await session_storage_remove(si_key);
-		// 			}
-
-		// 			// reset
-		// 			session()!['_g_session'] = {};
-		// 		},
-
-		// 		session_storage_is_native: true,
-
-		// 		/* eslint-enable @typescript-eslint/require-await */
-		// 	};
-		// }
-	}
-})();
-
-
-export async function session_storage_set_isomorphic(h_set: SetNative & SetWrapped): Promise<void> {
-	if(session_storage_is_native) {
-		await session_storage_set_native(h_set as SetNative);
-	}
-	else {
-		await session_storage_set_wrapped(h_set as SetWrapped);
-	}
-}
-
 async function hkdf_params(): Promise<typeof GC_HKDF_COMMON> {
 	// get base
 	const g_base = await Vault.getBase();
@@ -526,7 +177,7 @@ async function hkdf_params(): Promise<typeof GC_HKDF_COMMON> {
 	// base exists and is valud
 	if(Vault.isValidBase(g_base)) {
 		// retrieve existing salt
-		atu8_salt = (await Vault.getSalt())!;
+		atu8_salt = (await PublicStorage.salt())!;
 
 		// does not exist
 		if(!atu8_salt || NB_SALT !== atu8_salt.byteLength) {
@@ -539,7 +190,7 @@ async function hkdf_params(): Promise<typeof GC_HKDF_COMMON> {
 		atu8_salt = crypto.getRandomValues(new Uint8Array(NB_SALT));
 
 		// save
-		await Vault.setSalt(atu8_salt);
+		await PublicStorage.salt(atu8_salt);
 	}
 
 	// parse base, return extended HKDF params
@@ -631,17 +282,6 @@ interface RootKeysData {
 const h_release_waiters_local: Dict<VoidFunction[]> = {};
 
 
-// async function storage_put(si_key: PublicStorageKey, w_value: any): Promise<void> {
-// 	const si_wire = `@${si_key}`;
-// 	await chrome.storage.local.set({
-// 		[si_wire]: w_value,
-// 	});
-// }
-
-// async lock pools for stores
-const h_lock_pools: Partial<Record<`lock_${StoreKey}`, AsyncLockPool>> = {};
-
-let c_incidents = 0;
 
 /**
  * Responsible for (un)marshalling data structs between encrypted-at-rest storage and unencrypted-in-use memory.
@@ -655,7 +295,9 @@ let c_incidents = 0;
  */
 export const Vault = {
 	async getBase(): Promise<BaseParams | undefined> {
-		return await storage_get<BaseParams>('base') || void 0;
+		return await public_storage_get<BaseParams>('base') || void 0;
+
+		// return PublicStorage.base();
 	},
 
 	isValidBase(z_test: unknown): z_test is BaseParams {
@@ -676,40 +318,32 @@ export const Vault = {
 	},
 
 	async setParsedBase(g_base: Omit<ParsedBase, 'version'>): Promise<void> {
-		return await storage_set({
-			base: {
-				version: 1,
-				entropy: buffer_to_hex(g_base.entropy),
-				nonce: g_base.nonce+'',
-				signature: buffer_to_hex(g_base.signature),
-			},
+		return await public_storage_put('base', {
+			version: 1,
+			entropy: buffer_to_hex(g_base.entropy),
+			nonce: g_base.nonce+'',
+			signature: buffer_to_hex(g_base.signature),
 		});
+
+		// PublicStorage.base({});
 	},
 
 	async eraseBase(): Promise<void> {
-		return await storage_remove('base');
+		return await public_storage_remove('base');
+
+		// PublicStorage.base(null);
 	},
 
 	/**
-	 * Retrieve the existing salt value if defined
+	 * 
 	 */
-	async getSalt(): Promise<Uint8Array | undefined> {
-		// fetch salt value
-		const sx_salt = await storage_get<string>('salt');
-
-		// convert to buffer if it exists
-		return sx_salt? hex_to_buffer(sx_salt): void 0;
+	async isUnlocked(): Promise<boolean> {
+		return !!await SessionStorage.get('root');
 	},
 
-	async setSalt(atu8_salt: Uint8Array): Promise<void> {
-		// store salt as stringify'd buffer
-		return await storage_set({
-			salt: buffer_to_hex(atu8_salt),
-		});
-	},
 
 	async getRootKey(): Promise<CryptoKey | null> {
-		const w_root = await session_storage_get('root');
+		const w_root = await SessionStorage.get('root');
 		if(!w_root) return null;
 
 		return await restore_as_key(w_root, 'HKDF', false, ['deriveKey']);
@@ -732,10 +366,29 @@ export const Vault = {
 		// }
 	},
 
+	async symmetricKey(a_usages: KeyUsage[]): Promise<CryptoKey> {
+		const a_auth = await SessionStorage.get('auth');
+		if(!a_auth) throw new NotAuthenticatedError();
+
+		return (await restore_as_key(a_auth, {
+			name: 'HMAC',
+			hash: 'SHA-256',
+		}, false, a_usages))!;
+
+	},
+
+	async symmetricSign(atu8_data: Uint8Array): Promise<Uint8Array> {
+		return new Uint8Array(await crypto.subtle.sign('HMAC', await Vault.symmetricKey(['sign']), atu8_data));
+	},
+
+	async symmetricVerify(atu8_data: Uint8Array, atu8_signature: Uint8Array): Promise<boolean> {
+		return await crypto.subtle.verify('HMAC', await Vault.symmetricKey(['verify']), atu8_signature, atu8_data);
+	},
+
 	async clearRootKey(): Promise<void> {
 		// background page exists
-		let dw_background!: Window | null | undefined;
-		if((dw_background=chrome.extension?.getBackgroundPage())) {
+		const dw_background = chrome.extension?.getBackgroundPage();
+		if(dw_background) {
 			delete dw_background['_dk_root'];
 		}
 
@@ -747,7 +400,7 @@ export const Vault = {
 		// in parallel
 		await Promise.all([
 			// clear session storage
-			session_storage_clear(),
+			SessionStorage.clear(),
 		]);
 	},
 
@@ -770,37 +423,49 @@ export const Vault = {
 
 	async deriveRootKeys(atu8_phrase: Uint8Array, atu8_entropy: Uint8Array, xg_nonce_old: bigint, b_export_new=false): Promise<RootKeysData> {
 		// prep new nonce (this is intended to be reproducible in case program exits while rotating keys)
-		const xg_nonce_new = (xg_nonce_old + 1n) % (2n ** 64n);
+		const xg_nonce_new = (xg_nonce_old + 1n) % (2n ** 128n);
 
 		// prep array buffer (8 bytes for fixed entropy + 8 bytes for nonce)
-		const atu8_vector_old = new Uint8Array(16);
-		const atu8_vector_new = new Uint8Array(16);
+		const atu8_vector_old = new Uint8Array(32);
+		const atu8_vector_new = new Uint8Array(32);
 
-		// set entropy into buffer at leading 8 bytes
+		// set entropy into buffer at leading 16 bytes
 		atu8_vector_old.set(atu8_entropy, 0);
 		atu8_vector_new.set(atu8_entropy, 0);
 
-		// set nonce into buffer at bottom 8 bytes
-		new DataView(atu8_vector_old.buffer).setBigUint64(8, xg_nonce_old, false);
-		new DataView(atu8_vector_new.buffer).setBigUint64(8, xg_nonce_new, false);
+		// set nonce into buffer at bottom 16 bytes
+		const xg_nonce_old_hi = (xg_nonce_old >> 64n) & XG_64_BIT_MAX;
+		const xg_nonce_old_lo = xg_nonce_old & XG_64_BIT_MAX;
+		new DataView(atu8_vector_old.buffer).setBigUint64(16, xg_nonce_old_hi, false);
+		new DataView(atu8_vector_old.buffer).setBigUint64(16+8, xg_nonce_old_lo, false);
+		// console.log({
+		// 	_hi: xg_nonce_old_hi.toString(16),
+		// 	_lo: xg_nonce_old_lo.toString(16),
+		// 	old: xg_nonce_old.toString(16),
+		// });
+
+		// set nonce into buffer at bottom 16 bytes
+		const xg_nonce_new_hi = (xg_nonce_new >> 64n) & XG_64_BIT_MAX;
+		const xg_nonce_new_lo = xg_nonce_new & XG_64_BIT_MAX;
+		new DataView(atu8_vector_new.buffer).setBigUint64(16, xg_nonce_new_hi, false);
+		new DataView(atu8_vector_new.buffer).setBigUint64(16+8, xg_nonce_new_lo, false);
+		// console.log({
+		// 	_hi: xg_nonce_new_hi.toString(16),
+		// 	_lo: xg_nonce_new_lo.toString(16),
+		// 	new: xg_nonce_new.toString(16),
+		// });
+
+		// console.log({
+		// 	vector_old: buffer_to_base64(atu8_vector_old),
+		// 	vector_new: buffer_to_base64(atu8_vector_new),
+		// });
 
 		// migration
-		let x_migrate_multiplier = 0;
+		const x_migrate_multiplier = 0;
 		const g_last_seen = await PublicStorage.lastSeen();
-		if(!g_last_seen) {
-			x_migrate_multiplier = 20 / N_ITERATIONS;
-		}
-
-		// migrate init stores
-		if(!g_last_seen || +g_last_seen.version.replace(/^v?0\.0\./, '') <= 6) {
-			await Promise.all([
-				storage_remove('chains'),
-				storage_remove('agents'),
-				storage_remove('networks'),
-				storage_remove('contacts'),
-				storage_remove('apps'),
-			]);
-		}
+		// if(!g_last_seen) {
+		// 	x_migrate_multiplier = 20 / N_ITERATIONS;
+		// }
 
 		// derive the two root byte sequences for this session
 		const [
@@ -810,6 +475,11 @@ export const Vault = {
 			Vault.deriveRootBits(atu8_phrase, atu8_vector_old, x_migrate_multiplier),
 			Vault.deriveRootBits(atu8_phrase, atu8_vector_new),
 		]);
+
+		// console.log({
+		// 	root_old: buffer_to_base64(kn_root_old.data),
+		// 	root_new: buffer_to_base64(kn_root_new.data),
+		// });
 
 		// zero out passphrase data
 		zero_out(atu8_phrase);
@@ -871,7 +541,7 @@ export const Vault = {
 		return await crypto.subtle.verify('HMAC', dk_verify, atu8_test, ATU8_SHA256_STARSHELL);
 	},
 
-	async recryptAll(dk_root_old: CryptoKey, atu8_nonce_old: Uint8Array, dk_root_new: CryptoKey, atu8_nonce_new: Uint8Array): Promise<void> {
+	async recryptAll(dk_root_old: CryptoKey, atu8_vector_old: Uint8Array, dk_root_new: CryptoKey, atu8_vector_new: Uint8Array): Promise<void> {
 		// prep list of async operations
 		const a_promises: Array<Promise<void>> = [];
 
@@ -887,19 +557,40 @@ export const Vault = {
 			Vault.cipherKey(dk_root_new, true),
 		]);
 
+		// test encryption integrity
+		{
+			// prepare nonces
+			const [atu8_nonce_old, atu8_nonce_new] = await Promise.all([
+				vector_salt_to_nonce(atu8_vector_old, sha256_sync(text_to_buffer('dummy')), 96),
+				vector_salt_to_nonce(atu8_vector_new, sha256_sync(text_to_buffer('dummy')), 96),
+			]);
+
+			await test_encryption_integrity(ATU8_DUMMY_PHRASE, await Vault.cipherKey(dk_root_old, true), atu8_nonce_old);
+			await test_encryption_integrity(ATU8_DUMMY_PHRASE, dk_aes_new, atu8_nonce_new);
+		}
+
+		// read all of storage
+		const h_local = await storage_get_all();
+
 		// each key
-		for(const si_key of A_STORE_KEYS) {
+		for(const si_key in h_local) {
+			// public; skip
+			if('@' === si_key[0]) continue;
+
+			// prepare nonces
+			const [atu8_nonce_old, atu8_nonce_new] = await Promise.all([
+				vector_salt_to_nonce(atu8_vector_old, sha256_sync(text_to_buffer(si_key)), 96),
+				vector_salt_to_nonce(atu8_vector_new, sha256_sync(text_to_buffer(si_key)), 96),
+			]);
+
 			// ready from storage
 			const sx_entry = await storage_get<string>(si_key);
 
 			// skip no data
 			if(!sx_entry) continue;
 
-
-			// TODO: deserialize using base93 if migration has been completed
-
 			// deserialize
-			const atu8_entry = string8_to_buffer(sx_entry);
+			const atu8_entry = base93_to_buffer(sx_entry);
 
 			// byte length
 			cb_pending += atu8_entry.byteLength;
@@ -914,7 +605,7 @@ export const Vault = {
 				}
 				// decryption failed; retry with new key (let it throw if it fails)
 				catch(e_decrypt) {
-					atu8_data = await decrypt(atu8_entry, dk_aes_new, atu8_nonce_old);
+					atu8_data = await decrypt(atu8_entry, dk_aes_new, atu8_nonce_new);
 				}
 
 				// encrypt it with new root key
@@ -922,8 +613,7 @@ export const Vault = {
 
 				// save encrypted data back to store
 				await storage_set({
-					[si_key]: buffer_to_string8(atu8_replace),
-					// [si_key]: buffer_to_base93(atu8_replace),
+					[si_key]: buffer_to_base93(atu8_replace),
 				});
 
 				// done; clear bytes from pending
@@ -971,133 +661,66 @@ export const Vault = {
 
 
 	/**
-	 * Acquires an exclusive lock to a writable vault entry by its given key identifier.
+	 * Acquires a mutally exclusive lock to a writable vault entry by its given key identifier.
 	 * @param si_key key identifier
 	 * @returns new vault entry
 	 */
-	async acquire(si_key: StoreKey, c_attempts=0): Promise<WritableVaultEntry> {
-		// prep lock id and self id
-		const si_lock = `lock_${si_key}` as const;
+	acquire(si_key: StoreKey, c_attempts=0): Promise<WritableVaultEntry> {
+		return new Promise((fk_acquired) => {
+			// abort signal timeout
+			const d_controller = new AbortController();
+			const i_abort = setTimeout(() => {
+				d_controller.abort();
+			}, 5e3);
 
-		const b_debug = false;
+			// request lock
+			void navigator.locks.request(`store:${si_key}`, {
+				mode: 'exclusive',
+				signal: d_controller.signal,
+			}, () => new Promise(async(fk_release) => {
+				// cancel abort controller
+				clearTimeout(i_abort);
 
-		const si_log = `${si_lock}/${c_incidents++}]:`;
-
-		// check if the lock is busy locally and wait for it
-		const k_pool = h_lock_pools[si_lock] = h_lock_pools[si_lock] || new AsyncLockPool(1);
-
-		if(b_debug) console.log(`${si_log} acquire(${k_pool._c_free} free)`);
-
-		let f_release = F_NOOP;
-		try {
-			f_release = await k_pool.acquire(null, 10e3);
-		}
-		catch(e_acquire) {
-			if(e_acquire instanceof LockTimeoutError) {
-				throw new Error(`Timed out while waiting for ${si_lock} on same thread`);
-			}
-			else {
-				throw e_acquire;
-			}
-		}
-
-		if(b_debug) console.log(`${si_log} CONTINUING`);
-
-		// read lock status
-		const sx_owner = await session_storage_get(si_lock);
-
-		// busy; wait for owner to release
-		if(sx_owner) {
-			if(b_debug) console.warn(`${si_log} is still locked on some frame...`);
-
-			// parse owner
-			const [si_frame, si_moment] = sx_owner.split(':');
-
-			// frame is local
-			if(SI_FRAME_LOCAL === si_frame) {
-				// wait for release
-				await new Promise((fk_resolve) => {
-					// prep timeout id
-					let i_timeout = 0;
-
-					// add resolve callback to list
-					(h_release_waiters_local[si_key] = h_release_waiters_local[si_key] || []).push(() => {
-						// cancel timeout
-						clearTimeout(i_timeout);
-
-						// resolve promise
-						fk_resolve(void 0);
-					});
-
-					// timeout
-					i_timeout = globalThis.setTimeout(() => {
-						syserr({
-							title: 'I/O Error',
-							text: `Local lock on '${si_key}' lasted more than 5 seconds; possible disk error or bug in implementation.`,
-						});
-					}, 5e3);
+				// broadcast global
+				global_broadcast({
+					type: 'acquireStore',
+					value: {
+						key: si_key,
+					},
 				});
-			}
-			// owner is remote
-			else {
-				console.warn(`'${si_key}' store is currently locked on a remote frame: ${sx_owner}; waiting for release`);
 
-				// attempt to wait
-				try {
-					await global_wait('releaseStore', g_release => si_key === g_release.key, 5000);
-				}
-				// timeout error; user likely interupted before lock was released; forcefully remove the lock and continue
-				catch(e_timeout) {
-					syswarn({
-						text: 'Recovered from previous interrupted shutdown.',
-					});
+				// read entry ciphertext
+				const sx_entry = await storage_get<string>(si_key);
 
-					await session_storage_remove(`lock_${si_key}`);
-				}
+				// prepare release callback
+				const f_release_callback = () => {
+					// cancel timeout
+					clearTimeout(i_lease);
 
-				console.warn(`'${si_key}' store was released`);
-			}
-		}
-		else if(b_debug) {console.log(`${si_log} NO OWNERS`);}
+					// resolve promise
+					fk_release(void 0);
+				};
 
-		// create self id
-		const si_self = SI_FRAME_LOCAL+':'+uuid_v4().slice(24);
+				// create lease timeout
+				const i_lease = setTimeout(() => {
+					// log error
+					console.error(`${si_key} mutex was not released within time limit. Forcibly revoking access`);
 
-		if(b_debug) console.log(`${si_log} attempting to acquire exclusive lock`);
+					// neuter entry instance and allow for callback
+					k_entry.release();
+				}, 3e3);
 
-		// acquire lock
-		await session_storage_set_isomorphic({[si_lock]:si_self});
+				// create instance
+				const k_entry = new WritableVaultEntry(si_key, sx_entry ?? '', f_release_callback);
 
-		// verify ownership
-		const si_verify = await session_storage_get(si_lock);
-
-		// failed to acquire exclusive lock
-		if(si_self !== si_verify) {
-			if(b_debug) console.warn(`${si_log} FAILED TO ACQUIRE EXCLUSIVE ${si_verify} !== ${si_self}`);
-
-			// exceeded retry limit
-			if(c_attempts > 10) {
-				throw new Error(`Exceeded maximum retry count while trying to checkout "${si_key}" from the vault`);
-			}
-
-			// retry
-			return await Vault.acquire(si_key, c_attempts+1);
-		}
-		else if(b_debug) {console.log(`${si_log} acquired ${si_verify} === ${si_self}`);}
-
-		// broadcast global
-		global_broadcast({
-			type: 'acquireStore',
-			value: {
-				key: si_key,
-			},
+				// return instance to caller
+				fk_acquired(k_entry);
+			}));
 		});
+	},
 
-		// read entry ciphertext
-		const sx_entry = await storage_get<string>(si_key);
-
-		// create instance
-		return new WritableVaultEntry(si_key, sx_entry ?? '', f_release);
+	async delete(si_key: StoreKey): Promise<void> {
+		await storage_remove(si_key);
 	},
 };
 
@@ -1114,6 +737,16 @@ function VaultEntry$_fields(kv_this: VaultEntry): VaultFields {
 	return g_privates;
 }
 
+async function vector_salt_to_nonce(atu8_vector: Uint8Array, atu8_salt: Uint8Array, ni_bits=96): Promise<Uint8Array> {
+	const dk_hkdf = await crypto.subtle.importKey('raw', atu8_vector, 'HKDF', false, ['deriveBits']);
+
+	return new Uint8Array(await crypto.subtle.deriveBits({
+		name: 'HKDF',
+		hash: 'SHA-256',
+		salt: atu8_salt,
+		info: new Uint8Array(0),
+	}, dk_hkdf, 96));
+}
 
 export class VaultEntry<
 	si_key extends StoreKey=StoreKey,
@@ -1124,8 +757,8 @@ export class VaultEntry<
 	 */
 	constructor(public _si_key: si_key, sx_store: string) {
 		hm_privates.set(this, {
-			atu8_ciphertext: string8_to_buffer(sx_store),
-			// atu8_ciphertext: base93_to_buffer(sx_store),
+			atu8_ciphertext: base93_to_buffer(sx_store),
+			atu8_extra_salt: sha256_sync(text_to_buffer(_si_key)),
 		});
 	}
 
@@ -1135,7 +768,7 @@ export class VaultEntry<
 	 */
 	async read(dk_cipher: CryptoKey): Promise<Uint8Array> {
 		// load decryption vector
-		const atu8_vector = restore_as_buffer(await session_storage_get('vector'));
+		const atu8_vector = restore_as_buffer(await SessionStorage.get('vector'));
 		if(!atu8_vector) {
 			throw new NotAuthenticatedError();
 		}
@@ -1143,33 +776,28 @@ export class VaultEntry<
 		// ref private field struct
 		const g_privates = VaultEntry$_fields(this);
 
-		// // prederive next encryption key
-		// await Vault$_prederive(this, dk_phrase);
-
 		// nothing to decrypt; return blank data
 		if(!g_privates.atu8_ciphertext.byteLength) {
 			return new Uint8Array(0);
 		}
 
-		// // only
-		// if(this._b_unlocked) throw new Error('Attempted to unlock persistence but is already unlocked');
-
-		// // acquire decryption key
-		// const dk_aes_read = await Vault$_rotate(this, dk_phrase);
-
+		// recreate nonce
+		const atu8_nonce = await vector_salt_to_nonce(atu8_vector, g_privates.atu8_extra_salt);
 
 		// decrypt
-		const atu8_decrypted = await decrypt(g_privates.atu8_ciphertext, dk_cipher, atu8_vector);
-
-		// TODO: REMOVE (temporary migration for beta participants)
-		if(0 !== atu8_decrypted[0]) {
-			return atu8_decrypted;
-		}
+		const atu8_decrypted = await decrypt(g_privates.atu8_ciphertext, dk_cipher, atu8_nonce);
 
 		// decode
 		const dv_decrypted = new DataView(atu8_decrypted.buffer);
 		const nb_data = dv_decrypted.getUint32(0);
-		return atu8_decrypted.subarray(4, nb_data+4);
+		try {
+			return atu8_decrypted.subarray(4, nb_data+4);
+		}
+		// bizarre firefox bug thinks the uint8array came from another origin
+		catch(e_read) {
+			console.warn(`Recovering from subarray access bug`);
+			return new Uint8Array(atu8_decrypted).subarray(4, nb_data+4);
+		}
 	}
 
 
@@ -1197,7 +825,7 @@ export class VaultEntry<
 			// attempt to release store
 			try {
 				if(this instanceof WritableVaultEntry) {
-					void this.release();
+					this.release();
 				}
 			}
 			catch(e_ignore) {}
@@ -1223,17 +851,14 @@ export class WritableVaultEntry<
 	/**
 	 * Destroy's this instance and returns the store's key to the registry.
 	 */
-	async release(): Promise<void> {
+	release(): void {
 		// assert that store is loaded
 		VaultEntry$_fields(this);
 
 		// neuter private fields
 		hm_privates.delete(this);
 
-// console.warn(`Releasing lock on store '${this._si_key}': ${localStorage.getItem(`chrome.session:lock_${this._si_key}`)!}`);
-
-		// remove lock
-		await session_storage_remove(`lock_${this._si_key}` as const);
+console.warn(`mutex:${this._si_key}/?.${SI_FRAME_LOCAL}]: Releasing mutex`);
 
 		// local notify
 		if(this._si_key in h_release_waiters_local) {
@@ -1242,10 +867,10 @@ export class WritableVaultEntry<
 			}
 		}
 
-		// local lock release
+		// local mutex release
 		this._f_release();
 
-		// broadcast lock removal
+		// broadcast mutex removal
 		global_broadcast({
 			type: 'releaseStore',
 			value: {
@@ -1263,26 +888,35 @@ export class WritableVaultEntry<
 		const g_privates = VaultEntry$_fields(this);
 
 		// load encryption vector
-		const atu8_vector = restore_as_buffer(await session_storage_get('vector'));
+		const atu8_vector = restore_as_buffer(await SessionStorage.get('vector'));
 		if(!atu8_vector) {
 			throw new NotAuthenticatedError();
 		}
 
-		// pad and encode the input data
+		// recreate nonce
+		const atu8_nonce = await vector_salt_to_nonce(atu8_vector, g_privates.atu8_extra_salt, 96);
+
+		// cache input data size
 		const nb_data = atu8_data.byteLength;
-		const nb_padded = (Math.ceil((nb_data + 4) / NB_PADDING) * NB_PADDING) - 4;
+
+		// compute size of output block (4 bytes for payload len + 16 bytes for AES tag)
+		const nb_padded = (Math.ceil((nb_data + 4 + 16) / NB_PLAINTEXT_BLOCK_SIZE) * NB_PLAINTEXT_BLOCK_SIZE) - 4 - 16;
+
+		// create padding to fill empty space in block
 		const atu8_padding = crypto.getRandomValues(new Uint8Array(nb_padded - nb_data));
+
+		// concat: len(msg) || msg || padding
 		const atu8_padded = concat([new Uint8Array(4), atu8_data, atu8_padding]);
-		const dv_padded = new DataView(atu8_padded.buffer);
-		dv_padded.setUint32(0, nb_data);
 
-		// encrypt the store
-		const atu8_ciphertext = await encrypt(atu8_padded, dk_cipher, atu8_vector);
+		// write the length of the ciphertext within the padded message
+		new DataView(atu8_padded.buffer).setUint32(atu8_padded.byteOffset, nb_data);
 
-		// save
+		// encrypt the padded and encoded block
+		const atu8_ciphertext = await encrypt(atu8_padded, dk_cipher, atu8_nonce);
+
+		// save ciphertext to storage, using optimal base93 encoding for JSON
 		await storage_set({
-			[this._si_key]: buffer_to_string8(atu8_ciphertext),
-			// [this._si_key]: buffer_to_base93(atu8_ciphertext),
+			[this._si_key]: buffer_to_base93(atu8_ciphertext),
 		});
 
 		// zero out previous data in memory

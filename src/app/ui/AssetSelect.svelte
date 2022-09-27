@@ -1,22 +1,19 @@
 <script lang="ts">
-	import StarSelect, { SelectOption } from './StarSelect.svelte';
+	import StarSelect, {type SelectOption} from './StarSelect.svelte';
 
-	import {ode, oderaf} from '#/util/belt';
+	import {ode} from '#/util/belt';
 
-	import {yw_account, yw_chain, yw_owner} from '##/mem';
-	import type { Resource } from '#/meta/resource';
-	import type { Token, TokenPath, TokenSpecKey } from '#/meta/token';
-	import { Entities } from '#/store/entities';
-	import type { EntityPath } from '#/meta/chain';
-	import { Chains } from '#/store/chains';
-	import type { PfpPath } from '#/meta/pfp';
-	import { load_pfps } from '../svelte';
+	import {yw_chain, yw_owner} from '##/mem';
+	import {Entities} from '#/store/entities';
+	import type {EntityPath} from '#/meta/chain';
+	import type {PfpTarget} from '#/meta/pfp';
+	import {load_pfps} from '../svelte';
 
 	export let assetRef: EntityPath | '' = '';
 
-	const si_chain = $yw_chain?.id || '*';
+	const si_chain = $yw_chain?.reference || '*';
 
-	let h_asset_pfps: Record<PfpPath, HTMLElement> = {};
+	let h_asset_pfps: Record<PfpTarget, HTMLElement> = {};
 
 	async function load_assets() {
 		const a_items: SelectOption[] = [];
@@ -44,7 +41,7 @@
 		object: null!,
 		primary: '',
 		secondary: '',
-		pfp: '' as PfpPath,
+		pfp: '' as PfpTarget,
 	};
 	$: {
 		// propagate change back to exported binding

@@ -1,6 +1,6 @@
 <script context="module" type="ts">
-	import {forever, Promisable} from '#/util/belt';
-	import { open_external_link } from '#/util/dom';
+	import {forever, type Promisable} from '#/util/belt';
+	import {open_external_link} from '#/util/dom';
 	import Address from './Address.svelte';
 	import Field from './Field.svelte';
 	import Load from './Load.svelte';
@@ -9,9 +9,11 @@
 	export type SimpleField = {
 		type: 'key_value';
 		key: string;
+		long?: boolean;
 		value: Promisable<string>;
 		subvalue?: Promisable<string>;
 		render?: 'address';
+		pfp?: PfpTarget;
 	} | {
 		type: 'memo';
 		value: string;
@@ -27,17 +29,20 @@
 
 
 <script type="ts">
-	import type { Incident, TxSynced } from '#/meta/incident';
-	import type { Chain } from '#/meta/chain';
-	import type { ActiveNetwork } from '#/store/networks';
-	import { syserr } from '../common';
-	import { ecdhNonce, extractMemoCiphertext } from '#/crypto/privacy';
-	import { Accounts } from '#/store/accounts';
-	import { buffer_to_text } from '#/util/data';
+	import type {Incident, TxSynced} from '#/meta/incident';
+	import type {ChainInterface} from '#/meta/chain';
+	import type {ActiveNetwork} from '#/store/networks';
+	import {syserr} from '../common';
+	import {ecdhNonce, extractMemoCiphertext} from '#/crypto/privacy';
+	import {Accounts} from '#/store/accounts';
+	import {buffer_to_text} from '#/util/data';
+	import { yw_chain } from '../mem';
+	import type { PfpTarget } from '#/meta/pfp';
+    import PfpDisplay from './PfpDisplay.svelte';
 
 	export let fields: SimpleField[];
 	export let incident: Incident.Struct | null = null;
-	export let chain: Chain['interface'] | null = null;
+	export let chain: ChainInterface | null = null;
 	export let network: ActiveNetwork | null = null;
 	export let loaded: Promise<any> | null = null;
 
@@ -69,7 +74,7 @@
 		const sa_owner = (b_outgoing? sa_sender: sa_recipient) as string;
 		const sa_other = (b_outgoing? sa_recipient: sa_sender) as string;
 
-		const [, g_account] = await Accounts.find(sa_owner);
+		const [, g_account] = await Accounts.find(sa_owner, $yw_chain);
 
 		// const g_chain = (await Chains.at(p_chain))!;
 
@@ -106,25 +111,33 @@
 
 	{#if 'key_value' === g_field.type}
 		<Field
-			short
+			short={!g_field.long && !g_field.pfp}
 			key={g_field.key.toLowerCase()}
 			name={g_field.key}
 		>
-			{#await g_field.value}
-				<Load forever />
-			{:then s_value}
-				{#if 'address' === g_field.render}
-					<Address address={s_value} copyable />
-				{:else}
-					{s_value}
+			<div style="display:flex;">
+				{#if g_field.pfp}
+					<PfpDisplay dim={32} ref={g_field.pfp} />
 				{/if}
-			{/await}
 
-			{#if g_field.subvalue}
-				<div class="subvalue">
-					<Load input={g_field.subvalue} />
+				<div style="display:flex; flex-flow:column;">
+					{#await g_field.value}
+						<Load forever />
+					{:then s_value}
+						{#if 'address' === g_field.render}
+							<Address address={s_value} copyable />
+						{:else}
+							{s_value}
+						{/if}
+					{/await}
+
+					{#if g_field.subvalue}
+						<div class="subvalue">
+							<Load input={g_field.subvalue} />
+						</div>
+					{/if}
 				</div>
-			{/if}
+			</div>
 		</Field>
 	{:else if 'memo' === g_field.type}
 		{#if g_field.value?.startsWith('🔒1')}

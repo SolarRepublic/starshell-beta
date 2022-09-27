@@ -18,10 +18,10 @@
 	} from '##/mem';
 
 	import PopupTagsSelect from './PopupTagsSelect.svelte';
-	import type { Tags } from '#/store/tags';
-	import { onDestroy } from 'svelte';
-	import type { Dict } from '#/util/belt';
-	import type { Tag } from '#/meta/tag';
+	import type {Tags} from '#/store/tags';
+	import {onDestroy} from 'svelte';
+	import type {Dict} from '#/meta/belt';
+	import type {Tag} from '#/meta/tag';
 
 	/**
 	 * Path to the resource to fetch tags for
@@ -130,17 +130,16 @@
 			delay: xt_delay,
 			duration: xt_duration,
 			easing: f_easing,
-			css: xt =>
-				'--delete-display: none;' +
-				'overflow: hidden;' +
-				`opacity: ${Math.min(xt * 20, 1) * x_opacity};` +
-				`width: ${xt * x_width}px;` +
-				`padding-left: ${xt * x_padding_left}px;` +
-				`padding-right: ${xt * x_padding_right}px;` +
-				`margin-left: ${xt * x_margin_left}px;` +
-				`margin-right: ${xt * x_margin_right}px;` +
-				`border-left-width: ${xt * x_border_left_width}px;` +
-				`border-right-width: ${xt * x_border_right_width}px;`
+			css: xt => '--delete-display: none;'
+				+ 'overflow: hidden;'
+				+ `opacity: ${Math.min(xt * 20, 1) * x_opacity};`
+				+ `width: ${xt * x_width}px;`
+				+ `padding-left: ${xt * x_padding_left}px;`
+				+ `padding-right: ${xt * x_padding_right}px;`
+				+ `margin-left: ${xt * x_margin_left}px;`
+				+ `margin-right: ${xt * x_margin_right}px;`
+				+ `border-left-width: ${xt * x_border_left_width}px;`
+				+ `border-right-width: ${xt * x_border_right_width}px;`,
 		};
 	}
 </script>

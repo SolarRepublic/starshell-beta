@@ -1,5 +1,5 @@
 import { ode } from "#/util/belt";
-import type { ConnectionChannel, ConnectionHandle } from "./connection";
+import type { ConnectionChannel, ConnectionHandle, ConnectionModule } from "../connection";
 
 const XT_DEBOUNCE = 250;
 
@@ -12,10 +12,10 @@ interface StorageFields {
 	b_locked: boolean;
 }
 
-const hm_fields = new WeakMap<StorageModule, StorageFields>();
+const hm_fields = new WeakMap<StorageModuleImpl, StorageFields>();
 
 
-function StorageModule$_push(this: StorageModule, g_fields: StorageFields) {
+function StorageModule$_push(this: StorageModuleImpl, g_fields: StorageFields) {
 	// debounce
 	clearTimeout(g_fields.i_debounce);
 	setTimeout(async() => {
@@ -27,7 +27,7 @@ function StorageModule$_push(this: StorageModule, g_fields: StorageFields) {
 }
 
 
-async function StorageModule$_pull(this: StorageModule, g_fields: StorageFields) {
+async function StorageModule$_pull(this: StorageModuleImpl, g_fields: StorageFields) {
 	// synchronize with extension
 	const h_store = await g_fields.k_channel.downloadStore();
 
@@ -39,7 +39,6 @@ async function StorageModule$_pull(this: StorageModule, g_fields: StorageFields)
 	// create cache map
 	g_fields.hm_cache = new Map(ode(h_store));
 }
-
 
 /**
  * The storage module allows apps to synchronously get and put arbitrary key/value strings that will be encrypted at rest
@@ -66,10 +65,10 @@ async function StorageModule$_pull(this: StorageModule, g_fields: StorageFields)
  * conditions. If you expect to have this problem, I suggest using
  * {@link https://developer.mozilla.org/en-US/docs/Web/API/BroadcastChannel BroadcastChannel} or some write lock library.
  */
-export class StorageModule implements Storage, Map<string, string> {
-	static create(k_handle: ConnectionHandle, k_channel: ConnectionChannel) {
+class StorageModuleImpl implements Storage, Map<string, string> {
+	static create(k_handle: ConnectionHandle, k_channel: ConnectionChannel): StorageModuleImpl {
 		// create instance
-		const k_storage = new StorageModule(k_handle, k_channel);
+		const k_storage = new StorageModuleImpl(k_handle, k_channel);
 
 		// download store
 		StorageModule$_pull.call(this, hm_fields.get(k_storage));
@@ -151,7 +150,7 @@ export class StorageModule implements Storage, Map<string, string> {
 	 * @returns string containing the value of the key. If the key does not exist, `null` is returned.
 	 */
 	getItem(si_key: string): string | null {
-		 return hm_fields.get(this)!.hm_cache.get(si_key) ?? null;
+		return hm_fields.get(this)!.hm_cache.get(si_key) ?? null;
 	}
 
 
@@ -200,7 +199,7 @@ export class StorageModule implements Storage, Map<string, string> {
 	 */
 	clear(): void {
 		const g_fields = hm_fields.get(this)!;
-	
+
 		// clear all values in the local cached map
 		g_fields.hm_cache.clear();
 
@@ -218,6 +217,18 @@ export class StorageModule implements Storage, Map<string, string> {
 	 */
 	has(si_key: string): boolean {
 		return null !== this.get(si_key);
+	}
+
+
+	/**
+	 * Gets the value associated with the given key, or null if the element does not exist.
+	 * 
+	 * Implements {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map/get Map#get()}.
+	 * @param si_key the key of the element
+	 * @returns the value (always a string) of the specified element if it exists, `undefined` otherwise
+	 */
+	get(si_key: string): string | undefined {
+		return hm_fields.get(this)!.hm_cache.get(si_key) ?? void 0;
 	}
 
 
@@ -243,7 +254,7 @@ export class StorageModule implements Storage, Map<string, string> {
 	 */
 	delete(si_key: string): boolean {
 		const g_fields = hm_fields.get(this)!;
-	
+
 		// delete the value from the local cached map
 		const b_deleted = g_fields.hm_cache.delete(si_key);
 
@@ -308,19 +319,10 @@ export class StorageModule implements Storage, Map<string, string> {
 	// }
 }
 
-
-export interface StorageModule {
+// merge interface so the prototype can be extended
+interface StorageModuleImpl {
 	/**
-	 * Gets the value associated with the given key, or null if the element does not exist.
-	 * Implements {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map/get Map#get()}.
-	 * @param si_key the key of the element
-	 * @returns the value (always a string) of the specified element if it exists, `null` otherwise
-	 */
-	get(si_key: string): string;
-
-
-	/**
-	 * Alias of {@link StorageModule.set()}.
+	 * Alias of {@link StorageModuleImpl.set()}.
 	 * @param si_key the key of the element. must be a string
 	 * @param s_value the value of the new element to set. must be a string
 	 */
@@ -333,6 +335,11 @@ export interface StorageModule {
 	[Symbol.iterator](): IterableIterator<[string, string]>;
 }
 
-StorageModule.prototype.put = StorageModule.prototype.set;
-StorageModule.prototype[Symbol.iterator] = StorageModule.prototype.entries;
+/* eslint-disable @typescript-eslint/unbound-method */
+StorageModuleImpl.prototype.put = StorageModuleImpl.prototype.set;
+StorageModuleImpl.prototype[Symbol.iterator] = StorageModuleImpl.prototype.entries;
+/* eslint-enable */
 
+// export module with type assertion to `ConnectionModule`
+export const StorageModule: ConnectionModule<StorageModuleImpl> = StorageModuleImpl;
+export type StorageModule = StorageModuleImpl;

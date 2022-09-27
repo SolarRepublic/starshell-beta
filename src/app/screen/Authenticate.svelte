@@ -1,26 +1,23 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import {getContext, onDestroy} from 'svelte';
 
-	import Log, { Logger } from '#/app/ui/Log.svelte';
+	import Log, {Logger} from '#/app/ui/Log.svelte';
 
-	import { Vault } from '#/crypto/vault';
-	import type { Completed } from '#/entry/flow';
+	import {Vault} from '#/crypto/vault';
+	import type {Completed} from '#/entry/flow';
 
 	import {
-		ATU8_DUMMY_PHRASE,
-		ATU8_DUMMY_VECTOR,
 		login,
-		CorruptedVaultError,
-		InvalidPassphraseError,
-		RecoverableVaultError,
-		UnregisteredError,
 	} from '#/share/auth';
 
-	import { Screen, type Page } from './_screens';
+
+	import {Screen} from './_screens';
 	import ActionsLine from '#/app/ui/ActionsLine.svelte';
 	import Field from '#/app/ui/Field.svelte';
-	import { slide } from 'svelte/transition';
-	import { B_MOBILE } from '#/share/constants';
+	import {slide} from 'svelte/transition';
+	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, B_MOBILE, B_WITHIN_IFRAME} from '#/share/constants';
+	import {CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from '#/share/errors';
+	import { global_receive } from '#/script/msg-global';
 
 	// will be set if part of flow
 	const completed = getContext<Completed | undefined>('completed');
@@ -34,6 +31,39 @@
 	// busy attempting unlock
 	let b_busy = false;
 
+	// listen for login events
+	const f_relase = global_receive({
+		login() {
+			// from external sources
+			if(!b_busy) {
+				// job is done
+				login_success();
+			}
+		},
+	});
+
+	onDestroy(() => {
+		// release global listener
+		f_relase();
+	});
+
+	// success
+	function login_success() {
+		// release global listener
+		f_relase();
+
+		// escape the popup modal on firefox for android
+		if(B_MOBILE && 'moz-extension:' === globalThis.location.protocol && !B_WITHIN_IFRAME) {
+			chrome.tabs?.create({
+				url: 'popup.html?within=tab',
+			}, () => {
+				globalThis.close();
+			});
+		}
+		else if(completed) {
+			completed(true);
+		}
+	}
 
 	let xt_start = 0;
 	let k_logger = new Logger();
@@ -63,7 +93,7 @@
 			const xt_finish_est = window.performance.now();
 
 			const xt_elapsed = xt_finish_est - xt_start_est;
-			const xt_estimate = (2 * (xt_elapsed * 50));
+			const xt_estimate = 2 * (xt_elapsed * 50);
 			log(`About ${(xt_estimate / 1000).toFixed(1)} seconds`);
 		}
 
@@ -97,20 +127,7 @@
 			return exit();
 		}
 
-		// success
-		{
-			// escape the popup modal on firefox for android
-			if(B_MOBILE && 'moz-extension:' === globalThis.location.protocol) {
-				chrome.tabs.create({
-					url: 'popup.html',
-				}, () => {
-					globalThis.close();
-				});
-			}
-			else {
-				if(completed) completed(true);
-			}
-		}
+		login_success();
 
 		// exit
 		return exit();

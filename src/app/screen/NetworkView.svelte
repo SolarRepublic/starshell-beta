@@ -21,7 +21,7 @@ import Gap from '../ui/Gap.svelte';
 
 	$: p_chain = g_network?.chain;
 
-	let g_chain: Chain['interface'];
+	let g_chain: ChainInterface;
 	$: if(p_chain) {
 		void Chains.at(p_chain as ChainPath).then(g => g_chain = g!);
 	}
@@ -94,7 +94,7 @@ import Gap from '../ui/Gap.svelte';
 		>
 			<svelte:fragment slot="subtitle">
 				<span class="font-family_mono">
-					{g_chain.name} ({g_chain.id})
+					{g_chain.name} ({g_chain.reference})
 				</span>
 			</svelte:fragment>address
 		</Portrait>

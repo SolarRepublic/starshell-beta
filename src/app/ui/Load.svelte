@@ -3,8 +3,10 @@
 </script>
 
 <script lang="ts">
-	import {fade} from 'svelte/transition';
-	import {forever as f_forever, Promisable} from '#/util/belt';
+	import {
+		forever as f_forever,
+		type Promisable,
+	} from '#/util/belt';
 
 	export let forever = false;
 

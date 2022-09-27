@@ -1,13 +1,16 @@
 
 import RuntimeKey from './runtime-key';
 
-import * as data from '#/util/data';
+import {sha256, zero_out} from '#/util/data';
 
 import {
 	instantiateSecp256k1Bytes,
 	Secp256k1,
 } from '@solar-republic/wasm-secp256k1';
 
+function F_DESTROYED(): never {
+	throw new Error('The Secp256k1 instance being called has been destroyed');
+}
 
 
 // shared secp256k1 instance
@@ -36,7 +39,14 @@ async function init_secp256k1(): Promise<Secp256k1> {
 	const ab_wasm_bytes = await (await fetch('/bin/secp256k1.wasm')).arrayBuffer();
 
 	// initialize
-	y_secp256k1 = await instantiateSecp256k1Bytes(ab_wasm_bytes, crypto.getRandomValues(new Uint8Array(32)));
+	try {
+		y_secp256k1 = await instantiateSecp256k1Bytes(ab_wasm_bytes, crypto.getRandomValues(new Uint8Array(32)));
+	}
+	catch(e_instantiate) {
+		debugger;
+		console.error(`Failed to instantiate WASM module for secp256k1;\n${e_instantiate.stack || e_instantiate}`);
+		throw e_instantiate;
+	}
 
 	// copy list
 	const a_execs = a_wait_secp256k1.slice();
@@ -104,7 +114,7 @@ export class Secp256k1Key {
 		if(!y_secp256k1) await init_secp256k1();
 
 		// compute message digest
-		const atu8_digest = await data.sha256(atu8_message);
+		const atu8_digest = await sha256(atu8_message);
 
 		// verify signature
 		return y_secp256k1!.verifySignatureCompactLowS(atu8_signature, atu8_pk, atu8_digest);
@@ -157,7 +167,8 @@ export class Secp256k1Key {
 
 
 	// whether the instance has been initialized
-	_b_init = false;
+	protected _b_init = false;
+	protected _b_destroyed = false;
 
 	/**
 	 * Not for public use. Instead, use static method {@linkcode Secp256k1Key.import} or
@@ -216,6 +227,40 @@ export class Secp256k1Key {
 
 
 	/**
+	 * Whether or not this key has been destroyed
+	 */
+	get isDestroyed(): boolean {
+		return this._b_destroyed;
+	}
+
+
+	/**
+	 * Destroys all key material
+	 */
+	destroy(): void {
+		const {
+			kk_sk,
+			atu8_pk33,
+			atu8_pk65,
+		} = hm_privates.get(this)!;
+
+		// wipe all key material
+		kk_sk.destroy();
+		zero_out(atu8_pk33);
+		zero_out(atu8_pk65);
+
+		// delete private refs
+		hm_privates.delete(this);
+
+		// mark as destroyed
+		this._b_destroyed = true;
+
+		// safe-guard against mistakes
+		this.import = this.exportPublicKey = this.add = this.ecdh = this.sign = this.verify = F_DESTROYED;
+	}
+
+
+	/**
 	 * Exports the public key iff instance was constructed with exportable set to `true`.
 	 * Otherwise throws an error.
 	 * @param b_uncompressed - pass `true` to return the uncompressed 65-byte key, otherwise returns the compressed 33-byte key by default.
@@ -250,7 +295,7 @@ export class Secp256k1Key {
 	 */
 	async sign(atu8_message: Uint8Array, b_extra_entropy=false): Promise<Uint8Array> {
 		// hash message
-		const atu8_digest = await data.sha256(atu8_message);
+		const atu8_digest = await sha256(atu8_message);
 
 		// destructure private field(s)
 		const {
@@ -274,7 +319,7 @@ export class Secp256k1Key {
 	 */
 	async verify(atu8_signature: Uint8Array, atu8_message: Uint8Array): Promise<boolean> {
 		// compute message digest
-		const atu8_digest = await data.sha256(atu8_message);
+		const atu8_digest = await sha256(atu8_message);
 
 		// destructure private field
 		const {

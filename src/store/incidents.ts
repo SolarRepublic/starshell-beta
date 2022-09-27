@@ -4,18 +4,19 @@ import {
 	WritableStoreMap,
 } from './_base';
 
-import { SI_STORE_INCIDENTS, SI_STORE_HISTORIES } from '#/share/constants';
-import type { AccountPath } from '#/meta/account';
-import type { Bech32, ChainPath } from '#/meta/chain';
-import type { Incident, IncidentType, IncidentPath } from '#/meta/incident';
-import { buffer_to_text, sha256_sync, text_to_buffer } from '#/util/data';
-import type { SyncInfo } from '#/meta/store';
-import { JsonObject, ode } from '#/util/belt';
+import {SI_STORE_INCIDENTS, SI_STORE_HISTORIES} from '#/share/constants';
+import type {AccountPath} from '#/meta/account';
+import type {Bech32, ChainPath} from '#/meta/chain';
+import type {Incident, IncidentType, IncidentPath} from '#/meta/incident';
+import {buffer_to_base64, buffer_to_base93, buffer_to_text, sha256_sync, text_to_buffer} from '#/util/data';
+import type {JsonObject} from '#/meta/belt';
+import {ode} from '#/util/belt';
+import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 
 export interface IncidentFilterConfig {
 	type?: IncidentType;
 	account?: AccountPath;
-	owner?: Bech32.String;
+	owner?: Bech32;
 }
 
 type IncidentDict = Record<IncidentPath, Incident.Struct>;
@@ -33,8 +34,8 @@ class HistoriesI extends WritableStore<typeof SI_STORE_HISTORIES> {
 		return Histories.open(ks => ks.updateSyncInfo(p_chain, si_listen, s_height));
 	}
 
-	static syncHeight(p_chain: ChainPath, si_listen: string): Promise<bigint> {
-		return Histories.open(ks => ks.syncHeight(p_chain, si_listen));
+	static async syncHeight(p_chain: ChainPath, si_listen: string): Promise<bigint> {
+		return (await Histories.read()).syncHeight(p_chain, si_listen);
 	}
 
 	async updateSyncInfo(p_chain: ChainPath, si_listen: string, s_height: string): Promise<void> {
@@ -139,6 +140,17 @@ export const Histories = create_store_class({
 	class: HistoriesI,
 });
 
+type IncidentDescriptor<
+	si_type extends IncidentType=IncidentType,
+> = {
+	[si_each in IncidentType]: Merge<
+		Partial<
+			Pick<Incident.Struct<si_each>, 'id' | 'time'>
+		>,
+		Omit<Incident.Struct<si_each>, 'id' | 'time'>
+	>
+}[si_type];
+
 export const Incidents = create_store_class({
 	store: SI_STORE_INCIDENTS,
 	extension: 'map',
@@ -163,18 +175,16 @@ export const Incidents = create_store_class({
 			return ks_incidents.filter(a_incidents, gc_filter);
 		}
 
-		static record(si_id: string | null, g_incident: Partial<Pick<Incident.Struct, 'id'>> & Omit<Incident.Struct, 'id'>): Promise<IncidentPath> {
-			if(!si_id) {
+		static record(g_incident: IncidentDescriptor): Promise<IncidentPath> {
+			if(!g_incident.id) {
 				delete g_incident.id;
 				const atu8_hash = sha256_sync(text_to_buffer(JSON.stringify(g_incident)));
-				si_id = `${g_incident.type}:${buffer_to_text(atu8_hash)}`;
-				g_incident.id = si_id;
-			}
-			else if(!g_incident.id) {
-				g_incident.id = si_id;
+				g_incident.id = `${g_incident.type}:${buffer_to_base64(atu8_hash.subarray(0, 9)).replace(/\//g, '-')}`;
 			}
 
-			return Incidents.open(ks => ks.record(si_id!, g_incident as Incident.Struct));
+			if(!g_incident.time) g_incident.time = Date.now();
+
+			return Incidents.open(ks => ks.record(g_incident as Incident.Struct));
 		}
 
 		static async mutateData(p_incident: IncidentPath, g_mutate: JsonObject): Promise<void> {
@@ -189,12 +199,12 @@ export const Incidents = create_store_class({
 		// 	return await Incidents.open(ks => ks.insert(g_event));
 		// }
 
-		async record(si_id: string, g_incident: Incident.Struct, ks_histories?: HistoriesI): Promise<IncidentPath> {
+		async record(g_incident: Incident.Struct, ks_histories?: HistoriesI): Promise<IncidentPath> {
 			// ref cache
 			const h_incidents = this._w_cache as Record<IncidentPath, typeof g_incident>;
 
 			// construct incident path
-			const p_incident = IncidentsI.pathFor(g_incident.type, si_id);
+			const p_incident = IncidentsI.pathFrom(g_incident);
 
 			// overwrite cache entry
 			h_incidents[p_incident] = g_incident;
@@ -229,7 +239,7 @@ export const Incidents = create_store_class({
 		}
 
 		async mutateData(p_incident: IncidentPath, g_mutate: JsonObject): Promise<void> {
-			const g_data = this._w_cache[p_incident]!.data!;
+			const g_data = this._w_cache[p_incident]!.data;
 
 			for(const [si_key, w_value] of ode(g_mutate)) {
 				const w_existing = g_data[si_key];

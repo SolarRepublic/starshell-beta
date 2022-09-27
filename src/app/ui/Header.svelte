@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { createEventDispatcher, getContext } from 'svelte';
+	import {createEventDispatcher, getContext} from 'svelte';
 
 	import StarShellLogo from './StarShellLogo.svelte';
 	import OverlaySelect from './OverlaySelect.svelte';
@@ -10,27 +10,39 @@
 	import SX_ICON_ARROW_LEFT from '#/icon/arrow-left.svg?raw';
 	import SX_ICON_SEARCH from '#/icon/search.svg?raw';
 	import SX_CHECKED from '#/icon/checked-circle.svg?raw';
+	import SX_ARROW_DOWN from '#/icon/expand_more.svg?raw';
+	import SX_CONFIRMATION from '#/icon/confirmation.svg?raw';
+	import SX_VISIBILITY from '#/icon/visibility.svg?raw';
 	
 	import {
 		yw_account,
+		yw_account_editted,
 		yw_account_ref,
 		yw_cancel_search,
 		yw_chain,
 		yw_chain_ref,
 		yw_menu_vendor,
+		yw_navigator,
 		yw_overlay_account,
+		yw_overlay_app,
 		yw_overlay_network,
 		yw_search,
 		yw_thread,
 	} from '../mem';
 
-	import type {
-		Page,
-	} from '##/screen/_screens';
-	import { Chains } from '#/store/chains';
-	import { Accounts } from '#/store/accounts';
-	import { qs } from '#/util/dom';
-	
+	import {Chains} from '#/store/chains';
+	import {Accounts} from '#/store/accounts';
+	import {qs} from '#/util/dom';
+	import {load_page_context} from '##/svelte';
+	import { keplr_polyfill_script_add_matches, set_keplr_compatibility_mode } from '#/script/scripts';
+	import { Apps } from '#/store/apps';
+	import { AppApiMode } from '#/meta/app';
+	import { Secrets } from '#/store/secrets';
+    import { register } from '#/share/auth';
+    import AppView from '../screen/AppView.svelte';
+    import { ThreadId } from '../def';
+    import { timeout } from '#/util/belt';
+
 	/**
 	 * If `true`, includes a back button to pop this page from the stack
 	 */
@@ -61,6 +73,8 @@
 	export let network = false;
 	const b_network = network;
 
+	// export let g_app_under: AppInterface | null = null;
+
 	/**
 	 * If `true`, includes a search input box
 	 */
@@ -88,21 +102,41 @@
 	// event dispatcher for parent component
 	const dispatch = createEventDispatcher();
 
-	// dimension of the account and network icons
-	const overlay_pfp_props = (b_mirror=false) => ({
+	// dimension of the network icon
+	const overlay_pfp_network_props = (s_side: 'left' | 'right') => ({
 		dim: 21,
 		bg: 'satin',
 		genStyle: 'font-size:21px; outline:none;',
 		rootStyle: `
 			padding: 5px 6px;
 			border: 2px solid var(--theme-color-border);
-			border-radius: ${b_mirror? '0 4px 4px 0': '4px 0 0 4px'};
+			border-radius: ${'left' === s_side? '4px 0 0 4px': '0 4px 4px 0'};
+		`.replace(/\s+/g, ' '),
+	}) as const;
+
+	// dimension of the account icon
+	const overlay_pfp_account_props = (b_middle: boolean) => ({
+		dim: 32,
+		bg: 'satin',
+		classes: 'fill',
+		genStyle: 'font-size:21px; outline:none;',
+		rootStyle: `
+			padding: 0;
+			border: 2px solid var(--theme-color-border);
+			border-radius: ${b_middle? '0': '4px 0 0 4px'};
 		`.replace(/\s+/g, ' '),
 	}) as const;
 
 	// get page from context
-	const k_page = getContext<Page>('page');
+	const {
+		k_page,
+		g_cause,
+	} = load_page_context();
 
+	// deduce app path
+	const p_app = g_cause?.app? Apps.pathFrom(g_cause.app): null;
+
+	console.log({g_cause});
 	// $: p_account_icon = b_account? $yw_account?.def?.iconRef: null;
 
 
@@ -229,15 +263,42 @@
 	// 		if(ThreadId.SEARCH !== $yw_thread_id) {
 	// 			dm_header.style.visibility = 'hidden';
 	// 			// const dm_clone = dm_header.cloneNode(true);
-				
+	
 	// 			$yw_thread_id = ThreadId.SEARCH;
 	// 		}
 	// 	} 
 	// }
 
+	async function enable_keplr_api() {
+		const g_app = g_cause!.app!;
+
+		// set api mode
+		g_app.api = AppApiMode.KEPLR;
+
+		// save app def to storage
+		await Apps.add(g_app);
+
+		// ensure polyfill is enabled for this app
+		await keplr_polyfill_script_add_matches([Apps.scriptMatchPatternFrom(g_app)]);
+
+		// reload the page
+		await chrome.tabs.reload(g_cause!.tab.id!);
+
+		// close the popup
+		window.close();
+	}
+
+	$: s_cluster_mode = [
+		g_cause?.app? 'app': '',
+		b_account? 'account': '',
+		b_network? 'network': '',
+	].filter(s => s).join('-');
+
 </script>
 
 <style lang="less">
+	@import './_base.less';
+
 	.header {
 		display: flex;
 		flex-direction: column;
@@ -369,6 +430,10 @@
 				// 		background-color: var(--theme-color-primary);
 				// 	}
 				// }
+
+				// :global(.global_cluster-mode_app) {
+
+				// }
 			}
 		}
 	}
@@ -395,9 +460,22 @@
 			}
 		}
 	}
+
+	:global(.global_header-overlay-overview) {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 13px;
+
+		.session-log {
+			>.title {
+				.font(tiny);
+			}
+		}
+	}
 </style>
 
-<div class="header" bind:this={dm_header}>  <!-- class:blur={$yw_blur} -->
+<div class="header no-blur" bind:this={dm_header}>  <!-- class:blur={$yw_blur} -->
 	<!-- top row -->
 	<div class="top">
 		<!-- leftmost action/button -->
@@ -434,52 +512,128 @@
 		<!-- all top actions that appear on the right side -->
 		<span class="right" class:heightless={!b_network && b_exits}>
 			<!-- account/network switch cluster -->
-			<span class="cluster">
-				<!-- network switcher -->
-				{#if b_network}
-					<span class="network" on:click={(d_event) => {
+			<span class={`cluster global_cluster-mode_${s_cluster_mode}`}>
+				<!-- current app -->
+				{#if (b_network || b_account) && g_cause?.app}
+					<span class="app" on:click={(d_event) => {
 						d_event.stopPropagation();
-						$yw_overlay_network = !$yw_overlay_network;
+						$yw_overlay_app = !$yw_overlay_app;
 					}}>
-						{#key $yw_chain}
-							<PfpDisplay
-								resource={$yw_chain}
-								{...overlay_pfp_props(false)}
-							/>
-						{/key}
+						<PfpDisplay
+							resource={g_cause.app}
+							{...overlay_pfp_network_props('left')}
+						/>
 					</span>
 
-					{#if $yw_overlay_network}
+					{#if $yw_overlay_app}
+						{@const s_app_status = g_cause.registered? 'connected': 'disconnected'}
+
 						<OverlaySelect
-							title='Switch Network'
-							bind:open={$yw_overlay_network}
+							title='Current App'
+							status={s_app_status}
+							bind:open={$yw_overlay_app}
 						>
 							<svelte:fragment slot="rows">
-								{#await Chains.read()}
-									...
-								{:then ks_chains} 
-									{#each ks_chains.entries() as [p_chain, g_chain]}
-										<Row
-											resource={g_chain}
-											detail='Default Provider'
-											on:click={() => {
-												$yw_chain_ref = p_chain;
-												$yw_overlay_network = false;
-											}}
-										>
-											<svelte:fragment slot="right">
-												{#if $yw_chain_ref === p_chain}
-													<span class="overlay-select icon" style="--icon-color: var(--theme-color-primary);">
-														{@html SX_CHECKED}
-													</span>
-												{/if}
-											</svelte:fragment>
-										</Row>
-									{/each}
-								{/await}
+								<Row
+									name={g_cause.app.host}
+									pfp={g_cause.app.pfp}
+									detail={g_cause.app.name}
+									on:click={async(d_event) => {
+										if(g_cause.registered) {
+											$yw_overlay_app = false;
+
+											// active apps thread
+											await $yw_navigator.activateThread(ThreadId.APPS);
+
+											// // reset thread
+											// $yw_navigator.activeThread.reset();
+
+											// await timeout(1e3);
+
+											// push app view
+											$yw_navigator.activePage.push({
+												creator: AppView,
+												props: {
+													app: g_cause.app,
+												},
+											});
+										}
+										else {
+											d_event.stopPropagation();
+										}
+									}}
+									rootStyle='margin-bottom:1em;'
+								>
+									<svelte:fragment slot="right">
+										{#if g_cause.registered}
+											<span class="overlay-select icon rotate_-90deg" style="--icon-color: var(--theme-color-primary);">
+												{@html SX_ARROW_DOWN}
+											</span>
+										{/if}
+									</svelte:fragment>
+<!-- 
+									<svelte:fragment slot="icon">
+										<PfpDisplay dim={32} resource={g_cause.app} />
+									</svelte:fragment> -->
+								</Row>
+
+								{#if !g_cause.registered}
+									<div style={`
+										display: flex;
+									`.replace(/\s+/g, ' ')}>
+										<button class="pill" on:click|stopPropagation={() => enable_keplr_api()}>
+											Enable Keplr API
+										</button>
+									</div>
+								{:else}
+									{#if p_app}
+										{#await Secrets.filter({
+											type: 'query_permit',
+											app: p_app,
+										}, {
+											type: 'query_permit',
+											outlets: [p_app],
+										}) then a_permits}
+											{@const nl_permits = a_permits.length}
+											<div class="global_header-overlay-overview permits">
+												<span class="global_svg-icon icon-diameter_16px">
+													{@html SX_CONFIRMATION}
+												</span>
+												<span class="title">
+													{nl_permits} query permit{1 === nl_permits? '': 's'} in use
+												</span>
+											</div>
+											<hr>
+										{/await}
+
+										{#await Secrets.filter({
+											type: 'viewing_key',
+											outlets: [p_app],
+										}) then a_keys}
+											{@const nl_keys = a_keys.length}
+											<div class="global_header-overlay-overview viewing-keys">
+												<span class="global_svg-icon icon-diameter_16px">
+													{@html SX_VISIBILITY}
+												</span>
+												<span class="title">
+													{nl_keys} viewing key{1 === nl_keys? '': 's'} shared with app
+												</span>
+											</div>
+											<hr>
+										{/await}
+									{/if}
+
+									<div class="session-log">
+<!-- 
+										<div class="title">
+											Session log
+										</div> -->
+									</div>
+								{/if}
 							</svelte:fragment>
 						</OverlaySelect>
 					{/if}
+
 				{/if}
 
 				<!-- account switcher -->
@@ -488,10 +642,11 @@
 						d_event.stopPropagation();
 						$yw_overlay_account = !$yw_overlay_account;
 					}}>
-						{#key $yw_account}
+						{#key $yw_account_editted || $yw_account}
 							<PfpDisplay
 								resource={$yw_account}
-								{...overlay_pfp_props(true)}
+								updates={$yw_account_editted}
+								{...overlay_pfp_account_props(!!g_cause?.app)}
 							/>
 						{/key}
 
@@ -563,6 +718,55 @@
 						</OverlaySelect>
 					{/if}
 				{/if}
+
+				<!-- network switcher -->
+				{#if b_network}
+					<span class="network" on:click={(d_event) => {
+						d_event.stopPropagation();
+						$yw_overlay_network = !$yw_overlay_network;
+					}}>
+						{#key $yw_chain}
+							<PfpDisplay
+								resource={$yw_chain}
+								{...overlay_pfp_network_props('right')}
+							/>
+						{/key}
+					</span>
+
+					{#if $yw_overlay_network}
+						<OverlaySelect
+							title='Switch Network'
+							bind:open={$yw_overlay_network}
+						>
+							<svelte:fragment slot="rows">
+								{#await Chains.read()}
+									...
+								{:then ks_chains} 
+									{#each ks_chains.entries() as [p_chain, g_chain]}
+										<Row
+											resource={g_chain}
+											detail='Default Provider'
+											on:click={() => {
+												$yw_chain_ref = p_chain;
+												$yw_overlay_network = false;
+											}}
+										>
+											<svelte:fragment slot="right">
+												{#if $yw_chain_ref === p_chain}
+													<span class="overlay-select icon" style="--icon-color: var(--theme-color-primary);">
+														{@html SX_CHECKED}
+													</span>
+												{/if}
+											</svelte:fragment>
+										</Row>
+									{/each}
+								{/await}
+							</svelte:fragment>
+						</OverlaySelect>
+					{/if}
+				{/if}
+
+
 			</span>
 
 			<!-- exit button -->

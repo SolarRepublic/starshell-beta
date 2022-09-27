@@ -7,6 +7,7 @@ import crypto from 'crypto';
 // some information about the package itself will be read from the package.json file
 import G_PACKAGE_JSON from './package.json';
 
+
 // Vite is the build system used to compile the output packages
 // <https://vitejs.dev/>
 import {
@@ -107,13 +108,13 @@ export default defineConfig((gc_run) => {
 
 	// sensitive build values are stored in environment variables
 	const {
-		PLATFORM: SI_PLATFORM='chrome' as 'chrome' | 'firefox' | 'firefox-android' | 'safari',
+		ENGINE: SI_ENGINE='chrome' as 'chrome' | 'firefox' | 'safari' | 'ios',
 	} = {
 		...loadEnv(si_mode, process.cwd(), ''),
 		...process.env,
 	};
 
-	const SI_BROWSER = SI_PLATFORM.replace(/\-.+$/, '');
+	const SI_BROWSER = SI_ENGINE.replace(/\-.+$/, '');
 
 	// build media dict
 	const H_MEDIA_BUILTINT = builtin_media();
@@ -126,7 +127,7 @@ export default defineConfig((gc_run) => {
 			__H_MEDIA_BUILTIN: JSON.stringify(H_MEDIA_BUILTINT),
 			__H_MEDIA_LOOKUP: JSON.stringify(H_MEDIA_LOOKUP),
 			__SI_VERSION: JSON.stringify(G_PACKAGE_JSON.version),
-			__SI_PLATFORM: JSON.stringify(SI_PLATFORM),
+			__SI_ENGINE: JSON.stringify(SI_ENGINE),
 		},
 
 		plugins: [
@@ -178,10 +179,10 @@ export default defineConfig((gc_run) => {
 		},
 
 		build: {
-			sourcemap: 'inline',
+			sourcemap: 'safari' === SI_ENGINE? false: 'inline',
 			minify: 'production' === si_mode,
 			emptyOutDir: true,
-			outDir: `dist/${SI_PLATFORM}`,
+			outDir: `dist/${SI_ENGINE}`,
 			target: 'es2020',
 
 			rollupOptions: {

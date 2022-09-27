@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { yw_account_ref, yw_chain} from '##/mem';
+	import {yw_account_ref} from '##/mem';
 	import type {Account, AccountPath} from '#/meta/account';
-	import { Accounts } from '#/store/accounts';
-	import { ode, oderac } from '#/util/belt';
+	import {Accounts} from '#/store/accounts';
+	import {oderac} from '#/util/belt';
 
 
-	import StarSelect, { SelectOption } from './StarSelect.svelte';
+	import StarSelect, {type SelectOption} from './StarSelect.svelte';
 
 	export let accountRef: AccountPath = $yw_account_ref;
 	// const p_account = accountRef;

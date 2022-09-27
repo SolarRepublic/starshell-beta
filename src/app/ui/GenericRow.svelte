@@ -1,21 +1,21 @@
 <script lang="ts">	
 	import Row from './Row.svelte';
 
-	import { Icon } from "#/objects/icon";
-	import type { Hash } from "#/util/types";
-	import Pfp from "./Pfp.svelte";
-	import { push_ref, push_screen, yw_cancel_search, yw_search } from "#/app";
-	import AccountView from "#/screen/AccountView.svelte";
-	import type { Account } from "#/objects/account";
-	import ChainView from "#/screen/ChainView.svelte";
-	import ContactView from "#/screen/ContactView.svelte";
-	import type { Chain } from "#/objects/chain";
-	import NetworkEdit from "#/screen/NetworkEdit.svelte";
-	import NftView from "#/screen/NftView.svelte";
-	import TokenHoldingView from "#/screen/TokenHoldingView.svelte";
-	import type { Holding } from "#/objects/holding";
-	import { ode } from "#/util/belt";
-	import type { WisprUri } from "#/state/path";
+	import {Icon} from '#/objects/icon';
+	import type {Hash} from '#/meta/types';
+	import Pfp from './Pfp.svelte';
+	import {push_ref, push_screen, yw_cancel_search, yw_search} from '#/app';
+	import AccountView from '#/screen/AccountView.svelte';
+	import type {Account} from '#/objects/account';
+	import ChainView from '#/screen/ChainView.svelte';
+	import ContactView from '#/screen/ContactView.svelte';
+	import type {Chain} from '#/objects/chain';
+	import NetworkEdit from '#/screen/NetworkEdit.svelte';
+	import NftView from '#/screen/NftView.svelte';
+	import TokenHoldingView from '#/screen/TokenHoldingView.svelte';
+	import type {Holding} from '#/objects/holding';
+	import {ode} from '#/util/belt';
+	import type {WisprUri} from '#/state/path';
 
 
 	export let item: SearchItem;
@@ -122,6 +122,7 @@
 			if(!s_name && gd_thing) {
 				s_name = gd_thing.id;
 			}
+	
 			break;
 		}
 	}

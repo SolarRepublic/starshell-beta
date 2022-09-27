@@ -5,7 +5,7 @@
 		tick,
 	} from 'svelte';
 
-	import type { PlainObject } from '#/meta/belt';
+	import type {PlainObject} from '#/meta/belt';
 	import {
 		ode,
 		oderom,
@@ -23,17 +23,17 @@
 
 	import BlankSvelte from '##/screen/Blank.svelte';
 
-	import type { Page, PageConfig } from '##/nav/page';
-	import type { PopConfig, Thread } from '##/nav/thread';
-	import { Navigator, NavigatorConfig } from '##/nav/navigator';
+	import type {Page, PageConfig} from '##/nav/page';
+	import type {PopConfig, Thread} from '##/nav/thread';
+	import {Navigator, type NavigatorConfig} from '##/nav/navigator';
 
-	import { H_THREADS } from '##/def';
-	import { yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_nav_visible, yw_network, yw_network_active, yw_network_ref, yw_page, yw_thread } from '##/mem';
-	import { Chains } from '#/store/chains';
-	import { Accounts } from '#/store/accounts';
-	import { once_store_updates } from '../svelte';
-	import { Networks } from '#/store/networks';
-	import { Vault } from '#/crypto/vault';
+	import {H_THREADS} from '##/def';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_nav_visible, yw_network, yw_network_active, yw_network_ref, yw_page, yw_thread} from '##/mem';
+	import {Chains} from '#/store/chains';
+	import {Accounts} from '#/store/accounts';
+	import {once_store_updates} from '../svelte';
+	import {Networks} from '#/store/networks';
+	import {Vault} from '#/crypto/vault';
 
 	export let page: PageConfig;
 	const gc_page = page;
@@ -52,23 +52,77 @@
 
 	async function slide(dm_slide: HTMLElement, b_in=false): Promise<void> {
 		// smoother, allow for previous mods to make element visible
-		await timeout(0);
+		await timeout(2);
 
 		// go async
 		return new Promise((fk_resolve) => {
-			// wait for transition to complete
-			dm_slide.addEventListener('transitionend', function transition_end(d_event) {
-				if('transform' === d_event.propertyName) {
-					// change class
-					dm_slide.classList.add('slid');
+			function finalize() {
+				// change class
+				dm_slide.classList.add('slid');
 
-					fk_resolve();
-				}
-			});
+				// resolve promise
+				fk_resolve();
+			}
+
+			// make sure transition runs first
+			function transition_run(d_event) {
+				// not the intended property
+				if('transform' !== d_event.propertyName) return;
+
+				// wait for transition to complete
+				dm_slide.addEventListener('transitionend', function transition_end(d_event) {
+					// not the intended property
+					if('transform' !== d_event.propertyName) return;
+				
+					// remove listener
+					dm_slide.removeEventListener('transitionend', transition_end);
+
+					// complete
+					finalize();
+				});
+
+				// remove listener
+				dm_slide.removeEventListener('transitionrun', transition_run);
+			}
+
+			// start listening
+			dm_slide.addEventListener('transitionrun', transition_run);
+
+			// timeout handler
+			setTimeout(() => {
+				// cancel listening for transition event
+				dm_slide.removeEventListener('transitionrun', transition_run);
+
+				// complete
+				finalize();
+			}, 300);
 
 			// apply transform
 			dm_slide.style.transform = `translateX(${b_in? '0px': 'var(--app-window-width)'})`;
 		});
+	}
+
+	async function initialize_mem() {
+		// allow these to fail in order to recover from disasters
+		try {
+			// set defaults
+			await Promise.all([
+				// default chain
+				$yw_chain || once_store_updates(yw_chain, true),
+				Chains.read().then(ks => $yw_chain_ref = ode(ks.raw)[0][0]),
+
+				// default network
+				$yw_network_active || once_store_updates(yw_network_active, true),
+				Networks.read().then(ks => $yw_network_ref = ode(ks.raw)[0][0]),
+
+				// default account
+				$yw_account || once_store_updates(yw_account, true),
+				Accounts.read().then(ks => $yw_account_ref = ode(ks.raw)[0][0]),
+			]);
+		}
+		catch(e_load_default) {
+			// console.log(e_load_default);
+		}
 	}
 
 	onMount(async() => {
@@ -113,19 +167,49 @@
 
 					// do not bypass animation
 					if(!gc_pop.bypassAnimation) {
-						// apply translation transform to src page
-						kp_src.dom.style.transform = `translateX(var(--app-window-width))`;
+						function finalize() {
+							// destroy component
+							kp_src.destroy();
+						}
 
-						kp_src.dom.addEventListener('transitionend', function transition_end(d_event) {
+						// ref dom
+						const dm_src = kp_src.dom;
+
+						// make sure transition runs first
+						function transition_run(d_event) {
 							// not the intended property
 							if('transform' !== d_event.propertyName) return;
 
-							// remove self
-							kp_src.dom.removeEventListener('transitionend', transition_end);
+							// wait for transition to complete
+							dm_src.addEventListener('transitionend', function transition_end(d_event) {
+								// not the intended property
+								if('transform' !== d_event.propertyName) return;
+							
+								// remove listener
+								dm_src.removeEventListener('transitionend', transition_end);
 
-							// destroy component
-							kp_src.destroy();
-						});
+								// complete
+								finalize();
+							});
+
+							// remove listener
+							dm_src.removeEventListener('transitionrun', transition_run);
+						}
+
+						// start listening
+						dm_src.addEventListener('transitionrun', transition_run);
+
+						// timeout handler if transition does not run within certain amount of time
+						setTimeout(() => {
+							// cancel listening for transition event
+							dm_src.removeEventListener('transitionrun', transition_run);
+
+							// complete
+							finalize();
+						}, 500);
+
+						// apply translation transform to src page
+						kp_src.dom.style.transform = `translateX(var(--app-window-width))`;
 					}
 					// bypass animation; destroy component
 					else {
@@ -149,29 +233,10 @@
 				},
 
 				async before_switch() {
-					// allow these to fail in order to recover from disasters
-					try {
-						// set defaults
-						await Promise.all([
-							// default chain
-							$yw_chain || once_store_updates(yw_chain, true),
-							Chains.read().then(ks => $yw_chain_ref = ode(ks.raw)[0][0]),
+					await initialize_mem();
 
-							// default network
-							$yw_network_active || once_store_updates(yw_network_active, true),
-							Networks.read().then(ks => $yw_network_ref = ode(ks.raw)[0][0]),
-
-							// default account
-							$yw_account || once_store_updates(yw_account, true),
-							Accounts.read().then(ks => $yw_account_ref = ode(ks.raw)[0][0]),
-						]);
-
-						// only needs to happen once
-						delete this.before_switch;
-					}
-					catch(e_load_default) {
-						// console.log(e_load_default);
-					}
+					// only needs to happen once
+					delete this.before_switch;
 				},
 
 				async after_switch(kt_src, kt_dst) {
@@ -191,24 +256,40 @@
 			},
 		};
 
+		// prep spawner to pass props and context to default page
+		const f_spawner = (h_props: PlainObject, h_context?: PlainObject) => ({
+			...gc_page,
+			props: {
+				...gc_page.props,
+				...h_props,
+			},
+			context: {
+				...gc_page.context,
+				...h_context,
+			},
+		});
+
 		// specific page given
 		if(b_flow) {
 			// override threads config
 			gc_navigator.threads = {
-				default: () => gc_page,
+				default: f_spawner,
 			};
+
+			// initialize mem
+			await initialize_mem();
 		}
 		// main system
 		else if(b_main) {
 			// override threads config
-			gc_navigator.threads = oderom(H_THREADS, (si_thread, dc_screen) => {
+			gc_navigator.threads = oderom(H_THREADS, (si_thread, dc_screen) =>
 				// // lookup router node corresponding to screen class
 				// const k_node = K_ROUTER.lookup_screen(dc_screen);
-
+	
 				// // ref path pattern
 				// const sx_pattern = k_node.path_pattern;
-
-				return {
+	
+				({
 					[si_thread]: (h_props: PlainObject) => ({
 						creator: dc_screen,
 						props: h_props,
@@ -216,21 +297,11 @@
 						// pattern: sx_pattern,
 						// screen: dc_screen,
 					}),
-				} as Record<typeof si_thread, (h_props: PlainObject) => PageConfig>;
-			});
+				} as Record<typeof si_thread, (h_props: PlainObject) => PageConfig>)
+			);
 
 			// set init
-			gc_navigator.threads.init = (h_props: PlainObject, h_context?: PlainObject) => ({
-				...gc_page,
-				props: {
-					...gc_page.props,
-					...h_props,
-				},
-				context: {
-					...gc_page.context,
-					...h_context,
-				},
-			});
+			gc_navigator.threads.init = f_spawner;
 		}
 
 		const k_navigator = new Navigator(gc_navigator);
@@ -489,7 +560,7 @@
 			>.thread {
 				:global(&) {
 					.full(absolute);
-					padding-left: calc(50vw - (var(--app-max-width) / 2));
+					// padding-left: calc(50vw - (var(--app-max-width) / 2));
 				}
 			}
 	
@@ -510,16 +581,17 @@
 	<ProgressSvelte />
 	
 	{#if b_main}
-		{#await Vault.getRootKey() then dk_root}
-			{#if dk_root}
+		{#await Vault.isUnlocked() then b_unlocked}
+			{#if b_unlocked}
 				<OverscrollSvelte />
 				<NavSvelte />
 				<SearchSvelte />
 				<VendorMenuSvelte />
 				<SideMenuSvelte />
-				<PopupSvelte />
-				<NotificationsSvelte />
 			{/if}
 		{/await}
 	{/if}
+
+	<PopupSvelte />
+	<NotificationsSvelte />
 </main>

@@ -2,10 +2,9 @@ import type {
 	HmacSHA256,
 } from 'crypto-js';
 
-import type * as Constants from './constants';
+// import type * as Constants from './constants';
 import type * as Utils from './utils';
 import type * as Flow from './msg-flow';
-import type { ChainDescriptor, ConnectionManifestV1, UnknownChainDescriptor } from './common';
 
 import type {
 	HostToRelay,
@@ -14,8 +13,8 @@ import type {
 	IcsToService,
 } from './messages';
 
-import type { Vocab } from '#/meta/vocab';
-import { uuid_v4 } from '#/util/dom';
+import type {Vocab} from '#/meta/vocab';
+import {uuid_v4} from '#/util/dom';
 
 interface ScriptParams {
 	session: string;
@@ -23,14 +22,17 @@ interface ScriptParams {
 
 import {
 	A_CHAIN_CATEGORIES,
-	A_CHAIN_FAMILIES,
-	R_CHAIN_ID,
+	A_CHAIN_NAMESPACES as A_CHAIN_NAMESPACES,
+	R_CHAIN_ID_VERSION,
 	R_CHAIN_NAME,
 } from '#/share/constants';
 
 import {
 	locate_script,
 } from './utils';
+import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
+import type {ChainInterface} from '#/meta/chain';
+import { HostConnection } from '#/provider/host-connection';
 
 /**
  * The host provides a connection between the page and the extension and allows messages from the relay frame to be
@@ -41,26 +43,15 @@ import {
 export default function({
 	session: sh_session,
 }: ScriptParams): void {
-	// eslint-disable-next-line @typescript-eslint/naming-convention
-	const hmacSHA256 = inline_require('crypto-js/hmac-sha256') as typeof HmacSHA256;
-
-	// const {
-	// 	A_CHAIN_CATEGORIES,
-	// 	A_CHAIN_FAMILIES,
-	// 	R_CHAIN_ID,
-	// 	R_CHAIN_NAME,
-	// } = inline_require('./constants.ts') as typeof Constants;
-
-	// const {
-	// 	locate_script,
-	// } = inline_require('./utils.ts') as typeof Utils;
-
-	// typed chrome runtime for sending messages
-	const d_runtime: Vocab.TypedRuntime<IcsToService.PublicVocab, IcsToService.PublicResponseVocab> = chrome.runtime;
-
 	// verbose
 	const debug = (s: string, ...a_args: any[]) => console.debug(`StarShell.ics-host: ${s}`, ...a_args);
 	debug(`Launched on <${location.href}>`);
+
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	const hmacSHA256 = inline_require('crypto-js/hmac-sha256') as typeof HmacSHA256;
+
+	// typed chrome runtime for sending messages
+	const d_runtime: Vocab.TypedRuntime<IcsToService.PublicVocab, IcsToService.PublicResponseVocab> = chrome.runtime;
 
 	/**
 	 * 
@@ -194,12 +185,12 @@ export default function({
 			const as_chains = new Set<string>();
 
 
-			interface ConnectionRequest extends UnknownChainDescriptor {
-				label: string;
-			}
+			// interface ConnectionRequest extends UnknownChainDescriptor {
+			// 	label: string;
+			// }
 
 			// 
-			const a_requests: ConnectionRequest[] = [];
+			const a_chain_requests: ChainInterface[] = [];
 
 			// chain answers
 			const a_answers: Vocab.MessageValue<HostToRelay.AuthedVocab, 'respondConnect'>['answer'][] = [];
@@ -212,14 +203,14 @@ export default function({
 
 				// validate descriptor structure
 				if('object' !== typeof g_chain || 'string' !== typeof g_chain.category
-					|| 'string' !== typeof g_chain.family || 'string' !== typeof g_chain.id) {
+					|| 'string' !== typeof g_chain.namespace || 'string' !== typeof g_chain.reference) {
 					return cerr('Invalid chain descriptor structure');
 				}
 
 				// family not supported
-				if(!A_CHAIN_FAMILIES.includes(g_chain.family)) {
+				if(!A_CHAIN_NAMESPACES.includes(g_chain.namespace)) {
 					a_answers.push({
-						error: 'Family not supported',
+						error: 'Namespace not supported',
 					});
 
 					// move onto next chain
@@ -232,8 +223,8 @@ export default function({
 				}
 
 				// validate chain id
-				if(!R_CHAIN_ID.test(g_chain.id)) {
-					return cerr(`Invalid chain id "${g_chain.id}" for ${g_chain.family} family; failed to match regular expression /${R_CHAIN_ID.source}/`);
+				if(!R_CHAIN_ID_VERSION.test(g_chain.reference)) {
+					return cerr(`Invalid chain id "${g_chain.reference}" for ${g_chain.namespace} family; failed to match regular expression /${R_CHAIN_ID_VERSION.source}/`);
 				}
 
 				// validate chain name
@@ -248,18 +239,18 @@ export default function({
 				}
 
 				// chain path
-				const p_chain = g_chain.family+'\n'+g_chain.id;
+				const p_chain = g_chain.namespace+'\n'+g_chain.reference;
 
 				// duplicate
 				if(as_chains.has(p_chain)) {
-					return cerr(`Duplicate chain IDs in '${g_chain.family}' family: '${g_chain.id}'`);
+					return cerr(`Duplicate chain IDs in '${g_chain.namespace}' namespace: '${g_chain.reference}'`);
 				}
 
 				// set chain label
-				const s_label = g_chain.name || g_chain.id;
+				const s_label = g_chain.name || g_chain.reference;
 
 				// prep UI prompt
-				a_requests.push({
+				a_chain_requests.push({
 					...g_chain,
 					label: s_label,
 				});
@@ -268,7 +259,7 @@ export default function({
 			void d_runtime.sendMessage({
 				type: 'requestConnection',
 				value: {
-					chains: a_requests,
+					chains: a_chain_requests,
 				},
 			});
 
@@ -325,7 +316,7 @@ export default function({
 						config: {
 							features: a_features,
 						},
-					}
+					},
 				},
 			}, a_ports);
 		},
@@ -439,7 +430,6 @@ export default function({
 			}, window.origin);
 		},
 	};
-
 
 	// create and inject relay frame
 	let d_window_relay: Vocab.TypedWindow<Vocab, RelayToHost.SubframeVocab>;

@@ -5,7 +5,7 @@
 	import Header from '../ui/Header.svelte';
 	import Row from '../ui/Row.svelte';
 	import NetworkView from './NetworkView.svelte';
-	import {Page, Screen, SubHeader} from './_screens';
+	import {Screen, SubHeader, type Page} from './_screens';
 
 	const k_page = getContext<Page>('page');
 
@@ -52,7 +52,7 @@
 					resource={g_network}
 					resourcePath={p_network}
 					iconClass={'square pfp'}
-					detail={`${g_chain?.name} (${g_chain?.id})`}
+					detail={`${g_chain?.name} (${g_chain?.reference})`}
 					on:click={() => {
 						k_page.push({
 							creator: NetworkView,

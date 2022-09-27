@@ -3,9 +3,9 @@ import RegisterSvelte from './screen/Register.svelte';
 import HoldingsHomeSvelte from './screen/HoldingsHome.svelte';
 import AccountHomeSvelte from './screen/AccountsHome.svelte';
 import ContactsHomeSvelte from './screen/ContactsHome.svelte';
-import SitesHomeSvelte from './screen/SitesHome.svelte';
 import NetworksHomeSvelte from './screen/NetworksHome.svelte';
 import HistoryHomeSvelte from './screen/HistoryHome.svelte';
+import AppsHomeSvelte from './screen/AppsHome.svelte';
 
 export enum ThreadId {
 	DEFAULT='default',
@@ -17,8 +17,14 @@ export enum ThreadId {
 	HISTORY='history',
 	NETWORKS='networks',
 	ACCOUNTS='accounts',
+
+	/**
+	 * Used for misc things like QR scanner
+	 */
+	SCRATCH='scratch',
+
+	APPS='apps',
 	TAGS='tags',
-	SITES='sites',
 }
 
 export const H_THREADS = {
@@ -32,5 +38,6 @@ export const H_THREADS = {
 	[ThreadId.NETWORKS]: NetworksHomeSvelte,
 	[ThreadId.ACCOUNTS]: AccountHomeSvelte,
 	// // [ThreadId.Tags]: Tags,
-	[ThreadId.SITES]: SitesHomeSvelte,
+	[ThreadId.APPS]: AppsHomeSvelte,
+	[ThreadId.SCRATCH]: BlankSvelte,
 } as const;

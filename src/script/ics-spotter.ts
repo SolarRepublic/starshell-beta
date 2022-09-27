@@ -1,47 +1,70 @@
 import type {
 	AppToSpotter,
 	IcsToService,
+	ServiceToIcs,
 } from './messages';
 
 import type {Vocab} from '#/meta/vocab';
-import {microtask} from '#/util/belt';
-import { buffer_to_hex } from '#/util/data';
 
-const h_handlers_keplr = {
-	async enable(a_args) {
-		return void 0;
-	},
-
-	async getKey(a_args) {
-		const si_chain = a_args[0];
-
-		if(si_chain && 'string' === typeof si_chain) {
-			return {
-				return: {
-					// address: '__uint8array__'+buffer_to_hex(atu8_address),
-					address: '__uint8array__77e79e84acbb0c5033b4fff06d726bda303d6681',
-					algo: 'secp256k1',
-					bech32Address: 'secret1wlneap9vhvx9qva5llcx6untmgcr6e5p3dku0f',
-					isNanoLedger: false,
-					name: 'test',
-					// pubKey: '__uint8array__'+buffer_to_hex(atu8_pubkey),
-					pubKey: '__uint8array__0243f392236db2d586fbf7c9b47a45d72bfdb215b47c0931a86ba51db04f07f674',
-				},
-			};
-		}
-	},
-};
+import type * as IsolatedCoreImport from './isolated-core';
+import type * as AppsImport from '#/store/apps';
+import type * as DomImport from '#/util/dom';
+import type * as BaseImport from '#/store/_base';
+import type * as ConstantsImport from '#/share/constants';
+import type * as Bech32Import from '#/crypto/bech32';
+import type * as VaultImport from '#/crypto/vault';
+import type * as BrowserImport from '#/extension/browser';
 
 /**
  * The spotter's sole purpose is to silently forward advertisement requests from the page to the service.
  */
 (function() {
 	// ref and cast runtime
-	const d_runtime: Vocab.TypedRuntime<IcsToService.PublicVocab> = chrome.runtime;
+	const d_runtime: Vocab.TypedRuntime<IcsToService.PublicVocab, ServiceToIcs.CommandVocab> = chrome.runtime;
 
 	// verbose
-	const debug = (s: string, ...a_args: any[]) => console.debug(`StarShell.ics-spotter: ${s}`, ...a_args);
+	const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.ics-spotter: ${s}`, ...a_args);
 	debug(`Launched on <${location.href}>`);
+
+	const {
+		SI_STORE_ACCOUNTS,
+		B_FIREFOX_ANDROID,
+	} = inline_require('#/share/constants.ts') as typeof ConstantsImport;
+
+	const {
+		pubkey_to_bech32,
+	} = inline_require('#/crypto/bech32.ts') as typeof Bech32Import;
+
+	const {
+		create_app_profile,
+		load_app_pfp,
+	} = inline_require('./isolated-core.ts') as typeof IsolatedCoreImport;
+
+	const {
+		Apps,
+	} = inline_require('#/store/apps.ts') as typeof AppsImport;
+
+	const {
+		dd, qsa,
+		stringify_params,
+	} = inline_require('#/util/dom.ts') as typeof DomImport;
+
+	const {
+		create_store_class,
+		WritableStoreMap,
+	} = inline_require('#/store/_base.ts') as typeof BaseImport;
+
+	const {
+		Vault,
+	} = inline_require('#/crypto/vault.ts') as typeof VaultImport;
+
+	// const {
+	// 	P_POPUP,
+	// } = inline_require('#/extension/browser.ts') as typeof BrowserImport;
+
+	const XL_WIDTH_OVERLAY_MAX = 160;
+	const XL_WIDTH_OVERLAY_MIN = 120;
+	const XS_IDEAL_OVERLAY = 0.27;
 
 	// prep handler map
 	const h_handlers_window: Vocab.Handlers<AppToSpotter.WindowVocab> = {
@@ -53,37 +76,17 @@ const h_handlers_keplr = {
 			// let service worker decide what to do
 			await d_runtime.sendMessage({
 				type: 'requestAdvertisement',
+				value: {
+					profile: await create_app_profile(),
+				},
 			});
-		},
-
-		// keplr events
-		...{
-			async 'proxy-request'(g_data) {
-				const {
-					args: a_args,
-					id: si_request,
-					method: si_method,
-				} = g_data;
-
-
-				const f_keplr = h_handlers_keplr[si_method];
-				if(f_keplr) {
-					const w_result = await f_keplr(a_args);
-
-					window.postMessage({
-						id: si_request,
-						result: w_result,
-						type: 'proxy-request-response',
-					});
-				}
-			},
 		},
 	};
 
-	// start listening for messages
+	// listen for messages from app
 	(window as Vocab.TypedWindow<AppToSpotter.WindowVocab>).addEventListener('message', (d_event) => {
-		// verbose
-		debug('Observed window message %o', d_event);
+		// // verbose
+		// debug('Observed window message %o', d_event);
 
 		// originates from same frame
 		if(window === d_event.source) {
@@ -106,47 +109,283 @@ const h_handlers_keplr = {
 		}
 	});
 
-
-
-	const {
-		locate_script,
-	} = inline_require('./utils.ts');
-
-	async function polyfill_keplr() {
-		// create another script element to load the relay application
-		const dm_script = document.createElement('script');
-
-		// locate keplr script
-		const p_keplr = locate_script('assets/src/script/mcs-keplr');
-
-		// not found
-		if(!p_keplr) {
-			throw new Error('Unable to locate keplr script!');
+	// Firefox on Android
+	if(B_FIREFOX_ANDROID) {
+		interface PopoverFields {
+			shadow: ShadowRoot;
+			iframe: HTMLIFrameElement;
 		}
 
-		// set the script src
-		dm_script.src = chrome.runtime.getURL(p_keplr);
+		const hm_privates = new WeakMap<Popover, PopoverFields>();
 
-		// import as module
-		dm_script.type = 'module';
+		// define popover element
+		class Popover extends HTMLElement {
+			constructor() {
+				super();
 
-		// wait for head/body to be constructed
-		let c_retries = 0;
-		while(!document.body) {
-			c_retries++;
-			await microtask();
-			if(c_retries > 10000) break;
+				const d_shadow = this.attachShadow({
+					mode: 'closed',
+				});
+
+				const dm_iframe = dd('iframe', {
+					src: 'about:blank',
+				});
+
+				d_shadow.append(dm_iframe);
+
+				hm_privates.set(this, {
+					shadow: d_shadow,
+					iframe: dm_iframe,
+				});
+			}
+
+			attributeChangedCallback(si_attr, s_old, s_new) {
+				if('params' === si_attr) {
+					hm_privates.get(this)!.iframe.src = chrome.runtime.getURL(`src/entry/flow.html?${s_new}`);
+				}
+			}
 		}
 
-		// append container element to the live document to initialize iframe's content document
-		try {
-			document.head.append(dm_script);
-		}
-		// browser didn't like adding content to head; fallback to using body
-		catch(e_append) {
-			document.body.append(dm_script);
+		window.customElements.define('starshell-popover', Popover);
+
+		// listen for commands from service
+		d_runtime.onMessage.addListener((g_msg) => {
+			debug('Received service command: %o', g_msg);
+
+			if('openFlow' === g_msg.type) {
+				const dm_popover = dd('starshell-popover', {
+					params: stringify_params({
+						comm: 'query',
+						test: 'yes',
+					}),
+					style: `
+						display: block;
+						position: fixed;
+						left: 0;
+						bottom: 0;
+						width: 100vw;
+						height: 100vh;
+						transform: translateY(60%);
+					`,
+				});
+
+				document.body.append(dm_popover);
+			}
+		});
+	}
+
+
+	async function add_input_overlay(dm_input: HTMLInputElement) {
+		const {
+			height: xl_height_input,
+			width: xl_width_input,
+		} = dm_input.getBoundingClientRect();
+
+		const xl_width_overlay = Math.min(XL_WIDTH_OVERLAY_MAX, Math.max(XL_WIDTH_OVERLAY_MIN, Math.round(xl_width_input * XS_IDEAL_OVERLAY)));
+
+		const g_computed = getComputedStyle(dm_input);
+		const a_border = g_computed.borderRadius.split(/\s+/);
+		const s_border_tr = a_border[1] || a_border[0];
+		const s_border_br = a_border[3] || a_border[0];
+
+		const Accounts = create_store_class({
+			store: SI_STORE_ACCOUNTS,
+			extension: 'map',
+			class: class AccountsI extends WritableStoreMap<typeof SI_STORE_ACCOUNTS> {},
+		});
+
+		const a_accounts = (await Accounts.read()).entries().map(([, g]) => g);
+		let i_account = 0;
+
+		const b_multiaccount = a_accounts.length > 1;
+
+		const dm_overlay = dd('div', {
+			style: `
+				position: absolute;
+				background-color: rgba(0,0,0,0.6);
+				height: ${xl_height_input - 2}px;
+				margin-left: calc(${xl_width_input}px - ${xl_width_overlay}px);
+				width: ${xl_width_overlay}px;
+				filter: revert;
+				font-size: 12px;
+				font-family: 'Poppins',sans-serif;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				color: #f7f7f7;
+
+				${['absolute', 'fixed'].includes(g_computed.position)? `margin-top: -${xl_height_input - 1}px;`: ''}
+
+				border-radius: 2em ${s_border_tr} ${s_border_br} 2em;
+			`,
+		}, [
+			dd('span', {
+				style: `
+					width: 16px;
+					height: 16px;
+					background-image: url('${chrome.runtime.getURL('/media/vendor/icon_16.png')}');
+					margin-right: 8px;
+				`,
+			}),
+			dd('span', {
+				style: `
+					cursor: pointer;
+					white-space: nowrap;
+					overflow-x: hidden;
+					text-overflow: ellipsis;
+					max-width: calc(100% - 38px);
+
+					border-radius: 1em;
+					text-align: center;
+					border-width: 1px;
+					border-style: solid;
+					border-color: #ffb61a;
+
+					display: flex;
+					${b_multiaccount
+						? `
+							min-width: 70%;
+							justify-content: space-between;
+						`
+						: `
+							min-width: 60%;
+							padding: 3px 8px;
+							justify-content: center;
+						`}
+				`,
+			}, b_multiaccount
+				? [
+					dd('span', {
+						style: `
+							padding: 3px 3px 3px 8px;
+							flex: auto;
+						`,
+					}, [`${a_accounts[i_account].name}`]),
+
+					dd('span', {
+						style: `
+							border-left: 1px solid #ffb61a;
+							padding: 0px 11px 0px 0px;
+							flex-basis: 23px;
+							writing-mode: vertical-rl;
+							font-size: 12px;
+							line-height: 1px;
+							color: rgba(255,255,255,0.8);
+						`,
+					}, [
+						dd('span', {
+							style: `
+								margin-right: 10px;
+								line-height: 1px;
+							`,
+						}, ['>']),
+					]),
+				]
+				: [
+					dd('span', {}, [`${a_accounts[i_account].name}`]),
+				]
+			),
+		]);
+
+		dm_overlay.addEventListener('click', () => {
+			const sa_owner = pubkey_to_bech32(a_accounts[i_account].pubkey, 'secret');
+			dm_input.value = sa_owner;
+			dm_overlay.remove();
+			setTimeout(() => {
+				dm_input.dispatchEvent(new InputEvent('input', {inputType:'insertText', data:'s'}));
+				console.log('dispatched onto input;');
+			}, 200);
+		});
+
+		dm_input.insertAdjacentElement('afterend', dm_overlay);
+	}
+
+	// wait for head to load
+	async function dom_ready() {
+		debug('dom_ready triggered');
+
+		// load the app's pfp
+		void load_app_pfp();
+
+		// logged in
+		if(await Vault.isUnlocked()) {
+			// check if app is registered
+			const g_app = await Apps.get(location.host, location.protocol as 'https:');
+			if(g_app?.on) {
+				debug('App is registered and enabled');
+
+				try {
+					// find autocompletable inputs
+					qsa(document.body, 'input[type="text"]').forEach((dm_input) => {
+						if(/^faucet-address$/.test(dm_input.id) || ('LABEL' === dm_input.previousElementSibling?.tagName && /wallet addr/i.test(dm_input.previousElementSibling.textContent!))) {
+							const {
+								height: xl_height_input,
+								width: xl_width_input,
+							} = dm_input.getBoundingClientRect();
+
+							// input is visible; add input overlay
+							if(xl_width_input * xl_height_input > 10) {
+								void add_input_overlay(dm_input);
+							}
+							// input not visible, wait for it to appear
+							else {
+								// do not add overlay more than once
+								let b_overlay_added = false;
+
+								// observer callback
+								const f_observer: MutationCallback = (di_mutations, d_observer) => {
+									// check input bounds in a beat
+									setTimeout(() => {
+										const {
+											height: xl_height_input_now,
+											width: xl_width_input_now,
+										} = dm_input.getBoundingClientRect();
+
+										// is visible enough now
+										if(xl_width_input_now * xl_height_input_now > 100) {
+											// do not add more than once
+											if(b_overlay_added) return;
+											b_overlay_added = true;
+
+											// remove observer
+											d_observer.disconnect();
+
+											// add overlay in a beat
+											void add_input_overlay(dm_input);
+										}
+									}, 150);
+								};
+
+								// attach new observer to document body
+								const d_observer = new MutationObserver(f_observer);
+								d_observer.observe(document.body, {
+									subtree: true,
+									childList: true,
+									attributes: true,
+								});
+							}
+						}
+					});
+				}
+				catch(e_app) {
+					console.error(`Recovered from error: ${e_app.stack}`);
+				}
+			}
+			else if(g_app) {
+				console.warn(`App is disabled`);
+			}
+			else {
+				console.debug(`App is not registered`);
+			}
 		}
 	}
 
-	void polyfill_keplr();
+	if('loading' !== document.readyState) {
+		debug(`document already in ${document.readyState} ready`);
+		void dom_ready();
+	}
+	else {
+		debug(`listening for DOMContentLoaded event on window`);
+		window.addEventListener('DOMContentLoaded', dom_ready);
+	}
 })();

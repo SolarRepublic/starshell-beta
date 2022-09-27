@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PfpPath } from '#/meta/pfp';
+	import type { PfpTarget } from '#/meta/pfp';
 
 	import Put from './Put.svelte';
 	import { Pfps } from '#/store/pfps';
@@ -20,7 +20,7 @@
 	/**
 	 * Resource path to the pfp
 	 */
-	export let ref: PfpPath | null | '' = g_resource?.pfp || '';
+	export let ref: PfpTarget | null | '' = g_resource?.pfp || '';
 
 	/**
 	 * Name to use for alt and fallback
@@ -38,7 +38,11 @@
 	 * Applies a predetermind styling to the border
 	 */
 	export let circular = false;
-	const s_classes = circular? '': 'square';
+	export let appRelated = false;
+	export let classes = '';
+	const s_classes = (circular? '': appRelated? 'square app': 'square')+classes;
+
+	export let updates = 0;
 
 	/**
 	 * Applies a predetermined styling to the background
@@ -49,7 +53,7 @@
 	export let genStyle = '';
 	const sx_style_gen = `width:${x_dim}px; height:${x_dim}px; `
 		+(genStyle || '')
-		+(ref? `font-size:${x_dim}px;`: '')
+		+(ref? `font-size:${x_dim}px;`: `font-size:${x_dim * 0.55}px;`)
 		+(circular? `border-radius:${x_dim}px;`: '');
 
 	export let rootStyle = '';
@@ -62,7 +66,7 @@
 		const ks_medias = $yw_store_medias || await Medias.read();
 
 		// load pfp by ref
-		const dm_pfp = await Pfps.load(ref as PfpPath, {
+		const dm_pfp = await Pfps.load(ref as PfpTarget, {
 			alt: s_name,
 			dim: x_dim,
 			medias: ks_medias,
@@ -93,6 +97,15 @@
 		&.satin {
 			background: radial-gradient(ellipse farthest-side at bottom right, #07080a, #0f1317);
 		}
+
+		.error {
+			text-align: center;
+		}
+
+		&.app {
+			outline: 1px solid var(--theme-color-border);
+			border-radius: 4px;
+		}
 	}
 
 	// .icon {
@@ -118,30 +131,37 @@
 </style>
 
 <!-- class:default={!k_icon}  -->
-<span class="global_pfp tile {s_classes}"
-	class:satin={'satin' === si_style_bg}
-	style={sx_style_root}
-	data-path={ref}
->
-	{#if ref}
-		{#await load_pfp()}
-			Loading pfp...
-		{:then dm_pfp}
-			{#if dm_pfp}
-				<Put element={dm_pfp} />
-			{:else}
-				<!-- TODO: error placeholder -->
-				<span class="error">
-					Error
-				</span>
-			{/if}
+{#key updates}
+	<span class="global_pfp tile {s_classes}"
+		class:satin={'satin' === si_style_bg}
+		style={sx_style_root}
+		data-path={ref}
+	>
+		{#if ref}
+			{#await load_pfp()}
+				Loading pfp...
+			{:then dm_pfp}
+				{#if dm_pfp}
+					<Put element={dm_pfp} />
+				{:else}
+					<!-- fallback to icon dom -->
+					<span class="icon-dom" style={`${sx_style_gen} font-size:${x_dim * 0.55}px;`}>
+						{s_name[0] || ''}
+					</span>
 
+					<!-- TODO: error placeholder -->
+					<!-- <span class="error">
+						⚠️
+					</span> -->
+				{/if}
+
+				{#await settle_inner() then _}_{/await}
+			{/await}
+		{:else}
+			<span class="icon-dom" style={sx_style_gen}>
+				{s_name[0] || ''}
+			</span>
 			{#await settle_inner() then _}_{/await}
-		{/await}
-	{:else}
-		<span class="icon-dom" style={sx_style_gen}>
-			{s_name[0] || ''}
-		</span>
-		{#await settle_inner() then _}_{/await}
-	{/if}
-</span>
+		{/if}
+	</span>
+{/key}

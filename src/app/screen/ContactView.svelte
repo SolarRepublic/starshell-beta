@@ -20,7 +20,7 @@
 	let g_contact: Contact['interface'];
 	void Agents.getContact(p_contact).then(g => g_contact = g!);
 
-	$: sa_contact = g_contact? Chains.bech32(g_contact.address): '';
+	$: sa_contact = g_contact? Chains.transformBech32(g_contact.address, $yw_chain): '';
 
 	const k_page = getContext<Page>('page');
 
@@ -31,7 +31,7 @@
 				k_page.push({
 					creator: Send,
 					props: {
-						to: Chains.bech32(g_contact.address),
+						to: Chains.transformBech32(g_contact.address, $yw_chain),
 					},
 				});
 			},
@@ -102,7 +102,7 @@
 			actions={gc_actions}
 		>
 			<svelte:fragment slot="subtitle">
-				<Address copyable address={Chains.bech32(g_contact.address)} />
+				<Address copyable address={Chains.transformBech32(g_contact.address, $yw_chain)} />
 			</svelte:fragment>address
 		</Portrait>
 <!-- 

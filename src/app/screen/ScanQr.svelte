@@ -2,10 +2,8 @@
 <script type="ts">
 
 	import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-	import {Screen, type Page} from './_screens';
-	import type{ Completed } from '#/entry/flow';
+	import {Screen} from './_screens';
 	import { timeout } from '#/util/belt';
-	import { getContext } from 'svelte';
 
 	import type {CameraDevice} from 'html5-qrcode/core';
 
@@ -15,13 +13,20 @@
 	import { R_BECH32 } from '#/share/constants';
 	import DeepLink from './DeepLink.svelte';
 	import { qs } from '#/util/dom';
+    import { load_flow_context } from '../svelte';
+    import { yw_navigator } from '../mem';
+    import { ThreadId } from '../def';
 
-	const completed = getContext<Completed>('completed');
-	
-	const k_page = getContext<Page>('page');
+	const {
+		completed,
+		k_page,
+	} = load_flow_context();
+
+	export let exittable = false;
 
 	let b_ready = false;
-	let b_rejected = true;
+	let b_attempted = false;
+	let b_rejected = false;
 	let b_retrying = false;
 	let b_cycling = false;
 
@@ -101,6 +106,7 @@
 	}
 
 	async function open_qr_code_scanner(b_retry=false) {
+		b_attempted = true;
 		b_retrying = b_retry;
 
 		// first invocation
@@ -155,6 +161,10 @@
 				});
 			});
 		}
+	}
+
+	function exit() {
+		$yw_navigator.activateThread(ThreadId.TOKENS);
 	}
 </script>
 
@@ -215,8 +225,8 @@
 			</h3>
 		</div>
 
-		{#if b_rejected}
-			<ActionsLine confirm={['Retry', () => open_qr_code_scanner(true), b_retrying]} />
+		{#if b_rejected || !b_attempted}
+			<ActionsLine cancel={exittable? exit: false} confirm={[b_attempted? 'Retry': 'Start Camera', () => open_qr_code_scanner(true), b_retrying]} />
 		{/if}
 	{/if}
 </Screen>

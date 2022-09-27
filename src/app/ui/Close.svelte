@@ -23,6 +23,8 @@
 		transition: border-radius 650ms var(--ease-out-expo);
 		pointer-events: all;
 
+		clip-path: inset(2px);
+
 		// margin-top: calc(0px - (var(--ui-padding) * 0.75));
 		// margin-right: calc(0px - (var(--ui-padding) * 0.75));
 
@@ -39,7 +41,6 @@
 			left: calc(var(--occlusion-thickness) / 2);
 			width: calc(100% - var(--occlusion-thickness));
 			height: calc(100% - var(--occlusion-thickness));
-			outline: var(--occlusion-thickness) solid var(--bg-color, var(--theme-color-bg));
 			box-sizing: border-box;
 			pointer-events: none;
 		}

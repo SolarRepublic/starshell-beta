@@ -1,10 +1,8 @@
-
-import type { Dict } from '#/util/belt';
-import type { Union } from 'ts-toolbelt';
-import type { If } from 'ts-toolbelt/out/Any/If';
-import type { And, Or } from 'ts-toolbelt/out/Boolean/_api';
-import type { Tail } from 'ts-toolbelt/out/List/_api';
-import type { Merge } from 'ts-toolbelt/out/Object/_api';
+import type {Union} from 'ts-toolbelt';
+import type {If} from 'ts-toolbelt/out/Any/If';
+import type {And, Or} from 'ts-toolbelt/out/Boolean/_api';
+import type {Tail} from 'ts-toolbelt/out/List/_api';
+import type {Merge} from 'ts-toolbelt/out/Object/_api';
 
 declare const $_FORMAT: unique symbol;
 
@@ -185,4 +183,70 @@ export type Values<
 	: w_thing extends any[]
 		? w_thing[number]
 		: w_thing[keyof w_thing];
+
+
+
+export type SerializeToJson<
+	z_input extends any,
+> = z_input extends Record<string, any>
+	? {
+		[w_key in keyof z_input]: Uint8Array extends z_input[w_key]
+			? Exclude<z_input[w_key], Uint8Array> | string extends infer w_excluded
+				// make optional properties nullable
+				? w_excluded extends undefined
+					? w_excluded | null
+					: w_excluded
+				: never
+			: SerializeToJson<z_input[w_key]>;
+	}
+	: z_input extends undefined? number: z_input;
+
+
+/**
+ * Shortcut for a very common type pattern
+ */
+export type Dict<w_value=string> = Record<string, w_value>;
+
+
+/**
+ * Shortcut for another common type pattern
+ */
+export type Promisable<w_value> = w_value | Promise<w_value>;
+
+
+/**
+ * Root type for all objects considered to be parsed JSON objects
+ */
+export interface JsonObject {  // eslint-disable-line
+	[k: string]: JsonValue;
+}
+
+/**
+ * Union of "valuable", primitive JSON value types
+ */
+export type JsonPrimitive =
+	| boolean
+	| number
+	| string;
+
+/**
+ * All primitive JSON value types
+ */
+export type JsonPrimitiveNullable =
+	| JsonPrimitive
+	| null;
+
+/**
+ * JSON Array
+ */
+export type JsonArray = JsonValue[];
+
+/**
+ * All JSON value types
+ */
+export type JsonValue =
+	| JsonPrimitiveNullable
+	| JsonArray
+	| JsonObject
+	| undefined;
 

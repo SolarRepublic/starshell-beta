@@ -72,7 +72,7 @@ export async function coin_formats(g_balance: Coin, g_coin: NativeCoin, si_versu
 export class CoinParseError extends Error {}
 export class DenomNotFoundError extends Error {}
 
-export function parse_coin_amount(s_input: string, g_chain: Chain['interface']): [bigint, string, NativeCoin] {
+export function parse_coin_amount(s_input: string, g_chain: ChainInterface): [bigint, string, NativeCoin] {
 	// attempt to parse amount
 	const m_amount = R_TRANSFER_AMOUNT.exec(s_input);
 	if(!m_amount) {

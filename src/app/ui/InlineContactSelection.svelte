@@ -7,7 +7,7 @@
 </script>
 
 <script lang="ts">
-	import {yw_chain, yw_family} from '##/mem';
+	import {yw_chain, yw_chain_namespace} from '##/mem';
 	import type { Chain } from '#/meta/chain';
 	import type { Contact, ContactPath } from '#/meta/contact';
 	import { Agents } from '#/store/agents';
@@ -38,7 +38,7 @@
 		const ks_agents = await Agents.read();
 
 		// contact iterator
-		const di_contacts = ks_agents.contacts($yw_family);
+		const di_contacts = ks_agents.contacts($yw_chain_namespace);
 // debugger;
 // 		// contact is present
 // 		if(g_contact) {
@@ -56,7 +56,7 @@
 			// each contact
 			for(const [, g_contact_each] of di_contacts) {
 				// check if address exists in contacts, found match
-				if(address === Chains.bech32(g_contact_each.address)) {
+				if(address === Agents.addressFor(g_contact_each, $yw_chain)) {
 					g_contact = g_contact_each;
 					break;
 				}
@@ -160,7 +160,7 @@
 					{g_contact.name}
 				</span>
 	
-				<Address address={Chains.bech32(g_contact.address)} />
+				<Address address={Agents.addressFor(g_contact, $yw_chain)} />
 			</span>
 		</div>
 	{:else if address}

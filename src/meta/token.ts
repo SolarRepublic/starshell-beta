@@ -1,8 +1,9 @@
-import type { Dict, JsonObject } from "#/util/belt";
-import type { Merge } from "ts-toolbelt/out/Object/Merge";
-import type { Chain, Contract, KnownChain } from "./chain";
-import type { Cw } from "./cosm-wasm";
-import type { Resource } from "./resource";
+import type {Dict, JsonObject} from '#/meta/belt';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+import type {Chain, Contract, KnownChain} from './chain';
+import type {Cw} from './cosm-wasm';
+import type {Resource} from './resource';
+import type { SecretPath } from './secret';
 
 
 
@@ -92,7 +93,7 @@ export type TokenSpecRegistry = {
 	? {
 		[si_each in keyof gc_registry]: si_each extends `${infer si_spec}`
 			? gc_registry[si_each] extends infer gc_spec
-				? gc_spec extends {chains:Chain}
+				? gc_spec extends {chains: Chain}
 					? TokenSpec.New<si_spec, gc_spec>
 					: never
 				: never
@@ -129,36 +130,55 @@ export namespace TokenSpec {
 	> = TokenSpecRegistry[si_spec]['queries'][string]['response'];
 }
 
-// a contract which abides some standard that allows for reporting holdings
-export type Token<
-	g_chain extends Chain=Chain,
-	si_spec extends TokenSpecKey=TokenSpecKey,
-	s_pubkey extends string=string,
-> = Resource.New<{
-	extends: Contract<g_chain, s_pubkey>;
+// // a contract which abides some standard that allows for reporting holdings
+// export type Token<
+// 	g_chain extends Chain=Chain,
+// 	si_spec extends TokenSpecKey=TokenSpecKey,
+// 	s_pubkey extends string=string,
+// > = Resource.New<{
+// 	extends: Contract<g_chain, s_pubkey>;
 
-	// e.g., `token/snip-20/bech32.secret1${string}`
-	segments: [`token.${si_spec}`];  //, Chain.Bech32<g_chain, 'acc'>
+// 	// e.g., `token/snip-20/bech32.secret1${string}`
+// 	segments: [`token.${si_spec}`];  // , Chain.Bech32<g_chain, 'acc'>
 
-	interface: Merge<{
-		// which specification this contract implements
-		spec: si_spec;
+// 	interface: Merge<{
+// 		// which specification this contract implements
+// 		spec: si_spec;
 
-		// high-level info global to all tokens
-		symbol: string;
-		name: string;
-		extra?: Dict;
-	}, Contract<g_chain, s_pubkey>['interface']>;
-}>;
+// 		// high-level info global to all tokens
+// 		symbol: string;
+// 		name: string;
+// 		extra?: Dict;
+// 	}, Contract<g_chain, s_pubkey>['interface']>;
+// }>;
 
-export type TokenPath = Resource.Path<Token>;
+// export type TokenPath = Resource.Path<Token>;
 
-// test
-{
-	type sUSDC = Token<KnownChain.SecretNetwork, 'snip-20', '99999'>;
+// // test
+// {
+// 	type sUSDC = Token<KnownChain.SecretNetwork, 'snip-20', '99999'>;
 
-	const path: Resource.Path<sUSDC> = '/family.cosmos/chain.secret-4/bech32.secret199999/as.contract/token.snip-20';
-}
-type segs = Token['segments'];
-type sho1 = Resource.Path<Token>;
+// 	const path: Resource.Path<sUSDC> = '/family.cosmos/chain.secret-4/bech32.secret199999/as.contract/token.snip-20';
+// }
+
+// type segs = Token['segments'];
+// type sho1 = Resource.Path<Token>;
+
+
+export type TokenInterfaceRegistry = {
+	snip20: {
+		interface: {
+			symbol: string;
+			viewingKey: SecretPath | '';
+		};
+	};
+};
+
+export type TokenInterfaceKey = keyof TokenInterfaceRegistry;
+
+export type TokenInterfaceDescriptor<
+	si_key extends TokenInterfaceKey=TokenInterfaceKey,
+> = Pick<{
+	[si_each in TokenInterfaceKey]: TokenInterfaceRegistry[si_each]['interface'];
+}, si_key>;
 

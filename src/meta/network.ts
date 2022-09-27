@@ -13,3 +13,4 @@ export type Network = Resource.New<{
 }>;
 
 export type NetworkPath = Resource.Path<Network>;
+export type NetworkInterface = Network['interface'];

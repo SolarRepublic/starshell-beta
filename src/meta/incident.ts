@@ -1,13 +1,15 @@
 import type { JsonMsgSend, PendingSend } from '#/chain/main';
-import type { Dict, JsonObject } from '#/util/belt';
+import type { Dict, JsonObject } from '#/meta/belt';
+import type { Snip24Permission } from '#/schema/snip-24';
 import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import type { Union } from 'ts-toolbelt';
 import type { Cast } from 'ts-toolbelt/out/Any/Cast';
 import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 import type {Nameable, Pfpable} from './able';
 import type { AccountPath } from './account';
+import type { AppApiMode, AppChainConnection, AppPath, AppPermissionSet } from './app';
 import type { Access, Values } from './belt';
-import type {Bech32, ChainPath, Family, FamilyKey} from './chain';
+import type {Bech32, ChainPath, ChainNamespace, ChainNamespaceKey} from './chain';
 import type { Cw } from './cosm-wasm';
 import type {Resource} from './resource';
 import type { Secret, SecretPath } from './secret';
@@ -77,7 +79,7 @@ export interface TxCore extends JsonObject {
 	raw_log: string;
 
 	// // addresses that this transaction is affiliated with
-	// owners: Bech32.String[];
+	// owners: Bech32[];
 
 	// txResponse.txhash
 	hash: string;
@@ -104,7 +106,7 @@ export interface TxPending extends TxCore {
 	stage: 'pending';
 
 	// // the account that initiated the transaction
-	// owner: Bech32.String;
+	// owner: Bech32;
 }
 
 export interface TxPartial extends TxCore {
@@ -141,13 +143,57 @@ export interface TxSynced extends TxPartial {
 	fiats: Dict<number>;
 }
 
+export interface TxError extends TxCore {
+	stage: 'error';
+
+	codespace: string;
+
+	log: string;
+}
+
+export interface SignedJsonEventRegistry {
+	query_permit: {
+		secret: SecretPath<'query_permit'>;
+	};
+}
+
+type TxStageKey = (TxPending | TxConfirmed | TxSynced)['stage'];
+
 export type IncidentRegistry = {
-	tx_out: TxPending | TxConfirmed | TxSynced;
+	// tx_out: {
+	// 	pending: TxPending;
+	// 	confirmed: TxConfirmed;
+	// 	synced: TxSynced;
+	// 	// [si_each in TxStageKey]: TxPending | TxConfirmed | TxSynced;
+	// }[TxStageKey];
+	tx_out: TxPending | TxConfirmed | TxSynced | TxError;
 
 	tx_in: TxConfirmed | TxSynced;
 
 	account_created: {
 		account: AccountPath;
+	};
+
+	account_edited: {
+		account: AccountPath;
+
+		/**
+		 * [key, before, after]
+		 */
+		deltas: [string, string, string][];
+	};
+
+	signed_json: {
+		account: AccountPath;
+
+		events: Partial<SignedJsonEventRegistry>;
+	};
+
+	app_connected: {
+		app: AppPath;
+		accounts: AccountPath[];
+		api: AppApiMode;
+		connections: Record<ChainPath, AppChainConnection>;
 	};
 };
 
@@ -157,63 +203,22 @@ export namespace Incident {
 	export type Struct<
 		si_type extends IncidentType=IncidentType,
 	> = {
-		type: si_type;
-		id: string;
-		time: number;
-		data: IncidentRegistry[si_type];
-	};
+		[si_each in IncidentType]: {
+			type: si_each;
+			id: string;
+			time: number;
+			data: IncidentRegistry[si_each];
+		}
+	}[si_type];
 }
 
+// {
+// 	type IncidentTest = Incident.Struct;
+// 	type merged = {
+// 		[si_each in IncidentType]: Merge<Partial<Pick<Incident.Struct<si_each>, 'id' | 'time'>>, Omit<Incident.Struct<si_each>, 'id' | 'time'>>
+// 	}[IncidentType];
 
-// export type IncidentTypeRegistry = {
-// 	account_created: {
-// 		interface: {
-// 			account: AccountPath;
-// 		};
-// 	};
-
-// 	pending: {
-// 		interface: PendingSend;
-// 	};
-
-// 	send: {
-// 		interface: Merge<PendingSend, {
-// 			height: string;
-// 			gas_used: string;
-// 			gas_wanted: string;
-// 			recipient: string;
-// 			sender: string;
-// 			amount: string;
-// 			memo: string;
-// 			timestamp: string;
-// 		}>;
-// 	};
-
-// 	receive: {
-// 		interface: {
-// 			chain: ChainPath;
-// 			hash: string;
-// 			coin: string;
-// 			height: string;
-// 			recipient: string;
-// 			sender: string;
-// 			amount: string;
-// 			memo: string;
-// 			timestamp: string;
-// 		};
-// 	};
-// };
-
-// export type IncidentTypeKey = keyof IncidentTypeRegistry;
-
-// export interface LogEvent<
-// 	si_type extends IncidentTypeKey=IncidentTypeKey,
-// > extends JsonObject {
-// 	time: number;
-// 	type: si_type;
-// 	data: IncidentTypeRegistry[si_type]['interface'];
 // }
-
 
 
 export type Incident<

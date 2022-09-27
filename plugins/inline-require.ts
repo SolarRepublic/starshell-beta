@@ -1,7 +1,7 @@
 import path from 'path';
 
 import {
-	rollup,
+	rollup, RollupBuild, RollupOutput,
 } from 'rollup';
 
 import type {
@@ -11,9 +11,9 @@ import type {
 
 import * as walk from 'acorn-walk';
 
-import { createFilter } from '@rollup/pluginutils';
-import type { ModuleFormat } from '@sveltejs/vite-plugin-svelte';
-import type { CallExpression, Identifier } from 'estree';
+import {createFilter} from '@rollup/pluginutils';
+import type {ModuleFormat} from '@sveltejs/vite-plugin-svelte';
+import type {CallExpression, Identifier} from 'estree';
 import MagicString from 'magic-string';
 import nodeResolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
@@ -23,13 +23,13 @@ interface Options {
 	include?: string[];
 	exclude?: string[];
 	options?: {
+		[prop: string]: any;
 		plugins?: Plugin[];
 		output?: {
 			format?: ModuleFormat;
 			preferConst?: boolean;
 			plugins?: Plugin[];
-		},
-		[prop: string]: any;
+		};
 	};
 }
 
@@ -79,7 +79,13 @@ export function inlineRequire(gc_import: Options={}) {
 
 			const y_magic = new MagicString(sx_code);
 
-			const y_ast = this.parse(sx_code) as acorn.Node;
+			let y_ast: acorn.Node;
+			try {
+				y_ast = this.parse(sx_code);
+			}
+			catch(e_parse) {
+				throw new Error(`While trying to read ${si_part}: ${e_parse?.message || e_parse}`);
+			}
 
 			const a_requires: {
 				node: {
@@ -105,8 +111,7 @@ export function inlineRequire(gc_import: Options={}) {
 					if('Identifier' === si_type
 						&& 'inline_require' === s_name
 						&& 1 === a_args.length
-						&& 'Literal' === a_args[0].type)
-					{
+						&& 'Literal' === a_args[0].type) {
 						const p_require = a_args[0].value as string;
 
 						a_requires.push({
@@ -125,7 +130,7 @@ export function inlineRequire(gc_import: Options={}) {
 				// relative path
 				if('.' === p_target[0]) {
 					// attempt verbatim resolve
-					g_resolve = await this.resolve(path.resolve(pd_part, p_target))
+					g_resolve = await this.resolve(path.resolve(pd_part, p_target));
 
 					// did not find file
 					if(!g_resolve) {
@@ -136,7 +141,7 @@ export function inlineRequire(gc_import: Options={}) {
 				// root relative path
 				else if('#' === p_target[0]) {
 					// attempt verbatim resolve
-					g_resolve = await this.resolve(path.resolve(PD_SRC, p_target.slice(2)))
+					g_resolve = await this.resolve(path.resolve(PD_SRC, p_target.slice(2)));
 
 					// did not find file
 					if(!g_resolve) {
@@ -156,30 +161,60 @@ export function inlineRequire(gc_import: Options={}) {
 
 				let si_load = '';
 				if(this.load) {
-					const g_load = await this.load(g_resolve);
+					let g_load;
+					try {
+						g_load = await this.load(g_resolve);
+					}
+					catch(e_load) {
+						throw new Error(`While trying to load ${JSON.stringify(g_resolve)}: ${e_load?.message || e_load}`);
+					}
+
 					si_load = g_load.id;
 				}
 				else {
 					si_load = (g_resolve.id || '').replace(/\?.*$/, '');
 				}
 
-				const y_bundle = await rollup({
-					input: si_load,
-					plugins: [
-						nodeResolve(),
-						commonjs(),
-						typescript({
-							tsconfig: path.join(__dirname, '../tsconfig.json'),
-							compilerOptions: {
-								target: 'es2020',
-							},
-						}),
-					],
-				});
+				let y_bundle: RollupBuild;
+				try {
+					y_bundle = await rollup({
+						input: si_load,
+						plugins: [
+							nodeResolve(),
+							commonjs(),
 
-				const g_gen = await y_bundle.generate({
-					format: 'iife',
-				});
+							// apply the `inline_require()` substitution
+							inlineRequire({
+								// only on extensions scripts
+								include: [
+									'./src/script/*',
+								],
+							}),
+
+							typescript({
+								tsconfig: path.join(__dirname, '../tsconfig.json'),
+								compilerOptions: {
+									target: 'es2022',
+									module: 'es2022',
+									lib: ['es2022', 'dom'],
+								},
+							}),
+						],
+					});
+				}
+				catch(e_bundle) {
+					throw new Error(`While trying to bundle ${si_load}: ${e_bundle?.stack || e_bundle?.message || e_bundle}`);
+				}
+
+				let g_gen: RollupOutput;
+				try {
+					g_gen = await y_bundle.generate({
+						format: 'iife',
+					});
+				}
+				catch(e_generate) {
+					throw new Error(`While trying to generate ${si_load}: ${e_generate?.message || e_generate}`);
+				}
 
 				y_magic.overwrite(g_node.start, g_node.end, g_gen.output[0].code);
 			}

@@ -9,12 +9,16 @@
 	
 	import {parse_coin_amount, to_fiat} from '#/chain/coin';
 	import type {Completed} from '#/entry/flow';
-	import type {Chain, ChainPath} from '#/meta/chain';
+	import type {Chain, ChainInterface, ChainPath} from '#/meta/chain';
 	import type {Incident, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
 	import {R_TRANSFER_AMOUNT} from '#/share/constants';
 	import {Chains} from '#/store/chains';
-	import {ActiveNetwork, Networks} from '#/store/networks';
-	import {JsonObject, JsonValue, ode} from '#/util/belt';
+	import {
+		type ActiveNetwork,
+		Networks,
+	} from '#/store/networks';
+	import type {JsonObject, JsonValue} from '#/meta/belt';
+	import {ode, oderac} from '#/util/belt';
 	import {buffer_to_base64} from '#/util/data';
 	import BigNumber from 'bignumber.js';
 	import {syswarn} from '../common';
@@ -27,6 +31,9 @@
 	import {Tx} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 	import type {SimpleField} from '../ui/IncidentFields.svelte';
 	import IncidentFields from '../ui/IncidentFields.svelte';
+    import { Apps } from '#/store/apps';
+    import { Accounts } from '#/store/accounts';
+    import Field from '../ui/Field.svelte';
 
 	const completed = getContext<Completed | undefined>('completed');
 
@@ -81,7 +88,7 @@
 					{
 						href: Chains.blockExplorer('transaction', {
 							...g_data,
-							chain_prefix: g_chain.id.replace(/-.+$/, ''),
+							chain_prefix: g_chain.reference.replace(/-.+$/, ''),
 						}, g_chain),
 						icon: SX_ICON_LAUNCH,
 						text: 'Block explorer',
@@ -93,8 +100,14 @@
 
 	let s_fiat_amount = '';
 
+	const H_RELABELS = {
+		'extra.pfpg.offset': 'pfp offset',
+	};
+
+	const relabel = s => H_RELABELS[s] ?? s;
+
 	const H_EVENTS: {
-		[si_type in IncidentType]: (g_data: Incident.Struct<si_type>['data'], g_chain: Chain['interface']) => EventViewConfig;
+		[si_type in IncidentType]: (g_data: Incident.Struct<si_type>['data'], g_chain: ChainInterface) => EventViewConfig;
 	} = {
 		tx_out: (g_data, g_chain) => {
 			if('confirmed' === g_data.stage || 'synced' === g_data.stage) {
@@ -275,23 +288,59 @@
 
 		account_created: g_data => ({
 			s_title: `Created Account`,
-			a_fields: [],
+			a_fields: [
+				{
+					type: 'key_value',
+					key: 'Account',
+					value: Accounts.at(g_data.account).then(g => g!.name),
+				},
+			],
 		}),
 
-		// pending: g_data => ({
-		// 	s_title: `Pending Transaction`,
-		// 	a_fields: [
-		// 		{
-		// 			type: 'key_value',
-		// 			key: 'Status',
-		// 			value: 'Pending',
-		// 		},
-		// 	],
-		// }),
+		account_edited: g_data => ({
+			s_title: `Edited Account`,
+			a_fields: [
+				{
+					type: 'key_value',
+					key: 'Account',
+					value: Accounts.at(g_data.account).then(g => g!.name),
+				},
+				...g_data.deltas.map(a => ({
+					type: 'key_value' as const,
+					key: `Changed ${relabel(a[0])}`,
+					value: `${a[1]} → ${a[2]}`,
+					long: true,
+				})),
+			],
+		}),
+
+		app_connected: g_data => ({
+			s_title: 'App Connected',
+			a_fields: [
+				{
+					type: 'key_value',
+					key: 'App',
+					value: Apps.parsePath(g_data.app)[1],
+				},
+				{
+					type: 'key_value',
+					key: 'Accounts',
+					value: Promise.all(g_data.accounts
+						.map(async p_account => (await Accounts.at(p_account))!.name)
+						.join(', ')),
+				},
+				{
+					type: 'key_value',
+					key: 'Permissions',
+					value: oderac(g_data.connections, (si_key, g_permission) => `${si_key}:${JSON.stringify(g_permission)}`)
+						.join(', '),
+				},
+			],
+		}),
 	};
 
 	let g_incident!: Incident['interface'];
-	let g_chain: Chain['interface'] | null;
+	let g_chain: ChainInterface | null;
 	let k_network: ActiveNetwork;
 
 	let s_time = '';
@@ -430,6 +479,21 @@
 
 				<!-- Overview -->
 				<TabPanel>
+					<span>&nbsp;</span>
+
+					<Field
+						short
+						key='datetime'
+						name='Date'
+					>
+						{new Intl.DateTimeFormat('en-US', {
+							year: 'numeric', month: 'numeric', day: 'numeric',
+							hour: 'numeric', minute: 'numeric', second: 'numeric',
+							hour12: false,
+							timeZone: 'America/Los_Angeles',
+						}).format(new Date(g_incident.time))}
+					</Field>
+
 					<IncidentFields
 						incident={g_incident}
 						fields={a_fields}
@@ -441,6 +505,8 @@
 
 				<!-- Raw JSON -->
 				<TabPanel>
+					<span>&nbsp;</span>
+
 					{#await load_raw_json()}
 						Loading JSON...
 					{:then g_response}
@@ -454,6 +520,21 @@
 				</TabPanel>
 			</Tabs>
 		{:else}
+			<span>&nbsp;</span>
+
+			<Field
+				short
+				key='datetime'
+				name='Date'
+			>
+				{new Intl.DateTimeFormat('en-US', {
+					year: 'numeric', month: 'numeric', day: 'numeric',
+					hour: 'numeric', minute: 'numeric', second: 'numeric',
+					hour12: false,
+					timeZone: 'America/Los_Angeles',
+				}).format(new Date(g_incident.time))}
+			</Field>
+
 			<IncidentFields
 				incident={g_incident}
 				fields={a_fields}

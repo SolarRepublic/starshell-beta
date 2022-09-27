@@ -4,16 +4,29 @@ import {
 } from './_base';
 
 import {SI_STORE_SETTINGS} from '#/share/constants';
-import type { Dict } from '#/util/belt';
+import type {Dict} from '#/meta/belt';
 
+export enum KeplrCompatibilityMode {
+	DEFAULT = 0,
+	EVERYWHERE = 1,
+	NOWHERE = 2,
+}
 
 export type SettingsRegistry = {
+	// 
 	allow_file_urls?: boolean;
+
+	// 
 	e2e_encrypted_memos?: Dict<{
 		enabled: boolean;
 		published: boolean;
 	}>;
+
+	// 
 	notice_send_encrypted_memo?: boolean;
+
+	// 
+	keplr_compatibility_mode?: KeplrCompatibilityMode;
 };
 
 export type SettingsKey = keyof SettingsRegistry;

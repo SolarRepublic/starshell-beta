@@ -76,15 +76,12 @@
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Entities} from '#/store/entities';
-	import {Medias} from '#/store/medias';
-	import {Networks} from '#/store/networks';
-	import {Pfps} from '#/store/pfps';
 	import type {Resource} from '#/meta/resource';
-	import type {Account, AccountPath} from '#/meta/account';
-	import {Dict, JsonObject, JsonValue, ode, oderac, Promisable, proper} from '#/util/belt';
+
+	import {ode, oderac, proper} from '#/util/belt';
 	import type {StaticStore, WritableStoreMap} from '#/store/_base';
-	import type {Agent, AgentPath, ChainPath} from '#/meta/chain';
 	import Row from '#/app/ui/Row.svelte';
+	import type {Dict, JsonValue, Promisable} from '#/meta/belt';
 
 	let dm_results: HTMLElement;
 	const a_results: SearchItem[] = [];
@@ -116,7 +113,7 @@
 				resource: g_chain,
 				details: {
 					name: g_chain.name,
-					id: g_chain.id,
+					id: g_chain.reference,
 				},
 			})), ['id']))(),
 
@@ -127,9 +124,9 @@
 				postname: si_coin,
 				resourcePath: `${p_chain}/coin.${si_coin}`,
 				resource: {
-					name: proper(g_coin.extra?.coingecko_id || 'Unknown'),
-					pfp: g_chain.pfp,
 					...g_coin,
+					name: g_coin.name || proper(g_coin.extra?.coingecko_id || 'Unknown'),
+					pfp: g_coin.pfp || g_chain.pfp,
 				},
 				details: {
 					symbol: si_coin,
@@ -178,8 +175,8 @@
 						details: {
 							name: g_contact.name,
 							notes: g_contact.notes,
-							addresses: [...ks_chains.inFamily(g_contact.family)]
-								.map(([, g_chain]) => Chains.bech32(g_contact.address, g_chain)),
+							addresses: [...ks_chains.inNamespace(g_contact.namespace)]
+								.map(([, g_chain]) => Agents.addressFor(g_contact, g_chain)),
 						},
 					})), ['notes']);
 				})(),
@@ -238,7 +235,7 @@
 	})();
 
 	function search(s_search: string) {
-		const a_groups: {top:number, hits:Fuse.FuseResult<SearchItem>[]}[] = [];
+		const a_groups: {top: number; hits: Fuse.FuseResult<SearchItem>[]}[] = [];
 		const a_hits: Fuse.FuseResult<SearchItem>[] = [];
 		let c_total = 0;
 

@@ -37,7 +37,7 @@ section.screen,form.screen {
 		}
 	}
 
-	.action-wall, .action-line {
+	/*.action-wall,*/ .action-line {
 		button {
 			:global(&) {
 				min-height: var(--ui-row-height);
@@ -92,21 +92,6 @@ section.screen,form.screen {
 		:global(&) {
 			font-weight: 500;
 			margin: 0;
-		}
-	}
-
-	.action-wall {
-		:global(&) {
-			display: flex;
-			flex-direction: column;
-			justify-content: space-evenly;
-			gap: var(--ui-padding);
-		}
-
-		&>button {
-			:global(&) {
-				flex: 1;
-			}
 		}
 	}
 

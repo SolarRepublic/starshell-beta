@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en"> 
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<meta name="application-name" content="StarShell Demo">
+
+	<link rel="icon" href="/media/logo.svg">
+
+	<title>StarShell Wallet developer sample page</title>
+
+
+	<link rel="prefetch" as="image" href="/media/secret-usdc-eth.svg" data-caip-10="cosmos:pulsar-2:secret1h6z05y90gwm4sqxzhz4pkyp36cna9xtp7q0urv">
+
+	<link rel="prefetch" as="image" href="/media/secret-scrt.svg" data-caip-10="cosmos:pulsar-2:secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek">
+
+	<link rel="prefetch" as="image" href="/media/stashh.png" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx">
+
+	<link rel="prefetch" as="image" href="/media/stashh.svg" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9xxtzx">
+
+	<script type="application/toml" data-whip-2>
+		[contracts.sSCRT]
+		chain = "cosmos:secret-4"
+		address = "secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek"
+		name = "Secret SCRT"
+		[contracts.sSCRT.interfaces.snip20]
+		symbol = "sSCRT"
+
+		[contracts.sUSDC]
+		chain = "cosmos:secret-4"
+		address = "secret1h6z05y90gwm4sqxzhz4pkyp36cna9xtp7q0urv"
+		name = "Secret USDC (ETH)"
+		[contracts.sSCRT.interfaces.snip20]
+		symbol = "sUSDC"
+
+		[contracts.stash-auth]
+		chain = "cosmos:secret-4"
+		address = "secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx"
+		name = "Stashh Authenticator"
+	</script>
+
+	<script type="module" >
+		window.addEventListener('message', (d_event) => {
+			console.log(d_event.data);
+		});
+
+		window.onload = () => {
+			console.log({
+				keplr: window.keplr,
+			});
+
+			(async() => {
+				await window.keplr.enable('pulsar-2');
+
+				const y_signer = keplr.getOfflineSignerOnlyAmino('pulsar-2');
+
+				const [g_key] = await y_signer.getAccounts('pulsar-2');
+
+				console.log(g_key);
+
+				console.log('addr: '+g_key.address);
+				console.log('pubKey: '+Array.from(g_key.pubkey));
+
+				const sa_owner = g_key.address;
+
+				const sa_contract = 'secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx';
+debugger;
+				const g_sign = await window.keplr.signAmino('pulsar-2', sa_owner, {
+					chain_id: "pulsar-2",
+					account_number: "0",
+					sequence: "0",
+					fee: {
+						amount: [{
+							denom: "uscrt",
+							amount: "0"
+						}],
+						gas: "1"
+					},
+					msgs: [{
+						type: "query_permit",
+						value: {
+							permit_name: `permit_${sa_contract}_${sa_owner}_TESTNET`,
+							allowed_tokens: [sa_contract],
+							permissions: ['owner']
+						}
+					}],
+					memo: '',
+				}, {
+					preferNoSetFee: true,
+					preferNoSetMemo: true,
+				});
+
+				console.log(JSON.stringify(g_sign));
+
+				debugger;
+
+				// await keplr.experimentalSuggestChain({
+				// 	chainId: 'pulsar-2',
+				// });
+
+				// await keplr.suggestToken({
+					
+				// });
+
+
+				// const Whip007 = {
+				// 	request(w_value) {
+				// 		window.postMessage(Whip007Message.request(w_value));
+				// 	},
+
+				// 	handle() {
+
+				// 	},
+				// };
+
+				// const wrap = (si_type, w_value) => ({
+				// 	type: 'whip007',
+				// 	value: {
+				// 		type: si_type,
+				// 		value: w_value,
+				// 	},
+				// });
+
+				// export const Whip007Message = {
+				// 	requestBids: (w_value) => wrap('requestBids', w_value),
+
+				// };
+
+				// async function use_starshell() {
+				// 	window.addEventListener('message', (d_event) => {
+				// 		const g_whip7 = d_event.data?.whip007;
+				// 		if(g_whip7) {
+				// 			if(g_whip7.type)
+				// 			if('StarShell' === g_whip7.wallet.name) {
+				// 				window.postMessage({
+				// 					type: 'acceptBid',
+				// 				});
+				// 			}
+				// 		}
+				// 	});
+
+				// 	Whip007.handle({
+				// 		bid(g_bid) {
+				// 			if('StarShell' === g_bid.wallet.name) {
+				// 				Whip007.acceptBid(g_bid.wallet.name);
+				// 			}
+				// 		},
+				// 	});
+
+				// 	Whip007.requestBids({
+				// 		chains: {
+				// 			'cosmos:secret-4': {},
+				// 		},
+				// 	});
+				// }
+
+				// const g_sign = await window.keplr.signDirect('pulsar-2', g_key.bech32Address, {
+				// 	chainId: 'pulsar-2',
+				// });
+			})();
+		};
+	</script>
+</head>
+<body style="background-color: #212121; color: #f7f7f7;">
+</body>
+</html>

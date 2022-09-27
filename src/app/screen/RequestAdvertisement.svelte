@@ -1,31 +1,49 @@
 <script lang="ts">
-	import { Screen, type Page } from './_screens';
-	import { Vault } from '#/crypto/vault';
+	import {getContext} from 'svelte';
+	import {Screen, type Page} from './_screens';
 
-	import type { App } from '#/meta/app';
-	import { Apps } from '#/store/apps';
+	import type {App} from '#/meta/app';
+	import {Apps} from '#/store/apps';
 
-	import { onMount} from 'svelte';
-	import { P_PUBLIC_SUFFIX_LIST, R_DOMAIN_IP, R_DOMAIN_LOCALHOST } from '#/share/constants';
-	import type { Completed } from '#/entry/flow';
-	import { WebResourceCache } from '#/store/web-resource-cache';
+	import {P_PUBLIC_SUFFIX_LIST, R_DOMAIN_IP, R_DOMAIN_LOCALHOST} from '#/share/constants';
+	import type {Completed} from '#/entry/flow';
+	import {WebResourceCache} from '#/store/web-resource-cache';
 
 	import '#/chain/main';
+	import CheckboxField, { toggleChildCheckbox } from '../ui/CheckboxField.svelte';
+	import {qsa} from '#/util/dom';
+	import {microtask, timeout} from '#/util/belt';
+	import ActionsWall from '../ui/ActionsWall.svelte';
+	import AppBanner from '../ui/AppBanner.svelte';
+	import ReloadPage from './ReloadPage.svelte';
+	import AdjustKeplrCompatibilityMode from './AdjustKeplrCompatibilityMode.svelte';
+	import type {PageInfo} from '#/script/messages';
+	import {keplr_polyfill_script_add_matches} from '#/script/scripts';
+	import type {PageConfig} from '../nav/page';
 
 	
-	export let k_page: Page;
+	const k_page = getContext<Page>('page');
 
-	export let completed: Completed;
+	const completed = getContext<Completed>('completed');
 
+	/**
+	 * Information about the app requesting the advertisement
+	 */
 	export let app: App['interface'];
 	const g_app = app;
 
-	// derive path from app struct
-	const p_app = Apps.pathFrom(g_app);
+	/**
+	 * Tab ID of the requesting site
+	 */
+	export let page: PageInfo;
 
 	// ref host
 	const s_host = g_app.host;
 
+	/**
+	 * Indicates that the request is proxying in keplr compatibility mode
+	 */
+	export let keplr = false;
 
 	/*
 
@@ -34,7 +52,94 @@
 
 	*/
 
+	let dm_screen: HTMLElement;
+	let dm_summary: HTMLElement;
+
 	let b_busy = false;
+
+	let b_never_again = false;
+
+	let i_part_selected = -1;
+
+	$: s_againness = -1 === i_part_selected? 'once': 'always';
+
+	function ignore() {
+		// user opted to never be asked again
+		if(b_never_again) {
+			k_page.push({
+				creator: AdjustKeplrCompatibilityMode,
+				props: {
+					push: null,
+					app: g_app,
+					enable: false,
+				},
+				context: {
+					completed,
+				},
+			});
+		}
+		// otherwise; done
+		else {
+			completed(false);
+		}
+	}
+
+	async function enable_keplr_for_app() {
+		// do not interupt; lock
+		if(b_busy) return 1; b_busy = true;
+
+		// prep graceful exit
+		const exit = (): 1 => (b_busy = false, 1);
+	
+		// page config for reload screen
+		const gc_reload: PageConfig = {
+			creator: ReloadPage,
+			props: {
+				app: g_app,
+				page,
+				preset: 'keplr',
+			},
+			context: {
+				completed,
+			},
+		};
+
+		// user opted to never be asked again
+		if(b_never_again) {
+			// prompt user to confirm before doing anything
+			k_page.push({
+				creator: AdjustKeplrCompatibilityMode,
+				props: {
+					push: gc_reload,
+					app: g_app,
+					enable: true,
+				},
+				context: {
+					completed,
+				},
+			});
+		}
+		// proceed per usual
+		else {
+			// save app def to storage
+			await Apps.add(g_app);
+
+			// ensure polyfill is enabled for this app
+			await keplr_polyfill_script_add_matches([Apps.scriptMatchPatternFrom(g_app)]);
+
+			// reload the tab
+			await chrome.tabs.reload(page.tabId);
+
+			// done
+			completed(true);
+		}
+
+		// don't interupt ui slide
+		await timeout(1);
+
+		// release busy lock
+		return exit();
+	}
 
 	async function allow(): Promise<1> {
 		// do not interupt; lock
@@ -44,12 +149,11 @@
 		const exit = (): 1 => (b_busy = false, 1);
 
 		// save app def to storage
-		await Apps.open(async(ks_apps) => {
-			await ks_apps.put(ks_apps.at(p_app) || g_app);
-		});
+		await Apps.add(g_app);
 
 		// done
 		completed(true);
+
 		return exit();
 	}
 
@@ -76,7 +180,7 @@
 			// not an ip address
 			if(!R_DOMAIN_IP.test(s_host)) {
 				// extract port suffix if any
-				const s_port_suffix = s_host.replace(/^.*(:.+)$/, '$1');
+				const s_port_suffix = s_host.replace(/^.*?(:.+|)$/, '$1');
 
 				// split hostname
 				const a_subs = s_host.replace(/:.+$/, '').split('.');
@@ -102,26 +206,159 @@
 			}
 		}
 
+		// // initialize all parts to enabled
+		// a_parts_disabled = a_domains.map(() => false);
+
 		// answer
 		return a_domains;
 	}
 </script>
 
 <style lang="less">
-	
+	@import './_base.less';
+
+	.column {
+		display: flex;
+		flex-flow: column;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.request-summary {
+		margin: var(--ui-padding) calc(2 * var(--ui-padding));
+
+		.name {
+			color: var(--theme-color-blue);
+			font-weight: 500;
+		}
+	}
+
+	.additional-info {
+		.font(regular, @size:13px);
+		color: var(--theme-color-text-med);
+		margin: 0 var(--ui-padding);
+	}
+
+	.dont-ask {
+		padding: 0.5em 0;
+	}
 </style>
 
-<Screen>
-	Allow {g_app.host} to see you have StarShell installed?
+<Screen on:dom={d_event => dm_screen = d_event.detail}>
+	<AppBanner app={g_app} on:close={() => completed(false)}>
+		This app 
+		{#if keplr}
+			might be trying to use the Keplr API. Do you intend to use your wallet with this site?
+		{:else}
+			wants to know<br>
+			if you have StarShell installed.
+		{/if}
+	</AppBanner>
 
-	{#await parse_domain_parts() then a_domains}
-		{#each a_domains as s_pattern}
-			<div>
-				<input type="checkbox"> Always allow <code>{s_pattern}</code> to see StarShell.
+<!-- 
+	<div class="request-summary no-margin">
+		{#if g_app.name}
+			<strong>{g_app.name.length > 32? g_app.name.slice(0, 32)+'...': g_app.name}</strong>
+		{:else}
+			<code>{g_app.host}</code>
+		{/if}
+		{#if keplr}
+			might be trying to use the Keplr API. Do you intend to use your wallet with this site?
+		{:else}
+			wants to know if you have StarShell installed.
+		{/if}
+	</div> -->
+
+	<hr>
+
+	{#if keplr}
+		<div class="additional-info no-margin">
+			For privacy and compatibility, this site will think you have Keplr installed.
+			You still must review permissions before the site is able to connect to your wallet.
+		</div>
+
+		<!-- <div class="additional-info no-margin">
+			You will still be able to review permissions before the site is able to connect to your wallet.
+		</div> -->
+	{/if}
+
+	{#if !keplr}
+		{#await parse_domain_parts() then a_domains}
+			{#each a_domains as s_pattern, i_part}
+				<CheckboxField
+					containerClass='domain-part'
+					id={`domain-part-${i_part}`}
+					on:checked={async(d_event) => {
+						// not from user input, ignore
+						if(-1 !== i_part_selected && i_part !== i_part_selected) return;
+
+						// all other parts
+						const a_others = qsa(dm_screen, '.domain-part input');
+						a_others[i_part] = null;
+
+						// checked
+						if(d_event.detail) {
+							// check all below
+							for(const dm_other of a_others.slice(0, i_part)) {
+								if(!dm_other?.checked) {
+									dm_other?.click();
+								}
+							}
+
+							// uncheck all above
+							for(const dm_other of a_others.slice(i_part+1)) {
+								if(dm_other?.checked) {
+									dm_other?.click();
+								}
+							}
+
+							// disable all below
+							i_part_selected = i_part;
+						}
+						// unchecked
+						else {
+							// enable all so they are clickable but will not trigger recursion
+							i_part_selected = -2;
+
+							// allow it to enable
+							await microtask();
+
+							// uncheck all
+							for(const dm_other of a_others) {
+								if(dm_other?.checked) {
+									dm_other?.click();
+								}
+							}
+
+							// return to normal state
+							i_part_selected = -1;
+						}
+					}}
+					disabled={i_part < i_part_selected}
+				>
+					Don't ask again for <code>{s_pattern}</code>
+				</CheckboxField>
+			{/each}
+		{/await}
+	{/if}
+
+	{#if keplr}
+		<ActionsWall>
+			<div class="dont-ask" on:click={toggleChildCheckbox}>
+				<CheckboxField
+					id='never-again'
+					on:change={({detail:b_checked}) => b_never_again = b_checked}
+				>
+					Don't ever ask again
+				</CheckboxField>
 			</div>
-		{/each}
-	{/await}
-
-	<button disabled={b_busy} on:click={() => allow()}>Allow</button>
-	<button disabled={b_busy} on:click={() => completed(false)}>Cancel</button>
+			<button disabled={b_busy} on:click={() => ignore()}>Ignore {b_never_again? 'forever': ''}</button>
+			<button class="primary" disabled={b_busy} on:click={() => enable_keplr_for_app()}>Enable{b_never_again? ' forever': ''} and reload</button>
+		</ActionsWall>
+	{:else}
+		<ActionsWall>
+			<button disabled={b_busy} on:click={() => completed(false)}>Ignore {s_againness}</button>
+			<button class="primary" disabled={b_busy} on:click={() => allow()}>Allow {s_againness}</button>
+		</ActionsWall>
+	{/if}
 </Screen>

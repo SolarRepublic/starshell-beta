@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-	import type {PfpPath} from '#/meta/pfp';
+	import type {PfpTarget} from '#/meta/pfp';
 
 	export enum TxnContext {
 		NONE='none',
@@ -14,7 +14,7 @@
 		subtitle: string;
 		amount?: string;
 		fiat?: string;
-		pfp?: PfpPath;
+		pfp?: PfpTarget;
 		pending?: boolean;
 		link?: null | {
 			href: string;
@@ -31,12 +31,9 @@
 	import TimeAgo from 'javascript-time-ago';
 	import english_locale from 'javascript-time-ago/locale/en';
 
-	import SX_SEND from '#/icon/send.svg?raw';
-	import SX_RECV from '#/icon/recv.svg?raw';
-	import SX_ACC_CREATED from '#/icon/account-added.svg?raw';
 	import BigNumber from 'bignumber.js';
 	import {Chains} from '#/store/chains';
-	import type {Promisable} from '#/util/belt';
+	import type {Promisable} from '#/meta/belt';
 	import {abbreviate_addr, format_amount} from '#/util/format';
 	import {Accounts} from '#/store/accounts';
 	import type {AccountPath} from '#/meta/account';
@@ -49,11 +46,20 @@
 	import IncidentView from '../screen/IncidentView.svelte';
 	import type {Incident, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
 
+	import SX_SEND from '#/icon/send.svg?raw';
+	import SX_RECV from '#/icon/recv.svg?raw';
+	import SX_ACC_CREATED from '#/icon/user-add.svg?raw';
+	import SX_ACC_EDITED from '#/icon/user-edit.svg?raw';
+	import SX_CONNECT from '#/icon/connect.svg?raw';
+	import SX_ICON_SIGNATURE from '#/icon/signature.svg?raw';
+
 	import type {
 		Page,
 	} from '##/screen/_screens';
 	import {parse_coin_amount} from '#/chain/coin';
 	import { Incidents } from '#/store/incidents';
+    import { yw_account_editted } from '../mem';
+    import { Apps } from '#/store/apps';
 
 	// import {definition} from '@fortawesome/free-solid-svg-icons/faRobot';
 	// const SXP_ROBOT = definition.icon[4];
@@ -92,7 +98,7 @@
 
 	const mk_icon = (sx_icon: string) => {
 		const dm_icon = dd('span', {
-			class: 'event-icon',
+			class: 'event-icon global_svg-icon icon-diameter_18px',
 		});
 		dm_icon.innerHTML = sx_icon;
 		return dm_icon;
@@ -150,7 +156,7 @@
 					const x_amount = new BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals).toNumber();
 
 					const sa_recipient = g_transfer.recipient;
-					const p_contact = Agents.pathForContact(sa_recipient);
+					const p_contact = Agents.pathForContactFromAddress(sa_recipient);
 					const g_contact = await Agents.getContact(p_contact);
 
 					return {
@@ -204,7 +210,7 @@
 					const x_amount = new BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals).toNumber();
 
 					const sa_sender = g_transfer.sender;
-					const p_contact = Agents.pathForContact(sa_sender);
+					const p_contact = Agents.pathForContactFromAddress(sa_sender);
 					const g_contact = await Agents.getContact(p_contact);
 
 					return {
@@ -241,6 +247,67 @@
 				subtitle: `${format_time_ago(xt_when)} / ${g_account.name}`,
 				name: g_account.name,
 				icon: mk_icon(SX_ACC_CREATED),
+				pfp: g_account.pfp || '',
+			};
+		},
+
+		async account_edited(g_event) {
+			const {
+				time: xt_when,
+				data: {
+					account: p_account,
+					deltas: a_deltas,
+				},
+			} = g_event;
+
+			const g_account = (await Accounts.at(p_account))!;
+
+			return {
+				title: `Account edited`,
+				subtitle: `${format_time_ago(xt_when)} / ${g_account.name}`,
+				name: g_account.name,
+				icon: mk_icon(SX_ACC_EDITED),
+				pfp: g_account.pfp || '',
+			};
+		},
+
+		async app_connected(g_event) {
+			const {
+				time: xt_when,
+				data: {
+					app: p_app,
+					accounts: a_accounts,
+					connections: h_connections,
+				},
+			} = g_event;
+
+			const g_app = (await Apps.at(p_app))!;
+
+			return {
+				title: `App connected`,
+				subtitle: `${format_time_ago(xt_when)} / ${g_app.host}`,
+				name: g_app.name,
+				icon: mk_icon(SX_CONNECT),
+				pfp: g_app.pfp || '',
+			};
+		},
+
+		async signed_json(g_event) {
+			const {
+				time: xt_when,
+				data: {
+					account: p_account,
+					events: h_events,
+				},
+			} = g_event;
+
+			const g_account = (await Accounts.at(p_account))!;
+
+			return {
+				title: `Signed ${h_events.query_permit? 'query permit': 'document'}`,
+				subtitle: `${format_time_ago(xt_when)} / ${g_account.name}`,
+				name: g_account.name,
+				icon: mk_icon(SX_ICON_SIGNATURE),
 				pfp: g_account.pfp || '',
 			};
 		},

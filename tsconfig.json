@@ -51,10 +51,13 @@
 		"allowJs": true,
 		"checkJs": true,
 
-		"types": [
-			"chrome"
-			// "vite/client"
-		]
+		// "types": [
+		// 	"chrome"
+		// 	// "vite/client"
+		// ]
+
+		// "skipLibCheck": true,
+		// "types": [],
 	},
 
 	// 
@@ -65,5 +68,9 @@
 		"src/**/*.svelte",
 		"plugins/**/*.ts",
 		"rollup.config.ts"
+	],
+
+	"exclude": [
+		"node_modules"
 	]
 }

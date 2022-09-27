@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Promisable } from '#/util/belt';
+	import type { Promisable } from '#/meta/belt';
 
 	import {Tabs, TabList, Tab, TabPanel} from 'svelte-tabs';
 	import Field from './Field.svelte';

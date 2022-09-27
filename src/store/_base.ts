@@ -1,16 +1,17 @@
-import type { Class, Instance } from 'ts-toolbelt/out/Class/_api';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
+import type {Class, Instance} from 'ts-toolbelt/out/Class/_api';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
-import { JsonObject, JsonValue, ode, oderac, Promisable } from '#/util/belt';
+import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
+import {ode, oderac} from '#/util/belt';
 
-import type { Access } from '#/meta/belt';
-import type { Store, StoreKey } from '#/meta/store';
+import type {Access} from '#/meta/belt';
+import type {Store, StoreKey} from '#/meta/store';
 
-import { Vault, WritableVaultEntry } from '#/crypto/vault';
-import { NotAuthenticatedError } from '#/share/auth';
-import { H_STORE_INITS } from './_init';
-import type { Unsubscriber } from 'svelte/store';
-import { global_receive } from '#/script/msg-global';
+import {Vault, WritableVaultEntry} from '#/crypto/vault';
+import {H_STORE_INITS} from './_init';
+import type {Unsubscriber} from 'svelte/store';
+import {global_receive} from '#/script/msg-global';
+import {NotAuthenticatedError} from '#/share/errors';
 
 type StorageValue = JsonObject | JsonValue[];
 
@@ -36,7 +37,7 @@ export class WritableStore<
 	}
 
 	// releases the store
-	release(): Promise<void> {
+	release(): void {
 		return this._kv_store.release();
 	}
 
@@ -106,6 +107,12 @@ export class WritableStoreMap<
 		return ode(this._w_cache);
 	}
 
+	async delete(p_res: keyof h_cache): Promise<void> {
+		delete this._w_cache[p_res];
+
+		await this.save();
+	}
+
 	// async put(g_info: h_cache[keyof h_cache]): Promise<void> {
 	// 	// prepare app path
 	// 	const p_app = AppsI.pathFor(g_app.host, g_app.scheme);
@@ -142,12 +149,10 @@ export type StoreClassImpl<
 	w_cache extends Store[si_store]=Store[si_store],
 > = Class<[WritableVaultEntry<si_store>, w_cache, CryptoKey], WritableStore<si_store, w_cache>>;
 
-export interface UseStore<
+export type UseStore<
 	dc_store extends StoreClassImpl,
 	w_return extends any=void,
-> {
-	(ks_store: InstanceType<dc_store>): Promisable<w_return>;
-}
+> = (ks_store: InstanceType<dc_store>) => Promisable<w_return>;
 
 type StoreExtensionKey = 'array' | 'map' | 'dict';
 
@@ -175,7 +180,7 @@ export type StaticStore<
 }, s_extension>>;
 
 
-async function fetch_cipher() {
+export async function fetch_cipher(): Promise<CryptoKey> {
 	// fetch the root key
 	const dk_root = await Vault.getRootKey();
 
@@ -202,14 +207,11 @@ export function create_store_class<
 	class: dc_store;
 	extension?: s_extends;
 }): dc_store & StaticStore<si_store, dc_store, s_extends> {
-	return Object.assign(dc_store, {
-		async open<w_return extends any>(fk_use: UseStore<dc_store, w_return>): Promise<w_return> {
-			// fetch cipher key
-			const dk_cipher = await fetch_cipher();
+	async function open_or_initialize(dk_cipher: CryptoKey) {
+		// checkout the store from the vault
+		const kv_store = await Vault.acquire(si_store);
 
-			// checkout the store from the vault
-			const kv_store = await Vault.acquire(si_store);
-
+		try {
 			// read the store as json
 			let w_store = await kv_store.readJson(dk_cipher) as w_cache;
 
@@ -218,9 +220,41 @@ export function create_store_class<
 
 			// not exists; initialize
 			if(!w_store) {
-				w_store = H_STORE_INITS[si_store] as w_cache;
+				// save to the store after this
 				b_save = true;
+
+				// load default value from code
+				w_store = H_STORE_INITS[si_store] as w_cache;
+
+				// default value wasn't defined in code
+				if(!w_store) {
+					// too late to do anything about it now
+					console.error(`Critical error: no default store object defined for "${si_store}"; using object as fallback`);
+
+					// at the very least, attempt to fill with a plain object
+					w_store = {} as w_cache;
+				}
 			}
+
+			return [b_save, w_store, kv_store] as const;
+		}
+		// only in case of error
+		catch(e_read) {
+			// release store
+			kv_store.release();
+
+			// rethrow
+			throw e_read;
+		}
+	}
+
+	return Object.assign(dc_store, {
+		async open<w_return extends any>(fk_use: UseStore<dc_store, w_return>): Promise<w_return> {
+			// fetch cipher key
+			const dk_cipher = await fetch_cipher();
+
+			// 
+			const [b_save, w_store, kv_store] = await open_or_initialize(dk_cipher);
 
 			// instantiate the store class
 			const ks_store = new dc_store(kv_store, w_store, dk_cipher) as InstanceType<dc_store>;
@@ -229,59 +263,49 @@ export function create_store_class<
 			if(b_save) await ks_store.save(true);
 
 			// use the store
-			const w_return = await fk_use(ks_store);
-
-			// release the store
-			await ks_store.release();
+			let w_return: w_return;
+			try {
+				w_return = await fk_use(ks_store);
+			}
+			finally {
+				// release the store
+				ks_store.release();
+			}
 
 			// return
 			return w_return;
 		},
 
 		async read(): Promise<Instance<dc_store>> {
-			// // TODO: solve race conditions for many simultaneous lock requests
-			// return dc_store['open'](ks_store => ks_store);
-
 			// fetch cipher key
 			const dk_cipher = await fetch_cipher();
 
 			// read from the store
-			const kv_store = await Vault.readonly(si_store);
+			let kv_store = await Vault.readonly(si_store) as WritableVaultEntry;
 
 			// read the store as json
-			const w_store = await kv_store.readJson(dk_cipher) as w_cache;
+			let w_store = await kv_store.readJson(dk_cipher) as w_cache;
 
 			// not exists; initialize
+			let b_save = false;
+			let b_writable = false;
 			if(!w_store) {
-				return dc_store['open'](ks_store => ks_store);
+				b_writable = true;
+				[b_save, w_store, kv_store] = await open_or_initialize(dk_cipher);
 			}
 
-			// return instantiated store class
-			return new dc_store(kv_store as WritableVaultEntry, w_store, dk_cipher) as InstanceType<dc_store>;
+			// instantiate store class
+			const ks_store = new dc_store(kv_store, w_store, dk_cipher) as InstanceType<dc_store>;
+
+			// need to save it
+			if(b_save) await ks_store.save(true);
+
+			// then immediately release
+			if(b_writable) kv_store.release();
+
+			// return the instance
+			return ks_store;
 		},
-
-		// async readonly(this: StaticStore): Promise<Instance<dc_store>> {
-		// 	// fetch cipher key
-		// 	const dk_cipher = await fetch_cipher();
-
-		// 	// obtain the store from the vault
-		// 	const kv_store = await Vault.readonly(si_store);
-
-		// 	// read the store as json
-		// 	const w_store = await kv_store.readJson(dk_cipher) as w_cache;
-
-		// 	// store does not exist
-		// 	if(!w_store) {
-		// 		// initialize and save it
-		// 		await this.open(ks_store => ks_store.save());
-
-		// 		// try again
-		// 		return this.read()
-		// 	}
-
-		// 	// instantiate the store class
-		// 	return new dc_store(kv_store, w_store, dk_cipher) as InstanceType<dc_store>;
-		// },
 
 		...('array' === s_extension) && {
 			async prepend(w_value: Store[si_store][Extract<number, keyof Store[si_store]>]): Promise<number> {
@@ -295,13 +319,13 @@ export function create_store_class<
 
 		...('map' === s_extension) && {
 			async at<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
-				return await dc_store['open'](ks_self => ks_self.at(si_key));
+				return (await dc_store['read']()).at(si_key);
 			},
 		},
 
 		...('dict' === s_extension) && {
 			async get<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
-				return await dc_store['open'](ks_self => ks_self.get(si_key));
+				return (await dc_store['read']()).get(si_key);
 			},
 
 			async set(si_key: Store.Key<si_store>, w_value: Store[si_store][typeof si_key]): Promise<void> {

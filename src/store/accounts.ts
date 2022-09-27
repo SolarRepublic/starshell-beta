@@ -1,25 +1,27 @@
-import type { Account, AccountPath } from '#/meta/account';
-import type { Bech32, FamilyKey } from '#/meta/chain';
-import type { Resource } from '#/meta/resource';
+import type {AccountInterface, AccountPath} from '#/meta/account';
+import type {Bech32, ChainInterface, ChainNamespaceKey} from '#/meta/chain';
 
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
 
-import { SI_STORE_ACCOUNTS } from '#/share/constants';
-import type { Replace } from 'ts-toolbelt/out/String/Replace';
-import { ode } from '#/util/belt';
-import { yw_chain } from '#/app/mem';
-import { Chains } from './chains';
+import {SI_STORE_ACCOUNTS} from '#/share/constants';
+import type {Replace} from 'ts-toolbelt/out/String/Replace';
+import {ode} from '#/util/belt';
+import {Chains} from './chains';
+import {Secrets} from './secrets';
+import {Secp256k1Key} from '#/crypto/secp256k1';
+import RuntimeKey from '#/crypto/runtime-key';
+import {Bip32} from '#/crypto/bip32';
 
 type PathFor<
-	si_family extends FamilyKey,
+	si_family extends ChainNamespaceKey,
 	s_pubkey extends string,
 > = `/family.${si_family}/account.${Replace<s_pubkey, ':', '+'>}`;
 
 type PathFromAccount<
-	g_account extends Account['interface'],
+	g_account extends AccountInterface,
 > = PathFor<g_account['family'], g_account['pubkey']>;
 
 export class NoAccountOwner extends Error {}
@@ -29,25 +31,66 @@ export const Accounts = create_store_class({
 	extension: 'map',
 	class: class AccountsI extends WritableStoreMap<typeof SI_STORE_ACCOUNTS> {
 		static pathFor<
-			si_family extends FamilyKey,
+			si_family extends ChainNamespaceKey,
 			s_pubkey extends string,
 		>(si_family: si_family, s_pubkey: s_pubkey): PathFor<si_family, s_pubkey> {
 			return `/family.${si_family}/account.${s_pubkey.replace(/:/g, '+')}` as PathFor<si_family, s_pubkey>;
 		}
 
-		static pathFrom(g_account: Account['interface']): PathFromAccount<typeof g_account> {
+		static pathFrom(g_account: AccountInterface): PathFromAccount<typeof g_account> {
 			return AccountsI.pathFor(g_account.family, g_account.pubkey);
 		}
 
-		static async get(si_family: FamilyKey, s_pubkey: string): Promise<null | Account['interface']> {
+		static async get(si_family: ChainNamespaceKey, s_pubkey: string): Promise<null | AccountInterface> {
 			return (await Accounts.read()).get(si_family, s_pubkey);
 		}
 
-		static async find(sa_owner: Bech32.String, g_chain=yw_chain.get()): Promise<[AccountPath, Account['interface']]> {
+		static async find(sa_owner: Bech32, g_chain: ChainInterface): Promise<[AccountPath, AccountInterface]> {
 			return (await Accounts.read()).find(sa_owner, g_chain);
 		}
 
-		get(si_family: FamilyKey, s_pubkey: string): Account['interface'] | null {
+		static async getSigningKey(g_account: AccountInterface): Promise<Secp256k1Key> {
+			// ref account secret path
+			const p_secret = g_account.secret;
+
+			// fetch secret
+			return await Secrets.borrowPlaintext(p_secret, async(kn_secret, g_secret) => {
+				// depending on secret type
+				const si_type = g_secret.type;
+
+				// prep private key
+				let kk_sk: RuntimeKey;
+
+				// private key; return imported signing key
+				if('private_key' === si_type) {
+					kk_sk = await RuntimeKey.createRaw(kn_secret.data);
+				}
+				// bip32 node
+				else if('bip32_node' === si_type) {
+					// import node
+					const k_node = await Bip32.import(kn_secret);
+
+					// copy out it's private key
+					kk_sk = await k_node.privateKey.clone();
+
+					// destroy the bip32 node
+					k_node.destroy();
+				}
+				// mnemonic; invalid
+				else if('mnemonic' === si_type) {
+					throw new Error(`Account should not directly use its mnemonic as its secret.`);
+				}
+				// other/unknown
+				else {
+					throw new Error(`Unknown secret type '${si_type as string}'`);
+				}
+
+				// return imported signing key (and allow public key to be exported)
+				return await Secp256k1Key.import(kk_sk, true);
+			});
+		}
+
+		get(si_family: ChainNamespaceKey, s_pubkey: string): AccountInterface | null {
 			// prepare path
 			const p_res = AccountsI.pathFor(si_family, s_pubkey);
 
@@ -55,7 +98,7 @@ export const Accounts = create_store_class({
 			return this._w_cache[p_res] ?? null;
 		}
 
-		async put(g_account: Account['interface']): Promise<PathFromAccount<typeof g_account>> {
+		async put(g_account: AccountInterface): Promise<PathFromAccount<typeof g_account>> {
 			// prepare path
 			const p_res = AccountsI.pathFrom(g_account);
 
@@ -69,7 +112,7 @@ export const Accounts = create_store_class({
 			return p_res;
 		}
 
-		find(sa_owner: Bech32.String, g_chain=yw_chain.get()): [AccountPath, Account['interface']] {
+		find(sa_owner: Bech32, g_chain: ChainInterface): [AccountPath, AccountInterface] {
 			for(const [p_account, g_account] of ode(this._w_cache)) {
 				const sa_test = Chains.addressFor(g_account.pubkey, g_chain);
 				if(sa_test === sa_owner) {

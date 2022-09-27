@@ -1,8 +1,12 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import {getContext} from 'svelte';
 	
-	import { F_NOOP, Promisable } from '#/util/belt';
-	import type { Page, PageConfig } from '../screen/_screens';
+	import {
+		F_NOOP,
+		type Promisable,
+	} from '#/util/belt';
+
+	import type {Page, PageConfig} from '../screen/_screens';
 
 	type PromisableIgnoreFunction = () => Promisable<any>;
 
@@ -161,13 +165,15 @@
 </style>
 
 <div class="actions-line">
-	{#if b_cancel || b_back}
-		<button disabled={disabled || b_busy} on:click={() => cancel_action()}>
-			{b_cancel? 'Cancel': 'Back'}
-		</button>
-	{/if}
+	<slot>
+		{#if b_cancel || b_back}
+			<button disabled={disabled || b_busy} on:click={() => cancel_action()}>
+				{b_cancel? 'Cancel': 'Back'}
+			</button>
+		{/if}
 
-	<button disabled={b_disabled || disabled || b_waiting || b_busy} class:primary={!noPrimary} on:click={() => confirm_action()}>
-		{s_confirm_final}
-	</button>
+		<button disabled={b_disabled || disabled || b_waiting || b_busy} class:primary={!noPrimary} on:click={() => confirm_action()}>
+			{s_confirm_final}
+		</button>
+	</slot>
 </div>

@@ -1,150 +1,141 @@
 import type { BalanceBundle } from '#/store/networks';
-import type { Dict, JsonObject } from '#/util/belt';
+import type { Dict, JsonObject } from '#/meta/belt';
 import type { Compute, ComputeRaw } from 'ts-toolbelt/out/Any/Compute';
 import type { Type } from 'ts-toolbelt/out/Any/Type';
 import type { Concat } from 'ts-toolbelt/out/List/Concat';
 import type { Tail } from 'ts-toolbelt/out/List/Tail';
 import type { MergeAll } from 'ts-toolbelt/out/Object/MergeAll';
 import type { Nameable, Pfpable } from './able';
-import type { PfpPath } from './pfp';
+import type { PfpTarget } from './pfp';
 import type { Resource } from './resource';
-import type { TokenSpecKey } from './token';
+import type { TokenInterfaceDescriptor, TokenInterfaceKey, TokenSpecKey } from './token';
 
 /**
  * Represents an address space for a certain type of accounts (e.g., a bech32 extension)
  */
 export type Bech32<
-	s_hrp extends string=string,
-	s_separator extends string=string,
-> = {
-	hrp: s_hrp;
-	separator: s_separator;
-};
-
-export namespace Bech32 {
-	export type Config = {
-		hrp: string;
-		separator?: string;
-	};
-
-	export type New<
-		gc_space extends Config,
-	> = Bech32<
-		gc_space['hrp'],
-		gc_space['separator'] extends string
-			? gc_space['separator']
-			: '1'
-	>;
-
-	export type String<
-		g_space extends Bech32=Bech32,
-		s_data extends string=string,
-	> = `${g_space['hrp']}${g_space['separator']}${s_data}`;
-}
+	si_hrp extends string=string,
+	s_data extends string=string,
+> = `${si_hrp}1${s_data}`;
 
 
 /**
- * Represents a chain family and the defaults its chains may inherit.
+ * Represents a chain namespace and the defaults its chains may inherit.
  */
-export type Family<
-	h_bech32s extends Dict<Bech32>={},
+export type ChainNamespace<
+	h_bech32s extends Dict={},
 > = {
 	bech32s: h_bech32s;
 };
 
-export namespace Family {
+export namespace ChainNamespace {
 	export type Config = {
-		bech32s: Dict<Bech32.Config>;
+		bech32s: Dict;
 	};
 
 	export type New<
-		gc_family extends Config,
-	> = gc_family['bech32s'] extends infer h_bech32s
+		gc_namespace extends Config,
+	> = gc_namespace['bech32s'] extends infer h_bech32s
 		? h_bech32s extends Config['bech32s']
-			? Family<{
-				[si_each in keyof h_bech32s]: Bech32.New<h_bech32s[si_each]>;
+			? ChainNamespace<{
+				[si_each in keyof h_bech32s]: Bech32<h_bech32s[si_each]>;
 			}>
 			: never
 		: never;
 
 	export type Bech32s<
-		si_family extends FamilyKey=FamilyKey,
-	> = FamilyRegistry[si_family]['bech32s'] extends infer h_bech32s
+		si_namespace extends ChainNamespaceKey=ChainNamespaceKey,
+	> = ChainNamespaceRegistry[si_namespace]['bech32s'] extends infer h_bech32s
 		? h_bech32s extends Dict<Bech32>
 			? h_bech32s
 			: never
 		: never;
 
 	export type Hrp<
-		si_family extends FamilyKey,
-		as_keys extends keyof Bech32s<si_family>=keyof Bech32s<si_family>,
-	> = Bech32s<si_family>[as_keys]['hrp'];
+		si_namespace extends ChainNamespaceKey,
+		as_keys extends keyof Bech32s<si_namespace>=keyof Bech32s<si_namespace>,
+	> = Bech32s<si_namespace>[as_keys]['hrp'];
 
 	export type Segment<
-		si_family extends FamilyKey,
-	> = `family.${si_family}`;
+		si_namespace extends ChainNamespaceKey,
+	> = `family.${si_namespace}`;
 }
 
 
-export type FamilyRegistry = {
-	cosmos: Family.New<{
+export type ChainNamespaceRegistry = {
+	cosmos: ChainNamespace.New<{
 		bech32s: {
-			acc: {
-				hrp: '';
-			};
-			accpub: {
-				hrp: 'pub';
-			};
-			valoper: {
-				hrp: 'valoper';
-			};
-			valoperpub: {
-				hrp: 'valoperpub';
-			};
-			valcons: {
-				hrp: 'valcons';
-			};
-			valconspub: {
-				hrp: 'valconspub';
-			};
+			acc: '';
+			accpub: 'pub';
+			valoper: 'valoper';
+			valoperpub: 'valoperpub';
+			valcons: 'valcons';
+			valconspub: 'valconspub';
 		};
 	}>;
-	// ethereum: {
-	// 	bech32s: {
-	// 		acc: {
-	// 			hrp: '';
-	// 		};
-	// 	};
-	// };
 };
 
-export type FamilyKey = keyof FamilyRegistry;
+export type ChainNamespaceKey = keyof ChainNamespaceRegistry;
 
 
-export type Bip44<
+
+/**
+ * Represents an absolute chain identifier <https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md>
+ */
+export type Caip2<
+	si_namespace extends ChainNamespaceKey=ChainNamespaceKey,
+	si_reference extends string=string,
+> = {
+	namespace: si_namespace;
+	reference: si_reference;
+};
+
+export namespace Caip2 {
+	export type Config = {
+		namespace: ChainNamespaceKey;
+		reference: string;
+	};
+
+	export type New<
+		gc_chain extends Config,
+	> = Caip2<gc_chain['namespace'], gc_chain['reference']>;
+
+	export type String<
+		si_namespace extends ChainNamespaceKey=ChainNamespaceKey,
+		si_reference extends string=string,
+	> = `${si_namespace}:${si_reference}`;
+}
+
+
+export type Slip44<
 	n_coin_type extends number=number,
+	si_symbol extends string=string,
 > = {
 	coinType: n_coin_type;
+	symbol?: si_symbol;
 };
 
-export namespace Bip44 {
+export namespace Slip44 {
 	export type Config = {
 		coinType: number;
 	};
 
 	export type New<
-		gc_bip44 extends Config,
-	> = Bip44<
-		gc_bip44['coinType']
+		gc_slip44 extends Config,
+	> = Slip44<
+		gc_slip44['coinType']
 	>;
 }
+
 
 export type NativeCoin = {
 	decimals: number;
 	denom: string;
 	name: string;
-	pfp: PfpPath;
-	extra?: Dict;
+	pfp: PfpTarget;
+	extra?: {
+		coingecko_id: string;
+	} & Dict;
 };
 
 export interface BlockExplorerConfig extends JsonObject {
@@ -156,37 +147,97 @@ export interface BlockExplorerConfig extends JsonObject {
 	transaction: string;
 }
 
+
+export interface ChainFeatureRegistry {
+	secretwasm: {
+		interface: {
+			consensusIoPubkey: string;
+		};
+	};
+	'ibc-go': {};
+	'ibc-transfer': {};
+}
+
+export type ChainFeatureKey = keyof ChainFeatureRegistry;
+
+export type ChainFeaturesConfig = {
+	[si_key in ChainFeatureKey]?: ChainFeatureRegistry[si_key] extends {interface: JsonObject}
+		? ChainFeatureRegistry[si_key]['interface']
+		: {};
+};
+
 export type Chain<
-	si_family extends FamilyKey=FamilyKey,
-	si_chain extends string=string,
-	h_bech32s extends Record<keyof Family.Bech32s<si_family>, Bech32>=Record<keyof Family.Bech32s<si_family>, Bech32>,  // Family.Bech32s<si_family>,
-	g_bip44 extends Bip44=Bip44,
+	si_namespace extends ChainNamespaceKey=ChainNamespaceKey,
+	si_reference extends string=string,
+	h_bech32s extends Record<keyof ChainNamespace.Bech32s<si_namespace>, string>=Record<keyof ChainNamespace.Bech32s<si_namespace>, string>,  // Family.Bech32s<si_family>,
+	a_slip44s extends Slip44[]=Slip44[],
 > = Resource.New<{
-	segments: [Family.Segment<si_family>, Chain.Segment<si_chain>];
+	segments: [ChainNamespace.Segment<si_namespace>, Chain.Segment<si_reference>];
 	interface: [{
-		family: si_family;
-		id: si_chain;
+		/**
+		 * The chain's CAIP-2 namespace identifier <https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md>
+		 */
+		namespace: si_namespace;
+
+		/**
+		 * The chain's CAIP-2 reference identifier <https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md>
+		 */
+		reference: si_reference;
+
+		/**
+		 * SLIP-0044 <https://github.com/satoshilabs/slips/blob/master/slip-0044.md>
+		 */
+		slip44s: a_slip44s;
+
 		bech32s: h_bech32s;
-		bip44: g_bip44;
+
+		/**
+		 * Specifies all "built-in" assets for the chain. By default, the first entry will be used as fee and stake currency.
+		 * To specify different currenc(ies) for fee or stake, provide entries for `feeCoinIds` and `stakeCoinIds` respectively.
+		 */
 		coins: Dict<NativeCoin>;
+
+		/**
+		 * Optionally specifies the list of coins in `coins` with the corresponding ids to be used for fees.
+		 * If omitted, fee currency will default to the first entry in `coins`.
+		 */
+		feeCoinIds?: string[];
+
+		/**
+		 * Optionally specifies the list of coins in `coins` with the corresponding ids to be used for staking.
+		 * If omitted, stake currency will default to the first entry in `coins`.
+		 */
+		stakeCoinIds?: string[];
+
+		features: ChainFeaturesConfig;
+
 		tokenInterfaces: TokenSpecKey[];
 		testnet?: boolean;
 		blockExplorer: BlockExplorerConfig;
 	}, Nameable, Pfpable];
 }>;
 
+
+/**
+ * Resource path for a StarShell Chain
+ */
 export type ChainPath = Resource.Path<Chain>;
+
+
+/**
+ * Interface struct for a StarShell Chain
+ */
+export type ChainInterface = Chain['interface'];
 
 export namespace Chain {
 	export type Config = {
-		family: FamilyKey;
-		id: string;
-		bech32: Bech32.Config | {
+		namespace: ChainNamespaceKey;
+		reference: string;
+		bech32s: string | {
 			// provide explicit map of bech32s
-			// bech32s: Dict<Bech32.Config>;
-			bech32s: Record<keyof Family.Bech32s, Bech32.Config>;
+			bech32s: Record<keyof ChainNamespace.Bech32s, string>;
 		};
-		bip44: Bip44.Config;
+		slip44s: Slip44.Config[];
 	};
 
 	/**
@@ -194,13 +245,10 @@ export namespace Chain {
 	 * 
 	 * ```ts
 	 * Chain.New<{
-	 * 	family: FamilyKey;
-	 * 	id: string;
-	 * 	bech32: {
-	 * 		hrp: string;
-	 * 		separator?: string;
-	 * 	} | {
-	 * 		bech32s: Dict<AddressSpace.Config>;
+	 * 	namespace: ChainNamespaceKey;
+	 * 	reference: string;
+	 * 	bech32s: string | {
+	 * 		[AddressNamespace: string]: string;
 	 * 	};
 	 * 	bip44: {
 	 * 		coinType: number;
@@ -213,32 +261,29 @@ export namespace Chain {
 	export type New<
 		gc_chain extends Config,
 	> = Chain<
-		gc_chain['family'],
-		gc_chain['id'],
-		gc_chain['bech32'] extends Bech32.Config
-			? Family.Bech32s<gc_chain['family']> extends infer h_bech32s
-				? h_bech32s extends Dict<Bech32>
+		gc_chain['namespace'],
+		gc_chain['reference'],
+		gc_chain['bech32s'] extends string
+			? ChainNamespace.Bech32s<gc_chain['namespace']> extends infer h_bech32s
+				? h_bech32s extends Dict
 					? {
-						[si_each in keyof h_bech32s]: Compute<Bech32.New<{
-							hrp: `${gc_chain['bech32']['hrp']}${h_bech32s[si_each]['hrp']}`;
-							separator: gc_chain extends {separator: string}
-								? gc_chain['separator']
-								: h_bech32s[si_each]['separator'];
-						}>>
+						[si_each in keyof h_bech32s]: Bech32<`${gc_chain['bech32s']}${h_bech32s[si_each]}`>;
 					}
 					: never
 				: never
-			: never,
-		gc_chain['bip44']
+			: gc_chain['bech32s'] extends Record<keyof ChainNamespace.Bech32s<gc_chain['namespace']>, Bech32>
+				? gc_chain['bech32s']
+				: never,
+		Array<Slip44.New<gc_chain['slip44s'][Extract<gc_chain['slip44s'], number>]>>
 	>;
 
 	export type Bech32String<
-		h_bech32s extends Chain['interface']['bech32s']=Chain['interface']['bech32s'],
+		h_bech32s extends ChainInterface['bech32s']=ChainInterface['bech32s'],
 		as_keys extends keyof h_bech32s=keyof h_bech32s,
 		s_data extends string=string,
 	> = Compute<{
 		[si_each in keyof h_bech32s]: h_bech32s[si_each] extends Bech32
-			? `${Bech32.String<h_bech32s[si_each], s_data>}`
+			? `${Bech32<h_bech32s[si_each], s_data>}`
 			: string;
 	}[as_keys]>;
 
@@ -254,16 +299,17 @@ export namespace Chain {
 
 export namespace KnownChain {
 	export type SecretNetwork = Chain.New<{
-		family: 'cosmos';
-		id: 'secret-4';
-		bech32: {
-			hrp: 'secret';
-		};
-		bip44: {
-			coinType: 529;
-		};
+		namespace: 'cosmos';
+		reference: 'secret-4';
+		bech32s: 'secret';
+		slip44s: [
+			Slip44<118>,
+		];
 	}>;
+
+	export type SecretNetworkInterface = SecretNetwork['interface'];
 }
+
 
 
 export type AgentOrEntityOrigin = 'user' | 'built-in' | 'domain';
@@ -276,7 +322,7 @@ export type AgentOrEntityOrigin = 'user' | 'built-in' | 'domain';
  * 
  * ```ts
  * Agent<
- * 	family?: FamilyKey,
+ * 	namespace?: ChainNamespaceKey,
  * 	pubkey?: string,
  * >
  * ```
@@ -284,19 +330,41 @@ export type AgentOrEntityOrigin = 'user' | 'built-in' | 'domain';
  * An agent is a cross-chain sender or recipient of transactions (it presumably holds a private key)
  */
 export type Agent<
-	si_family extends FamilyKey=FamilyKey,
-	sa_agent extends string=string,
-	si_space extends keyof Family.Bech32s<si_family>=keyof Family.Bech32s<si_family>,
+	si_namespace extends ChainNamespaceKey=ChainNamespaceKey,
+	si_agent extends string=string,
+	si_addr_space extends keyof ChainNamespace.Bech32s<si_namespace>=keyof ChainNamespace.Bech32s<si_namespace>,
 > = Resource.New<{
-	segments: [Family.Segment<si_family>, `agent.${sa_agent}`];
+	segments: [ChainNamespace.Segment<si_namespace>, `agent.${si_agent}`];
 	interface: {
-		address: sa_agent;
+		/**
+		 * the chain namespace within which this agent operates
+		 */
+		namespace: si_namespace;
 
+		/** 
+		 * compatible chains (first one is the source chain)
+		 */
+		chains: [ChainPath, ...ChainPath[]];
+
+		/**
+		 * the bech32 address space config key
+		 */
+		addressSpace: si_addr_space extends `${infer s}`? s: string;
+
+		/**
+		 * address data (without checksum)
+		 */
+		addressData: si_agent;
+
+		/**
+		 * what created this agent 
+		 */
 		origin: AgentOrEntityOrigin;
 	};
 }>;
 
 export type AgentPath = Resource.Path<Agent>;
+export type AgentIntergace = Agent['interface'];
 
 export namespace Agent {
 	export type ProxyFromEntity = Resource.New<{
@@ -324,12 +392,12 @@ export type Entity<
 	g_chain extends Chain=Chain,
 	as_spaces extends keyof g_chain['interface']['bech32s']=keyof g_chain['interface']['bech32s'],
 	s_pubkey extends string=string,
-> = Chain.Bech32String<g_chain['interface']['bech32s'], as_spaces, s_pubkey> extends infer s_addr
-	? s_addr extends string
+> = Chain.Bech32String<g_chain['interface']['bech32s'], as_spaces, s_pubkey> extends infer sa_entity
+	? sa_entity extends Chain.Bech32String<g_chain['interface']['bech32s'], as_spaces, s_pubkey>
 		? Resource.New<{
-			segments: Concat<Tail<g_chain['segments']>, [`bech32.${s_addr}`]>;
+			segments: Concat<Tail<g_chain['segments']>, [`bech32.${sa_entity}`]>;
 			interface: {
-				bech32: s_addr;
+				bech32: sa_entity;
 
 				// where the entity came from
 				origin: AgentOrEntityOrigin;
@@ -339,6 +407,7 @@ export type Entity<
 	: never;
 
 export type EntityPath = Resource.Path<Entity>;
+export type EntityInterface = Entity['interface'];
 
 
 export type Holding<
@@ -362,6 +431,7 @@ export type HoldingPath = Resource.Path<Holding>;
 export type Contract<
 	g_chain extends Chain=Chain,
 	s_pubkey extends string=string,
+	as_tokens extends TokenInterfaceKey=TokenInterfaceKey,
 > = Resource.New<{
 	extends: Entity<g_chain, 'acc', s_pubkey>;
 
@@ -374,6 +444,9 @@ export type Contract<
 		// code hash
 		hash: string;
 
+		// interfaces the contract implements
+		interfaces: TokenInterfaceDescriptor<as_tokens>;
+
 		// log events associate this contract with sites that have used it
 		// ...
 	}, Nameable, Pfpable];
@@ -381,3 +454,4 @@ export type Contract<
 
 
 export type ContractPath = Resource.Path<Contract>;
+export type ContractInterface = Contract['interface'];

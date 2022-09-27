@@ -15,21 +15,20 @@
 	import SX_ICON_PERSONAL from '#/icon/account_box.svg?raw';
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
 	import { Header, Screen, type Page } from './_screens';
-	import Portrait, { Actions } from '../ui/Portrait.svelte';
-	import type { EntityPath, NativeCoin } from '#/meta/chain';
+	import Portrait, {type Actions} from '../ui/Portrait.svelte';
+	import type { ContractInterface, ContractPath, EntityPath, NativeCoin } from '#/meta/chain';
 	import { Entities } from '#/store/entities';
 	import { yw_chain, yw_chain_ref, yw_network_active } from '../mem';
 	import { SI_STORE_CHAINS, XT_MINUTES } from '#/share/constants';
 	import { getContext } from 'svelte';
 	import Send from './Send.svelte';
-	import type { Token, TokenPath } from '#/meta/token';
 	import { Chains } from '#/store/chains';
 	import { coin_formats, to_fiat } from '#/chain/coin';
 	import { format_amount, format_fiat } from '#/util/format';
 	import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-	import type { PfpPath } from '#/meta/pfp';
-import Gap from '../ui/Gap.svelte';
-import Row from '../ui/Row.svelte';
+	import type { PfpTarget } from '#/meta/pfp';
+	import Gap from '../ui/Gap.svelte';
+	import Row from '../ui/Row.svelte';
 
 	const k_page = getContext<Page>('page');
 
@@ -48,12 +47,12 @@ import Row from '../ui/Row.svelte';
 	let g_coin: NativeCoin | null = null;
 
 	// the token's path and object (if it's a token)
-	let p_token: TokenPath | '' = '';
-	let g_token: Token['interface'] | null = null;
+	let p_token: ContractPath | '' = '';
+	let g_token: ContractInterface | null = null;
 
 
 	// its pfp
-	let p_pfp: PfpPath | '' = '';
+	let p_pfp: PfpTarget | '' = '';
 
 	// its SYMBL
 	let s_symbol = '';
@@ -136,7 +135,7 @@ import Row from '../ui/Row.svelte';
 				si_type = 'token';
 
 				// set token path
-				p_token = p_entity as TokenPath;
+				p_token = p_entity as ContractPath;
 
 				// read token interfaces
 				const ks_entites = await Entities.read();
@@ -186,7 +185,6 @@ import Row from '../ui/Row.svelte';
 	// the set of actions available on this asset
 	const gc_actions: Actions = {
 		send: {
-			label: 'Send',
 			trigger() {
 				k_page.push({
 					creator: Send,

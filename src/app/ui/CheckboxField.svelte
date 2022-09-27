@@ -1,5 +1,22 @@
+<script lang="ts" context="module">
+	import {qs} from '#/util/dom';
+
+	// symbol to use when marking a click event as already handled
+	const _$_CLICK_HANDLED = Symbol('Checkbox click handled');
+
+	/**
+	 * Handles click events for parent nodes that want to set their child checkbox value
+	 */
+	export function toggleChildCheckbox(d_event: MouseEvent): void {
+		// event was not explicitly handled by the child svelte component
+		if(!d_event[_$_CLICK_HANDLED] && d_event.currentTarget) {
+			qs(d_event.currentTarget as HTMLElement, 'fieldset')?.click();
+		}
+	}
+</script>
+
 <script lang="ts">
-	import { F_NOOP } from '#/util/belt';
+	import {createEventDispatcher} from 'svelte';
 
 	import SX_ICON_CHECKED from '#/icon/checked.svg?raw';
 	import SX_ICON_UNCHECKED from '#/icon/unchecked.svg?raw';
@@ -20,26 +37,56 @@
 	 */
 	export let checked = false;
 
-	export let disableHandler = false;
+	/**
+	 * Whether the checkbox is disabled
+	 */
+	export let disabled = false;
 
-	// export let stopLabelClicks = false;
-	// const b_text_propagates = !stopLabelClicks;
+	/**
+	 * Sets the style of the root element
+	 */
+	export let rootStyle = '';
 
-	// console.log({
-	// 	b_text_propagates,
-	// });
 
-	function handle_field_click(d_event) {
-		// ignore label click propagations
-		if('LABEL' !== d_event.target.tagName) {
-			// all others
-			if(!disableHandler) {
-				checked = !checked;
+	// handle click events on the fieldset
+	function handle_fieldset_click(d_event: MouseEvent) {
+		// already handled; exit
+		if(d_event[_$_CLICK_HANDLED]) return;
+
+		// not disabled
+		if(!disabled) {
+			// handle click on field set
+			if(dm_input !== d_event.target) {
+				dm_input.checked = !dm_input.checked;
+				handle_change();
+			}
+
+			// prevent default on label
+			if('LABEL' === (d_event.target as HTMLElement)?.tagName) {
+				d_event.preventDefault();
 			}
 		}
 
-		// stop propagation
-		d_event.stopImmediatePropagation();
+		// mark the event as handled
+		d_event[_$_CLICK_HANDLED] = true;
+
+		// do not propagate to parent
+		d_event.stopPropagation();
+	}
+
+	// dispatch change event when it changes
+	const dispatch = createEventDispatcher();
+
+	// input element
+	let dm_input: HTMLInputElement;
+
+	// handle input events on checkbox element
+	function handle_change() {
+		// update checked state
+		checked = dm_input.checked;
+
+		// dispatch event to parent component
+		dispatch('change', checked);
 	}
 </script>
 
@@ -47,11 +94,38 @@
 	fieldset {
 		display: flex;
 		gap: 8px;
-		margin: 0;
+		// margin: 0;
 		padding: 0;
 		border: 0;
 
+		&.disabled {
+			opacity: 0.3;
+		}
+
 		.checkbox {
+			position: relative;
+			width: 18px;
+			height: 18px;
+			margin-top: 1px;
+
+			&>* {
+				display: block;
+				width: 18px;
+				height: 18px;
+				margin: 0;
+				padding: 0;
+				cursor: pointer;
+			}
+
+			&>input {
+				position: absolute;
+				top: 0;
+				right: 0;
+			}
+
+			input {
+				opacity: 0;
+			}
 
 			.icon {
 				--icon-diameter: 18px;
@@ -59,16 +133,24 @@
 				vertical-align: middle;
 			}
 		}
+
+		label {
+			padding-left: 0.25em;
+		}
 	}
 </style>
 
 
-<fieldset class="{containerClass}" on:click={handle_field_click}>
+<fieldset class="checkbox-field {containerClass}" on:click={handle_fieldset_click} class:disabled={disabled} style={rootStyle}>
 	<span class="checkbox">
-		<input id={s_id} type="checkbox" hidden bind:checked={checked}>
 		<span class="icon">
 			{@html checked? SX_ICON_CHECKED: SX_ICON_UNCHECKED}
 		</span>
+		<input id={s_id} type="checkbox" bind:this={dm_input}
+			checked={checked}
+			disabled={disabled}
+			on:change={handle_change}
+		>
 	</span>
 
 	{#if $$slots.default}

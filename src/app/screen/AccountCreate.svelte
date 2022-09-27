@@ -9,6 +9,7 @@
 
 	import type {AccountPath} from '#/meta/account';
 	import AccountEdit from './AccountEdit.svelte';
+import ActionsWall from '../ui/ActionsWall.svelte';
 
 	const k_page = getContext<Page>('page');
 
@@ -37,7 +38,7 @@
 		Create a new account, import an existing one, or connect to a hardwarware wallet.
 	</p>
 
-	<div class="action-wall">
+	<ActionsWall>
 		<button class="primary" on:click={() => k_page.push({
 			creator: AccountEdit,
 		})}>
@@ -55,5 +56,5 @@
 		})}>
 			Connect to hardware
 		</button>
-	</div>
+	</ActionsWall>
 </Screen>

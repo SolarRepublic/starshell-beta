@@ -1,8 +1,8 @@
-import type { Auto, Coalesce, Default } from "#/meta/belt";
-import type { Chain, FamilyKey } from "#/meta/chain";
-import type { Resource } from "#/meta/resource";
-import type { JsonObject, JsonValue } from "#/util/belt";
-import type { String } from "ts-toolbelt";
+import type {Auto, Coalesce, Default} from '#/meta/belt';
+import type {Chain, ChainNamespaceKey} from '#/meta/chain';
+import type {Resource} from '#/meta/resource';
+import type {JsonObject, JsonValue} from '#/meta/belt';
+import type {String} from 'ts-toolbelt';
 
 import type {
 	Cast,
@@ -17,9 +17,9 @@ import type {
 	Tail,
 } from 'ts-toolbelt/out/List/_api';
 
-import type { Merge } from "ts-toolbelt/out/Object/Merge";
-import type { MergeAll } from "ts-toolbelt/out/Object/MergeAll";
-import type { Join } from "ts-toolbelt/out/String/Join";
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
+import type {Join} from 'ts-toolbelt/out/String/Join';
 
 
 
@@ -32,7 +32,7 @@ namespace Segment {
 
 
 
-type ss = Chain.Bech32String<Chain, keyof Chain['interface']['bech32s']> extends infer s_yes? s_yes extends string? s_yes: never: never;
+type ss = Chain.Bech32String<Chain, keyof ChainInterface['bech32s']> extends infer s_yes? s_yes extends string? s_yes: never: never;
 type wtt = Entity<SecretNetwork, 'acc', string>;
 type show1 = Contract;
 
@@ -58,7 +58,7 @@ type HoldingEntry = {
 
 interface TagEntry extends JsonObject {
 	tagId: number;
-};
+}
 
 type TagsMap = DataMap<TagEntry>;
 
@@ -92,8 +92,8 @@ const test: OtherZ = {
 const H_RESOURCES = {
 	'family.cosmos': {
 		'chain.secret-4': {
-			family: 'cosmos',
-			id: '',
+			'family': 'cosmos',
+			'id': '',
 
 			'bech32.secret1astuvywx': {
 				'as.contract': {

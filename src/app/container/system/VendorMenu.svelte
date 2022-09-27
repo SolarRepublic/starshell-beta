@@ -155,15 +155,6 @@ import { SI_VERSION } from '#/share/constants';
 		}
 	}
 
-	.absolute(@dims: '') {
-		position: absolute;
-		top: 0;
-		left: 0;
-
-		width: if('' = @dims, var(--app-window-width), @dims);
-		height: if('' = @dims, var(--app-window-height), @dims);
-	}
-
 	.vendor-menu {
 		--item-padding: 30px;
 
@@ -183,8 +174,8 @@ import { SI_VERSION } from '#/share/constants';
 			position: absolute;
 			top: 0;
 			width: var(--bar-width);
+			max-width: 400px;
 			height: 100%;
-			// background-color: var(--theme-color-primary);
 			background-color: var(--theme-color-bg);
 			left: 0%;
 			opacity: 1;

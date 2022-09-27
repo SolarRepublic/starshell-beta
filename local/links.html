@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en"> 
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>StarShell Wallet developer links</title>
+
+	<script type="module">
+
+		function flow_params(gc_flow) {
+			return new URLSearchParams({
+				comm: 'query',
+				key: 'test',
+				data: JSON.stringify(gc_flow),
+			}).toString();
+		}
+
+		function open_flow(gc_flow) {
+			const p_url = `http://localhost:8128/src/entry/flow.html?${flow_params({
+				...gc_flow,
+				within: 'window',
+			})}`;
+
+			window.open(p_url, '_blank');
+		}
+
+		function prompt_keplr() {
+			open_flow({
+				type: 'requestKeplr',
+				value: {
+					scheme: 'https',
+					host: 'test.starshell.net',
+					connections: {},
+					pfp: '',
+					name: 'Test App',
+				},
+			});
+		}
+
+		function prompt_connection() {
+			open_flow({
+				type: 'requestConnection',
+				value: {
+					app: {
+						scheme: 'http',
+						host: 'localhost:3001',
+						name: 'StarShell Wallet sample app',
+						pfp: 'pfp:http://localhost:3001',
+						connections: {},
+					},
+					chains: {
+						"cosmos:pulsar-2": {
+							"namespace": "cosmos",
+							"reference": "secret-4",
+							"name": "Secret Network",
+							"pfp": "/template.pfp/uuid.2",
+							"coins": {
+								"SCRT": {
+									"name": "SCRT",
+									"denom": "uscrt",
+									"decimals": 6,
+									"pfp": "",
+									"extra": {
+										"coingecko_id": "secret"
+									}
+								}
+							},
+							"feeCoinIds": [
+								"SCRT"
+							],
+							"stakeCoinIds": [
+								"SCRT"
+							],
+							"slip44s": [
+								{
+									"coinType": 529
+								},
+								{
+									"coinType": 118
+								}
+							],
+							"bech32s": {
+								"acc": "secret",
+								"accpub": "secretpub",
+								"valoper": "secretvaloper",
+								"valoperpub": "secretvaloperpub",
+								"valcons": "secretvalcons",
+								"valconspub": "secretvalconspub",
+							},
+							"tokenInterfaces": [],
+							"blockExplorer": {
+								"base": "https://mintscan.io/{chain_prefix}",
+								"block": "/blocks/{height}",
+								"account": "/account/{address}",
+								"contract": "/account/{address}",
+								"validator": "/validators/{address}",
+								"transaction": "/txs/{hash}"
+							}
+						},
+					},
+					sessions: {
+						'demo': {
+							caip2: 'cosmos:pulsar-2',
+							doxx: {
+								name: true,
+								address: {
+									justification: 'This is the justification.',
+								},
+							},
+							query: {
+								node: {
+									justification: `Don't enable this option`,
+								},
+							},
+							broadcast: {},
+						},
+
+						// 'arg': {
+						// 	caip2: 'cosmos:theta-testnet-001',
+						// 	doxx: {
+						// 		name: true,
+						// 		address: {
+						// 			justification: 'This is the justification.',
+						// 		},
+						// 	},
+						// },
+					},
+				},	
+			})
+		}
+
+		window.addEventListener('DOMContentLoaded', () => {
+			document.getElementById('keplr').onclick = prompt_keplr;
+			document.getElementById('connect').onclick = prompt_connection;
+		});
+		
+
+		({
+			chains: {
+				'cosmos:secret-4': {
+					pfp: '/secret-4.svg',
+				},
+				'cosmos:cosmos-hub-3': {
+
+				},
+			},
+
+			sessions: {
+				'hub': {
+					caip2: 'cosmos:cosmos-hub-3',
+					ibc: {},
+					broadcast: {},
+				},
+
+				'main': {
+					caip2: 'cosmos:secret-4',
+					broadcast: {},
+				},
+
+				'alt': {
+					caip2: 'cosmos:secret-4',
+					broadcast: {},
+				},
+
+				'validator': {
+					caip2: 'cosmos:secret-4',
+					broadcast: {},
+				},
+			},
+
+			accounts: {
+				seed: {
+					hrp: 'acc',
+					sessions: {
+						hub: {},
+						main: {},
+					},
+					name: '',
+					description: '',
+				},
+				anon: {
+					hrp: 'acc',
+					sessions: {
+						alt: {},
+					},
+					name: '',
+					description: '',
+				},
+				// valoper: {
+				// 	hrp: 'valoper',
+				// 	sessions: {
+				// 		validator: {},
+				// 	},
+				// 	name: 'Validator',
+				// 	description: 'The ',
+				// },
+			},
+
+			conflicts: [
+				['a', 'b'],
+			]
+		})
+
+	</script>
+</head>
+<body>
+
+	<a id="keplr">Open Keplr Flow</a>
+
+	<br />
+
+	<a id="connect">Open Connection Flow</a>
+	
+</body>

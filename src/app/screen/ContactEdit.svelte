@@ -2,18 +2,19 @@
 	import {getContext, SvelteComponent} from 'svelte';
 	import {microtask, ode, ofe, proper} from '#/util/belt';
 
-	import { Contact, ContactAgentType, ContactPath } from '#/meta/contact';
-	import { Agents } from '#/store/agents';
-	import type { Page } from '../nav/page';
-	import { yw_chain, yw_family } from '../mem';
-	import { Chains } from '#/store/chains';
-	import { R_BECH32 } from '#/share/constants';
-	import { Tags } from '#/store/tags';
-	import { Header, Screen } from './_screens';
+	import type {Contact, ContactPath} from '#/meta/contact';
+	import {ContactAgentType} from '#/meta/contact';
+	import {Agents} from '#/store/agents';
+	import type {Page} from '../nav/page';
+	import {yw_chain, yw_chain_namespace} from '../mem';
+	import {Chains} from '#/store/chains';
+	import {R_BECH32} from '#/share/constants';
+	import {Tags} from '#/store/tags';
+	import {Header, Screen} from './_screens';
 	import ContactView from './ContactView.svelte';
 	import Field from '../ui/Field.svelte';
 	import Info from '../ui/Info.svelte';
-	import type { Chain, ChainPath } from '#/meta/chain';
+	import type {Chain, ChainInterface, ChainPath} from '#/meta/chain';
 	import InlineTags from '../ui/InlineTags.svelte';
 	import IconEditor from '../ui/IconEditor.svelte';
 
@@ -32,22 +33,24 @@
 	if(p_contact) void Agents.getContact(p_contact).then(g => g_contact = g!);
 
 	// load all chains
-	let h_chains: Record<ChainPath, Chain['interface']> = {};
+	let h_chains: Record<ChainPath, ChainInterface> = {};
 	(async function load_chains() {
 		h_chains = ofe((await Chains.read()).entries());
 	})();
 
+	// TODO: fix all bech32 address stuff here
+
 	// reactively destructure contact's properties
 	$: s_name = g_contact?.name || '';
-	$: s_addr = g_contact?.address || '';
-	$: sa_bech32 = s_addr? Chains.bech32(s_addr as string): '';
+	$: sa_bech32 = g_contact? Agents.addressFor(g_contact, $yw_chain): '';
 	$: s_notes = g_contact?.notes || '';
 	$: si_agent_type = g_contact?.agentType || ContactAgentType.PERSON;
 
 	let s_err_name = '';
 	let s_err_address = '';
 
-	function pubkey_from_addr(sa_address: string, b_show_err=false): string {
+	// TODO: handle matching multiple chains from single address
+	async function infer_address(sa_address: string, b_show_err=false): string {
 		const m_bech = R_BECH32.exec(sa_address);
 		if(!m_bech) {
 			if(b_show_err) {
@@ -57,35 +60,38 @@
 			return '';
 		}
 
-		const [, s_chain, s_pubkey_local] = m_bech;
+		const [, si_hrp, , s_data] = m_bech;
 
-		let k_chain_match = null;
-		for(const [, k_chain] of ode(H_CHAINS)) {
-			if(k_chain.def.bechPrefix === s_chain) {
-				k_chain_match = k_chain;
-				break;
+		// read all chains
+		const ks_chains = await Chains.read();
+
+		// attempt to locate compatible chains using bech32 hrp
+		let a_chains_match: ChainInterface[] = [];
+		for(const [, g_chain] of ks_chains.entries()) {
+			if(g_chain.bech32s.acc === si_hrp) {
+				a_chains_match.push(g_chain);
 			}
 		}
 
 		if(b_show_err) {
-			if(!k_chain_match) {
-				s_err_address = `No Cosmos SDK chains matched '${s_chain}'`;
+			if(!a_chains_match) {
+				s_err_address = `No locally known chains matched the address prefix "${si_hrp}"`;
 			}
 			else {
 				s_err_address = '';
 			}
 		}
 
-		return s_addr = s_pubkey_local;
+		return sa_bech32 = sa_address;
 	}
 
-	$: b_form_valid = !!(s_name && pubkey_from_addr(sa_bech32));
+	$: b_form_valid = !!(s_name && infer_address(sa_bech32));
 	let c_show_validations = 0;
 
 	$: {
 		if(c_show_validations) {
 			s_err_name = s_name? '': 'Name must not be empty';
-			pubkey_from_addr(sa_bech32, true);
+			infer_address(sa_bech32, true);
 		}
 	}
 
@@ -101,7 +107,9 @@
 		else if(p_contact) {
 			Object.assign(g_contact, {
 				name: s_name,
-				address: s_addr,
+				addressSpace: 'acc',
+				addressData: R_BECH32.exec(sa_bech32 as string)![3],
+				chains: a_chains_,
 				pfp: g_contact.pfp,
 				agentType: si_agent_type,
 				notes: s_notes,
@@ -123,7 +131,7 @@
 		else {
 			g_contact = {
 				name: s_name,
-				family: $yw_family,
+				namespace: $yw_chain_namespace,
 				address: s_addr,
 				pfp: g_contact.pfp,
 				agentType: si_agent_type,
@@ -162,7 +170,7 @@
 <style lang="less">
 	@import './_base.less';
 
-	#chain-family {
+	#chain-namespace {
 		:global(&) {
 			flex: 1;
 			align-items: baseline;
@@ -189,10 +197,10 @@
 	</Field>
 
 	<Field
-		key="chain-family"
-		name="Chain Family"
+		key="chain-namespace"
+		name="Chain Namespace"
 	>
-		<Info key="chain-family">
+		<Info key="chain-namespace">
 			<style lang="less">
 				@import './_base.less';
 
@@ -207,11 +215,11 @@
 			</style>
 
 			<span class="title">
-				{proper($yw_family)}
+				{proper($yw_chain_namespace)}
 			</span>
 
 			<span class="examples">
-				({ode(h_chains).filter(([, g]) => $yw_family === g.family).map(([, g]) => g.bech32s.acc.hrp).join(', ')})
+				({ode(h_chains).filter(([, g]) => $yw_chain_namespace === g.namespace).map(([, g]) => g.bech32s.acc).join(', ')})
 			</span>
 		</Info>
 	</Field>

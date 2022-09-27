@@ -2,16 +2,23 @@ import type {
 	JsonValue,
 	JsonObject,
 	Dict,
-} from '#/util/belt';
-import type { BlockInfoHeader, ChainDescriptor, ConnectionManifestV1 } from './common';
-import type { Vocab } from '#/meta/vocab';
-import type { ConnectionHandleConfig } from '#/provider/connection';
-import type { App } from '#/meta/app';
-import type { StoreKey } from '#/meta/store';
-import type { PromptConfig } from './msg-flow';
-import type { Bech32, ChainPath } from '#/meta/chain';
-import type { NetworkPath } from '#/meta/network';
-import type { IncidentPath, TxConfirmed, TxPending, TxSynced } from '#/meta/incident';
+	OmitUnknownKeys,
+} from '#/meta/belt';
+import type {BlockInfoHeader} from './common';
+import type {Vocab} from '#/meta/vocab';
+import type {ConnectionHandleConfig} from '#/provider/connection';
+import type {App, AppChainConnection, AppInterface, AppPath} from '#/meta/app';
+import type {StoreKey} from '#/meta/store';
+import type {PromptConfig} from './msg-flow';
+import type {Bech32, Caip2, ChainInterface, ChainNamespaceKey, ChainPath} from '#/meta/chain';
+import type {NetworkPath} from '#/meta/network';
+import type {IncidentPath, TxConfirmed, TxSynced} from '#/meta/incident';
+import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
+import type {AccountPath} from '#/meta/account';
+import type {AppProfile} from '#/store/apps';
+import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
+import type {SloppySignDoc} from '#/schema/protobuf';
+import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 
 
 /**
@@ -25,6 +32,13 @@ export interface TypedMessage<
 
 export interface DeepLinkMessage extends JsonObject {
 	url: string;
+}
+
+
+export interface PageInfo extends JsonObject {
+	windowId: number;
+	tabId: number;
+	href: string;
 }
 
 /**
@@ -53,24 +67,131 @@ export namespace AppToSpotter {
 }
 
 
+export type ErrorRegistry = {
+	// connecting: {
+
+	// };
+
+	signing: {
+		/**
+		 * For errors relating to invalid types within the contents of messages submitted by app
+		 */
+		InvalidMessageContent: {
+			value: {
+				message: string;
+			};
+		};
+
+		/**
+		 * A supplied entity is incompatible with the target chain
+		 */
+		IncompatibleEntity: {
+			value: {
+				entityType: string;
+				entityId: string;
+				chain: Caip2.String;
+			};
+		};
+
+		/**
+		 * A supplied entity did not match any of the enum values of its interface
+		 */
+		EnumViolation: {
+			value: {
+				interface: string;
+				actual: string;
+				expected: string[];
+			};
+		};
+	};
+};
+
+
+export namespace ErrorRegistry {
+	export type Module = keyof ErrorRegistry;
+
+	export type Key<
+		si_module extends Module=Module,
+	> = keyof ErrorRegistry[si_module];
+
+	export type Value<
+		si_module extends Module=Module,
+		si_key extends Key<si_module>=Key<si_module>,
+	> = ErrorRegistry[si_module][si_key] extends infer g_definition
+		? g_definition extends {value: any}
+			? g_definition['value']
+			: never
+		: never;
+
+	export type Types<
+		si_module extends Module=Module,
+	> = {
+		[si_key in Key<si_module>]: {
+			type: si_key;
+			value: ErrorRegistry[si_module][si_key] extends infer g_error
+				? g_error extends {value: any}
+					? g_error['value']
+					: never
+				: never;
+		};
+	}[Key<si_module>];
+}
+/**
+ * Subvocab for commanding background to read or write session storage
+ */
+export type SessionCommand = Vocab.New<{
+	get: {
+		value: string;
+		response: string | null;
+	};
+	set: {
+		value: JsonObject;
+	};
+	remove: {
+		value: string;
+	};
+	clear: {
+		value?: undefined;
+	};
+}>;
+
 
 /**
  * Messages sent from isolated-world content script to service
  */
 export namespace IcsToService {
+
 	/**
 	 * Vocab for unauthenticated messages sent from isolated-world content script to extension
 	 */
 	export type PublicVocab = Vocab.New<{
+		/**
+		 * Requests all available info about the _sender's_ tab and window
+		 */
+		whoami: {
+			response: Merge<{
+				window: chrome.windows.Window;
+			}, chrome.runtime.MessageSender & JsonObject>;
+		};
+
 		// forwards the request for an advertisement on the current page
 		requestAdvertisement: {
+			value: {
+				profile?: AppProfile;
+			};
 			response: ServiceToIcs.SessionKeys;
 		};
 
 		// forwards the request for a new connection on the current page
 		requestConnection: {
 			value: {
-				chains: ChainDescriptor[];
+				profile?: AppProfile;
+				chains: Record<Caip2.String, ChainInterface>;
+				sessions: Dict<SessionRequest>;
+			};
+			response: {
+				result?: Record<ChainPath, AppChainConnection>;
+				error?: ErrorRegistry.Types<'connecting'>;
 			};
 		};
 
@@ -84,6 +205,91 @@ export namespace IcsToService {
 			value: {
 				key: string;
 				config: PromptConfig;
+			};
+		};
+
+		// notifies service that keplr was detected
+		detectedKeplr: {
+			value: {
+				profile?: AppProfile;
+			};
+		};
+
+		// 
+		sessionStorage: {
+			value: Vocab.Message<SessionCommand>;
+		};
+
+		// 
+		proxyFlow: {
+			value: Vocab.Message<IntraExt.FlowVocab> & JsonObject;
+		};
+	}>;
+
+
+	export type AppResponse<w_value> = {
+		ok?: w_value;
+		error?: ErrorRegistry.Types;
+	};
+
+	/**
+	 * Vocab for messages sent on behalf of App from isolated-world content script
+	 */
+	export type AppVocab = Vocab.New<{
+		requestCosmosSignatureAmino: {
+			value: {
+				doc: AdaptedStdSignDoc;
+			};
+			response: AppResponse<AdaptedAminoResponse>;
+		};
+
+		requestCosmosSignatureDirect: {
+			value: {
+				doc: SloppySignDoc;
+			};
+			response: AppResponse<ErrorRegistry.Types>;
+		};
+
+		requestAddTokens: {
+			value: {
+				bech32s: Bech32[];
+			};
+			response: AppResponse<
+				Record<Bech32, AppResponse<undefined>>
+			>;
+		};
+
+		requestViewingKeys: {
+			value: {
+				bech32s: Bech32[];
+			};
+			response: AppResponse<
+				Record<Bech32, AppResponse<undefined>>
+			>;
+		};
+
+		requestEncrypt: {
+			value: {
+				codeHash: string;
+				exec: JsonObject;
+			};
+			response: AppResponse<string>;
+		};
+
+		requestDecrypt: {
+			value: {
+				ciphertext: string;
+				nonce: string;
+			};
+			response: AppResponse<string>;
+		};
+	}, {
+		each: {
+			message: {
+				value: {
+					accountPath: AccountPath;
+					chainPath: ChainPath;
+				};
 			};
 		};
 	}>;
@@ -117,6 +323,11 @@ export namespace ServiceToIcs {
 		session: string;
 	}
 
+	export type CommandVocab = Vocab.New<{
+		openFlow: {
+			value: IntraExt.FlowVocab;
+		};
+	}>;
 }
 
 
@@ -262,6 +473,24 @@ export namespace HostToRatifier {
 
 
 /**
+ * Messages sent from witness to main-world
+ */
+export namespace WitnessToKeplr {
+	/**
+	 * Vocab for messages exchanged over window.
+	 */
+	export type RuntimeVocab = Vocab.New<{
+		hardenExport: {
+			value: {
+				interceptId: string;
+			};
+		};
+	}>;
+}
+
+
+
+/**
  * Messages sent between extension scripts.
  */
 export namespace IntraExt {
@@ -344,6 +573,10 @@ export namespace IntraExt {
 		transferSend: {
 			value: TxConfirmed | TxSynced;
 		};
+
+		debug: {
+			value: JsonValue;
+		};
 	}>;
 
 
@@ -357,27 +590,74 @@ export namespace IntraExt {
 		// page is requesting advertisement
 		requestAdvertisement: {
 			value: {
-				app: App['interface'];
+				app: AppInterface;
+				page: PageInfo;
+				keplr: boolean;
 			};
 		};
 
 		// page is requesting a connection
 		requestConnection: {
 			value: {
-				// app: App['interface'];
-				chains: ChainDescriptor[];
+				app: AppInterface;
+				chains: Record<Caip2.String, ChainInterface>;
+				sessions: Dict<SessionRequest>;
+				profile?: AppProfile;
 			};
+		};
+
+		illegalChains: {
+			value: {
+				app: AppInterface;
+				chains: Record<Caip2.String, ChainInterface>;
+			};
+		};
+
+		signAmino: {
+			value: {
+				props: {
+					preset?: string;
+					amino: AdaptedStdSignDoc;
+				};
+				appPath: AppPath;
+				chainPath: ChainPath;
+				accountPath: AccountPath;
+			};
+			response: AdaptedAminoResponse;
 		};
 
 		// page is requesting to sign transaction
 		signTransaction: {
-			value: {};
+			value: {
+				appPath: AppPath;
+				chainPath: ChainPath;
+				accountPath: AccountPath;
+				doc: SloppySignDoc;
+			};
+		};
+
+		addSnip20s: {
+			value: {
+				appPath: AppPath;
+				chainPath: ChainPath;
+				accountPath: AccountPath;
+				bech32s: Bech32[];
+			};
 		};
 
 		// user clicked notification
 		inspectIncident: {
 			value: {
 				incident: IncidentPath;
+			};
+		};
+
+		// suggest to reload an app's tab
+		reloadAppTab: {
+			value: {
+				app: AppInterface;
+				page: PageInfo;
+				preset: string;
 			};
 		};
 
@@ -395,35 +675,61 @@ export namespace IntraExt {
 	}, {
 		each: {
 			message: {
-				page: null | {
-					tabId: number;
-					href: string;
-				};
+				page: null | PageInfo;
 			};
 		};
 	}>;
+
+
+	export interface CompletedFlow extends JsonObject {
+		answer: boolean;
+		data?: JsonValue;
+	}
+
+	export interface ErroredFlow extends JsonObject {
+		error: JsonValue;
+	}
+
+	export type FlowErrorRegistry = {
+		InvalidMessageContent: {
+			value: string;
+		};
+	};
+
+	export type FlowError = {
+		[si_type in keyof FlowErrorRegistry]: {
+			type: si_type;
+			value: FlowErrorRegistry[si_type]['value'];
+		};
+	}[keyof FlowErrorRegistry];
 
 
 	/**
-	 * Vocab for standalone popups that should conduct some specific flow.
+	 * Vocab for messages sent from flow over chrome runtime port back to service
 	 */
-	export type FlowResponseVocab = Vocab.New<{
+	export type FlowControlVocab = Vocab.New<{
+		// continuous heartbeat message
+		heartbeat: {};
+
 		// request retransmission
 		retransmit: {};
 
-		// acknowledge receipt of a message
-		acknowledgeReceipt: {
-			value: Vocab.Message<FlowVocab>;
-		};
-
 		// indicates the flow was completed
 		completeFlow: {
-			value: {
-				answer: boolean;
-			};
+			value: CompletedFlow | ErroredFlow;
+		};
+
+		// report an error back to the flow requester
+		reportError: {
+			value: string;
 		};
 	}>;
 
+	export type FlowControlAckVocab = Vocab.New<{
+		completeFlowAck: {};
+
+		reportErrorAck: {};
+	}>;
 
 
 	/**
@@ -436,17 +742,30 @@ export namespace IntraExt {
 	}>;
 
 
+	export type Cause = OmitUnknownKeys<Vocab.Response<ServiceInstruction, 'whoisit'>>;
+
 	/**
 	 * Vocab for instructions to be given directly to service worker.
 	 */
 	export type ServiceInstruction = Vocab.New<{
 		wake: {};
 
-		scheduleFlowResponse: {
-			value: {
-				key: string;
-				response: Vocab.Message<FlowResponseVocab>;
-			};
+		// 
+		sessionStorage: {
+			value: Vocab.Message<SessionCommand>;
+		};
+
+		/**
+		 * Requests all avilable info about the _current_ tab and window, used by popups to determine which app is under.
+		 */
+		whoisit: {
+			response: {
+				tab: chrome.tabs.Tab;
+				window: chrome.windows.Window;
+				app: AppInterface | null;
+				registered: boolean;
+				authenticated: boolean;
+			} & JsonObject;
 		};
 
 		scheduleBroadcast: {
@@ -463,8 +782,8 @@ export namespace IntraExt {
 		bankSend: {
 			value: {
 				network: NetworkPath;
-				sender: Bech32.String;
-				recipient: Bech32.String;
+				sender: Bech32;
+				recipient: Bech32;
 				coin: string;
 				amount: `${bigint}`;
 				limit: `${bigint}`;
@@ -472,6 +791,34 @@ export namespace IntraExt {
 				memo: string;
 			};
 		};
+
+		reloadTab: {
+			value: {
+				tabId: number;
+			};
+		};
+	}>;
+}
+
+
+/**
+ * Messages sent from launch.starshell.net container to pwa iframe
+ */
+export namespace Pwa {
+	export type TopToIframe = Vocab.New<{
+		visualViewportResize: {
+			value: {
+				width: number;
+				height: number;
+				offsetLeft?: number;
+				offsetTop?: number;
+				scale?: number;
+			};
+		};
+	}>;
+
+	export type IframeToTop = Vocab.New<{
+		fetchVisualViewportSize: {};
 	}>;
 }
 

@@ -1,24 +1,36 @@
-import type { Dict, JsonObject } from '#/util/belt';
+import type { Dict, JsonObject } from '#/meta/belt';
 import type {Nameable, Pfpable} from './able';
-import type {ChainPath, Family, FamilyKey} from './chain';
+import type {ChainPath, ChainNamespace, ChainNamespaceKey} from './chain';
 import type {Resource} from './resource';
 import type { Secret, SecretPath } from './secret';
 
+export interface UtilityKeyRegistry {
+	secretWasmTx: {};
+	antiPhishingArt: {};
+}
+
+export type UtilityKeyType = keyof UtilityKeyRegistry;
+
+export type UtilityKeys = {
+	[si_each in UtilityKeyType]?: SecretPath;
+};
 
 export type Account<
-	si_family extends FamilyKey=FamilyKey,
+	si_family extends ChainNamespaceKey=ChainNamespaceKey,
 	s_pubkey extends string=string,
 > = Resource.New<{
-	segments: [Family.Segment<si_family>, `account.${s_pubkey}`];
+	segments: [ChainNamespace.Segment<si_family>, `account.${s_pubkey}`];
 	interface: [{
 		family: si_family;
 		pubkey: s_pubkey;
-		secret: SecretPath;
+		secret: SecretPath<'mnemonic' | 'bip32_node' | 'private_key'>;
+		utilityKeys: UtilityKeys;
 		extra?: Dict<any>;
 	}, Nameable, Pfpable];
 }>;
 
 export type AccountPath = Resource.Path<Account>;
+export type AccountInterface = Account['interface'];
 
 
 // export type NamedThingsMap = DataMap<Account | Chain, string>;

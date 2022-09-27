@@ -90,7 +90,7 @@ export class Navigator {
 		} = _gc_navigator);
 
 		// create default thread
-		this._new_thread(ThreadId.DEFAULT);
+		this._new_thread(ThreadId.DEFAULT, {}, this._h_context);
 	}
 
 	get context(): PlainObject {

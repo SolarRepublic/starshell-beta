@@ -1,13 +1,12 @@
 <script lang="ts">
-	import type { Token } from "#/meta/token";
-	import type { Dict } from "#/util/belt";
-	import { onMount } from "svelte";
-	import { yw_chain } from "../mem";
-	import Row from "../ui/Row.svelte";
-	import { Screen, Header, type Page } from './_screens';
+	import type {Token} from '#/meta/token';
+	import type {Dict} from '#/meta/belt';
+	import {yw_chain} from '../mem';
+	import Row from '../ui/Row.svelte';
+	import {Screen, Header, type Page} from './_screens';
 
 	import SX_ICON_ADD from '#/icon/add.svg?raw';
-	import InlinePills, { PillItem } from "../ui/InlinePills.svelte";
+	import InlinePills, {type PillItem} from '../ui/InlinePills.svelte';
 
 	const H_REGISTRY: Dict<Token['interface'][]> = {
 		'pulsar-2': [
@@ -15,7 +14,7 @@
 				chain: '/family.cosmos/chain.pulsar-2',
 				name: 'Secret Secret',
 				symbol: 'sSCRT',
-				pfp: '/template.pfp/id.1',
+				pfp: '/template.pfp/uuid.1',
 				hash: '9587D60B8E6B078ACE12014CEEEE089530B9FABCD76535D93666A6C127AD8813',
 				extra: {
 					coingecko_id: 'secret',
@@ -53,8 +52,8 @@
 		<InlinePills bind:items={a_staged} />
 	</div>
 
-	{#if H_REGISTRY[$yw_chain.id]}
-		{#each H_REGISTRY[$yw_chain.id] as g_token}
+	{#if H_REGISTRY[$yw_chain.reference]}
+		{#each H_REGISTRY[$yw_chain.reference] as g_token}
 			<Row resource={g_token} postname={g_token.symbol} pfpDim={32}
 				--icon-diameter='32px'
 			>

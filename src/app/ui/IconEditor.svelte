@@ -1,12 +1,12 @@
 <script lang="ts">
 	import SX_ICON_IMAGE from '#/icon/image.svg?raw';
-	import type { Pfp, PfpPath } from '#/meta/pfp';
+	import type { Pfp, PfpTarget } from '#/meta/pfp';
 	import { Pfps } from '#/store/pfps';
 	import { F_NOOP } from '#/util/belt';
 
 	import PfpDisplay from './PfpDisplay.svelte';
 	
-	export let pfpRef: '' | PfpPath;
+	export let pfpRef: '' | PfpTarget;
 	const p_pfp = pfpRef || '';
 
 	export let name = '';

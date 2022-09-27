@@ -1,23 +1,36 @@
 <script context="module" lang="ts">
-	export enum ActionId {
-		SEND = 'send',
-		RECV = 'recv',
-		ADD = 'add',
-		EDIT = 'edit',
-		WRAP = 'wrap',
-		UNWRAP = 'unwrap',
+	export interface ActionRegistry {
+		send: {};
+		recv: {};
+		add: {};
+		edit: {};
+		wrap: {};
+		unwrap: {};
+		delete: {};
+		permissions: {};
+		accounts: {};
+		disconnect: {};
+		enable: {};
 	}
 
-	export interface ActionConfig {
+	export type ActionKey = keyof ActionRegistry;
+
+	export interface DefaultActionConfig {
 		label: string;
+		icon: string;
+	}
+
+	export interface CustomActionConfig {
+		label?: string;
 		trigger: VoidFunction;
 	}
 
-	export type Actions = Partial<Record<ActionId, ActionConfig>>;
+	export type Actions = Partial<Record<ActionKey, CustomActionConfig>>;
 </script>
 
 <script lang="ts">
-	import {ode, Promisable} from '#/util/belt';
+	import type {Promisable} from '#/meta/belt';
+	import {ode} from '#/util/belt';
 	
 	import SX_ICON_SEND from '#/icon/send.svg?raw';
 	import SX_ICON_RECV from '#/icon/recv.svg?raw';
@@ -27,23 +40,60 @@
 	import SX_ICON_DELETE from '#/icon/delete.svg?raw';
 	import SX_ICON_WRAP from '#/icon/wrap.svg?raw';
 	import SX_ICON_UNWRAP from '#/icon/unwrap.svg?raw';
+	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
+	import SX_ICON_SHIELD_INSPECT from '#/icon/shield-inspect.svg?raw';
+	import SX_ICON_SHIELD_HOLLOW from '#/icon/shield-hollow.svg?raw';
+	import SX_ICON_PERSON from '#/icon/person.svg?raw';
+	import SX_ICON_GROUP from '#/icon/group.svg?raw';
 
-	import type { Resource } from '#/meta/resource';
-	import type { Pfp, PfpPath } from '#/meta/pfp';
+	import type {PfpTarget} from '#/meta/pfp';
 	import PfpDisplay from './PfpDisplay.svelte';
-	import type { Nameable, Pfpable } from '#/meta/able';
-	import { yw_store_tags } from '../mem';
+	import type {Nameable, Pfpable} from '#/meta/able';
+	import {yw_store_tags} from '../mem';
 	import InlineTags from './InlineTags.svelte';
-import Load from './Load.svelte';
+	import Load from './Load.svelte';
 
-	const H_ACTION_ICONS: Record<string, string> = {
-		send: SX_ICON_SEND,
-		recv: SX_ICON_RECV,
-		add: SX_ICON_ADD,
-		edit: SX_ICON_EDIT,
-		wrap: SX_ICON_WRAP,
-		unwrap: SX_ICON_UNWRAP,
-		delete: SX_ICON_DELETE,
+	const H_ACTIONS: Record<ActionKey, DefaultActionConfig> = {
+		send: {
+			label: 'Send',
+			icon: SX_ICON_SEND,
+		},
+		recv: {
+			label: 'Receive',
+			icon: SX_ICON_RECV,
+		},
+		add: {
+			label: 'Add',
+			icon: SX_ICON_ADD,
+		},
+		edit: {
+			label: 'Edit',
+			icon: SX_ICON_EDIT,
+		},
+		wrap: {
+			label: 'Wrap',
+			icon: SX_ICON_WRAP,
+		},
+		unwrap: {
+			label: 'Unwrap',
+			icon: SX_ICON_UNWRAP,
+		},
+		delete: {
+			label: 'Delete',
+			icon: SX_ICON_DELETE,
+		},
+		permissions: {
+			label: 'Permissions',
+			icon: SX_ICON_SHIELD_INSPECT,
+		},
+		accounts: {
+			label: 'Accounts',
+			icon: SX_ICON_GROUP,
+		},
+		disconnect: {
+			label: 'Disconnect',
+			icon: SX_ICON_CLOSE,
+		},
 	};
 
 	/**
@@ -54,7 +104,7 @@ import Load from './Load.svelte';
 	/**
 	 * Infer pfp from resource
 	 */
-	export let pfp: PfpPath | '' = resource?.pfp || '';
+	export let pfp: PfpTarget | '' = resource?.pfp || '';
 	// const p_pfp = pfp;
 
 	/**
@@ -70,7 +120,7 @@ import Load from './Load.svelte';
 	const b_no_pfp = noPfp;
 
 	/**
-	 * Path to the resource
+	 * Path to the resource for looking up tags
 	 */
 	export let resourcePath: string;
 	const p_resource = resourcePath;
@@ -238,10 +288,10 @@ import Load from './Load.svelte';
 			{#each ode(h_actions) as [si_action, gc_action]}
 				<span class="action action-{si_action}" on:click={() => gc_action.trigger()}>
 					<span class="icon">
-						{@html H_ACTION_ICONS[si_action]}
+						{@html H_ACTIONS[si_action].icon}
 					</span>
 					<span class="label">
-						{gc_action.label}
+						{gc_action.label || H_ACTIONS[si_action].label}
 					</span>
 				</span>
 			{/each}

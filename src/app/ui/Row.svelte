@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Pfp, PfpPath } from '#/meta/pfp';
+	import type { Pfp, PfpTarget } from '#/meta/pfp';
 
 	import type { Resource } from '#/meta/resource';
 
@@ -7,9 +7,9 @@
 
 	import type { Nameable, Pfpable } from '#/meta/able';
 	import { yw_store_tags } from '../mem';
-	import type { Promisable } from '#/util/belt';
+	import type { Promisable } from '#/meta/belt';
 	import { onDestroy } from 'svelte';
-import Load from './Load.svelte';
+	import Load from './Load.svelte';
 	
 	
 	// import LockOutline from 'svelte-material-icons/LockOutline.svelte';
@@ -54,7 +54,7 @@ import Load from './Load.svelte';
 	/**
 	 * Overrides pfp automatically extracted from resource
 	 */
-	export let pfp: PfpPath = g_resource?.pfp;
+	export let pfp: PfpTarget = g_resource?.pfp;
 	const p_pfp = pfp;
 
 	/**
@@ -62,6 +62,11 @@ import Load from './Load.svelte';
 	 */
 	export let pfpDim = 36;
 	const x_dim_pfp = pfpDim;
+
+	/**
+	 * Indicates the row's pfp comes from an app
+	 */
+	export let appRelated = false;
 
 
 	export let amount: Promisable<string> = '';
@@ -323,7 +328,7 @@ import Load from './Load.svelte';
 				<slot name="icon">
 				<!-- class:bordered={k_icon?.isHtml}> -->
 					<slot name="icon">
-						<PfpDisplay ref={p_pfp} name={s_name} dim={x_dim_pfp} />
+						<PfpDisplay ref={p_pfp} name={s_name} dim={x_dim_pfp} {appRelated} />
 					</slot>
 				</slot>
 			</span>

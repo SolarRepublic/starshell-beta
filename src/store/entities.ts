@@ -1,22 +1,22 @@
-import type { Resource } from '#/meta/resource';
+import type {Resource} from '#/meta/resource';
 
 import {
 	create_store_class,
 	WritableStoreDict,
 } from './_base';
 
-import { SI_STORE_ENTITIES } from '#/share/constants';
+import {SI_STORE_ENTITIES} from '#/share/constants';
 
-import type { Store } from '#/meta/store';
-import type { Token, TokenPath, TokenSpecKey } from '#/meta/token';
-import type { Bech32, Chain, ChainPath, Entity, EntityPath, HoldingPath } from '#/meta/chain';
-import { Chains } from './chains';
-import type { Values } from '#/meta/belt';
-import { fold } from '#/util/belt';
-import type { Union } from 'ts-toolbelt';
-import { TokenRegistry } from '#/schema/token-registry';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import { yw_chain, yw_chain_ref } from '#/app/mem';
+import type {Store} from '#/meta/store';
+import type {Token, TokenPath, TokenSpecKey} from '#/meta/token';
+import type {Bech32, Chain, ChainInterface, ChainNamespaceKey, ChainPath, Entity, EntityPath, EntityInterface, HoldingPath} from '#/meta/chain';
+import {Chains} from './chains';
+import type {Values} from '#/meta/belt';
+import {fold} from '#/util/belt';
+import type {Union} from 'ts-toolbelt';
+import {TokenRegistry} from '#/schema/token-registry';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+import {yw_chain, yw_chain_ref} from '#/app/mem';
 
 type EntityTree = NonNullable<Values<Store['entities']>>;
 
@@ -26,23 +26,34 @@ type TokenInterfaceMap = Record<TokenSpecKey, {}>;
 
 export type TokenDict = Record<TokenPath, Token['interface']>;
 
+type EntityType = 'contract' | 'token' | 'holding';
 
 export type EntityInfo = Merge<{
 	chainRef: ChainPath;
 	entityRef: EntityPath;
-	bech32: Bech32.String;
+	bech32: Bech32;
 }, {
-	type: 'contract' | 'token';
+	type: Extract<EntityType, 'contract' | 'token'>;
 } | {
-	type: 'holding';
+	type: Extract<EntityType, 'holding'>;
 	coin: string;
 }>;
 
 export const Entities = create_store_class({
 	store: SI_STORE_ENTITIES,
+	extension: 'dict',
 	class: class EntitiesI extends WritableStoreDict<typeof SI_STORE_ENTITIES> {
 		static pathFrom(g_entity: Entity['interface'], g_chain=yw_chain.get()) {
 			return `${Chains.pathFrom(g_chain)}/bech32.${g_entity.bech32}`;
+		}
+
+		static pathFor(
+			si_family: ChainNamespaceKey,
+			si_chain: string,
+			sa_entity: Bech32,
+			si_type: '' | EntityType
+		): EntityPath {
+			return `${Chains.pathFor(si_family, si_chain)}/bech32.${sa_entity}${si_type? `/as.${si_type}`: ''}`;
 		}
 
 		static parseEntityPath(p_entity: EntityPath): EntityInfo | null {
@@ -92,11 +103,11 @@ export const Entities = create_store_class({
 			} as EntityInfo;
 		}
 
-		static holdingPathFor(sa_owner: Bech32.String, si_coin: string, p_chain=yw_chain_ref.get()): HoldingPath {
+		static holdingPathFor(sa_owner: Bech32, si_coin: string, p_chain=yw_chain_ref.get()): HoldingPath {
 			return `${p_chain}/bech32.${sa_owner}/holding.${si_coin}`;
 		}
 
-		static async readTokens(g_chain: Chain['interface'], h_interfaces: TokenInterfaceMap|null=null) {
+		static async readTokens(g_chain: ChainInterface, h_interfaces: TokenInterfaceMap|null=null) {
 			// read store
 			const ks_res = await Entities.read();
 
@@ -104,7 +115,7 @@ export const Entities = create_store_class({
 			return ks_res.tokens(Chains.pathFrom(g_chain), h_interfaces);
 		}
 
-		static async readFungibleTokens(g_chain: Chain['interface']) {
+		static async readFungibleTokens(g_chain: ChainInterface) {
 			// read store
 			const ks_res = await Entities.read();
 
@@ -118,7 +129,7 @@ export const Entities = create_store_class({
 			return ks_res.tokens(Chains.pathFrom(g_chain), h_interfaces);
 		}
 
-		static fungibleInterfacesFor(g_chain: Chain['interface']) {
+		static fungibleInterfacesFor(g_chain: ChainInterface) {
 			// all fungible tokens from chain
 			return fold(
 				g_chain.tokenInterfaces,
@@ -243,4 +254,5 @@ export const Entities = create_store_class({
 		}
 	},
 });
+
 

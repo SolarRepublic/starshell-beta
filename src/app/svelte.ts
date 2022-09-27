@@ -1,11 +1,32 @@
-import type { Nameable, Pfpable } from '#/meta/able';
-import type { Resource } from '#/meta/resource';
-import type { ParametricSvelteConstructor } from '#/meta/svelte';
-import { Dict, ode, ofe } from '#/util/belt';
-import { dd } from '#/util/dom';
-import { cubicOut } from 'svelte/easing';
-import type { Readable } from 'svelte/store';
+import type {Completed} from '#/entry/flow';
+import type {Nameable, Pfpable} from '#/meta/able';
+import type {AccountPath} from '#/meta/account';
+import {AppApiMode, AppInterface} from '#/meta/app';
+import type {ChainInterface} from '#/meta/chain';
+import type {Resource} from '#/meta/resource';
+import type {ParametricSvelteConstructor} from '#/meta/svelte';
+import {H_LOOKUP_PFP} from '#/store/_init';
+import {ode, ofe} from '#/util/belt';
+import {dd} from '#/util/dom';
+import {getContext} from 'svelte';
+import {cubicOut} from 'svelte/easing';
+import type {Readable} from 'svelte/store';
 import PfpDisplay from './ui/PfpDisplay.svelte';
+import type {Page} from '##/nav/page';
+import type {AppProfile} from '#/store/apps';
+import type {IntraExt} from '#/script/messages';
+import {SessionStorage} from '#/extension/session-storage';
+
+
+export const G_APP_STARSHELL: AppInterface = {
+	scheme: 'wallet' as 'https',
+	host: 'StarShell',
+	api: AppApiMode.STARSHELL,
+	connections: {},
+	name: 'StarShell',
+	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+};
+
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
 	return new Promise((fk_resolve) => {
@@ -32,11 +53,12 @@ export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (ty
 	});
 }
 
-export function clean_slide(dm_node: Element, {
+export function s2r_slide(dm_node: Element, {
 	delay: xt_delay=0,
 	duration: xt_duration=400,
 	easing: f_easing=cubicOut,
-}: SvelteTransitionConfig): SvelteTransitionReturnType {
+	minHeight: x_height_min=0,
+}: SvelteTransitionConfig & {minHeight?: number}): SvelteTransitionReturnType {
 	const d_style = getComputedStyle(dm_node);
 	const x_opacity = +d_style.opacity;
 	const x_height = parseFloat(d_style.height);
@@ -54,7 +76,7 @@ export function clean_slide(dm_node: Element, {
 		css: xt => ''
 			+'overflow: hidden;'
 			+`opacity: ${Math.min(xt * 20, 1) * x_opacity};`
-			+`height: ${xt * x_height}px;`
+			+`height: ${(xt * (x_height - x_height_min)) + x_height_min}px;`
 			+`padding-top: ${xt * x_padding_top}px;`
 			+`padding-bottom: ${xt * x_padding_bottom}px;`
 			+`margin-top: ${xt * x_margin_top}px;`
@@ -119,3 +141,48 @@ export async function load_pfps<
 export interface Intent {
 	id: string;
 }
+
+type Completable<w_complete extends any=any> = (w_value: w_complete) => void;
+
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+export function load_page_context() {
+	const k_page = getContext<Page>('page');
+	const g_cause = getContext<IntraExt.Cause | null>('cause') || null;
+
+	return {
+		k_page,
+		g_cause,
+	};
+}
+
+export function load_flow_context<w_completed extends any=any>() {
+	const completed = getContext<Completable<w_completed> | undefined>('completed');
+
+	return {
+		...load_page_context(),
+		completed,
+	};
+}
+
+export function load_app_context<w_complete extends any=any>() {
+	const g_app = getContext<AppInterface>('app') || G_APP_STARSHELL;
+	const g_chain = getContext<ChainInterface>('chain');
+	const p_account = getContext<AccountPath>('accountPath');
+
+	return {
+		...load_flow_context<w_complete>(),
+		g_app,
+		g_chain,
+		p_account,
+	};
+}
+
+export async function load_app_profile(g_app: AppInterface) {
+	const p_profile = `profile:${g_app.scheme}://${g_app.host}` as const;
+	console.log({p_profile});
+	const g_profile = await SessionStorage.get(p_profile);
+	if(!g_profile) return;
+
+	return g_profile as AppProfile;
+}
+/* eslint-enable */

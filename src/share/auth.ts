@@ -1,38 +1,12 @@
-import {
-	session_storage_is_native,
-	session_storage_set_native,
-	session_storage_set_wrapped,
-	Vault,
-} from '#/crypto/vault';
+import {Vault} from '#/crypto/vault';
 
-import { F_NOOP, timeout } from '#/util/belt';
-import { text_to_buffer } from '#/util/data';
-import { global_broadcast } from '#/script/msg-global';
-import { PublicStorage } from '#/extension/public-storage';
-
-
-export class NotAuthenticatedError extends Error {}
-
-export class AlreadyRegisteredError extends Error {}
-
-export class InvalidPassphraseError extends Error {}
-
-export class UnregisteredError extends Error {}
-
-export class RecoverableVaultError extends Error {}
-
-export class CorruptedVaultError extends Error {}
-
-
-// cache dummy values to estimate time to completion
-export const ATU8_DUMMY_PHRASE = text_to_buffer('32-character-long-dummy-password');
-export const ATU8_DUMMY_VECTOR = new Uint8Array(crypto.getRandomValues(new Uint8Array(16)));
-
-// minimum password length
-export const NL_PASSPHRASE_MINIMUM = 5;
-
-// maximum password length
-export const NL_PASSPHRASE_MAXIMUM = 1024;
+import {F_NOOP, timeout} from '#/util/belt';
+import {text_to_buffer} from '#/util/data';
+import {global_broadcast} from '#/script/msg-global';
+import {PublicStorage} from '#/extension/public-storage';
+import {NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM, XG_64_BIT_MAX} from './constants';
+import {AlreadyRegisteredError, CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from './errors';
+import {SessionStorage} from '#/extension/session-storage';
 
 
 /**
@@ -49,11 +23,11 @@ export function acceptable(sh_phrase: string): boolean {
 export async function register(sh_phrase: string, f_update: ((s_state: string) => void)=F_NOOP): Promise<void> {
 	f_update('Reading from storage');
 
-	// retrieve root
-	const g_root = await Vault.getBase();
+	// retrieve base
+	const g_base = await Vault.getBase();
 
 	// root is already set
-	if(Vault.isValidBase(g_root)) {
+	if(Vault.isValidBase(g_base)) {
 		throw new AlreadyRegisteredError();
 	}
 
@@ -67,12 +41,22 @@ export async function register(sh_phrase: string, f_update: ((s_state: string) =
 
 	f_update('Deriving root keys');
 
-	// select uint64 entropy at random
-	const atu8_entropy = crypto.getRandomValues(new Uint8Array(8));
+	// select 128 bits of entropy at random
+	const atu8_entropy = crypto.getRandomValues(new Uint8Array(16));
 
-	// select initial uint64 nonce at random 
-	const dv_random = new DataView(crypto.getRandomValues(new Uint32Array(2)).buffer);
-	const xg_nonce_init = dv_random.getBigUint64(0, false);
+	// select initial uint128 nonce at random 
+	const dv_random = new DataView(crypto.getRandomValues(new Uint8Array(16)).buffer);
+
+	// create uint128 by bit-shifting then OR'ing 64-tets into place
+	const xg_nonce_init_hi = dv_random.getBigUint64(0, false);
+	const xg_nonce_init_lo = dv_random.getBigUint64(8, false);
+	const xg_nonce_init = (xg_nonce_init_hi << 64n) | xg_nonce_init_lo;
+
+	// console.log({
+	// 	__hi: xg_nonce_init_hi.toString(16),
+	// 	__lo: xg_nonce_init_lo.toString(16),
+	// 	init: xg_nonce_init.toString(16),
+	// });
 
 	// set last seen
 	await PublicStorage.markSeen();
@@ -84,6 +68,12 @@ export async function register(sh_phrase: string, f_update: ((s_state: string) =
 			nonce: xg_nonce_new,
 		},
 	} = await Vault.deriveRootKeys(atu8_phrase, atu8_entropy, xg_nonce_init);
+
+	// console.log({
+	// 	_hi: ((xg_nonce_new >> 64n) & XG_64_BIT_MAX).toString(16),
+	// 	_lo: (xg_nonce_new & XG_64_BIT_MAX).toString(16),
+	// 	new: xg_nonce_new.toString(16),
+	// });
 
 	f_update('Generating signature');
 
@@ -107,26 +97,26 @@ export async function register(sh_phrase: string, f_update: ((s_state: string) =
 export async function login(sh_phrase: string, b_recover=false, f_update: ((s_state: string) => void)=F_NOOP): Promise<void> {
 	f_update('Reading from storage');
 
-	// retrieve root
-	const g_root = await Vault.getBase();
+	// retrieve base
+	const g_base = await Vault.getBase();
 
-	// no root set, need to register
-	if(!g_root) {
+	// no base set, need to register
+	if(!g_base) {
 		throw new UnregisteredError();
 	}
 
-	// root is corrupt
-	if(!Vault.isValidBase(g_root)) {
-		throw new CorruptedVaultError(`Storage is corrupt; root object is missing or partially damaged`);
+	// base is corrupt
+	if(!Vault.isValidBase(g_base)) {
+		throw new CorruptedVaultError(`Storage is corrupt; base object is missing or partially damaged`);
 	}
 
-	// parse root fields
+	// parse base fields
 	const {
 		entropy: atu8_entropy,
 		nonce: xg_nonce_old,
 		signature: atu8_signature_old,
 		version: n_version,
-	} = Vault.parseBase(g_root);
+	} = Vault.parseBase(g_base);
 
 	// incompatible version
 	if(n_version < 1) {
@@ -198,26 +188,22 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 
 		f_update('Saving to storage');
 
-		// update root
+		// update base
 		await Vault.setParsedBase({
 			entropy: atu8_entropy,
 			nonce: xg_nonce_new,
 			signature: atu8_signature_new,
 		});
 
+		// create session auth private key
+		const atu8_auth = crypto.getRandomValues(new Uint8Array(32));
+
 		// set session
-		if(session_storage_is_native) {
-			await session_storage_set_native({
-				root: dk_root_new,
-				vector: atu8_vector_new,
-			});
-		}
-		else {
-			await session_storage_set_wrapped({
-				root: Array.from(kn_root_new!.data),
-				vector: Array.from(atu8_vector_new),
-			});
-		}
+		await SessionStorage.set({
+			root: Array.from(kn_root_new!.data),
+			vector: Array.from(atu8_vector_new),
+			auth: Array.from(atu8_auth),
+		});
 
 		// wipe root key material
 		kn_root_new?.wipe();

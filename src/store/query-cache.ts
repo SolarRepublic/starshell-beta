@@ -4,10 +4,10 @@ import {
 	WritableStoreMap,
 } from './_base';
 
-import { SI_STORE_QUERY_CACHE } from '#/share/constants';
-import type { ChainPath, HoldingPath } from '#/meta/chain';
-import type { TokenPath } from '#/meta/token';
-import type { JsonObject } from '#/util/belt';
+import {SI_STORE_QUERY_CACHE} from '#/share/constants';
+import type {ChainPath, HoldingPath} from '#/meta/chain';
+import type {TokenPath} from '#/meta/token';
+import type {JsonObject} from '#/meta/belt';
 
 
 export const QueryCache = create_store_class({
@@ -22,6 +22,5 @@ export const QueryCache = create_store_class({
 			// save
 			await this.save();
 		}
-
 	},
 });

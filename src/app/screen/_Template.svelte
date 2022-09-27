@@ -3,10 +3,13 @@
 </script>
 
 <script lang="ts">
-	import { onMount } from "svelte";
-	import { Screen, type Page } from './_screens';
+	import {onMount} from 'svelte';
+	import {load_page_context} from '../svelte';
+	import {Screen} from './_screens';
 
-
+	const {
+		k_page,
+	} = load_page_context();
 </script>
 
 <style lang="less">
