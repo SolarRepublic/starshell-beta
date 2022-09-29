@@ -48,7 +48,7 @@
 	import SX_ICON_DROPDOWN from '#/icon/arrow-drop-down.svg?raw';
 	import SX_ICON_X from '#/icon/tiny-x.svg?raw';
 	import {Apps} from '#/store/apps';
-	import {s2r_slide} from '../svelte';
+	import {load_flow_context, s2r_slide} from '../svelte';
 	import {Accounts} from '#/store/accounts';
 	import {Incidents} from '#/store/incidents';
 	import {Contracts} from '#/store/contracts';
@@ -121,7 +121,9 @@
 	};
 
 
-	const completed = getContext<Completed>('completed');
+	const {
+		completed,
+	} = load_flow_context<undefined>();
 
 	export let app: AppInterface;
 

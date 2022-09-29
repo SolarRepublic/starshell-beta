@@ -1,7 +1,7 @@
 import {Vault} from '#/crypto/vault';
 import type {PositionConfig} from '#/extension/browser';
 import {AppApiMode, AppInterface} from '#/meta/app';
-import {R_DOMAIN_LOCALHOST} from '#/share/constants';
+import {B_MOBILE, R_DOMAIN_LOCALHOST} from '#/share/constants';
 import {AppProfile, Apps} from '#/store/apps';
 import {AppPolicyResult, Policies} from '#/store/policies';
 import {KeplrCompatibilityMode, Settings} from '#/store/settings';
@@ -57,22 +57,26 @@ export function parse_sender(p_sender: string): ['file' | 'http' | 'https', stri
 
 export async function position_widow_over_tab(i_tab: number): Promise<{position: PositionConfig} | {}> {
 	// windows API available
-	if(chrome.windows) {
+	if(!B_MOBILE && chrome.windows) {
 		// get tab
 		const g_tab = await chrome.tabs.get(i_tab);
 
-		// get window
-		const g_window = await chrome.windows.get(g_tab.windowId);
-		if(g_window) {
-			// compute center
-			return {
-				position: {
-					centered: true,
-					top: (g_window.top || 0) + ((g_window.height || 0) * 0.45),
-					left: (g_window.left || 0) + ((g_window.width || 0) / 2),
-				},
-			};
+		// not critical, bail on error
+		try {
+			// get window
+			const g_window = await chrome.windows.get(g_tab.windowId);
+			if(g_window) {
+				// compute center
+				return {
+					position: {
+						centered: true,
+						top: (g_window.top || 0) + ((g_window.height || 0) * 0.45),
+						left: (g_window.left || 0) + ((g_window.width || 0) / 2),
+					},
+				};
+			}
 		}
+		catch(e_get) {}
 	}
 
 	return {};
@@ -84,7 +88,7 @@ const kl_auth = new AsyncLockPool(1);
  * Prompts user to unlock wallet in order to continue with the flow
  */
 export async function unlock_to_continue(g_page: PageInfo): Promise<RetryCode> {
-	// check if app is locked
+	// wallet is locked
 	if(!await Vault.isUnlocked()) {
 		// acquire local mutex for auth window; stop waiting after 30 seconds
 		let f_release;
@@ -183,7 +187,8 @@ interface AppStatus {
 export async function check_app_permissions(
 	g_sender: chrome.runtime.MessageSender,
 	g_profile?: AppProfile | null | undefined,
-	b_keplr=false
+	b_keplr=false,
+	c_retries=0
 ): Promise<AppStatus | undefined> {
 	// unknown source, silently reject
 	if(!g_sender.url) {
@@ -203,8 +208,8 @@ export async function check_app_permissions(
 	// non-zero retry code
 	if(xc_retry) {
 		// retry
-		if(RetryCode.RETRY === xc_retry) {
-			return await check_app_permissions(g_sender, g_profile, b_keplr);
+		if(RetryCode.RETRY === xc_retry && c_retries < 5) {
+			return await check_app_permissions(g_sender, g_profile, b_keplr, c_retries+1);
 		}
 
 		// otherwise, cancel
@@ -329,7 +334,7 @@ export async function request_advertisement(g_profile: AppProfile | undefined, g
 			},
 			open: {
 				...await position_widow_over_tab(g_page.tabId),
-				popover: g_page,
+				popover: B_MOBILE? g_page: void 0,
 			},
 		});
 

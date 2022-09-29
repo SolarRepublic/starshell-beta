@@ -1,19 +1,18 @@
 <script lang="ts">
-	import {getContext} from 'svelte';
-
 	import type {App} from '#/meta/app';
 	import type {PageConfig} from '../nav/page';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	import AppBanner from '../ui/AppBanner.svelte';
-	import {Screen, type Page} from './_screens';
-	import type {Completed} from '#/entry/flow';
+	import {Screen} from './_screens';
 	import {Policies} from '#/store/policies';
 	import {keplr_polyfill_script_add_matches, set_keplr_compatibility_mode, set_keplr_detection, set_keplr_polyfill} from '#/script/scripts';
-	import { Apps } from '#/store/apps';
+	import {Apps} from '#/store/apps';
+	import {load_flow_context} from '../svelte';
 
-	const k_page = getContext<Page>('page');
-
-	const completed = getContext<Completed>('completed');
+	const {
+		k_page,
+		completed,
+	} = load_flow_context<undefined>();
 
 	export let push: PageConfig | null;
 

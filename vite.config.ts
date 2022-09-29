@@ -55,8 +55,9 @@ import analyze from 'rollup-plugin-analyzer'
 // proprietary plugin 
 import { inlineRequire } from './plugins/inline-require';
 import nodeResolve from '@rollup/plugin-node-resolve';
+import graph from 'rollup-plugin-graph';
 
-const H_REPLACEMENTS_BROWSER = {
+const H_REPLACEMENTS_ENGINE = {
 	firefox: {
 		'chrome.': 'browser.',
 	},
@@ -114,8 +115,6 @@ export default defineConfig((gc_run) => {
 		...process.env,
 	};
 
-	const SI_BROWSER = SI_ENGINE.replace(/\-.+$/, '');
-
 	// build media dict
 	const H_MEDIA_BUILTINT = builtin_media();
 
@@ -127,7 +126,6 @@ export default defineConfig((gc_run) => {
 			__H_MEDIA_BUILTIN: JSON.stringify(H_MEDIA_BUILTINT),
 			__H_MEDIA_LOOKUP: JSON.stringify(H_MEDIA_LOOKUP),
 			__SI_VERSION: JSON.stringify(G_PACKAGE_JSON.version),
-			__SI_ENGINE: JSON.stringify(SI_ENGINE),
 		},
 
 		plugins: [
@@ -143,7 +141,7 @@ export default defineConfig((gc_run) => {
 
 			// replace
 			replace({
-				...H_REPLACEMENTS_BROWSER[SI_BROWSER] || {},
+				...H_REPLACEMENTS_ENGINE[SI_ENGINE] || {},
 			}),
 
 			// build svelte components
@@ -156,8 +154,12 @@ export default defineConfig((gc_run) => {
 					description: G_PACKAGE_JSON.description,
 					name: G_PACKAGE_JSON.displayName,
 					version: G_PACKAGE_JSON.version,
-					...H_BROWSERS[SI_BROWSER].manifest,
+					...H_BROWSERS[SI_ENGINE].manifest,
 				} as chrome.runtime.ManifestV2 & chrome.runtime.ManifestV3,
+			}),
+
+			graph({
+				prune: true,
 			}),
 
 			analyze({
@@ -179,7 +181,8 @@ export default defineConfig((gc_run) => {
 		},
 
 		build: {
-			sourcemap: 'safari' === SI_ENGINE? false: 'inline',
+			// sourcemap: ['safari', 'firefox'].includes(SI_ENGINE)? false: 'inline',
+			sourcemap: true,
 			minify: 'production' === si_mode,
 			emptyOutDir: true,
 			outDir: `dist/${SI_ENGINE}`,
@@ -187,10 +190,16 @@ export default defineConfig((gc_run) => {
 
 			rollupOptions: {
 				output: {
-					...SI_BROWSER.startsWith('firefox') && {
+					...('firefox' === SI_ENGINE) && {
 						manualChunks: {
+							'html5-qrcode': ['html5-qrcode'],
+							'libsodium': ['libsodium'],
 							'bignumber.js': ['bignumber.js'],
 							'svelte-select': ['svelte-select'],
+							'ics-witness': ['src/script/ics-witness.ts'],
+							'@solar-republic/wasm-secp256k1': ['@solar-republic/wasm-secp256k1'],
+							'miscreant': ['miscreant'],
+							// '@keplr-wallet/provider': ['@keplr-wallet/provider'],
 						},
 					},
 			// 		preserveModules: true,

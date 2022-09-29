@@ -48,15 +48,27 @@ import type {Pwa} from './messages';
 		update_size();
 	});
 
+	const h_handlers: Vocab.Handlers<Pwa.IframeToTop> = {
+		fetchVisualViewportSize() {
+			update_size();
+		},
+
+		openPopup(p_open: string) {
+			window.open(p_open, '_blank');
+		},
+	};
+
 	(window as Vocab.TypedWindow<Pwa.IframeToTop>).addEventListener('message', (d_event) => {
 		debug('Received message: %o', d_event.data);
 
 		const {
 			type: si_type,
+			value: w_value,
 		} = d_event.data;
 
-		if('fetchVisualViewportSize' === si_type) {
-			update_size();
+		const f_handler = h_handlers[si_type];
+		if(f_handler) {
+			f_handler(w_value as never);
 		}
 	});
 })();

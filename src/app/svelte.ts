@@ -142,7 +142,7 @@ export interface Intent {
 	id: string;
 }
 
-type Completable<w_complete extends any=any> = (w_value: w_complete) => void;
+type Completable<w_complete extends any=any> = (b_answer: boolean, w_value?: w_complete) => void;
 
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 export function load_page_context() {
@@ -155,8 +155,8 @@ export function load_page_context() {
 	};
 }
 
-export function load_flow_context<w_completed extends any=any>() {
-	const completed = getContext<Completable<w_completed> | undefined>('completed');
+export function load_flow_context<w_completed extends any=never>() {
+	const completed = getContext<Completable<w_completed> | ([w_completed] extends [never]? undefined: never)>('completed');
 
 	return {
 		...load_page_context(),

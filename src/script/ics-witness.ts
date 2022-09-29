@@ -2,25 +2,9 @@ import type {
 	IcsToService, IntraExt,
 } from './messages';
 
-// inline require types
-import type * as UtilBelt from '#/util/belt';
-import type * as UtilData from '#/util/data';
-import type * as Utils from './utils';
-import type * as PublicStorageImport from '#/extension/public-storage';
-import type * as VaultImport from '#/crypto/vault';
-import type * as ConstantsImport from '#/share/constants';
-import type * as IsolatedCoreImport from './isolated-core';
+import type * as ImportHelper from './ics-witness-imports';
 
-import type * as AppsImport from '#/store/apps';
-import type * as AccountsImport from '#/store/accounts';
-import type * as ChainsImport from '#/store/chains';
-import type * as ContractsImport from '#/store/contracts';
-import type * as MetaAppImport from '#/meta/app';
-import type * as CosmJsEncodingImpot from '@cosmjs/encoding';
-// import type * as CryptoSecretImport from '#/crypto/secret';
-import type * as SecretsImport from '#/store/secrets';
-import type * as ConsolidatorImport from '#/util/consolidator';
-import type * as SessionStorageImport from '#/extension/session-storage';
+import type {Consolidator} from '#/util/consolidator';
 
 
 // import type {Key as KeplrExportedKey} from '@keplr-wallet/types';
@@ -31,7 +15,7 @@ import type {AppProfile} from '#/store/apps';
 
 import type {Vocab} from '#/meta/vocab';
 
-import type {AppInterface} from '#/meta/app';
+import type {AppInterface, AppPermissionSet} from '#/meta/app';
 import type {Bech32, Caip2, ChainInterface, ChainPath} from '#/meta/chain';
 import type {PfpTarget} from '#/meta/pfp';
 import type {SessionRequest} from '#/meta/api';
@@ -69,76 +53,40 @@ const XT_POLYFILL_DELAY = 1.5e3;
 		A_TESTNETS,
 		R_CHAIN_ID_VERSION,
 		R_CAIP_2,
-		R_DATA_IMAGE_URL_WEB: R_DATA_IMAGE_URL,
+		R_DATA_IMAGE_URL_WEB,
 		G_USERAGENT,
-	} = inline_require('#/share/constants.ts') as typeof ConstantsImport;
+		B_SAFARI_ANY,
 
-	const {
-		fromBech32,
-	} = inline_require('@cosmjs/encoding') as typeof CosmJsEncodingImpot;
-
-	const {
-		Vault,
-	} = inline_require('#/crypto/vault.ts') as typeof VaultImport;
-
-	const {
-		Consolidator,
-	} = inline_require('#/util/consolidator.ts') as typeof ConsolidatorImport;
-
-	const {
-		SessionStorage,
-	} = inline_require('#/extension/session-storage.ts') as typeof SessionStorageImport;
-
-	const {
 		microtask,
 		timeout,
 		fold,
 		ode,
 		oderom,
 		F_NOOP,
-	} = inline_require('#/util/belt.ts') as typeof UtilBelt;
 
-	const {
-		base93_to_buffer,
-		base64_to_buffer,
-		buffer_to_base93,
 		buffer_to_hex,
 		hex_to_buffer,
+		base64_to_buffer,
 		serialize_to_json,
-	} = inline_require('#/util/data.ts') as typeof UtilData;
+		buffer_to_base93,
+		base93_to_buffer,
 
-	const {
-		locate_script,
-	} = inline_require('./utils.ts') as typeof Utils;
-
-	const {
-		PublicStorage,
-	} = inline_require('#/extension/public-storage.ts') as typeof PublicStorageImport;
-
-	const {
-		ServiceRouter,
-		create_app_profile,
-	} = inline_require('./isolated-core.ts') as typeof IsolatedCoreImport;
-
-	const {
 		Apps,
-	} = inline_require('#/store/apps.ts') as typeof AppsImport;
-
-	const {
 		Accounts,
-	} = inline_require('#/store/accounts.ts') as typeof AccountsImport;
-
-	const {
 		Chains,
-	} = inline_require('#/store/chains.ts') as typeof ChainsImport;
-
-	const {
 		Contracts,
-	} = inline_require('#/store/contracts.ts') as typeof ContractsImport;
-
-	const {
 		AppApiMode,
-	} = inline_require('#/meta/app.ts') as typeof MetaAppImport;
+		create_app_profile,
+		PublicStorage,
+		locate_script,
+		Vault,
+
+		Consolidator,
+		SessionStorage,
+
+		fromBech32,
+		ServiceRouter,
+	} = inline_require('./ics-witness-imports.ts') as typeof ImportHelper;
 
 	type KeplrResponse<w_success extends any=any> = undefined | {
 		error: string;
@@ -164,7 +112,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 		p_account: AccountPath,
 		p_chain: ChainPath
 	) => new Consolidator<IcsToService.AppResponse<void>>(async(a_tokens: Bech32[]) => {
-		const g_response = await d_runtime_app.sendMessage({
+		const g_response = await f_runtime_app().sendMessage({
 			type: si_type,
 			value: {
 				accountPath: p_account,
@@ -198,7 +146,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 	class KeplrChainConnection {
 		protected _g_account: AccountInterface;
 		protected _g_chain: ChainInterface;
-		protected _g_permissions: Partial<MetaAppImport.AppPermissionSet>;
+		protected _g_permissions: Partial<AppPermissionSet>;
 		protected _p_account: AccountPath;
 		protected _p_chain: ChainPath;
 		protected _sa_owner: Bech32;
@@ -275,11 +223,11 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 
 	// ref and cast browser runtime
-	const d_runtime: Vocab.TypedRuntime<IcsToService.PublicVocab> = chrome.runtime;
-	const d_runtime_app: Vocab.TypedRuntime<IcsToService.AppVocab> = chrome.runtime;
+	const f_runtime: () => Vocab.TypedRuntime<IcsToService.PublicVocab> = () => chrome.runtime;
+	const f_runtime_app: () => Vocab.TypedRuntime<IcsToService.AppVocab> = () => chrome.runtime;
 
 	// browser cannot (un)register content scripts dynamically
-	if('safari' === __SI_ENGINE) {
+	if(B_SAFARI_ANY) {
 		// Keplr compatibility mode is globally disabled; exit
 		if(SessionStorage.synchronously?.get('keplr_compatibility_mode_disabled')) {
 			warn('Shutdown due to being globally disabled');
@@ -687,7 +635,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			debug(`Submitting cosmos amino signature request: ${JSON.stringify(g_doc_serialized)}`);
 
 			// request signature
-			const g_response = await d_runtime_app.sendMessage({
+			const g_response = await f_runtime_app().sendMessage({
 				type: 'requestCosmosSignatureAmino',
 				value: {
 					accountPath: k_connection.accountPath,
@@ -731,7 +679,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			});
 
 			// request the actual signing
-			await d_runtime_app.sendMessage({
+			await f_runtime_app().sendMessage({
 				type: 'requestCosmosSignatureDirect',
 				value: {
 					accountPath: k_connection.accountPath,
@@ -834,7 +782,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			}
 
 			// ask service to encrypt
-			const g_encrypt = await d_runtime_app.sendMessage({
+			const g_encrypt = await f_runtime_app().sendMessage({
 				type: 'requestEncrypt',
 				value: {
 					accountPath: k_connection.accountPath,
@@ -844,7 +792,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				},
 			});
 
-			return app_to_keplr(g_encrypt, sxb93 => buffer_to_keplr_str(base93_to_buffer(sxb93)));
+			return app_to_keplr(g_encrypt, (sxb93: string) => buffer_to_keplr_str(base93_to_buffer(sxb93)));
 		},
 
 		async enigmaDecrypt(a_args): AsyncKeplrResponse<string> {
@@ -859,7 +807,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			// chain is secretwasm compatible
 			if(g_chain?.features.secretwasm) {
 				// ask service to dcrypt
-				const g_decrypt = await d_runtime_app.sendMessage({
+				const g_decrypt = await f_runtime_app().sendMessage({
 					type: 'requestDecrypt',
 					value: {
 						accountPath: k_connection.accountPath,
@@ -869,7 +817,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 					},
 				});
 
-				return app_to_keplr(g_decrypt, sxb93 => buffer_to_keplr_str(base93_to_buffer(sxb93)));
+				return app_to_keplr(g_decrypt, (sxb93: string) => buffer_to_keplr_str(base93_to_buffer(sxb93)));
 			}
 		},
 	};
@@ -1237,7 +1185,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				if(b_cancel_polyfill) break DETECT_KEPLR;
 
 				// notify service
-				d_runtime.sendMessage({
+				f_runtime().sendMessage({
 					type: 'detectedKeplr',
 					value: {
 						profile: g_profile || {},

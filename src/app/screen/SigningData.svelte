@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { F_NOOP } from '#/util/belt';
+	import {F_NOOP} from '#/util/belt';
 	import {load_app_context} from '../svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import {Screen} from './_screens';
 
 	import {JsonView} from '@zerodevx/svelte-json-view';
-	import type { AdaptedStdSignDoc } from '#/schema/amino';
+	import type {AdaptedStdSignDoc} from '#/schema/amino';
 	import Header from '../ui/Header.svelte';
-	import type { JsonObject } from '#/meta/belt';
-    import { base64_to_buffer } from '#/util/data';
+	import type {JsonObject} from '#/meta/belt';
+	import {base64_to_buffer} from '#/util/data';
 
 	const {
 		g_app,

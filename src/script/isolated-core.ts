@@ -29,7 +29,7 @@ const error = logger('error');
 const R_CHAIN_ID_WHITELIST = /^(kava_[1-9]\d*-|shentu-[1-9][0-9]*\.)[1-9]\d*$/;
 
 
-const d_runtime = chrome.runtime as Vocab.TypedRuntime<IcsToService.PublicVocab>;
+const f_runtime = () => chrome.runtime as Vocab.TypedRuntime<IcsToService.PublicVocab>;
 
 export const ServiceRouter = {
 	async connect(g_manifest: ConnectionManifestV1): Promise<{}> {
@@ -319,7 +319,7 @@ export const ServiceRouter = {
 		// go async
 		return new Promise((fk_resolve, fe_reject) => {
 			// send connection requestion to service
-			d_runtime.sendMessage({
+			f_runtime().sendMessage({
 				type: 'requestConnection',
 				value: {
 					chains: h_chains_valid,
@@ -840,7 +840,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 // export const h_handlers_authed: Vocab.Handlers<RelayToHost.AuthedVocab> = {
 // 	// handle connection requests
 // 	async requestConnect(g_request) {
-// 		void d_runtime.sendMessage({
+// 		void f_runtime().sendMessage({
 // 			type: 'requestConnection',
 // 			value: {
 // 				chains: a_chain_requests,

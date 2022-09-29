@@ -17,9 +17,11 @@
 	import IncidentFields from '../ui/IncidentFields.svelte';
 	import type {SimpleField} from '../ui/IncidentFields.svelte';
 	import {Screen, type Page} from './_screens';
-	import type { Completed } from '#/entry/flow';
+	import { load_app_context } from '../svelte';
 
-	const completed = getContext<Completed>('completed');
+	const {
+		completed,
+	} = load_app_context<undefined>();
 	
 
 	/**

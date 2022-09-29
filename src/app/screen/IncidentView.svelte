@@ -1,5 +1,4 @@
 <script lang="ts">
-	import {getContext} from 'svelte';
 	import {Tab, TabList, TabPanel, Tabs} from 'svelte-tabs';
 	import {Header, Screen} from './_screens';
 	
@@ -8,7 +7,6 @@
 	import {format_amount, format_fiat, format_time} from '#/util/format';
 	
 	import {parse_coin_amount, to_fiat} from '#/chain/coin';
-	import type {Completed} from '#/entry/flow';
 	import type {Chain, ChainInterface, ChainPath} from '#/meta/chain';
 	import type {Incident, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
 	import {R_TRANSFER_AMOUNT} from '#/share/constants';
@@ -31,11 +29,14 @@
 	import {Tx} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 	import type {SimpleField} from '../ui/IncidentFields.svelte';
 	import IncidentFields from '../ui/IncidentFields.svelte';
-    import { Apps } from '#/store/apps';
-    import { Accounts } from '#/store/accounts';
-    import Field from '../ui/Field.svelte';
+	import {Apps} from '#/store/apps';
+	import {Accounts} from '#/store/accounts';
+	import Field from '../ui/Field.svelte';
+	import {load_flow_context} from '../svelte';
 
-	const completed = getContext<Completed | undefined>('completed');
+	const {
+		completed,
+	} = load_flow_context();
 
 	function complete() {
 		completed!(true);
@@ -487,8 +488,12 @@
 						name='Date'
 					>
 						{new Intl.DateTimeFormat('en-US', {
-							year: 'numeric', month: 'numeric', day: 'numeric',
-							hour: 'numeric', minute: 'numeric', second: 'numeric',
+							year: 'numeric',
+month: 'numeric',
+day: 'numeric',
+							hour: 'numeric',
+minute: 'numeric',
+second: 'numeric',
 							hour12: false,
 							timeZone: 'America/Los_Angeles',
 						}).format(new Date(g_incident.time))}
@@ -528,8 +533,12 @@
 				name='Date'
 			>
 				{new Intl.DateTimeFormat('en-US', {
-					year: 'numeric', month: 'numeric', day: 'numeric',
-					hour: 'numeric', minute: 'numeric', second: 'numeric',
+					year: 'numeric',
+month: 'numeric',
+day: 'numeric',
+					hour: 'numeric',
+minute: 'numeric',
+second: 'numeric',
 					hour12: false,
 					timeZone: 'America/Los_Angeles',
 				}).format(new Date(g_incident.time))}

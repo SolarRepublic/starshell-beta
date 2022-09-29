@@ -14,13 +14,13 @@
 	import type {Dict} from '#/meta/belt';
 	import {yw_account_ref} from '../mem';
 	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
-	import { load_flow_context } from '../svelte';
+	import {load_flow_context} from '../svelte';
 
 
 	const {
 		completed,
 		k_page,
-	} = load_flow_context();
+	} = load_flow_context<undefined>();
 
 	export let app: AppInterface;
 

@@ -5,27 +5,28 @@
 
 import {SIV, WebCryptoProvider} from 'miscreant';
 
-// // TODO: build a version that only has the crypto_scalar_mult function
-// import {
-// 	crypto_scalarmult,
-// 	crypto_scalarmult_base,
-// } from 'libsodium-wrappers';
+// TODO: build a version that only has the crypto_scalar_mult function
+import {
+	crypto_scalarmult,
+	crypto_scalarmult_base,
+} from 'libsodium-wrappers';
 
-function crypto_scalarmult() {
-	throw new Error('scalar mult temp disabled');
-}
+// function crypto_scalarmult() {
+// 	throw new Error('scalar mult temp disabled');
+// }
 
-function crypto_scalarmult_base() {
-	throw new Error('scalar mult temp disabled');
-}
+// function crypto_scalarmult_base() {
+// 	debugger;
+// 	throw new Error('scalar mult temp disabled');
+// }
 
 import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, concat, hex_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
-import type { JsonValue } from '#/meta/belt';
-import type { AccountInterface, AccountPath } from '#/meta/account';
-import type { ChainInterface } from '#/meta/chain';
-import { Accounts } from '#/store/accounts';
-import { Secrets } from '#/store/secrets';
-import { SessionStorage } from '#/extension/session-storage';
+import type {JsonValue} from '#/meta/belt';
+import type {AccountInterface, AccountPath} from '#/meta/account';
+import type {ChainInterface} from '#/meta/chain';
+import {Accounts} from '#/store/accounts';
+import {Secrets} from '#/store/secrets';
+import {SessionStorage} from '#/extension/session-storage';
 
 const y_provider = new WebCryptoProvider(globalThis.crypto);
 

@@ -1,8 +1,6 @@
 import type Browser from 'webextension-polyfill';
 
-import {$_IS_SERVICE_WORKER, B_IPHONE_IOS, G_USERAGENT, R_SCRT_COMPUTE_ERROR, R_TRANSFER_AMOUNT, XT_MINUTES} from '#/share/constants';
-
-globalThis[$_IS_SERVICE_WORKER] = true;
+import {B_IPHONE_IOS, G_USERAGENT, R_SCRT_COMPUTE_ERROR, R_TRANSFER_AMOUNT, XT_MINUTES} from '#/share/constants';
 
 import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
 import {F_NOOP, ode, timeout} from '#/util/belt';
@@ -65,9 +63,9 @@ import {SessionStorage} from '#/extension/session-storage';
 type ServiceMessageHandler = (message: any, sender: MessageSender, sendResponse: (response?: any) => void) => void;
 
 
-const d_runtime_ios: Vocab.TypedRuntime<ExtToNative.MobileVocab> = chrome.runtime;
+const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
 
-const d_scripting = chrome.scripting as Browser.Scripting.Static;
+const f_scripting = () => chrome.scripting as Browser.Scripting.Static;
 
 
 
@@ -214,26 +212,44 @@ function generate_key(nb_size=64): string {
 }
 
 
-const H_SESSION_STORAGE_POLYFILL: Vocab.Handlers<IcsToService.SessionCommand> = {
-	get(si_key: string) {
-		const w_value = sessionStorage.getItem(si_key);
-		return w_value? JSON.parse(w_value): null;
-	},
+const H_SESSION_STORAGE_POLYFILL: Vocab.Handlers<IcsToService.SessionCommand> = 'function' === typeof chrome.storage?.session?.get
+	? {
+		async get(si_key: string): Promise<JsonValue> {
+			return (await chrome.storage.session.get([si_key]))[si_key];
+		},
 
-	set(h_set: JsonObject) {
-		for(const [si_key, w_value] of ode(h_set)) {
-			sessionStorage.setItem(si_key, JSON.stringify(w_value));
-		}
-	},
+		set(h_set: JsonObject): Promise<void> {
+			return chrome.storage.session.set(h_set);
+		},
 
-	remove(si_key) {
-		sessionStorage.removeItem(si_key);
-	},
+		remove(si_key: string): Promise<void> {
+			return chrome.storage.session.remove(si_key);
+		},
 
-	clear() {
-		sessionStorage.clear();
-	},
-};
+		clear(): Promise<void> {
+			return chrome.storage.session.clear();
+		},
+	}
+	: {
+		get(si_key: string) {
+			const w_value = sessionStorage.getItem(si_key);
+			return w_value? JSON.parse(w_value): null;
+		},
+
+		set(h_set: JsonObject) {
+			for(const [si_key, w_value] of ode(h_set)) {
+				sessionStorage.setItem(si_key, JSON.stringify(w_value));
+			}
+		},
+
+		remove(si_key: string) {
+			sessionStorage.removeItem(si_key);
+		},
+
+		clear() {
+			sessionStorage.clear();
+		},
+	};
 
 /**
  * message handlers for the public vocab from ICS
@@ -274,7 +290,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 		};
 
 		// execute isolated-world content script 'host'
-		void d_scripting.executeScript({
+		void f_scripting().executeScript({
 			target: {
 				tabId: i_tab,
 			},
@@ -284,7 +300,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 		});
 
 		// execute main-world content script 'ratifier'
-		void d_scripting.executeScript({
+		void f_scripting().executeScript({
 			target: {
 				tabId: i_tab,
 			},
@@ -550,10 +566,10 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 		void open_flow(gc_prompt);
 	},
 
-	sessionStorage(g_msg, g_sender, fk_respond) {
+	async sessionStorage(g_msg, g_sender, fk_respond) {
 		const si_type = g_msg.type;
 		// @ts-expect-error vocab handler types
-		const w_response = H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
+		const w_response = await H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
 		fk_respond(w_response);
 	},
 };
@@ -562,10 +578,10 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
  * message handlers for service instructions from popup
  */
 const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction> = {
-	sessionStorage(g_msg, g_sender, fk_respond) {
+	async sessionStorage(g_msg, g_sender, fk_respond) {
 		const si_type = g_msg.type;
 		// @ts-expect-error vocab handler types
-		const w_response = H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
+		const w_response = await H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
 		fk_respond(w_response);
 	},
 
@@ -981,7 +997,7 @@ chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 
 		// contact native application
 		try {
-			const w_response = await d_runtime_ios.sendNativeMessage('application.id', {
+			const w_response = await f_runtime_ios().sendNativeMessage('application.id', {
 				type: 'greet',
 			});
 
@@ -1004,12 +1020,12 @@ chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 
 	// console.log('ok');
 
-	// const d_scripting = chrome.scripting as browser.Scripting.Static;
+	// const f_scripting() = chrome.scripting as browser.Scripting.Static;
 
 
 	// const g_waker = H_CONTENT_SCRIPT_DEFS.inpage_waker();
 
-	// await d_scripting.registerContentScripts([
+	// await f_scripting().registerContentScripts([
 	// 	{
 	// 		...g_waker,
 	// 		// js: [
@@ -1019,7 +1035,7 @@ chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 	// 	},
 	// ]);
 
-	// const a_scripts = await d_scripting.getRegisteredContentScripts();
+	// const a_scripts = await f_scripting().getRegisteredContentScripts();
 	// for(const g_script of a_scripts) {
 	// 	console.log(g_script);
 	// }
@@ -1101,7 +1117,7 @@ const notify = B_IPHONE_IOS
 
 		console.log(g_message);
 
-		d_runtime_ios.sendNativeMessage('application.id', g_message, (w_response) => {
+		f_runtime_ios().sendNativeMessage('application.id', g_message, (w_response) => {
 			console.debug(`Received response from native app: %o`, w_response);
 		});
 	}
@@ -1773,6 +1789,9 @@ Object.assign(globalThis, {
 	toBech32,
 	bech32_to_pubkey,
 	SessionStorage,
+	Contracts,
+	Apps,
+	G_USERAGENT,
 
 	decodeTxRaw,
 	set_keplr_compatibility_mode,

@@ -3,19 +3,19 @@
 
 	import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
 	import {Screen} from './_screens';
-	import { timeout } from '#/util/belt';
+	import {timeout} from '#/util/belt';
 
 	import type {CameraDevice} from 'html5-qrcode/core';
 
 	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import { syserr } from '../common';
-	import { R_BECH32 } from '#/share/constants';
+	import {syserr} from '../common';
+	import {R_BECH32} from '#/share/constants';
 	import DeepLink from './DeepLink.svelte';
-	import { qs } from '#/util/dom';
-    import { load_flow_context } from '../svelte';
-    import { yw_navigator } from '../mem';
-    import { ThreadId } from '../def';
+	import {qs} from '#/util/dom';
+	import {load_flow_context} from '../svelte';
+	import {yw_navigator} from '../mem';
+	import {ThreadId} from '../def';
 
 	const {
 		completed,

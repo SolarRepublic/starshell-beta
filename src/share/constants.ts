@@ -4,20 +4,33 @@ import {sha256_sync_insecure, text_to_buffer} from '#/util/data';
 import { parse_params } from '#/util/dom';
 import type { BrowserAction } from 'webextension-polyfill';
 
-// export const $_IS_SERVICE_WORKER = Symbol('service-worker');
-export const $_IS_SERVICE_WORKER = '__is_service_worker';
+export const B_IS_BACKGROUND = 'clients' in globalThis && 'function' === typeof globalThis['Clients'] && globalThis['clients'] instanceof globalThis['Clients'];
+export const B_IS_SERVICE_WORKER = 'function' === typeof globalThis['ServiceWorkerGlobalScope'] && globalThis instanceof globalThis['ServiceWorkerGlobalScope'];
 
 export const SI_VERSION = __SI_VERSION;
-export const SI_ENGINE = __SI_ENGINE;
 
 // get URL params
 export const H_PARAMS = parse_params();
 
 export const G_USERAGENT = new UAParser().getResult();
+
+// parse major version
+export const N_BROWSER_VERSION_MAJOR = (() => {
+	const m_version = /^(\d+)(?:\.|$)/.exec(G_USERAGENT.browser.version || '');
+	if(m_version) {
+		return +m_version[1];
+	}
+
+	return 0;
+})();
+
 export const B_MOBILE = 'mobile' === G_USERAGENT.device.type;
 export const B_SAFARI_MOBILE = 'Mobile Safari' === G_USERAGENT.browser.name;
+export const B_SAFARI_ANY = G_USERAGENT.browser.name?.includes('Safari');
 export const B_IPHONE_IOS = 'iPhone' === G_USERAGENT.device.model && 'iOS' === G_USERAGENT.os.name;
 export const B_FIREFOX_ANDROID = 'Firefox' === G_USERAGENT.browser.name && 'Android' === G_USERAGENT.os.name;
+export const B_CHROMIUM_ANDROID = 'Chrome' === G_USERAGENT.browser.name && 'Android' === G_USERAGENT.os.name;
+export const B_CHROME_SESSION_CAPABLE = 'Chrome' === G_USERAGENT.browser.name && (N_BROWSER_VERSION_MAJOR >= 108);
 
 export const N_FIREFOX_ANDROID_BETA_VERSION = 104;
 export const N_FIREFOX_ANDROID_NIGHTLY_ABOVE = N_FIREFOX_ANDROID_BETA_VERSION;

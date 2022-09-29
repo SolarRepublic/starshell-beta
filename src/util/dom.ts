@@ -1,7 +1,9 @@
-import {B_FIREFOX_ANDROID, B_WITHIN_PWA, G_USERAGENT, N_FIREFOX_ANDROID_BETA_VERSION, N_FIREFOX_ANDROID_NIGHTLY_ABOVE} from '#/share/constants';
+import {B_CHROMIUM_ANDROID, B_FIREFOX_ANDROID, B_WITHIN_PWA, G_USERAGENT, N_BROWSER_VERSION_MAJOR, N_FIREFOX_ANDROID_BETA_VERSION, N_FIREFOX_ANDROID_NIGHTLY_ABOVE} from '#/share/constants';
 import type {Dict, JsonValue} from '#/meta/belt';
 import {ode, timeout} from './belt';
 import type { ImageDataUrl } from '#/meta/media';
+import type { Vocab } from '#/meta/vocab';
+import type { Pwa } from '#/script/messages';
 
 // const B_WITHIN_PWA = '?pwa' === globalThis.location?.search && window.top !== window;
 
@@ -181,7 +183,81 @@ export interface ExternalLinkConfig {
 }
 
 export async function open_external_link(p_url: string, gc_external: ExternalLinkConfig={}): Promise<void> {
-	if('function' === typeof chrome.tabs?.create) {
+	// within pwa
+	if(B_WITHIN_PWA) {
+		// opening should exit pwa
+		if(gc_external?.exitPwa) {
+			// operating on firefox
+			if(B_FIREFOX_ANDROID) {
+				const a_fenixes = [
+					'fenix',
+					'fenix-beta',
+					'fenix-nightly',
+				];
+
+				// compare major version
+				if(N_BROWSER_VERSION_MAJOR) {
+					const f_mv_0 = (s_tag: string) => a_fenixes.unshift(a_fenixes.splice(a_fenixes.indexOf(s_tag), 1)[0]);
+
+					// firefox-beta
+					if(N_FIREFOX_ANDROID_BETA_VERSION === N_BROWSER_VERSION_MAJOR) {
+						f_mv_0('fenix-beta');
+					}
+					// firefox-nightly
+					else if(N_BROWSER_VERSION_MAJOR > N_FIREFOX_ANDROID_NIGHTLY_ABOVE) {
+						f_mv_0('fenix-nightly');
+					}
+				}
+
+				// monitor visibilityChange event to deduce if browser was installed and opened link
+				let b_opened = false;
+				{
+					const f_visibility_monitor = () => {
+						if('hidden' === document.visibilityState) {
+							b_opened = true;
+							document.removeEventListener('visibilitychange', f_visibility_monitor);
+						}
+					};
+
+					document.addEventListener('visibilitychange', f_visibility_monitor);
+				}
+
+				// try each protocol in order
+				for(const s_protocol of a_fenixes) {
+					// open the URL
+					location.href = `${s_protocol}://open?${new URLSearchParams(Object.entries({url:p_url})).toString()}`;
+
+					// pause
+					await timeout(300);
+
+					// link opened the app; all done
+					if(b_opened) return;
+				}
+			}
+			// us.spotco.fennec_dos
+			// // operating on chromium
+			// else {
+			// 	// ({
+			// 	// 	package: 'com.kiwibrowser.browser',
+			// 	// 	action: 'android.intent.action.VIEW',
+			// 	// 	category: 'android.intent.category.BROWSABLE',
+			// 	// 	scheme: 'googlechrome',
+			// 	// });
+
+			// 	// action: org.chromium.chrome.browser.webapps.ActivateWebApkActivity.ACTIVATE:
+			// 	//          com.kiwibrowser.browser/org.chromium.chrome.browser.webapps.ActivateWebApkActivity
+			// 	// org.chromium.chrome.browser.webapps.WebappManager.ACTION_START_SECURE_WEBAPP
+			// 	// window.open('intent://google.com/#Intent;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.chrome;scheme=https;end', '_blank')
+			// }
+		}
+
+		// instruct top to open popup
+		(window.top as Vocab.TypedWindow<Pwa.IframeToTop>).postMessage({
+			type: 'openPopup',
+			value: p_url,
+		}, 'https://launch.starshell.net');
+	}
+	else if('function' === typeof chrome.tabs?.create) {
 		void chrome.tabs.create({
 			url: p_url,
 		});
@@ -191,55 +267,6 @@ export async function open_external_link(p_url: string, gc_external: ExternalLin
 		}
 	}
 	else {
-		if(B_FIREFOX_ANDROID && B_WITHIN_PWA && gc_external?.exitPwa) {
-			const a_fenixes = [
-				'fenix',
-				'fenix-beta',
-				'fenix-nightly',
-			];
-
-			// parse major version
-			const m_version = /^(\d+)(?:\.|$)/.exec(G_USERAGENT.browser.version || '');
-			if(m_version) {
-				const n_version = +m_version[1];
-				const f_mv_0 = (s_tag: string) => a_fenixes.unshift(a_fenixes.splice(a_fenixes.indexOf(s_tag), 1)[0]);
-
-				// firefox-beta
-				if(N_FIREFOX_ANDROID_BETA_VERSION === n_version) {
-					f_mv_0('fenix-beta');
-				}
-				// firefox-nightly
-				else if(n_version > N_FIREFOX_ANDROID_NIGHTLY_ABOVE) {
-					f_mv_0('fenix-nightly');
-				}
-			}
-
-			// monitor visibilityChange event to deduce if browser was installed and opened link
-			let b_opened = false;
-			{
-				const f_visibility_monitor = () => {
-					if('hidden' === document.visibilityState) {
-						b_opened = true;
-						document.removeEventListener('visibilitychange', f_visibility_monitor);
-					}
-				};
-
-				document.addEventListener('visibilitychange', f_visibility_monitor);
-			}
-
-			// try each protocol in order
-			for(const s_protocol of a_fenixes) {
-				// open the URL
-				location.href = `${s_protocol}://open?${new URLSearchParams(Object.entries({url:p_url})).toString()}`;
-
-				// pause
-				await timeout(300);
-
-				// link opened the app; all done
-				if(b_opened) return;
-			}
-		}
-
 		// open as an external link
 		globalThis.open(p_url, '_blank');
 	}
@@ -326,11 +353,11 @@ export async function render_svg_squarely<
 				d_2d.drawImage(d_img, xl_x_src, xl_y_src, xl_dim_min_svg, xl_dim_min_svg, 0, 0, n_px_render, n_px_render);
 
 				// export image data
-				const sx_data_webp = dm_canvas_square.toDataURL('image/webp', 1) as `data:image/webp;base64,${string}`;
+				const sx_data_webp = B_FIREFOX_ANDROID? null: dm_canvas_square.toDataURL('image/webp', 1) as `data:image/webp;base64,${string}`;
 				const sx_data_png = dm_canvas_square.toDataURL('image/png', 1) as `data:image/png;base64,${string}`;
 
 				// add the smaller one to dict
-				h_renders[n_px_render] = sx_data_webp.length < sx_data_png.length? sx_data_webp: sx_data_png;
+				h_renders[n_px_render] = (sx_data_webp?.length || Infinity) < sx_data_png.length? sx_data_webp: sx_data_png;
 			}
 
 			// free object URL

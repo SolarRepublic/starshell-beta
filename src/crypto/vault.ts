@@ -20,7 +20,7 @@ import SensitiveBytes from './sensitive-bytes';
 import {global_broadcast} from '#/script/msg-global';
 import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {uuid_v4} from '#/util/dom';
-import {$_IS_SERVICE_WORKER, ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, XG_64_BIT_MAX} from '#/share/constants';
+import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_IS_BACKGROUND, XG_64_BIT_MAX} from '#/share/constants';
 import {NotAuthenticatedError} from '#/share/errors';
 import { SessionStorage } from '#/extension/session-storage';
 
@@ -77,7 +77,7 @@ const GC_HKDF_COMMON = {
 
 
 // identify this local frame
-const SI_FRAME_LOCAL = globalThis[$_IS_SERVICE_WORKER]? `SERVICE.${uuid_v4().slice(32)}`: uuid_v4().slice(24);
+const SI_FRAME_LOCAL = B_IS_BACKGROUND? `SERVICE.${uuid_v4().slice(32)}`: uuid_v4().slice(24);
 
 
 interface VaultFields {

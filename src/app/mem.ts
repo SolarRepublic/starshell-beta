@@ -419,15 +419,15 @@ const d_viewport = globalThis.visualViewport || {
 } as VisualViewport;
 
 // fits the app to the full viewport dimensions
-function fit_viewport() {
+function fit_viewport(xl_offset_height=0) {
 	const d_style_root = document.documentElement.style;
 	if(d_viewport) {
 		const xl_width = d_viewport.width;
-		const xl_height = d_viewport.height;
+		const xl_height = d_viewport.height + xl_offset_height;
 
 		if(xl_width * xl_height > 100) {
-			d_style_root.setProperty('--app-window-width', Math.floor(d_viewport.width)+'px');
-			d_style_root.setProperty('--app-window-height', Math.floor(d_viewport.height)+'px');
+			d_style_root.setProperty('--app-window-width', Math.floor(xl_width)+'px');
+			d_style_root.setProperty('--app-window-height', Math.floor(xl_height)+'px');
 		}
 	}
 }
@@ -465,6 +465,9 @@ if('undefined' !== typeof document) {
 			// state of whether it is extended or collapsed
 			let xc_scrollable = SCROLLABLE.NONE;
 
+			// height offset due to browser chrome
+			let xl_offset_height = 0;
+
 			// extend the height of the document so that the use can scroll down to hide the safari toolbar
 			function extend_scrollable() {
 				// +200px seems to be the lowest safe amount to overflow the page in order for safari to hide the toolbar
@@ -494,7 +497,7 @@ if('undefined' !== typeof document) {
 				await microtask();
 
 				// update viewport
-				fit_viewport();
+				fit_viewport(xl_offset_height);
 
 				// scroll position is below
 				if(dm_html.scrollTop > 0) {
@@ -640,23 +643,26 @@ if('undefined' !== typeof document) {
 				}
 				// in firefox
 				else {
-					// adjust window height
-					let xl_height = Math.floor(d_viewport.height);
+					// // adjust window height
+					// let xl_height = Math.floor(d_viewport.height);
 
 					// in browser tab
 					if(!B_WITHIN_WEBEXT_POPOVER) {
 						// adjust window height by offset
-						xl_height -= N_PX_FIREFOX_TOOLBAR;
+						xl_offset_height = -N_PX_FIREFOX_TOOLBAR;
 					}
 
-					// make sure height is reasonable
-					if(xl_height > 100) {
-						console.log(`Adjusting new height to ${Math.floor(xl_height)}`);
-						d_style_root.setProperty('--app-window-height', `${Math.floor(xl_height)}px`);
-					}
+					// // make sure height is reasonable
+					// if(xl_height > 100) {
+					// 	console.log(`Adjusting new height to ${Math.floor(xl_height)}`);
+					// 	d_style_root.setProperty('--app-window-height', `${Math.floor(xl_height)}px`);
+					// }
+
+					// // fit viewport
+					// fit_viewport(xl_offset_height);
 
 					// dynamic app height. firefox toolbar takes up about 56 pixels
-					continually_adjust_height(-N_PX_FIREFOX_TOOLBAR);
+					continually_adjust_height(xl_offset_height);
 				}
 
 				// set body height

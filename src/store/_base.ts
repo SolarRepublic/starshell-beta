@@ -107,10 +107,14 @@ export class WritableStoreMap<
 		return ode(this._w_cache);
 	}
 
-	async delete(p_res: keyof h_cache): Promise<void> {
+	async delete(p_res: keyof h_cache): Promise<boolean> {
+		if(!(p_res in this._w_cache)) return false;
+
 		delete this._w_cache[p_res];
 
 		await this.save();
+
+		return true;
 	}
 
 	// async put(g_info: h_cache[keyof h_cache]): Promise<void> {
@@ -171,6 +175,8 @@ export type StaticStore<
 	};
 	map: {
 		at(si_key: Store.Key<si_store>): Promise<null | Store[si_store][typeof si_key]>;
+
+		delete(si_key: Store.Key<si_store>): Promise<boolean>;
 	};
 	dict: {
 		get<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]>;
@@ -320,6 +326,10 @@ export function create_store_class<
 		...('map' === s_extension) && {
 			async at<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
 				return (await dc_store['read']()).at(si_key);
+			},
+
+			async delete<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<boolean> {
+				return (await dc_store['open']()).delete(si_key);
 			},
 		},
 

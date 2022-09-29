@@ -1,4 +1,4 @@
-import {NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB} from '#/share/constants';
+import {B_FIREFOX_ANDROID, NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB} from '#/share/constants';
 
 /**
  * Locate a script asset in the extension bundle by its path prefix.
@@ -125,7 +125,7 @@ export async function load_icon_data(p_image: string, n_px_dim=256): Promise<str
 	d_2d.drawImage(d_img, 0, 0, n_px_dim, n_px_dim);
 
 	// render data url
-	const sx_data = dm_canvas.toDataURL('image/webp', 1);
+	const sx_data = B_FIREFOX_ANDROID? dm_canvas.toDataURL('image/png', 1): dm_canvas.toDataURL('image/webp', 1);
 
 	// data URL is invalid or too large; don't use it
 	if(!R_DATA_IMAGE_URL_WEB.test(sx_data) || sx_data.length > NL_DATA_ICON_MAX) {

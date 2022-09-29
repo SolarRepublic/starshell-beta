@@ -8,6 +8,8 @@ import type {AgentOrEntityOrigin, Bech32, ChainNamespaceKey, ChainPath, Contract
 import type { TokenInterfaceDescriptor, TokenInterfaceKey } from '#/meta/token';
 import { is_dict, ode } from '#/util/belt';
 import { Chains } from './chains';
+import { Pfps } from './pfps';
+import type { PfpPath } from '#/meta/pfp';
 
 export interface ContractFilterConfig {
 	chain?: ChainPath;
@@ -100,6 +102,20 @@ export const Contracts = create_store_class({
 			await this.save();
 
 			return [p_contract, g_contract];
+		}
+
+		override async delete(p_contract: ContractPath): Promise<boolean> {
+			const g_contract = this._w_cache[p_contract];
+
+			if(!g_contract) return false;
+
+			await Pfps.delete(g_contract.pfp as PfpPath);
+
+			delete this._w_cache[p_contract];
+
+			await this.save();
+
+			return true;
 		}
 	},
 });

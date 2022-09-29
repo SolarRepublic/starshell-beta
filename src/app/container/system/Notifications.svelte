@@ -36,6 +36,7 @@
 	.notifications {
 		z-index: 9000;
 		.absolute();
+		width: 100%;
 		transition: opacity 1s var(--ease-out-expo);
 
 		&.hidden {

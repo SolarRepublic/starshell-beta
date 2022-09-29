@@ -1,11 +1,6 @@
-import type * as ConstantsImport from '#/share/constants';
-import type * as DomImport from '#/util/dom';
-import type * as BrowserImport from '#/extension/browser';
-import type * as UtilsImport from './utils';
-import type * as SessionStorageImport from '#/extension/session-storage';
-import type { Dict } from '#/meta/belt';
-import { base64_to_buffer, text_to_buffer } from '#/util/data';
-import { Vault } from '#/crypto/vault';
+import type * as ImportHelper from './ics-launch-imports';
+
+import type {Dict} from '#/meta/belt';
 
 const P_LAUNCH = 'https://launch.starshell.net/';
 
@@ -16,22 +11,23 @@ debug(`Launched on <${location.href}>`);
 (function() {
 	const {
 		B_FIREFOX_ANDROID,
+		B_CHROMIUM_ANDROID,
 		B_IPHONE_IOS,
 		B_SAFARI_MOBILE,
 		G_USERAGENT,
-	} = inline_require('#/share/constants.ts') as typeof ConstantsImport;
 
-	const {qs, dd, parse_params, stringify_params} = inline_require('#/util/dom.ts') as typeof DomImport;
+		qs, dd, parse_params, stringify_params,
 
-	const {locate_script} = inline_require('./utils.ts') as typeof UtilsImport;
+		base64_to_buffer,
+		text_to_buffer,
 
-	const {SessionStorage} = inline_require('#/extension/session-storage.ts') as typeof SessionStorageImport;
+		locate_script,
+
+		Vault,
+		SessionStorage,
+	} = inline_require('./ics-launch-imports.ts') as typeof ImportHelper;
 
 	const P_POPUP = chrome.runtime?.getURL?.('src/entry/popup.html') || '/src/entry/popup.html';
-
-	// const {
-	// 	P_POPUP,
-	// } = inline_require('#/extension/browser.ts') as typeof BrowserImport;
 
 	const h_params_search = parse_params(location.search);
 	const h_params_hash = parse_params(location.hash);
@@ -73,6 +69,10 @@ debug(`Launched on <${location.href}>`);
 			// on firefox; guide thru pwa setup
 			if(B_FIREFOX_ANDROID) {
 				si_setup = 'android-firefox-pwa';
+			}
+			// on chromium; guide thru pwa setup
+			else if(B_CHROMIUM_ANDROID) {
+				si_setup = 'android-chromium-pwa';
 			}
 			// on iphone, setup is already complete
 			else if(B_IPHONE_IOS) {
@@ -177,6 +177,17 @@ debug(`Launched on <${location.href}>`);
 						padding: 0;
 						border: none;
 					`,
+					allow: 'camera',
+					sandbox: [
+						'downloads',
+						'forms',
+						'modals',
+						'popups',
+						'popups-to-escape-sandbox',
+						'same-origin',
+						'scripts',
+						'top-navigation',
+					].map(s => `allow-${s}`).join(' '),
 				});
 
 				// append to body

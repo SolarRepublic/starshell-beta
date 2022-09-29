@@ -1,6 +1,5 @@
 <script lang="ts">
-	import {getContext} from 'svelte';
-	import {Screen, type Page} from './_screens';
+	import {Screen} from './_screens';
 
 	import Field from '#/app/ui/Field.svelte';
 	import Log, {Logger} from '#/app/ui/Log.svelte';
@@ -12,8 +11,6 @@
 		register,
 	} from '#/share/auth';
 
-
-	import type {Completed} from '#/entry/flow';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import {slide} from 'svelte/transition';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
@@ -21,12 +18,13 @@
 	import RegisterWeakPasswordSvelte from './RegisterWeakPassword.svelte';
 	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM} from '#/share/constants';
 	import {AlreadyRegisteredError, InvalidPassphraseError} from '#/share/errors';
-
-	// get page from context
-	const k_page = getContext<Page>('page');
+	import {load_flow_context} from '../svelte';
 
 	// will be set if this is part of a flow
-	const completed = getContext<Completed | undefined>('completed');
+	const {
+		k_page,
+		completed,
+	} = load_flow_context();
 
 	// bindings
 	let sh_phrase = '';
@@ -174,7 +172,6 @@
 			return exit();
 		}
 
-		debugger;
 		log('Verifying passphrase');
 
 		// attempt login
@@ -281,20 +278,23 @@
 	</center>
 
 	<div class="form flex-rows">
-		<input hidden
+		<!-- <input hidden
 			type="text"
 			name="username"
 			autocomplete="username"
-			value="StarShell Wallet User">
+			value="StarShell Wallet User"> -->
 
 		<Field key="password" name="New password">
+			<!-- autocomplete="new-password" -->
 			<input
 				type="password"
-				autocomplete="new-password"
+				autocomplete="off"
 				name="password"
 				placeholder="Password"
 				on:blur={() => check_password()}
-				bind:value={sh_phrase}>
+				bind:value={sh_phrase}
+				disabled={b_busy}
+			>
 
 			{#if !b_password_acceptable && s_err_password}
 				<div class="validation-message" transition:slide={{duration:300}}>
@@ -306,11 +306,13 @@
 		<Field key="verify-password" name="Verify password">
 			<input
 				type="password"
-				autocomplete="new-password"
+				autocomplete="off"
 				name="verify"
 				placeholder="Password"
 				on:blur={() => check_verify()}
-				bind:value={sh_verify}>
+				bind:value={sh_verify}
+				disabled={b_busy}
+			>
 
 			{#if !b_password_acceptable && s_err_verify}
 				<div class="validation-message" transition:slide={{duration:300}}>

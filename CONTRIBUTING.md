@@ -21,6 +21,7 @@ This may require that your system has a chrome webdriver installed, depending on
 
 #### Testing in Chrome, Chromium, Brave, Edge, etc. for Desktop
 
+In a new shell session, run the following command to continually build on save:
 ```shell
 yarn watch:chrome
 ```
@@ -30,6 +31,7 @@ Then follow the instructions [here](https://github.com/SolarRepublic/starshell-b
 
 #### Testing in Firefox for Desktop
 
+In a new shell session, run the following command to use vite's hot module reloading (HMR) feature:
 ```shell
 yarn dev:firefox
 ```
@@ -44,7 +46,7 @@ yarn serve:firefox
 
 In a new shell session, run the following command to continually build on save:
 ```shell
-yarn watch:firefox-android
+yarn watch:firefox
 ```
 
 #### Deploying to Android Requirements
@@ -75,12 +77,12 @@ Setup host:
 #### Deploying to Android Commands
 
 ```shell
-yarn serve:firefox-android [ADB_DEVICE_NAME [FIREFOX_TAG] ]
+yarn serve:android-firefox [ PACKAGE_ID [ ADB_DEVICE_NAME ] ]
 ```
 
 In a separate shell, run the following command to continually deploy the built web extension to the default emulated device:
 ```shell
-yarn serve:firefox-android
+yarn serve:android-firefox
 ```
 
 The debugging port will print to the console, and it will look something like this:
@@ -90,15 +92,15 @@ You can connect to this Android device on TCP port 63302
 
 If you want to deploy to a connected Android device instead, provide the device name given from `adb devices` as an argument:
 ```shell
-yarn serve:firefox-android E1021NS01195
+yarn serve:android-firefox org.mozilla.firefox E1021NS01195
 ```
 
 If you want to deploy to Firefox beta or nightly:
 ```shell
-yarn serve:firefox-android emulator-5554 _beta
+yarn serve:android-firefox org.mozilla.firefox_beta
 ```
 
 ```shell
-yarn serve:firefox-android emulator-5554 _nightly
+yarn serve:android-firefox org.mozilla.fenix
 ```
 

@@ -361,7 +361,6 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 				throw e_flow;
 			}
 
-			debugger;
 			// signature was approved
 			if(b_approved) {
 				return g_result;

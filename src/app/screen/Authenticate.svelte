@@ -1,10 +1,9 @@
 <script lang="ts">
-	import {getContext, onDestroy} from 'svelte';
+	import {onDestroy} from 'svelte';
 
 	import Log, {Logger} from '#/app/ui/Log.svelte';
 
 	import {Vault} from '#/crypto/vault';
-	import type {Completed} from '#/entry/flow';
 
 	import {
 		login,
@@ -15,12 +14,17 @@
 	import ActionsLine from '#/app/ui/ActionsLine.svelte';
 	import Field from '#/app/ui/Field.svelte';
 	import {slide} from 'svelte/transition';
-	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, B_MOBILE, B_WITHIN_IFRAME} from '#/share/constants';
+	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, B_FIREFOX_ANDROID, B_MOBILE, B_WITHIN_IFRAME, B_WITHIN_WEBEXT_POPOVER} from '#/share/constants';
 	import {CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from '#/share/errors';
-	import { global_receive } from '#/script/msg-global';
+	import {global_receive} from '#/script/msg-global';
+	import {P_POPUP} from '#/extension/browser';
+	import {stringify_params} from '#/util/dom';
+	import {load_flow_context} from '../svelte';
 
 	// will be set if part of flow
-	const completed = getContext<Completed | undefined>('completed');
+	const {
+		completed,
+	} = load_flow_context();
 
 	// password value binding
 	let sh_password = '';
@@ -53,9 +57,11 @@
 		f_relase();
 
 		// escape the popup modal on firefox for android
-		if(B_MOBILE && 'moz-extension:' === globalThis.location.protocol && !B_WITHIN_IFRAME) {
+		if(B_FIREFOX_ANDROID && B_WITHIN_WEBEXT_POPOVER) {
 			chrome.tabs?.create({
-				url: 'popup.html?within=tab',
+				url: `${P_POPUP}?${stringify_params({
+					within: 'tab',
+				})}`,
 			}, () => {
 				globalThis.close();
 			});

@@ -3,19 +3,20 @@
 </script> -->
 
 <script lang="ts">
-	import {getContext} from 'svelte';
 	import {Screen} from './_screens';
 
 	import type {App} from '#/meta/app';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	import AppBanner from '../ui/AppBanner.svelte';
-	import type {Completed} from '#/entry/flow';
 	import type {PageInfo} from '#/script/messages';
 
 	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
+	import {load_flow_context} from '../svelte';
 
 	// flow complete callback
-	const completed = getContext<Completed>('completed');
+	const {
+		completed,
+	} = load_flow_context<undefined>();
 
 	/**
 	 * The app in question

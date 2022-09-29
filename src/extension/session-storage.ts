@@ -2,7 +2,7 @@ import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
 
 import type {ScreenInfo} from '#/extension/browser';
 import type {JsonObject} from '#/meta/belt';
-import {$_IS_SERVICE_WORKER} from '#/share/constants';
+import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, G_USERAGENT, N_BROWSER_VERSION_MAJOR} from '#/share/constants';
 import type {Vocab} from '#/meta/vocab';
 import type {IcsToService} from '#/script/messages';
 import {F_NOOP} from '#/util/belt';
@@ -130,12 +130,13 @@ interface ExtSessionStorage {
 	clear(): Promise<void>;
 }
 
-
 export const SessionStorage = {} as ExtSessionStorage;
+
+// TODO: change `b_force_background` default assignment back to `false` once chromium fixes bug
 
 // eslint-disable-next-line @typescript-eslint/unbound-method
 function resolve_storage_mechanism(b_force_background=false) {
-	if(chrome.storage['session'] && !b_force_background) {
+	if(chrome.storage['session'] && !b_force_background && B_CHROME_SESSION_CAPABLE) {
 		const d_session = (chrome.storage as unknown as {
 			session: chrome.storage.StorageArea;
 		}).session;
@@ -164,34 +165,28 @@ function resolve_storage_mechanism(b_force_background=false) {
 			synchronously: null,
 		};
 
-		// bug in older chrome forbids session storage access even from trusted contexts
-		chrome.storage.session.get().then(F_NOOP, () => {
-			// eslint-disable-next-line @typescript-eslint/unbound-method
-			Object.assign(g_exports, resolve_storage_mechanism(true));
-		});
-
 		return g_exports;
 	}
 	else {
 		const dw_background = chrome.extension.getBackgroundPage?.();
-		let d_session!: Window['sessionStorage'];
+		let f_session!: () => Window['sessionStorage'];
 		// within popup script; able to access "background page's" sessionStorage
 		if(dw_background) {
-			d_session = dw_background.sessionStorage;
+			f_session = () => chrome.extension.getBackgroundPage()!.sessionStorage;
 		}
 		// within "background page" (service worker); directly use sessionStorage object
-		else if(globalThis[$_IS_SERVICE_WORKER]) {
-			d_session = sessionStorage;
+		else if(B_IS_BACKGROUND && 'object' === typeof sessionStorage) {
+			f_session = () => sessionStorage;
 		}
 		// within content script; send message to perform operation
 		else {
-			const d_runtime = chrome.runtime as Vocab.TypedRuntime<IcsToService.PublicVocab>;
+			const f_runtime = () => chrome.runtime as Vocab.TypedRuntime<IcsToService.PublicVocab>;
 
 			return {
 				/* eslint-disable @typescript-eslint/require-await */
 				get<si_key extends SessionStorageKey>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
 					return new Promise((fk_resolve) => {
-						d_runtime.sendMessage({
+						f_runtime().sendMessage({
 							type: 'sessionStorage',
 							value: {
 								type: 'get',
@@ -205,7 +200,7 @@ function resolve_storage_mechanism(b_force_background=false) {
 
 				set(h_set_wrapped: SetWrapped): Promise<void> {
 					return new Promise((fk_resolve) => {
-						d_runtime.sendMessage({
+						f_runtime().sendMessage({
 							type: 'sessionStorage',
 							value: {
 								type: 'set',
@@ -219,7 +214,7 @@ function resolve_storage_mechanism(b_force_background=false) {
 
 				remove(si_key: SessionStorageKey): Promise<void> {
 					return new Promise((fk_resolve) => {
-						d_runtime.sendMessage({
+						f_runtime().sendMessage({
 							type: 'sessionStorage',
 							value: {
 								type: 'remove',
@@ -233,7 +228,7 @@ function resolve_storage_mechanism(b_force_background=false) {
 
 				clear(): Promise<void> {
 					return new Promise((fk_resolve) => {
-						d_runtime.sendMessage({
+						f_runtime().sendMessage({
 							type: 'sessionStorage',
 							value: {
 								type: 'clear',
@@ -252,16 +247,16 @@ function resolve_storage_mechanism(b_force_background=false) {
 
 		const k_session: SynchronousExtSessionStorage = {
 			get(si_key) {
-				return d_session.getItem(si_key);
+				return f_session().getItem(si_key);
 			},
 			set(si_key, s_value) {
-				return d_session.setItem(si_key, s_value);
+				return f_session().setItem(si_key, s_value);
 			},
 			remove(si_key) {
-				return d_session.removeItem(si_key);
+				return f_session().removeItem(si_key);
 			},
 			clear() {
-				return d_session.clear();
+				return f_session().clear();
 			},
 		};
 

@@ -1,6 +1,7 @@
 import { Vault } from '#/crypto/vault';
 import type {Dict, JsonObject} from '#/meta/belt';
-import type {PageInfo} from '#/script/messages';
+import type { Vocab } from '#/meta/vocab';
+import type {IntraExt, PageInfo, Pwa} from '#/script/messages';
 import {once_storage_changes} from '#/script/service';
 import {
 	G_USERAGENT,
@@ -12,6 +13,7 @@ import {
 	B_WITHIN_PWA,
 	B_WEBEXT_ACTION,
 	B_WEBEXT_BROWSER_ACTION,
+	B_FIREFOX_ANDROID,
 } from '#/share/constants';
 import {F_NOOP} from '#/util/belt';
 import { buffer_to_base64, text_to_buffer } from '#/util/data';
@@ -56,7 +58,7 @@ async function center_over_screen(): Promise<PositionConfig> {
 	}
 
 	// cannot create windows
-	if(!chrome.windows?.create) {
+	if('function' !== typeof chrome.windows?.create) {
 		return {};
 	}
 
@@ -163,7 +165,7 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 	}
 
 	// use popover
-	if(gc_open?.popover) {
+	if(gc_open?.popover && !B_FIREFOX_ANDROID) {
 		// update url with extended search params
 		const d_url_popover = new URL(p_url);
 		d_url_popover.search = stringify_params({
@@ -205,7 +207,6 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 		catch(e_open) {
 			// procced with fallback
 			console.warn(`Popover attempt failed: ${e_open}; using fallback`);
-			debugger;
 		}
 		// reset popover
 		finally {
@@ -224,8 +225,41 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 		}
 	}
 
+	// within pwa
+	if(B_WITHIN_PWA) {
+		debugger;
+
+		// prep URL
+		const f_url = (h_hash_params: Dict) => `https://launch.starshell.net/?pwa#${new URLSearchParams(Object.entries({
+			flow: p_url,
+			...h_hash_params,
+		}))}`;
+
+		// sign URL
+		const p_presigned = f_url({});
+		const atu8_signature = await Vault.symmetricSign(text_to_buffer(p_presigned));
+
+		// append to hash params
+		const p_signed = f_url({
+			signature: buffer_to_base64(atu8_signature),
+		});
+
+		// // open as if a remote page
+		// window.open(p_signed, '_blank');
+
+		// instruct top to open popup
+		(window.top as Vocab.TypedWindow<Pwa.IframeToTop>).postMessage({
+			type: 'openPopup',
+			value: p_url,
+		}, 'https://launch.starshell.net');
+
+		return {
+			window: null,
+			tab: null,
+		};
+	}
 	// windows is available
-	if('function' === typeof chrome.windows?.create) {
+	else if('function' === typeof chrome.windows?.create) {
 		// extend search params
 		h_params.within = 'popout';
 
@@ -270,41 +304,45 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 			throw new Error('Failed to create popup window');
 		}
 
-		// fetch its view
-		const dv_popup = await chrome.windows.get(g_window.id, {
-			windowTypes: ['popup'],
-		});
-
-		// no view
-		if(!dv_popup) {
-			throw new Error('Failed to locate popup window');
-		}
-
-		// wait for tab to load
-		const dt_created: chrome.tabs.Tab = await new Promise((fk_created) => {
-			// tab update event
-			chrome.tabs.onUpdated.addListener(function tab_update(i_tab, g_info, dt_updated) {
-				// is the target tab
-				if(g_window.id === dt_updated.windowId && 'number' === typeof i_tab) {
-					// loading compelted
-					if('complete' === g_info.status) {
-						// remove listener
-						chrome.tabs.onUpdated.removeListener(tab_update);
-
-						// resolve promise
-						fk_created(dt_updated as chrome.tabs.Tab);
-					}
-				}
+		try {
+			// fetch its view
+			const dv_popup = await chrome.windows.get(g_window.id, {
+				windowTypes: ['popup'],
 			});
-		});
 
-		return {
-			window: g_window,
-			tab: dt_created,
-		};
+			// no view
+			if(!dv_popup) {
+				throw new Error('Failed to locate popup window');
+			}
+
+			// wait for tab to load
+			const dt_created: chrome.tabs.Tab = await new Promise((fk_created) => {
+				// tab update event
+				chrome.tabs.onUpdated.addListener(function tab_update(i_tab, g_info, dt_updated) {
+					// is the target tab
+					if(g_window.id === dt_updated.windowId && 'number' === typeof i_tab) {
+						// loading compelted
+						if('complete' === g_info.status) {
+							// remove listener
+							chrome.tabs.onUpdated.removeListener(tab_update);
+
+							// resolve promise
+							fk_created(dt_updated as chrome.tabs.Tab);
+						}
+					}
+				});
+			});
+
+			return {
+				window: g_window,
+				tab: dt_created,
+			};
+		}
+		catch(e_create) {}
 	}
+
 	// cannot create windows, but can create tabs
-	else if('function' === typeof chrome.tabs?.create) {
+	if('function' === typeof chrome.tabs?.create) {
 		// set viewing mode
 		h_params.within = 'tab';
 
@@ -316,31 +354,6 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 			tab: await chrome.tabs.create({
 				url: d_url.toString(),
 			}),
-		};
-	}
-	// within pwa
-	else if(B_WITHIN_PWA) {
-		// prep URL
-		const f_url = (h_hash_params: Dict) => `https://launch.starshell.net/?pwa#${new URLSearchParams(Object.entries({
-			flow: p_url,
-			...h_hash_params,
-		}))}`;
-
-		// sign URL
-		const p_presigned = f_url({});
-		const atu8_signature = await Vault.symmetricSign(text_to_buffer(p_presigned));
-
-		// append to hash params
-		const p_signed = f_url({
-			signature: buffer_to_base64(atu8_signature),
-		})
-
-		// open as if a remote page
-		window.open(p_signed, '_blank');
-
-		return {
-			window: null,
-			tab: null,
 		};
 	}
 	// open as link

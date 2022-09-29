@@ -21,7 +21,6 @@ declare global {
 	const __H_MEDIA_BUILTIN: Store.Cache<typeof SI_STORE_MEDIA>;
 	const __H_MEDIA_LOOKUP: Dict<Resource.Path<ImageMedia>>;
 	const __SI_VERSION: string;
-	const __SI_ENGINE: string;
 
 	// proprietary method for inlining code from a dependency directly into the compiled source
 	declare function inline_require(s_dependency: string): any;

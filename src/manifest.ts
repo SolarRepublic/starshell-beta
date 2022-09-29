@@ -16,7 +16,7 @@ const H_CONTENT_SECURITY_POLICY = {
 	'script-src': [SX_CSP_SELF, SX_CSP_WASM_UNSAFE_EVAL],
 	'object-src': [SX_CSP_SELF],
 	'connect-src': ['https:', 'data:', 'wss:'],
-	'frame-ancestors': [SX_CSP_SELF, 'https://launch.starshel.net'],
+	'frame-ancestors': [SX_CSP_SELF, 'https://launch.starshell.net'],
 	'style-src': [SX_CSP_UNSAFE_INLINE],
 	'img-src': [SX_CSP_SELF, 'blob:', 'data:', 'https://png.starshell.net', 'https://s3.amazonaws.com/keybase_processed_uploads/'],
 };
@@ -152,7 +152,6 @@ const G_MANIFEST_COMMON: Partial<chrome.runtime.ManifestBase> = {
 		'scripting',
 		'unlimitedStorage',
 		'notifications',
-		'system.display',
 	],
 };
 
@@ -214,6 +213,11 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 	manifest_version: 3,
 
 	action: G_BROWSER_ACTION,
+
+	permissions: [
+		...G_MANIFEST_COMMON.permissions,
+		'system.display',
+	],
 
 	host_permissions: ['*://*/*'],
 

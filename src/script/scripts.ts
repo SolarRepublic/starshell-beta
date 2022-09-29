@@ -17,7 +17,7 @@ export type ContentScript = Browser.Scripting.RegisteredContentScript;
 // 	(h_overrides?: Partial<Browser.Scripting.RegisteredContentScript>): Browser.Scripting.RegisteredContentScript;
 // }
 
-const d_scripting = chrome.scripting as Browser.Scripting.Static;
+const f_scripting = () => chrome.scripting as Browser.Scripting.Static;
 
 const A_MATCH_ALL = [
 	'file://*/*',
@@ -100,7 +100,7 @@ export async function set_script_registration(gc_script: ContentScript, b_enabli
 	try {
 		// check the current status of the script, i.e., whether or not it is enabled
 		// zero length indicates no currently registered scripts match the given id
-		const b_registered = !!(await d_scripting.getRegisteredContentScripts({
+		const b_registered = !!(await f_scripting().getRegisteredContentScripts({
 			ids: [gc_script.id],
 		})).length;
 
@@ -111,7 +111,7 @@ export async function set_script_registration(gc_script: ContentScript, b_enabli
 			async function retry(gc_attempt: ContentScript) {
 				// attempt to register the content script
 				try {
-					await d_scripting.registerContentScripts([
+					await f_scripting().registerContentScripts([
 						gc_attempt,
 					]);
 				}
@@ -164,7 +164,7 @@ export async function set_script_registration(gc_script: ContentScript, b_enabli
 		// script is being disabled and is currently registered
 		else if(!b_enabling && b_registered) {
 			// unregister the content script
-			await d_scripting.unregisterContentScripts({
+			await f_scripting().unregisterContentScripts({
 				ids: [gc_script.id],
 			});
 		}
@@ -181,7 +181,7 @@ export async function set_script_registration(gc_script: ContentScript, b_enabli
  */
 export async function keplr_polyfill_script_add_matches(a_matches: string[], b_exclusive?: boolean): Promise<void> {
 	// dynamic script registration not available
-	if('function' !== typeof d_scripting?.registerContentScripts) {
+	if('function' !== typeof f_scripting()?.registerContentScripts) {
 		debugger;
 		// TODO: implement
 		throw new Error('static script registration for app not yet implemented');
@@ -189,7 +189,7 @@ export async function keplr_polyfill_script_add_matches(a_matches: string[], b_e
 	// 
 	else {
 		// get current script
-		const a_registered = await d_scripting.getRegisteredContentScripts({
+		const a_registered = await f_scripting().getRegisteredContentScripts({
 			ids: [H_CONTENT_SCRIPT_DEFS.mcs_keplr().id],
 		});
 
@@ -207,7 +207,7 @@ export async function keplr_polyfill_script_add_matches(a_matches: string[], b_e
 			gc_script.matches = [...new Set(a_concat)];
 
 			// update registration
-			await d_scripting.updateContentScripts([gc_script]);
+			await f_scripting().updateContentScripts([gc_script]);
 		}
 		// not yet registered; register
 		else {
@@ -231,7 +231,7 @@ export async function set_keplr_compatibility_mode(b_enabled?: boolean): Promise
 	}
 
 	// browser is able to (unr)register content scripts
-	if(d_scripting) {
+	if(f_scripting()) {
 		// compatibility mode is being enabled
 		if(b_enabled) {
 			// unconditional polyfill mode

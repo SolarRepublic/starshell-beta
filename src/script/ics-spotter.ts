@@ -6,14 +6,7 @@ import type {
 
 import type {Vocab} from '#/meta/vocab';
 
-import type * as IsolatedCoreImport from './isolated-core';
-import type * as AppsImport from '#/store/apps';
-import type * as DomImport from '#/util/dom';
-import type * as BaseImport from '#/store/_base';
-import type * as ConstantsImport from '#/share/constants';
-import type * as Bech32Import from '#/crypto/bech32';
-import type * as VaultImport from '#/crypto/vault';
-import type * as BrowserImport from '#/extension/browser';
+import type * as ImportHelper from './ics-spotter-imports';
 
 /**
  * The spotter's sole purpose is to silently forward advertisement requests from the page to the service.
@@ -29,38 +22,23 @@ import type * as BrowserImport from '#/extension/browser';
 	const {
 		SI_STORE_ACCOUNTS,
 		B_FIREFOX_ANDROID,
-	} = inline_require('#/share/constants.ts') as typeof ConstantsImport;
 
-	const {
 		pubkey_to_bech32,
-	} = inline_require('#/crypto/bech32.ts') as typeof Bech32Import;
 
-	const {
 		create_app_profile,
 		load_app_pfp,
-	} = inline_require('./isolated-core.ts') as typeof IsolatedCoreImport;
 
-	const {
 		Apps,
-	} = inline_require('#/store/apps.ts') as typeof AppsImport;
 
-	const {
 		dd, qsa,
 		stringify_params,
-	} = inline_require('#/util/dom.ts') as typeof DomImport;
 
-	const {
 		create_store_class,
 		WritableStoreMap,
-	} = inline_require('#/store/_base.ts') as typeof BaseImport;
 
-	const {
 		Vault,
-	} = inline_require('#/crypto/vault.ts') as typeof VaultImport;
+	} = inline_require('./ics-spotter-imports.ts') as typeof ImportHelper;
 
-	// const {
-	// 	P_POPUP,
-	// } = inline_require('#/extension/browser.ts') as typeof BrowserImport;
 
 	const XL_WIDTH_OVERLAY_MAX = 160;
 	const XL_WIDTH_OVERLAY_MIN = 120;
@@ -109,70 +87,70 @@ import type * as BrowserImport from '#/extension/browser';
 		}
 	});
 
-	// Firefox on Android
-	if(B_FIREFOX_ANDROID) {
-		interface PopoverFields {
-			shadow: ShadowRoot;
-			iframe: HTMLIFrameElement;
-		}
+	// // Firefox on Android
+	// if(B_FIREFOX_ANDROID) {
+	// 	interface PopoverFields {
+	// 		shadow: ShadowRoot;
+	// 		iframe: HTMLIFrameElement;
+	// 	}
 
-		const hm_privates = new WeakMap<Popover, PopoverFields>();
+	// 	const hm_privates = new WeakMap<Popover, PopoverFields>();
 
-		// define popover element
-		class Popover extends HTMLElement {
-			constructor() {
-				super();
+	// 	// define popover element
+	// 	class Popover extends HTMLElement {
+	// 		constructor() {
+	// 			super();
 
-				const d_shadow = this.attachShadow({
-					mode: 'closed',
-				});
+	// 			const d_shadow = this.attachShadow({
+	// 				mode: 'closed',
+	// 			});
 
-				const dm_iframe = dd('iframe', {
-					src: 'about:blank',
-				});
+	// 			const dm_iframe = dd('iframe', {
+	// 				src: 'about:blank',
+	// 			});
 
-				d_shadow.append(dm_iframe);
+	// 			d_shadow.append(dm_iframe);
 
-				hm_privates.set(this, {
-					shadow: d_shadow,
-					iframe: dm_iframe,
-				});
-			}
+	// 			hm_privates.set(this, {
+	// 				shadow: d_shadow,
+	// 				iframe: dm_iframe,
+	// 			});
+	// 		}
 
-			attributeChangedCallback(si_attr, s_old, s_new) {
-				if('params' === si_attr) {
-					hm_privates.get(this)!.iframe.src = chrome.runtime.getURL(`src/entry/flow.html?${s_new}`);
-				}
-			}
-		}
+	// 		attributeChangedCallback(si_attr, s_old, s_new) {
+	// 			if('params' === si_attr) {
+	// 				hm_privates.get(this)!.iframe.src = chrome.runtime.getURL(`src/entry/flow.html?${s_new}`);
+	// 			}
+	// 		}
+	// 	}
 
-		window.customElements.define('starshell-popover', Popover);
+	// 	window.customElements.define('starshell-popover', Popover);
 
-		// listen for commands from service
-		d_runtime.onMessage.addListener((g_msg) => {
-			debug('Received service command: %o', g_msg);
+	// 	// listen for commands from service
+	// 	d_runtime.onMessage.addListener((g_msg) => {
+	// 		debug('Received service command: %o', g_msg);
 
-			if('openFlow' === g_msg.type) {
-				const dm_popover = dd('starshell-popover', {
-					params: stringify_params({
-						comm: 'query',
-						test: 'yes',
-					}),
-					style: `
-						display: block;
-						position: fixed;
-						left: 0;
-						bottom: 0;
-						width: 100vw;
-						height: 100vh;
-						transform: translateY(60%);
-					`,
-				});
+	// 		if('openFlow' === g_msg.type) {
+	// 			const dm_popover = dd('starshell-popover', {
+	// 				params: stringify_params({
+	// 					comm: 'query',
+	// 					test: 'yes',
+	// 				}),
+	// 				style: `
+	// 					display: block;
+	// 					position: fixed;
+	// 					left: 0;
+	// 					bottom: 0;
+	// 					width: 100vw;
+	// 					height: 100vh;
+	// 					transform: translateY(60%);
+	// 				`,
+	// 			});
 
-				document.body.append(dm_popover);
-			}
-		});
-	}
+	// 			document.body.append(dm_popover);
+	// 		}
+	// 	});
+	// }
 
 
 	async function add_input_overlay(dm_input: HTMLInputElement) {

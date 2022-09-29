@@ -681,9 +681,11 @@ export namespace IntraExt {
 	}>;
 
 
-	export interface CompletedFlow extends JsonObject {
+	export interface CompletedFlow<
+		w_data extends JsonValue=JsonValue,
+	> extends JsonObject {
 		answer: boolean;
-		data?: JsonValue;
+		data?: w_data | undefined;
 	}
 
 	export interface ErroredFlow extends JsonObject {
@@ -819,6 +821,10 @@ export namespace Pwa {
 
 	export type IframeToTop = Vocab.New<{
 		fetchVisualViewportSize: {};
+
+		openPopup: {
+			value: string;
+		};
 	}>;
 }
 

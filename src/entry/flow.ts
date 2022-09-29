@@ -19,7 +19,7 @@ import type {ErrorRegistry, IntraExt} from '#/script/messages';
 import {qs} from '#/util/dom';
 import type {Union} from 'ts-toolbelt';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
-import type {PlainObject} from '#/meta/belt';
+import type {JsonValue, PlainObject} from '#/meta/belt';
 import type {SvelteComponent} from 'svelte';
 import {F_NOOP, is_dict, ode, timeout} from '#/util/belt';
 import PreRegister from '#/app/screen/PreRegister.svelte';
@@ -43,6 +43,7 @@ import RequestSignature from '#/app/screen/RequestSignature.svelte';
 import _DebugSvelte from '#/app/screen/_Debug.svelte';
 import {XT_INTERVAL_HEARTBEAT} from '#/share/constants';
 import { SessionStorage } from '#/extension/session-storage';
+import type { AdaptedAminoResponse } from '#/schema/amino';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -58,6 +59,14 @@ type PartialContext = Partial<Nullable<AppHandlerContext>>;
 
 
 export type Completed = (b_answer: boolean) => void;
+
+const G_COMPLETED_POSITIVE: IntraExt.CompletedFlow = {
+	answer: true,
+};
+
+const G_COMPLETED_NEGATIVE: IntraExt.CompletedFlow = {
+	answer: false,
+};
 
 // parse query params
 const h_query = new URLSearchParams(location.search.slice(1));
@@ -156,14 +165,21 @@ function render<
  * Convenience method wraps `render` function by injecting `complete` callback function into .context object and returning as Promise
  */
 function completed_render<
-	w_response extends any,
+	w_data extends JsonValue,
 	dc_screen extends ParametricSvelteConstructor=ParametricSvelteConstructor,
->(dc_screen: dc_screen, g_props?: Omit<ParametricSvelteConstructor.Parts<dc_screen>['params'], 'k_page'>, h_context?: PlainObject): Promise<w_response> {
+>(
+	dc_screen: dc_screen,
+	g_props?: Omit<ParametricSvelteConstructor.Parts<dc_screen>['params'], 'k_page'>,
+	h_context?: PlainObject
+): Promise<IntraExt.CompletedFlow<w_data>> {
 	return new Promise((fk_resolve, fe_reject) => {
 		render(dc_screen, g_props, {
 			...h_context,
-			completed(w_response: w_response) {
-				fk_resolve(w_response);
+			completed(b_answer: boolean, w_data?: w_data) {
+				fk_resolve({
+					answer: b_answer,
+					data: w_data,
+				});
 			},
 			fatal(w_error: unknown) {
 				fe_reject(w_error);
@@ -172,9 +188,8 @@ function completed_render<
 	});
 }
 
-
 // authenticate the user
-async function authenticate(): Promise<boolean> {
+async function authenticate(): Promise<IntraExt.CompletedFlow> {
 	// verbose
 	domlog(`Handling 'authenticate'.`);
 
@@ -186,7 +201,7 @@ async function authenticate(): Promise<boolean> {
 		// TODO: consider "already authenticated" dom
 		// render(BlankSvelte, {});
 
-		return true;
+		return G_COMPLETED_POSITIVE;
 	}
 
 	// retrieve root
@@ -206,14 +221,14 @@ async function authenticate(): Promise<boolean> {
 		}
 		// user rejected registration; cancel flow
 		else {
-			return false;
+			return G_COMPLETED_NEGATIVE;
 		}
 	}
 
 	// verbose
 	domlog(`Root found. Prompting login.`);
 
-	return await completed_render<boolean>(AuthenticateSvelte);
+	return await completed_render(AuthenticateSvelte);
 }
 
 function flow_error<
@@ -228,7 +243,7 @@ function flow_error<
 
 // prep handlers
 const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>, [PartialContext]> = {
-	requestAdvertisement: g_value => completed_render<boolean>(RequestAdvertisementSvelte, {
+	requestAdvertisement: g_value => completed_render(RequestAdvertisementSvelte, {
 		app: g_value.app,
 		page: g_value.page,
 		keplr: g_value.keplr,
@@ -246,11 +261,11 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 
 		// only one chain
 		if(1 === Object.keys(g_value.chains).length) {
-			return completed_render<boolean>(RequestConnection_AccountsSvelte, g_props);
+			return completed_render(RequestConnection_AccountsSvelte, g_props);
 		}
 		// multiple chains
 		else {
-			return completed_render<boolean>(RequestConnectionSvelte, g_props);
+			return completed_render(RequestConnectionSvelte, g_props);
 		}
 	},
 
@@ -262,7 +277,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		// verbose
 		domlog(`Handling 'signAmino' on ${JSON.stringify(g_value)}\n\nwith context ${JSON.stringify(g_context)}`);
 
-		return await completed_render(RequestSignatureSvelte, g_value.props, {
+		return await completed_render<AdaptedAminoResponse>(RequestSignatureSvelte, g_value.props, {
 			app: g_context.app,
 			chain: g_context.chain,
 			accountPath: g_value.accountPath,
@@ -613,14 +628,14 @@ async function suggest_reload_page(g_page: WebPage) {
 
 		// route message
 		try {
-			const b_completed = await route_message(g_flow);
+			const g_response = await route_message(g_flow);
+
+			console.debug(`Submitting flow response: %o`, g_response);
 
 			// respond to flow over chrome port
 			d_port.postMessage({
 				type: 'completeFlow',
-				value: {
-					answer: b_completed,
-				},
+				value: g_response,
 			});
 
 			// await ack

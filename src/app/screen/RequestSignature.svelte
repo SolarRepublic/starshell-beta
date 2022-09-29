@@ -6,7 +6,7 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 	import {load_app_context, load_app_profile} from '#/app/svelte';
-	import type {AdaptedAminoResponse, AdaptedStdSignature, AdaptedStdSignDoc} from '#/schema/amino';
+	import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
 	import type {Snip24Tx} from '#/schema/snip-24';
 	import type {Bech32, ContractInterface} from '#/meta/chain';
 	import Field from '../ui/Field.svelte';
@@ -14,7 +14,7 @@
 	import {Contracts} from '#/store/contracts';
 	import {Accounts} from '#/store/accounts';
 	import type {SimpleField} from '../ui/IncidentFields.svelte';
-	import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
+	import type {JsonObject, Promisable} from '#/meta/belt';
 	import {fold, is_dict, ode, proper} from '#/util/belt';
 	import {Chains} from '#/store/chains';
 	import type {PfpPath, PfpTarget} from '#/meta/pfp';
@@ -29,17 +29,16 @@
 	import {Networks} from '#/store/networks';
 	import StarSelect, {type SelectOption} from '../ui/StarSelect.svelte';
 	import SensitiveBytes from '#/crypto/sensitive-bytes';
-	import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_json, buffer_to_text, json_to_buffer, sha256_sync, text_to_buffer} from '#/util/data';
+	import {buffer_to_base64, buffer_to_base93, json_to_buffer} from '#/util/data';
 	import {signAmino} from '#/chain/signing';
 	import SigningData from './SigningData.svelte';
 	import {Secrets} from '#/store/secrets';
 	import {uuid_v4} from '#/util/dom';
-	import type { WasmTx } from '#/schema/wasm';
-	import { SecretWasm } from '#/crypto/secret-wasm';
-	import { Incidents } from '#/store/incidents';
-	import { pubkey_to_bech32 } from '#/crypto/bech32';
-    import { format_amount } from '#/util/format';
-    import FatalError from './FatalError.svelte';
+	import type {WasmTx} from '#/schema/wasm';
+	import {SecretWasm} from '#/crypto/secret-wasm';
+	import {Incidents} from '#/store/incidents';
+	import {pubkey_to_bech32} from '#/crypto/bech32';
+	import FatalError from './FatalError.svelte';
 
 	const {
 		g_app,
@@ -77,7 +76,7 @@
 
 	let a_viewing_key_items: SelectOption[] = [];
 
-	let a_sends: {pfp:PfpTarget; text:string}[] = [];
+	let a_sends: {pfp: PfpTarget; text: string}[] = [];
 
 	const H_PRESETS = {
 		snip24() {
@@ -187,7 +186,7 @@
 		fix: () => Promisable<void>;
 	} | {
 		error: string;
-	}
+	};
 
 	function autopad() {
 		if(!is_dict(h_wasm_exec)) return;
@@ -396,7 +395,7 @@
 
 	async function approve() {
 		const g_account = await Accounts.at(p_account);
-
+		debugger;
 		if(!g_account) {
 			throw new Error('Account does not exist?!');
 		}
@@ -419,6 +418,9 @@
 						text: `While attempting to sign an Amino document: ${e_sign.stack}`,
 					},
 				});
+
+				// do not complete
+				return;
 			}
 		}
 
@@ -512,7 +514,7 @@
 		}
 
 		if(g_completed) {
-			completed?.(g_completed);
+			completed?.(true, g_completed);
 		}
 	}
 

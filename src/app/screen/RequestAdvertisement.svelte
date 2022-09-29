@@ -1,16 +1,14 @@
 <script lang="ts">
-	import {getContext} from 'svelte';
-	import {Screen, type Page} from './_screens';
+	import {Screen} from './_screens';
 
 	import type {App} from '#/meta/app';
 	import {Apps} from '#/store/apps';
 
 	import {P_PUBLIC_SUFFIX_LIST, R_DOMAIN_IP, R_DOMAIN_LOCALHOST} from '#/share/constants';
-	import type {Completed} from '#/entry/flow';
 	import {WebResourceCache} from '#/store/web-resource-cache';
 
 	import '#/chain/main';
-	import CheckboxField, { toggleChildCheckbox } from '../ui/CheckboxField.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	import {qsa} from '#/util/dom';
 	import {microtask, timeout} from '#/util/belt';
 	import ActionsWall from '../ui/ActionsWall.svelte';
@@ -20,11 +18,13 @@
 	import type {PageInfo} from '#/script/messages';
 	import {keplr_polyfill_script_add_matches} from '#/script/scripts';
 	import type {PageConfig} from '../nav/page';
+	import {load_flow_context} from '../svelte';
 
-	
-	const k_page = getContext<Page>('page');
 
-	const completed = getContext<Completed>('completed');
+	const {
+		k_page,
+		completed,
+	} = load_flow_context<undefined>();
 
 	/**
 	 * Information about the app requesting the advertisement

@@ -3,17 +3,17 @@ import type {Vocab} from '#/meta/vocab';
 import type {Dict, JsonObject} from '#/meta/belt';
 import type {FlowMessage} from '#/entry/flow';
 
-import {uuid_v4} from '#/util/dom';
+import {stringify_params, uuid_v4} from '#/util/dom';
 import {OpenWindowConfig, open_window, PopoutWindowHandle} from '#/extension/browser';
-import { PulseMonitor } from '#/util/pulse-monitor';
-import { B_MOBILE, B_WEBEXT_ACTION, B_WEBEXT_BROWSER_ACTION } from '#/share/constants';
+import {PulseMonitor} from '#/util/pulse-monitor';
+import {B_MOBILE, B_WEBEXT_ACTION, B_WEBEXT_BROWSER_ACTION} from '#/share/constants';
 
 
 type FlowResponseValue<gc_prompt extends PromptConfig> = Vocab.Response<IntraExt.FlowVocab, gc_prompt['flow']['type']>;
 
 export interface PromptConfig extends JsonObject {
 	flow: FlowMessage;
-	open?: OpenWindowConfig;
+	open?: OpenWindowConfig | undefined;
 }
 
 export class RegisteredFlowError extends Error {
@@ -33,7 +33,7 @@ async function launch_flow(h_params: Dict, gc_open?: OpenWindowConfig): Promise<
 	});
 
 	// indicate via query params method of communication
-	const p_connect = p_flow+'?'+new URLSearchParams(h_params).toString();
+	const p_connect = p_flow+'?'+stringify_params(h_params);
 
 	// open connect window
 	return await open_window(p_connect, gc_open);
@@ -79,7 +79,7 @@ export function open_flow_query<
 				// create pulse monitor
 				const k_monitor = new PulseMonitor({
 					// allow up to 500ms between heartbeat messages (scheduled to send 200ms apart)
-					grace: 500,
+					grace: 5e3,
 
 					// other end of port went dormant
 					tardy() {

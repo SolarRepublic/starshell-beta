@@ -1,16 +1,17 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import type {Completed} from '#/entry/flow';
 	import type {AppInterface} from '#/meta/app';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import {getContext} from 'svelte';
 	import type {Caip2, ChainInterface} from '#/meta/chain';
 	import {F_NOOP, ode} from '#/util/belt';
 	import AppBanner from '../ui/AppBanner.svelte';
 	import Row from '../ui/Row.svelte';
+	import {load_flow_context} from '../svelte';
 
-	const completed = getContext<Completed>('completed');
+	const {
+		completed,
+	} = load_flow_context<undefined>();
 
 	export let app: AppInterface;
 
