@@ -60,7 +60,7 @@ export const Apps = create_store_class({
 		/**
 		 * Adds a new app only if it does not yet exist
 		 */
-		static async add(g_app: App['interface']): Promise<void> {
+		static async add(g_app: AppInterface): Promise<void> {
 			// derive app path
 			const p_app = Apps.pathFrom(g_app);
 
@@ -68,7 +68,7 @@ export const Apps = create_store_class({
 			return await Apps.open(ks => ks.put(ks.at(p_app) || g_app));
 		}
 
-		static async put(g_app: App['interface']): Promise<void> {
+		static async put(g_app: AppInterface): Promise<void> {
 			// save app def to storage
 			return await Apps.open(ks => ks.put(g_app));
 		}

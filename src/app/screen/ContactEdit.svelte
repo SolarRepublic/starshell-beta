@@ -2,7 +2,7 @@
 	import {getContext, SvelteComponent} from 'svelte';
 	import {microtask, ode, ofe, proper} from '#/util/belt';
 
-	import type {Contact, ContactPath} from '#/meta/contact';
+	import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
 	import {ContactAgentType} from '#/meta/contact';
 	import {Agents} from '#/store/agents';
 	import type {Page} from '../nav/page';
@@ -27,7 +27,7 @@
 	const p_contact = contactRef || '';
 
 	// prep object placeholder
-	let g_contact: Contact['interface'];
+	let g_contact: ContactInterface;
 
 	// path was given; load contact
 	if(p_contact) void Agents.getContact(p_contact).then(g => g_contact = g!);

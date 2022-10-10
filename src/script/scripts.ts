@@ -27,6 +27,9 @@ const A_MATCH_ALL = [
 
 const G_SCRIPT_BASIC = {
 	matches: A_MATCH_ALL,
+	excludeMatches: [
+		// 'http://localhost:8128/*',
+	],
 	runAt: 'document_start',
 	persistAcrossSessions: true,
 	allFrames: true,

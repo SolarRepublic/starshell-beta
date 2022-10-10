@@ -4,10 +4,10 @@ import {
 } from './_base';
 
 import type {AminoMsg} from '@cosmjs/amino';
-import {SI_STORE_NETWORKS} from '#/share/constants';
-import type {Network, NetworkInterface, NetworkPath} from '#/meta/network';
+import {SI_STORE_PROVIDERS} from '#/share/constants';
+import type {Provider, ProviderInterface, ProviderPath} from '#/meta/provider';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
-import {CosmosNetwork, IncidentTx, ModWsTxResult} from '#/chain/main';
+import type {CosmosNetwork, IncidentTx, ModWsTxResult} from '#/chain/cosmos-network';
 import type {Bech32, ChainInterface, HoldingPath} from '#/meta/chain';
 import {yw_chain} from '#/app/mem';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
@@ -17,6 +17,7 @@ import type {TxPending, TxSynced} from '#/meta/incident';
 import type {BroadcastMode, GetTxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 import type {Account, AccountInterface} from '#/meta/account';
 import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+import { SecretNetwork } from '#/chain/secret-network';
 
 export type BalanceBundle = {
 	balance: Coin;
@@ -111,7 +112,7 @@ export class NetworkTimeoutError extends Error {
 }
 
 export interface ActiveNetwork {
-	get network(): NetworkInterface;
+	get provider(): ProviderInterface;
 
 	/**
 	 * Retrieves and updates the bank balance for a single coin
@@ -137,14 +138,14 @@ export interface ActiveNetwork {
 
 	e2eInfoFor(sa_other: Bech32, s_max_height?: string): Promise<E2eInfo>;
 
-	ecdh(atu8_other_pubkey: Uint8Array, g_chain?: ChainInterface, g_account?: Account['interface']): Promise<CryptoKey>;
+	ecdh(atu8_other_pubkey: Uint8Array, g_chain?: ChainInterface, g_account?: AccountInterface): Promise<CryptoKey>;
 
 	ecdhEncrypt(
 		atu8_other_pubkey: Uint8Array,
 		atu8_plaintext: Uint8Array,
 		atu8_nonce: Uint8Array,
 		g_chain?: ChainInterface,
-		g_account?: Account['interface']
+		g_account?: AccountInterface
 	): Promise<Uint8Array>;
 
 	ecdhDecrypt(
@@ -152,7 +153,7 @@ export interface ActiveNetwork {
 		atu8_ciphertext: Uint8Array,
 		atu8_nonce: Uint8Array,
 		g_chain?: ChainInterface,
-		g_account?: Account['interface']
+		g_account?: AccountInterface
 	): Promise<Uint8Array>;
 
 	isContract(sa_account: Bech32): Promise<boolean>;
@@ -178,30 +179,30 @@ export interface ActiveNetwork {
 	secretConsensusIoPubkey(): Promise<Uint8Array>;
 }
 
-export const Networks = create_store_class({
-	store: SI_STORE_NETWORKS,
+export const Providers = create_store_class({
+	store: SI_STORE_PROVIDERS,
 	extension: 'map',
-	class: class NetworksI extends WritableStoreMap<typeof SI_STORE_NETWORKS> {
-		static pathFor(p_base: string): NetworkPath {
-			return `/network.${buffer_to_base64(sha256_sync(text_to_buffer(p_base)))}`;
+	class: class ProviderI extends WritableStoreMap<typeof SI_STORE_PROVIDERS> {
+		static pathFor(p_base: string): ProviderPath {
+			return `/provider.${buffer_to_base64(sha256_sync(text_to_buffer(p_base)))}`;
 		}
 
-		static pathFrom(g_network: Network['interface']) {
-			return NetworksI.pathFor(g_network.grpcWebUrl);
+		static pathFrom(g_provider: ProviderInterface) {
+			return ProviderI.pathFor(g_provider.grpcWebUrl);
 		}
 
-		static activate(g_network: Network['interface'], g_chain: ChainInterface=yw_chain.get()): ActiveNetwork {
-			return new CosmosNetwork(g_network, g_chain);
+		static activate(g_provider: ProviderInterface, g_chain: ChainInterface=yw_chain.get()): SecretNetwork {
+			return new SecretNetwork(g_provider, g_chain);
 		}
 
-		static async activateDefaultFor(g_chain: ChainInterface=yw_chain.get()): Promise<ActiveNetwork> {
+		static async activateDefaultFor(g_chain: ChainInterface=yw_chain.get()): Promise<SecretNetwork | CosmosNetwork> {
 			const p_chain = Chains.pathFrom(g_chain);
 
-			const ks_networks = await Networks.read();
+			const ks_providers = await Providers.read();
 
-			for(const [p_network, g_network] of ks_networks.entries()) {
-				if(p_chain === g_network.chain) {
-					return NetworksI.activate(g_network, g_chain);
+			for(const [p_provider, g_provider] of ks_providers.entries()) {
+				if(p_chain === g_provider.chain) {
+					return ProviderI.activate(g_provider, g_chain);
 				}
 			}
 

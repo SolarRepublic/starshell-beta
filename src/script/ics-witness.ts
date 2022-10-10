@@ -59,6 +59,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 		microtask,
 		timeout,
+		timeout_exec,
 		fold,
 		ode,
 		oderom,
@@ -393,6 +394,17 @@ const XT_POLYFILL_DELAY = 1.5e3;
 						// transform fee and stake currencies to coin identifiers
 						feeCoinIds: g_chain_keplr.feeCurrencies.map(g => g.coinDenom),
 						stakeCoinIds: [g_chain_keplr.stakeCurrency.coinDenom],
+
+						// gas prices
+						gasPrices: g_chain_keplr.gasPriceStep && {
+							default: g_chain_keplr.gasPriceStep.average,
+							steps: [
+								g_chain_keplr.gasPriceStep.low,
+								g_chain_keplr.gasPriceStep.average,
+								g_chain_keplr.gasPriceStep.high,
+							],
+						},
+
 
 						// adapt bip44 to slip44s
 						slip44s: [
@@ -850,7 +862,17 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 			// app profile has not been made
 			if(!g_profile) {
-				g_profile = await create_app_profile();
+				try {
+					const [g_attempt, xc_timed_out] = await timeout_exec(6e3, () => create_app_profile());
+					if(xc_timed_out) {
+						throw new Error('App profile took too long to load');
+					}
+
+					g_profile = g_attempt!;
+				}
+				catch(e_create) {
+					console.error(`Failed to create app profile for ${location.origin}; this error negatively impacts UX. If you are the app developer, please fix the above errors for better load times.\n${e_create}`);
+				}
 			}
 
 			// destructure data
@@ -894,6 +916,11 @@ const XT_POLYFILL_DELAY = 1.5e3;
 					}
 					else {
 						debug(`Responding to Keplr '${si_method}' request with result %o`, w_result);
+
+						if('signAmino' === si_method) {
+							console.log(JSON.stringify(w_result));
+							debugger;
+						}
 					}
 
 					// respond
@@ -1045,7 +1072,9 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			if('complete' !== document.readyState) {
 				await new Promise((fk_resolve) => {
 					window.addEventListener('DOMContentLoaded', () => {
-						fk_resolve(void 0);
+						setTimeout(() => {
+							fk_resolve(void 0);
+						}, 100);
 					});
 				});
 			}
@@ -1095,24 +1124,24 @@ const XT_POLYFILL_DELAY = 1.5e3;
 									});
 								}
 								catch(e_fetch) {
-									// firefox content script requests initiate from different context
-									if('Firefox' === G_USERAGENT.browser.name) {
-										// retry without cache
-										try {
-											d_res = await fetch(du_src.href, {
-												method: 'GET',
-												credentials: 'include',
-												mode: 'same-origin',
-												redirect: 'follow',
-											});
+									// // firefox content script requests initiate from different context
+									// if('Firefox' === G_USERAGENT.browser.name) {
 
-											// do not err
-											break FETCHING;
-										}
-										// catch error and replace
-										catch(e_retry) {
-											e_fetch = e_retry;
-										}
+									// retry without cache
+									try {
+										d_res = await fetch(du_src.href, {
+											method: 'GET',
+											credentials: 'include',
+											mode: 'same-origin',
+											redirect: 'follow',
+										});
+
+										// do not err
+										break FETCHING;
+									}
+									// catch error and replace
+									catch(e_retry) {
+										e_fetch = e_retry;
 									}
 
 									debugger;

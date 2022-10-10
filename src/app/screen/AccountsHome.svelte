@@ -24,7 +24,7 @@
 
 	const hm_secrets = new Map<AccountInterface, SecretInterface>();
 
-	let a_accounts: [AccountPath, Account['interface']][];
+	let a_accounts: [AccountPath, AccountInterface][];
 	async function load_accounts(): Promise<typeof a_accounts> {
 		const ks_accounts = await Accounts.read();
 

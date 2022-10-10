@@ -7,6 +7,15 @@ window.addEventListener('error', (d_event) => {
 	console.error(d_event.error);
 });
 
+import {B_LOCALHOST, B_MOBILE, B_NATIVE_IOS, XT_SECONDS} from '#/share/constants';
+// import {
+// 	do_webkit_polyfill,
+// } from '#/script/webkit-polyfill';
+
+// if(B_NATIVE_IOS) {
+// 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.popup: ${s}`, ...a_args));
+// }
+
 
 import SystemSvelte from '#/app/container/System.svelte';
 import BlankSvelte from '#/app/screen/Blank.svelte';
@@ -15,7 +24,7 @@ import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
 import type {SvelteComponent} from 'svelte';
 import type {PageConfig} from '#/app/nav/page';
 import {Vault} from '#/crypto/vault';
-import {qs} from '#/util/dom';
+import {parse_params, qs} from '#/util/dom';
 import {initialize_caches, yw_navigator} from '#/app/mem';
 import {ThreadId} from '#/app/def';
 import {F_NOOP, ode, timeout} from '#/util/belt';
@@ -24,7 +33,6 @@ import {global_receive} from '#/script/msg-global';
 import {Accounts} from '#/store/accounts';
 import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
 import {login, register} from '#/share/auth';
-import {B_MOBILE, XT_SECONDS} from '#/share/constants';
 import {check_restrictions} from '#/extension/restrictions';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
 import type {Vocab} from '#/meta/vocab';
@@ -38,9 +46,13 @@ import {SessionStorage} from '#/extension/session-storage';
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
 
 // parse search params from URL
-const h_params = Object.fromEntries(new URLSearchParams(location.search.slice(1)).entries());
+const h_params = parse_params();
+
+const b_dev = B_LOCALHOST && h_params.autoskip;
 
 const dp_cause = (async() => {
+	if(b_dev) return null;
+
 	const a_tabs = await chrome.tabs?.query({
 		active: true,
 		currentWindow: true,
@@ -367,29 +379,31 @@ async function reload() {
 			catch(e_hide) {}
 
 			// listen for heartbeat
-			const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
-			let i_service_health = 0;
-			function health_check() {
-				clearTimeout(i_service_health);
+			if(!B_NATIVE_IOS) {
+				const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
+				let i_service_health = 0;
+				function health_check() {
+					clearTimeout(i_service_health);
 
-				i_service_health = setTimeout(() => {
-					void d_service.sendMessage({
-						type: 'wake',
-					});
+					i_service_health = window.setTimeout(() => {
+						void d_service.sendMessage({
+							type: 'wake',
+						});
 
-					console.warn(`Waking idle service worker`);
-				}, 2e3);
-			}
+						console.warn(`Waking idle service worker`);
+					}, 2e3);
+				}
 
-			global_receive({
-				heartbeat() {
+				global_receive({
+					heartbeat() {
+						health_check();
+					},
+				});
+
+				// user is logged in, ensure the service is running
+				if(b_launch) {
 					health_check();
-				},
-			});
-
-			// user is logged in, ensure the service is running
-			if(b_launch) {
-				health_check();
+				}
 			}
 		}
 	});
@@ -414,13 +428,13 @@ async function reload() {
 
 
 // dev
-if('localhost' === location.hostname) {
-	if(h_params['autoskip']) {
+if(B_LOCALHOST) {
+	if(h_params.autoskip) {
 		console.log('Autoskipping registration');
 
 		(async() => {
-			localStorage.clear();
-			await register('     ');
+			// localStorage.clear();
+			// await register('     ');
 			await login('     ');
 			void reload();
 		})();

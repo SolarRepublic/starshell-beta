@@ -22,7 +22,12 @@ export type Account<
 	segments: [ChainNamespace.Segment<si_family>, `account.${s_pubkey}`];
 	interface: [{
 		family: si_family;
+
+		/**
+		 * the compressed, 33-byte public key as a base64-encoded string
+		 */
 		pubkey: s_pubkey;
+
 		secret: SecretPath<'mnemonic' | 'bip32_node' | 'private_key'>;
 		utilityKeys: UtilityKeys;
 		extra?: Dict<any>;

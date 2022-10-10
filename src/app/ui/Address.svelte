@@ -76,7 +76,8 @@
 
 		&.copyable {
 			align-items: center;
-			width: calc(100% - 3.5ch);
+			// width: calc(100% - 3.5ch);
+			width: calc(100% - 0.5ch);
 			cursor: copy;
 		}
 

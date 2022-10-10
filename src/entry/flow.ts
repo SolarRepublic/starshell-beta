@@ -16,12 +16,12 @@ import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
 import {Vault} from '#/crypto/vault';
 import type {Vocab} from '#/meta/vocab';
 import type {ErrorRegistry, IntraExt} from '#/script/messages';
-import {qs} from '#/util/dom';
+import {parse_params, qs} from '#/util/dom';
 import type {Union} from 'ts-toolbelt';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import type {JsonValue, PlainObject} from '#/meta/belt';
 import type {SvelteComponent} from 'svelte';
-import {F_NOOP, is_dict, ode, timeout} from '#/util/belt';
+import {F_NOOP, is_dict, ode, timeout, timeout_exec} from '#/util/belt';
 import PreRegister from '#/app/screen/PreRegister.svelte';
 import IncidentView from '#/app/screen/IncidentView.svelte';
 import ScanQrSvelte from '#/app/screen/ScanQr.svelte';
@@ -41,7 +41,7 @@ import type {AppInterface, AppPath} from '#/meta/app';
 import type {Nullable} from 'ts-toolbelt/out/Object/Nullable';
 import RequestSignature from '#/app/screen/RequestSignature.svelte';
 import _DebugSvelte from '#/app/screen/_Debug.svelte';
-import {XT_INTERVAL_HEARTBEAT} from '#/share/constants';
+import {B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constants';
 import { SessionStorage } from '#/extension/session-storage';
 import type { AdaptedAminoResponse } from '#/schema/amino';
 
@@ -69,7 +69,7 @@ const G_COMPLETED_NEGATIVE: IntraExt.CompletedFlow = {
 };
 
 // parse query params
-const h_query = new URLSearchParams(location.search.slice(1));
+const h_query = parse_params<string>();
 
 // before closing the window, gracefully unload this flow
 let b_unloaded = false;
@@ -427,7 +427,7 @@ async function suggest_reload_page(g_page: WebPage) {
 	domlog('Flow script init');
 
 	// debug
-	const s_debug = h_query.get('debug');
+	const s_debug = h_query.debug;
 	if(s_debug) {
 		render(_DebugSvelte, {
 			preset: s_debug,
@@ -437,7 +437,7 @@ async function suggest_reload_page(g_page: WebPage) {
 	}
 
 	// environment capture
-	const si_objective = h_query.get('headless');
+	const si_objective = h_query.headless;
 	if(si_objective) {
 		if('info' === si_objective) {
 			return SessionStorage.set({
@@ -458,7 +458,7 @@ async function suggest_reload_page(g_page: WebPage) {
 	}
 
 	// depending on comm method
-	const si_comm = h_query.get('comm');
+	const si_comm = h_query.comm;
 
 	// // use broadcast channel
 	// if('broadcast' === si_comm) {
@@ -466,7 +466,7 @@ async function suggest_reload_page(g_page: WebPage) {
 	// 	domlog('Using broadcast comm');
 
 	// 	// ref channel name
-	// 	const si_channel = h_query.get('name');
+	// 	const si_channel = h_query.name;
 
 	// 	// no channel name
 	// 	if('string' !== typeof si_channel || !si_channel) {
@@ -585,10 +585,10 @@ async function suggest_reload_page(g_page: WebPage) {
 
 	if('query' === si_comm) {
 		// get response key
-		const si_key = h_query.get('key')!;
+		const si_key = h_query.key!;
 
 		// get data
-		const sx_data = h_query.get('data');
+		const sx_data = h_query.data;
 
 		// verbose
 		domlog(`Received => ${sx_data}`);
@@ -616,12 +616,15 @@ async function suggest_reload_page(g_page: WebPage) {
 		const d_runtime = chrome.runtime as Vocab.TypedRuntime<IntraExt.ServiceInstruction>;
 
 		// connect to service worker
-		const d_port = d_runtime.connect({
+		const d_port = B_LOCALHOST? null: d_runtime.connect({
 			name: si_key,
 		}) as Vocab.TypedChromePort<IntraExt.FlowControlVocab, IntraExt.FlowControlAckVocab>;
 
-		// register heartbeat messages
-		heartbeat(d_port);
+		// production
+		if(!B_LOCALHOST) {
+			// register heartbeat messages
+			heartbeat(d_port!);
+		}
 
 		// 
 		console.log(`Flow request port connection on ${si_key}`);
@@ -633,13 +636,13 @@ async function suggest_reload_page(g_page: WebPage) {
 			console.debug(`Submitting flow response: %o`, g_response);
 
 			// respond to flow over chrome port
-			d_port.postMessage({
+			d_port?.postMessage({
 				type: 'completeFlow',
 				value: g_response,
 			});
 
 			// await ack
-			await new Promise<void>(fk => f_resolve_completion = fk);
+			await timeout_exec(1.5e3, () => new Promise<void>(fk => f_resolve_completion = fk));
 
 			// unload
 			await graceful_unload();
@@ -649,7 +652,7 @@ async function suggest_reload_page(g_page: WebPage) {
 		}
 		catch(e_thrown) {
 			// submit error report over chrome port
-			d_port.postMessage({
+			d_port?.postMessage({
 				type: 'reportError',
 				value: e_thrown.detail,
 			});
@@ -666,6 +669,6 @@ async function suggest_reload_page(g_page: WebPage) {
 	}
 	// unknown comm
 	else {
-		domlog(`Unknown comm '${h_query.get('comm') || '(null | undefined)'}'`);
+		domlog(`Unknown comm '${h_query.comm || '(null | undefined)'}'`);
 	}
 })();

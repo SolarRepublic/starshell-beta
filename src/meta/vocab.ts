@@ -79,7 +79,7 @@ export namespace Vocab {
 							// merge the `value` type if one was provided
 							g_source extends {value: JsonValue}
 								? {value: g_source['value']}
-								: {value: undefined},
+								: {value?: undefined},
 
 							// // merge the 'each' type provided by config
 							// gc_vocab['each'] extends JsonObject

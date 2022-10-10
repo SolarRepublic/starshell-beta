@@ -37,7 +37,8 @@
 	@import './_base.less';
 
 	.field {
-		align-items: center;
+		align-items: end;
+		gap: 14px;
 
 		.field-name {
 			// margin-bottom: 0.5em;
@@ -48,7 +49,7 @@
 		}
 
 		.field-value {
-			.font(regular);
+			.font(regular, @size: 13px);
 			color: var(--theme-color-text-light);
 			overflow: scroll;
 
@@ -64,12 +65,14 @@
 		}
 
 		&.short {
+			align-items: start;
 			display: flex;
 			margin-bottom: 0.5em;
 
 			>.field-name {
 				flex: 1;
 				margin-bottom: 0;
+				white-space: nowrap;
 			}
 
 			>.field-value {
@@ -79,6 +82,7 @@
 		}
 	}
 </style>
+
 
 <div class="field" class:short={short} id="field-{key}" class:double={double}>
 	{#if name || short}

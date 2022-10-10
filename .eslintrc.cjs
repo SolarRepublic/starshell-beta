@@ -163,6 +163,7 @@ module.exports = {
 			'quotes',
 			'no-redeclare',
 			'no-throw-literal',
+			'no-ex-assign',
 		]),
 
 		...under({

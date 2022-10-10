@@ -6,7 +6,8 @@
 
 	<meta name="application-name" content="StarShell Demo">
 
-	<link rel="icon" href="/media/logo.svg">
+	<!-- <link rel="icon" href="/media/favicon-192.png"> -->
+	<link rel="icon" type="image/svg+xml" href="/media/logo.svg">
 
 	<title>StarShell Wallet developer sample page</title>
 
@@ -15,9 +16,13 @@
 
 	<link rel="prefetch" as="image" href="/media/secret-scrt.svg" data-caip-10="cosmos:pulsar-2:secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek">
 
-	<link rel="prefetch" as="image" href="/media/stashh.png" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx">
+	<!-- <link rel="prefetch" as="image" href="/media/stashh.png" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx"> -->
 
-	<link rel="prefetch" as="image" href="/media/stashh.svg" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9xxtzx">
+	<!-- <link rel="prefetch" as="image" href="/media/stashh.svg" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9xxtzx"> -->
+
+	<link rel="prefetch" as="image" href="/media/gamepad-solid.svg" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx">
+
+	<!-- <link rel="prefetch" as="image" href="/media/trophy-solid.svg" data-caip-10="cosmos:pulsar-2:secret1vux78y49ehf29kf7pjujvwsa2td6dyyxkkslne"> -->
 
 	<script type="application/toml" data-whip-2>
 		[contracts.sSCRT]
@@ -34,16 +39,19 @@
 		[contracts.sSCRT.interfaces.snip20]
 		symbol = "sUSDC"
 
-		[contracts.stash-auth]
-		chain = "cosmos:secret-4"
+		[contracts.demo]
+		chain = "cosmos:pulsar-2"
 		address = "secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx"
-		name = "Stashh Authenticator"
+		name = "Balancer Contract"
+
 	</script>
 
 	<script type="module" >
 		window.addEventListener('message', (d_event) => {
 			console.log(d_event.data);
 		});
+
+		const keplr_to_b64 = atu8_enc => btoa([...atu8_enc].map(x => String.fromCharCode(x)).join(''));
 
 		window.onload = () => {
 			console.log({
@@ -65,35 +73,154 @@
 				const sa_owner = g_key.address;
 
 				const sa_contract = 'secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx';
-debugger;
-				const g_sign = await window.keplr.signAmino('pulsar-2', sa_owner, {
-					chain_id: "pulsar-2",
-					account_number: "0",
-					sequence: "0",
-					fee: {
-						amount: [{
-							denom: "uscrt",
-							amount: "0"
-						}],
-						gas: "1"
+
+
+				const atu8_enc = await keplr.enigmaEncrypt('pulsar-2', 'e38c18f5f54245e7c31a17ecc38f8d50b18d054b6da975fe8c92579204682633', {
+					name: 'Macronesia',
+					symbol: 'MAC',
+					factory: {
+						address: 'secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx',
+						code_hash: '8dfc8cec8aea8b06e43d4cd71ec62070035bfac29599a5ecd75818852fd36a56',
 					},
-					msgs: [{
-						type: "query_permit",
-						value: {
-							permit_name: `permit_${sa_contract}_${sa_owner}_TESTNET`,
-							allowed_tokens: [sa_contract],
-							permissions: ['owner']
-						}
-					}],
-					memo: '',
-				}, {
-					preferNoSetFee: true,
-					preferNoSetMemo: true,
+					config: {
+						enable_burn: true,
+						enable_sealed_metadata: false,
+						minter_may_update_metadata: false,
+						owner_may_update_metadata: false,
+						public_owner: false,
+						public_token_supply: true,
+						unwrapped_metadata_is_private: false,
+					},
 				});
 
-				console.log(JSON.stringify(g_sign));
+				await keplr.signAmino('pulsar-2', sa_owner, {
+					chain_id: 'pulsar-2',
+					account_number: '0',
+					sequence: '0',
+					fee: {
+						gas: '1',
+						amount: [{denom: 'uscrt', amount: '0',},],
+					},
+					msgs: [
+						{
+							type: 'wasm/MsgInstantiateContract',
+							value: {
+								sender: sa_owner,
+								code_id: '10588',
+								label: 'Stashh  Macronesia - MAC | 1664744179933',
+								init_msg: keplr_to_b64(atu8_enc),
+								init_funds: [],
+							},
+						},
+					],
+					memo: '',
+				});
 
-				debugger;
+				// const y_signer = keplr.getOfflineSignerOnlyAmino('pulsar-2');
+
+
+// 				const atu8_enc = await keplr.enigmaEncrypt('pulsar-2', 'ad7ed02da98608b8f14346bd27a414b0d932613bedd1413b2301288bfdda0e80', {
+// 					register: {
+// 						user: sa_owner,
+// 						token: 'secret1zkqumk5l9efwlfprxl0zw8fqwxz0d0pvd020pr',
+// 						submission: {
+// 							name: 'Oregon',
+// 							serial: '82156681885',
+// 							context: {
+// 								id: 'Dynga',
+// 								exclusive: true,
+// 							},
+// 							preferences: {
+// 								colors: [
+// 									'black',
+// 									'silver',
+// 									'white',
+// 								],
+// 							},
+// 						},
+// 					},
+// 				});
+
+// 				const sx_b64 = btoa([...atu8_enc].map(x => String.fromCharCode(x)).join(''));
+
+// 				await keplr.signAmino('pulsar-2', sa_owner, {
+// 					chain_id: 'pulsar-2',
+// 					account_number: '0',
+// 					sequence: '0',
+// 					fee: {
+// 						gas: '1',
+// 						amount: [{denom: 'uscrt', amount: '0',},],
+// 					},
+// 					msgs: [
+// 						{
+// 							type: 'wasm/MsgExecuteContract',
+// 							value: {
+// 								sender: sa_owner,
+// 								contract: sa_contract,
+// 								msg: sx_b64,
+// 								sent_funds: [],
+// 							},
+// 						},
+// 					],
+// 					memo: '',
+// 				});
+
+// debugger;
+// 				const g_sign = await window.keplr.signAmino('pulsar-2', sa_owner, {
+// 					chain_id: 'pulsar-2',
+// 					account_number: '0',
+// 					sequence: '0',
+// 					fee: {
+// 						amount: [
+// 							{
+// 								denom: 'uscrt', amount: '0',
+// 							},
+// 						],
+// 						gas: '1'},
+// 					msgs: [
+// 						{
+// 							type: 'query_permit',
+// 							value: {
+// 								permit_name: 'CertUP-Query-Permit',
+// 								allowed_tokens: ['secret1thrzs9pd8xv30eztz4x2fgxr8qxev44q634veu', 'secret14t6wd3kxf4j0c9jvhzxx0vud23v88vjl4u5r92'],
+// 								permissions: ['owner', 'balance'],
+// 							},
+// 						},
+// 					],
+// 					memo: '',
+// 				}, {
+// 					preferNoSetFee: true,
+// 					preferNoSetMemo: true,
+// 				});
+
+// 				// const g_sign = await window.keplr.signAmino('pulsar-2', sa_owner, {
+// 				// 	chain_id: "pulsar-2",
+// 				// 	account_number: "0",
+// 				// 	sequence: "0",
+// 				// 	fee: {
+// 				// 		amount: [{
+// 				// 			denom: "uscrt",
+// 				// 			amount: "0"
+// 				// 		}],
+// 				// 		gas: "1"
+// 				// 	},
+// 				// 	msgs: [{
+// 				// 		type: "query_permit",
+// 				// 		value: {
+// 				// 			permit_name: `permit_${sa_contract}_${sa_owner}_TESTNET`,
+// 				// 			allowed_tokens: [sa_contract],
+// 				// 			permissions: ['owner']
+// 				// 		}
+// 				// 	}],
+// 				// 	memo: '',
+// 				// }, {
+// 				// 	preferNoSetFee: true,
+// 				// 	preferNoSetMemo: true,
+// 				// });
+
+// 				console.log(JSON.stringify(g_sign));
+
+// 				debugger;
 
 				// await keplr.experimentalSuggestChain({
 				// 	chainId: 'pulsar-2',

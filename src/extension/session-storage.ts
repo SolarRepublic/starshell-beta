@@ -2,7 +2,7 @@ import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
 
 import type {ScreenInfo} from '#/extension/browser';
 import type {JsonObject} from '#/meta/belt';
-import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, G_USERAGENT, N_BROWSER_VERSION_MAJOR} from '#/share/constants';
+import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_NATIVE_IOS, G_USERAGENT, N_BROWSER_VERSION_MAJOR} from '#/share/constants';
 import type {Vocab} from '#/meta/vocab';
 import type {IcsToService} from '#/script/messages';
 import {F_NOOP} from '#/util/belt';
@@ -136,30 +136,57 @@ export const SessionStorage = {} as ExtSessionStorage;
 
 // eslint-disable-next-line @typescript-eslint/unbound-method
 function resolve_storage_mechanism(b_force_background=false) {
-	if(chrome.storage['session'] && !b_force_background && B_CHROME_SESSION_CAPABLE) {
-		const d_session = (chrome.storage as unknown as {
+	let f_session!: () => Window['sessionStorage'];
+
+	if(B_NATIVE_IOS) {
+		f_session = () => sessionStorage;
+	}
+	else if(chrome.storage['session'] && !b_force_background && B_CHROME_SESSION_CAPABLE) {
+		const f_session_direct = () => (chrome.storage as unknown as {
 			session: chrome.storage.StorageArea;
 		}).session;
+
+		const g_fallback = resolve_storage_mechanism(true);
 
 		const g_exports: ExtSessionStorage = {
 			async get<
 				si_key extends SessionStorageKey,
 			>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
-				return (await d_session.get([si_key]) as {
-					[si in typeof si_key]: SessionStorage.Wrapped<si_key> | null;
-				})[si_key];
+				try {
+					return (await f_session_direct().get([si_key]) as {
+						[si in typeof si_key]: SessionStorage.Wrapped<si_key> | null;
+					})[si_key];
+				}
+				catch(e_get) {
+					return g_fallback.get(si_key);
+				}
 			},
 
 			async set(h_set_wrapped: SetWrapped): Promise<void> {
-				return await d_session.set(h_set_wrapped);
+				try {
+					return await f_session_direct().set(h_set_wrapped);
+				}
+				catch(e_set) {
+					return g_fallback.set(h_set_wrapped);
+				}
 			},
 
 			async remove(si_key: SessionStorageKey): Promise<void> {
-				return await d_session.remove(si_key);
+				try {
+					return await f_session_direct().remove(si_key);
+				}
+				catch(e_set) {
+					return g_fallback.remove(si_key);
+				}
 			},
 
 			async clear(): Promise<void> {
-				return await d_session.clear();
+				try {
+					return await f_session_direct().clear();
+				}
+				catch(e_set) {
+					return g_fallback.clear();
+				}
 			},
 
 			synchronously: null,
@@ -169,7 +196,6 @@ function resolve_storage_mechanism(b_force_background=false) {
 	}
 	else {
 		const dw_background = chrome.extension.getBackgroundPage?.();
-		let f_session!: () => Window['sessionStorage'];
 		// within popup script; able to access "background page's" sessionStorage
 		if(dw_background) {
 			f_session = () => chrome.extension.getBackgroundPage()!.sessionStorage;
@@ -185,58 +211,86 @@ function resolve_storage_mechanism(b_force_background=false) {
 			return {
 				/* eslint-disable @typescript-eslint/require-await */
 				get<si_key extends SessionStorageKey>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
-					return new Promise((fk_resolve) => {
-						f_runtime().sendMessage({
-							type: 'sessionStorage',
-							value: {
-								type: 'get',
-								value: si_key,
-							},
-						}, (w_value: JsonObject) => {
-							fk_resolve(w_value as SessionStorage.Wrapped<si_key> || null);
-						});
-					});
+					return f_runtime().sendMessage({
+						type: 'sessionStorage',
+						value: {
+							type: 'get',
+							value: si_key,
+						},
+					}) as Promise<SessionStorage.Wrapped<si_key> | null>;
+					// return new Promise((fk_resolve) => {
+					// 	f_runtime().sendMessage({
+					// 		type: 'sessionStorage',
+					// 		value: {
+					// 			type: 'get',
+					// 			value: si_key,
+					// 		},
+					// 	}, (w_value: JsonObject) => {
+					// 		fk_resolve(w_value as SessionStorage.Wrapped<si_key> || null);
+					// 	});
+					// });
 				},
 
-				set(h_set_wrapped: SetWrapped): Promise<void> {
-					return new Promise((fk_resolve) => {
-						f_runtime().sendMessage({
-							type: 'sessionStorage',
-							value: {
-								type: 'set',
-								value: h_set_wrapped as JsonObject,
-							},
-						}, () => {
-							fk_resolve();
-						});
-					});
+				set(h_set_wrapped: SetWrapped): Promise<undefined> {
+					return f_runtime().sendMessage({
+						type: 'sessionStorage',
+						value: {
+							type: 'set',
+							value: h_set_wrapped as JsonObject,
+						},
+					}) as Promise<undefined>;
+
+					// return new Promise((fk_resolve) => {
+					// 	f_runtime().sendMessage({
+					// 		type: 'sessionStorage',
+					// 		value: {
+					// 			type: 'set',
+					// 			value: h_set_wrapped as JsonObject,
+					// 		},
+					// 	}, () => {
+					// 		fk_resolve();
+					// 	});
+					// });
 				},
 
 				remove(si_key: SessionStorageKey): Promise<void> {
-					return new Promise((fk_resolve) => {
-						f_runtime().sendMessage({
-							type: 'sessionStorage',
-							value: {
-								type: 'remove',
-								value: si_key,
-							},
-						}, () => {
-							fk_resolve();
-						});
-					});
+					return f_runtime().sendMessage({
+						type: 'sessionStorage',
+						value: {
+							type: 'remove',
+							value: si_key,
+						},
+					}) as Promise<void>;
+					// return new Promise((fk_resolve) => {
+					// 	f_runtime().sendMessage({
+					// 		type: 'sessionStorage',
+					// 		value: {
+					// 			type: 'remove',
+					// 			value: si_key,
+					// 		},
+					// 	}, () => {
+					// 		fk_resolve();
+					// 	});
+					// });
 				},
 
 				clear(): Promise<void> {
-					return new Promise((fk_resolve) => {
-						f_runtime().sendMessage({
-							type: 'sessionStorage',
-							value: {
-								type: 'clear',
-							},
-						}, () => {
-							fk_resolve();
-						});
-					});
+					return f_runtime().sendMessage({
+						type: 'sessionStorage',
+						value: {
+							type: 'clear',
+						},
+					}) as Promise<void>;
+					// return new Promise((fk_resolve) => {
+					// 	f_runtime().sendMessage({
+					// 		type: 'sessionStorage',
+					// 		value: {
+					// 			type: 'clear',
+					// 		},
+					// 	}, () => {
+					// 		fk_resolve();
+					// 	});
+					// });
 				},
 
 				synchronously: null,
@@ -244,50 +298,50 @@ function resolve_storage_mechanism(b_force_background=false) {
 				/* eslint-enable @typescript-eslint/require-await */
 			};
 		}
-
-		const k_session: SynchronousExtSessionStorage = {
-			get(si_key) {
-				return f_session().getItem(si_key);
-			},
-			set(si_key, s_value) {
-				return f_session().setItem(si_key, s_value);
-			},
-			remove(si_key) {
-				return f_session().removeItem(si_key);
-			},
-			clear() {
-				return f_session().clear();
-			},
-		};
-
-		return {
-			/* eslint-disable @typescript-eslint/require-await */
-			async get<
-				si_key extends SessionStorageKey,
-			>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
-				const s_raw = k_session.get(si_key);
-				return s_raw? JSON.parse(s_raw) as SessionStorage.Wrapped<si_key>: null;
-			},
-
-			async set(h_set_wrapped: SetWrapped): Promise<void> {
-				for(const [si_key, w_value] of Object.entries(h_set_wrapped)) {
-					k_session.set(si_key, JSON.stringify(w_value));
-				}
-			},
-
-			async remove(si_key: SessionStorageKey): Promise<void> {
-				k_session.remove(si_key);
-			},
-
-			async clear(): Promise<void> {
-				k_session.clear();
-			},
-
-			synchronously: k_session,
-
-			/* eslint-enable @typescript-eslint/require-await */
-		};
 	}
+
+	const k_session: SynchronousExtSessionStorage = {
+		get(si_key) {
+			return f_session().getItem(si_key);
+		},
+		set(si_key, s_value) {
+			return f_session().setItem(si_key, s_value);
+		},
+		remove(si_key) {
+			return f_session().removeItem(si_key);
+		},
+		clear() {
+			return f_session().clear();
+		},
+	};
+
+	return {
+		/* eslint-disable @typescript-eslint/require-await */
+		async get<
+			si_key extends SessionStorageKey,
+		>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
+			const s_raw = k_session.get(si_key);
+			return s_raw? JSON.parse(s_raw) as SessionStorage.Wrapped<si_key>: null;
+		},
+
+		async set(h_set_wrapped: SetWrapped): Promise<void> {
+			for(const [si_key, w_value] of Object.entries(h_set_wrapped)) {
+				k_session.set(si_key, JSON.stringify(w_value));
+			}
+		},
+
+		async remove(si_key: SessionStorageKey): Promise<void> {
+			k_session.remove(si_key);
+		},
+
+		async clear(): Promise<void> {
+			k_session.clear();
+		},
+
+		synchronously: k_session,
+
+		/* eslint-enable @typescript-eslint/require-await */
+	};
 }
 
 Object.assign(SessionStorage, resolve_storage_mechanism());

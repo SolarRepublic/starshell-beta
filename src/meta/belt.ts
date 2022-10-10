@@ -217,8 +217,8 @@ export type Promisable<w_value> = w_value | Promise<w_value>;
 /**
  * Root type for all objects considered to be parsed JSON objects
  */
-export interface JsonObject {  // eslint-disable-line
-	[k: string]: JsonValue;
+export interface JsonObject<w_inject extends any=never> {  // eslint-disable-line
+	[k: string]: JsonValue<w_inject>;
 }
 
 /**
@@ -232,21 +232,21 @@ export type JsonPrimitive =
 /**
  * All primitive JSON value types
  */
-export type JsonPrimitiveNullable =
+export type JsonPrimitiveNullable<w_inject extends any=never> =
 	| JsonPrimitive
-	| null;
+	| null
+	| w_inject;
 
 /**
  * JSON Array
  */
-export type JsonArray = JsonValue[];
+export type JsonArray<w_inject extends any=never> = JsonValue<w_inject>[];
 
 /**
  * All JSON value types
  */
-export type JsonValue =
-	| JsonPrimitiveNullable
-	| JsonArray
-	| JsonObject
+export type JsonValue<w_inject extends any=never> =
+	| JsonPrimitiveNullable<w_inject>
+	| JsonArray<w_inject>
+	| JsonObject<w_inject>
 	| undefined;
-

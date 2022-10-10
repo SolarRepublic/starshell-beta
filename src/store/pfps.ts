@@ -183,7 +183,7 @@ export const Pfps = create_store_class({
 			}
 		}
 
-		static render(g_pfp: Pfp['interface'], gc_render: RenderConfig): HTMLElement {
+		static render(g_pfp: PfpInterface, gc_render: RenderConfig): HTMLElement {
 			// dimension styling
 			const sx_style_picture = `width:${gc_render.dim}px; height:${gc_render.dim}px;`;
 

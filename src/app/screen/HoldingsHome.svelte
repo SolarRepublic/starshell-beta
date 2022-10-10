@@ -4,21 +4,21 @@
 	import {Entities, type TokenDict} from '#/store/entities';
 	import {forever, ode, oderom} from '#/util/belt';
 	import {getContext, onDestroy} from 'svelte';
-	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network_active, yw_owner, yw_doc_visibility} from '../mem';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility} from '../mem';
 	import Portrait from '../ui/Portrait.svelte';
 	import Send from './Send.svelte';
 	import Row from '../ui/Row.svelte';
 	import {Header, Screen, type Page} from './_screens';
 	import {format_fiat} from '#/util/format';
 	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-	import type {ContractInterface, NativeCoin} from '#/meta/chain';
+	import type {ContractInterface, CoinInfo} from '#/meta/chain';
 	import type {Dict, Promisable} from '#/meta/belt';
 	import BigNumber from 'bignumber.js';
 	import Address from '../ui/Address.svelte';
 	import {abort_signal_timeout, open_external_link} from '#/util/dom';
 	import {as_amount, to_fiat} from '#/chain/coin';
 	import HoldingView from './HoldingView.svelte';
-	import type {BalanceBundle} from '#/store/networks';
+	import type {BalanceBundle} from '#/store/providers';
 	import {syserr} from '../common';
 	import {Accounts} from '#/store/accounts';
 	import {global_receive} from '#/script/msg-global';
@@ -121,16 +121,16 @@
 	async function load_native_balances() {
 		let h_balances: Dict<BalanceBundle>;
 		try {
-			h_balances = await $yw_network_active.bankBalances($yw_owner);
+			h_balances = await $yw_network.bankBalances($yw_owner);
 		}
 		catch(e_network) {
 			if(e_network instanceof Error) {
 				if(e_network.message.includes('Response closed without headers')) {
-					const g_network = $yw_network_active.network;
+					const g_provider = $yw_network.network;
 
 					syserr({
 						title: 'Network Error',
-						text: `Your network provider "${g_network.name}" is offline: <${g_network.grpcWebUrl}>`,
+						text: `Your network provider "${g_provider.name}" is offline: <${g_provider.grpcWebUrl}>`,
 					});
 				}
 				else {
@@ -150,7 +150,7 @@
 			return [];
 		}
 
-		const a_outs: [string, NativeCoin, Coin, Submitter][] = [];
+		const a_outs: [string, CoinInfo, Coin, Submitter][] = [];
 
 		for(const [si_coin, g_coin] of ode($yw_chain.coins)) {
 			const g_bundle = h_balances[si_coin];
@@ -192,7 +192,9 @@
 			'https://discord.com/channels/669268347736686612/953697793476821092',
 		],
 		'pulsar-2': [
+			'https://faucet.starshell.net/',
 			'https://faucet.pulsar.scrttestnet.com/',
+			'https://pulsar.faucet.trivium.network/',
 			'https://faucet.secrettestnet.io/',
 		],
 	};
@@ -207,10 +209,11 @@
 				headers: {
 					accept: 'text/html',
 				},
-				method: 'OPTIONS',
+				method: 'HEAD',
 				credentials: 'omit',
 				cache: 'no-store',
 				referrer: '',
+				mode: 'no-cors',
 				redirect: 'error',
 				signal: abort_signal_timeout(6e3).signal,
 			})));
@@ -358,7 +361,7 @@
 			<HoldingsList holdings={a_holdings} />
 		{/key} -->
 
-		{#key $yw_network_active}
+		{#key $yw_network}
 			<div class="rows no-margin border-top_black-8px">
 				<!-- native coin(s) -->
 				{#await load_native_balances()}

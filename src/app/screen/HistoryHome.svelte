@@ -3,7 +3,7 @@
 
 	import {Incidents} from '#/store/incidents';
 	import { onDestroy } from 'svelte';
-	import { yw_account, yw_network_active, yw_owner } from '../mem';
+	import { yw_account, yw_network, yw_owner } from '../mem';
 	import TxnList from '../ui/TxnList.svelte';
 
 	import {

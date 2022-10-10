@@ -1,13 +1,13 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import type {App} from '#/meta/app';
+	import type {App, AppInterface} from '#/meta/app';
 	import {Apps} from '#/store/apps';
 
 	import {P_PUBLIC_SUFFIX_LIST, R_DOMAIN_IP, R_DOMAIN_LOCALHOST} from '#/share/constants';
 	import {WebResourceCache} from '#/store/web-resource-cache';
 
-	import '#/chain/main';
+	import '#/chain/cosmos-network';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	import {qsa} from '#/util/dom';
 	import {microtask, timeout} from '#/util/belt';
@@ -29,7 +29,7 @@
 	/**
 	 * Information about the app requesting the advertisement
 	 */
-	export let app: App['interface'];
+	export let app: AppInterface;
 	const g_app = app;
 
 	/**

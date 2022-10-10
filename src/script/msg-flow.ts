@@ -63,7 +63,7 @@ export function open_flow_query<
 				// handle shutdown
 				function shutdown() {
 					// verbose
-					console.warn(`Service noticed flow closed ${si_key}. Responded: ${b_flow_responded}`);
+					console.warn(`Service shutting down flow ${si_key}. Responded: ${b_flow_responded}`);
 
 					// cancel monitor
 					k_monitor.cancel();
@@ -158,7 +158,29 @@ export function open_flow_query<
 				});
 
 				// register disconnect listener
-				d_port.onDisconnect.addListener(shutdown);
+				d_port.onDisconnect.addListener(() => {
+					console.warn(`Service noticed port disconnected on ${d_port.name}`);
+
+					const i_shutdown = setTimeout(() => {
+						chrome.runtime.onConnect.removeListener(reloaded_connection);
+
+						shutdown();
+					}, 1e3);
+
+					// allow for reload
+					function reloaded_connection() {
+						console.warn(`Port re-established on ${d_port.name}`);
+
+						chrome.runtime.onConnect.removeListener(reloaded_connection);
+
+						// cancel monitor
+						k_monitor.cancel();
+
+						clearTimeout(i_shutdown);
+					}
+
+					chrome.runtime.onConnect.addListener(reloaded_connection);
+				});
 			}
 			else {
 				console.warn(`Service noticed port connection from ${d_port.name}`);

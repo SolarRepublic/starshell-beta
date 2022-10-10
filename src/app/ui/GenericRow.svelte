@@ -10,7 +10,7 @@
 	import ChainView from '#/screen/ChainView.svelte';
 	import ContactView from '#/screen/ContactView.svelte';
 	import type {Chain} from '#/objects/chain';
-	import NetworkEdit from '#/screen/NetworkEdit.svelte';
+	import ProviderEdit from '#/screen/ProviderEdit.svelte';
 	import NftView from '#/screen/NftView.svelte';
 	import TokenHoldingView from '#/screen/TokenHoldingView.svelte';
 	import type {Holding} from '#/objects/holding';
@@ -58,11 +58,11 @@
 				// });
 			},
 		},
-		[ClassType.NETWORK]: {
-			things: H_NETWORKS,
+		[ClassType.PROVIDER]: {
+			things: H_PROVIDERS,
 			open() {
-				push_screen(NetworkEdit, {
-					network: k_thing as Network,
+				push_screen(ProviderEdit, {
+					provider: k_thing as Provider,
 				});
 			},
 		},

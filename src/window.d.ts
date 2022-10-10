@@ -11,5 +11,13 @@ declare global {
 		starshell?: StarShell;
 
 		chrome: chrome;
+
+		webkit: {
+			messageHandlers: {
+				controller: {
+					postMessage(w_msg: any): void;
+				};
+			};
+		};
 	}
 }

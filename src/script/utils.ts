@@ -1,4 +1,5 @@
 import {B_FIREFOX_ANDROID, NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB} from '#/share/constants';
+import { timeout_exec } from '#/util/belt';
 
 /**
  * Locate a script asset in the extension bundle by its path prefix.
@@ -72,37 +73,21 @@ export async function load_icon_data(p_image: string, n_px_dim=256): Promise<str
 
 	// attempt to load the icon
 	try {
-		// wait for it to load
-		await new Promise((fk_resolve, fe_reject) => {
-			// timeout error
-			const i_timeout = setTimeout(() => {
-				// print error and reject promise
-				const s_error = `StarShell waited more than ${Math.round(XT_TIMEOUT_LOAD_ICON / 1e3)}s for icon to load <${p_image}>`;
-				console.error(s_error);
-				fe_reject(new Error(s_error));
-			}, XT_TIMEOUT_LOAD_ICON);
-
+		const [, b_timed_out] = await timeout_exec(XT_TIMEOUT_LOAD_ICON, () => new Promise((fk_resolve, fe_reject) => {
 			// image failed to load
 			d_img.addEventListener('error', (e_load) => {
-				// cancel timeout
-				clearTimeout(i_timeout);
-
 				// print error
 				console.error(e_load);
 
 				// print informative error and reject promise
-				const s_error = `StarShell received an error while trying to load icon <${p_image}>. Is the URL correct?`;
-				console.error(s_error);
+				const s_error = `StarShell encountered an error while trying to load icon <${p_image}>. Is the URL correct?`;
 				fe_reject(new Error(s_error));
 			});
 
 			// image loaded successfully
 			d_img.addEventListener('load', () => {
 				// verbose
-				console.log(`StarShell successfully loaded application icon <${p_image}>`)
-
-				// cancel timeout
-				clearTimeout(i_timeout);
+				console.debug(`📥 StarShell loaded icon from application <${p_image}>`);
 
 				// resolve promise
 				fk_resolve(void 0);
@@ -110,10 +95,15 @@ export async function load_icon_data(p_image: string, n_px_dim=256): Promise<str
 
 			// begin loading
 			d_img.src = p_image;
-		});
+		}));
+
+		if(b_timed_out) {
+			throw new Error(`StarShell waited more than ${Math.round(XT_TIMEOUT_LOAD_ICON / 1e3)}s for icon to load <${p_image}>`);
+		}
 	}
 	// load error or did not load in time; jump to end
 	catch(e_load) {
+		console.error(e_load);
 		return;
 	}
 
@@ -129,7 +119,7 @@ export async function load_icon_data(p_image: string, n_px_dim=256): Promise<str
 
 	// data URL is invalid or too large; don't use it
 	if(!R_DATA_IMAGE_URL_WEB.test(sx_data) || sx_data.length > NL_DATA_ICON_MAX) {
-		console.debug(`StarShell is rejecting data URL since it does not meet requirements`);
+		console.warn(`StarShell is rejecting data URL since it does not meet requirements`);
 		return;
 	}
 

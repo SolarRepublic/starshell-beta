@@ -98,16 +98,16 @@ export function svelte_to_dom(
 		props: h_props,
 	});
 
-	if(si_event) {
-		return new Promise((fk_resolve) => {
+	return new Promise((fk_resolve) => {
+		if(si_event) {
 			yc_component.$on(si_event, () => {
 				fk_resolve(dm_div.firstChild as HTMLElement);
 			});
-		});
-	}
-	else {
-		return Promise.resolve(dm_div.firstChild as HTMLElement);
-	}
+		}
+		else {
+			fk_resolve(dm_div.firstChild as HTMLElement);
+		}
+	});
 }
 
 
@@ -144,8 +144,13 @@ export interface Intent {
 
 type Completable<w_complete extends any=any> = (b_answer: boolean, w_value?: w_complete) => void;
 
+export interface PageContext {
+	k_page: Page;
+	g_cause: IntraExt.Cause;
+}
+
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-export function load_page_context() {
+export function load_page_context(): PageContext {
 	const k_page = getContext<Page>('page');
 	const g_cause = getContext<IntraExt.Cause | null>('cause') || null;
 
@@ -155,13 +160,23 @@ export function load_page_context() {
 	};
 }
 
-export function load_flow_context<w_completed extends any=never>() {
-	const completed = getContext<Completable<w_completed> | ([w_completed] extends [never]? undefined: never)>('completed');
+export interface FlowContext<w_complete extends any=never> extends PageContext {
+	completed: Completable<w_complete> | ([w_complete] extends [never]? undefined: never);
+}
+
+export function load_flow_context<w_complete extends any=never>(): FlowContext<w_complete> {
+	const completed = getContext<Completable<w_complete> | ([w_complete] extends [never]? undefined: never)>('completed');
 
 	return {
 		...load_page_context(),
 		completed,
 	};
+}
+
+export interface AppContext<w_complete extends any=any> extends FlowContext<w_complete> {
+	g_app: AppInterface;
+	g_chain: ChainInterface;
+	p_account: AccountPath;
 }
 
 export function load_app_context<w_complete extends any=any>() {

@@ -1,4 +1,4 @@
-import type { JsonMsgSend, PendingSend } from '#/chain/main';
+import type { JsonMsgSend, PendingSend } from '#/chain/cosmos-network';
 import type { Dict, JsonObject } from '#/meta/belt';
 import type { Snip24Permission } from '#/schema/snip-24';
 import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
@@ -230,3 +230,4 @@ export type Incident<
 }>;
 
 export type IncidentPath = Resource.Path<Incident>;
+export type IncidentInterface = Incident['interface'];

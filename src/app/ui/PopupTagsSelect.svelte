@@ -1,7 +1,7 @@
 <script lang="ts">
 	import {yw_popup, yw_context_popup, yw_store_tags} from '##/mem';
 	import type { Resource } from '#/meta/resource';
-	import type { Tag } from '#/meta/tag';
+	import type { Tag, TagInterface } from '#/meta/tag';
 
 	import ActionsLine from './ActionsLine.svelte';
 	import CheckboxField from './CheckboxField.svelte';
@@ -16,11 +16,11 @@
 	})['resource'];
 
 	interface TagOption {
-		tag: Tag['interface'];
+		tag: TagInterface;
 		selected: boolean;
 	}
 
-	const f_sort_tags = (g_a: Tag['interface'], g_b: Tag['interface']) => g_a.index - g_b.index;
+	const f_sort_tags = (g_a: TagInterface, g_b: TagInterface) => g_a.index - g_b.index;
 
 	// cache the tags for the resource
 	const as_preapplied = new Set($yw_store_tags!.getIdsFor(p_resource));

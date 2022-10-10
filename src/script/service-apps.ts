@@ -260,7 +260,7 @@ export async function check_app_permissions(
 	// allow certain properties to be updated by the app each time a request comes in
 	{
 		g_app.name = g_profile?.name || g_app.name || g_sender.tab!.title || '';
-		g_app.api = b_keplr? AppApiMode.KEPLR: AppApiMode.STARSHELL;
+		g_app.api = b_keplr? AppApiMode.KEPLR: g_app.api;
 	}
 
 	// lookup policy on app

@@ -145,7 +145,7 @@
 	// 	'/families/{familyId}/chains/{chainId}/holdings/{accountId}': ThreadId.TOKENS,
 	// 	'/families/{familyId}/chains/{chainId}/gallery/{accountId}': ThreadId.NFTS,
 	// 	'/contacts': ThreadId.CONTACTS,
-	// 	// '/networks': ThreadId.NETWORKS,
+	// 	// '/networks': ThreadId.PROVIDERS,
 	// 	'/accounts': ThreadId.ACCOUNTS,
 	// 	'/history': ThreadId.HISTORY,
 	// };

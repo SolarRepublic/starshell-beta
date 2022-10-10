@@ -14,7 +14,7 @@
 	import type {SessionRequest} from '#/meta/api';
 	import type {AccountInterface} from '#/meta/account';
 	import {Chains} from '#/store/chains';
-	import {yw_chain, yw_network} from '../mem';
+	import {yw_chain, yw_provider} from '../mem';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	import {abbreviate_addr} from '#/util/format';
 
@@ -99,7 +99,7 @@
 			unchecked: true,
 			icon: SX_ICON_SERVER,
 			title: 'Identify your network provider',
-			info: `includes: "${new URL($yw_network.grpcWebUrl).host}"`,
+			info: `includes: "${new URL($yw_provider.grpcWebUrl).host}"`,
 			risk: `It's unclear why an app would want this information`,
 		}),
 

@@ -8,6 +8,7 @@ export const B_IS_BACKGROUND = 'clients' in globalThis && 'function' === typeof 
 export const B_IS_SERVICE_WORKER = 'function' === typeof globalThis['ServiceWorkerGlobalScope'] && globalThis instanceof globalThis['ServiceWorkerGlobalScope'];
 
 export const SI_VERSION = __SI_VERSION;
+export const SI_ENGINE = __SI_ENGINE;
 
 // get URL params
 export const H_PARAMS = parse_params();
@@ -24,13 +25,29 @@ export const N_BROWSER_VERSION_MAJOR = (() => {
 	return 0;
 })();
 
+/**
+ * Indicates that chrome/browser web extension gloal is available
+ */
+export const B_WEBEXT = 'undefined' !== typeof chrome;
+
+/**
+ * Indicates the device type is mobile
+ */
 export const B_MOBILE = 'mobile' === G_USERAGENT.device.type;
+
+/**
+ * Indicates the browser is WebKit
+ */
+export const B_WEBKIT = 'WebKit' === G_USERAGENT.browser.name;
 export const B_SAFARI_MOBILE = 'Mobile Safari' === G_USERAGENT.browser.name;
-export const B_SAFARI_ANY = G_USERAGENT.browser.name?.includes('Safari');
+export const B_SAFARI_ANY = G_USERAGENT.browser.name?.includes('Safari') || B_WEBKIT;
 export const B_IPHONE_IOS = 'iPhone' === G_USERAGENT.device.model && 'iOS' === G_USERAGENT.os.name;
 export const B_FIREFOX_ANDROID = 'Firefox' === G_USERAGENT.browser.name && 'Android' === G_USERAGENT.os.name;
 export const B_CHROMIUM_ANDROID = 'Chrome' === G_USERAGENT.browser.name && 'Android' === G_USERAGENT.os.name;
 export const B_CHROME_SESSION_CAPABLE = 'Chrome' === G_USERAGENT.browser.name && (N_BROWSER_VERSION_MAJOR >= 108);
+
+
+export const B_LOCALHOST = 'object' === typeof location && 'localhost' === location.hostname;
 
 export const N_FIREFOX_ANDROID_BETA_VERSION = 104;
 export const N_FIREFOX_ANDROID_NIGHTLY_ABOVE = N_FIREFOX_ANDROID_BETA_VERSION;
@@ -43,7 +60,7 @@ interface WebExtParams {
 	 *  - pwa: installed PWA (on android firefox)
 	 *  - tab: `{vendor}-extension://` browser tab
 	 */
-	within?: 'popout' | 'pwa' | 'tab';
+	within?: 'popout' | 'pwa' | 'tab' | 'webview';
 }
 
 export const B_WITHIN_IFRAME = 'object' === typeof window && globalThis === window && window.top !== window;
@@ -54,9 +71,18 @@ export const B_WITHIN_WEBEXT_POPOVER = !('within' in H_PARAMS) || 'popover' === 
 // set to true if the window is within a pwa
 export const B_WITHIN_PWA = B_WITHIN_IFRAME && 'pwa' === H_PARAMS.within;
 
+export const B_WITHIN_WEBVIEW = 'webview' === H_PARAMS.within;
+
+
 // web ext API mode
-export const B_WEBEXT_ACTION = 'function' === typeof chrome.action?.openPopup;
-export const B_WEBEXT_BROWSER_ACTION = 'function' === typeof (chrome.browserAction as BrowserAction.Static)?.openPopup;
+export const B_WEBEXT_ACTION = B_WEBEXT && 'function' === typeof chrome.action?.openPopup;
+export const B_WEBEXT_BROWSER_ACTION = B_WEBEXT && 'function' === typeof (chrome.browserAction as BrowserAction.Static)?.openPopup;
+
+/**
+ * Indicates the app is operating as the native iOS app
+ */
+export const B_NATIVE_IOS = !B_WEBEXT && B_WEBKIT && B_WITHIN_WEBVIEW;
+
 
 // firefox android toolbar is 56px high
 export const N_PX_FIREFOX_TOOLBAR = 56;
@@ -92,6 +118,11 @@ export const R_DOMAIN_LOCALHOST = /^(localhost|127.0.0.1)(:\d+)?$/;
 
 // ip address pattern
 export const R_DOMAIN_IP = /^\d+(?:.\d+){3}(:\d+)?$/;
+
+export const RT_UINT = /^(0|[1-9][0-9]*)$/;
+
+// export const RT_IRI = /^[a-z](?:[-a-z0-9+.])*:(?:\/\/(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!$&'()*+,;=:])*@)?(?:\[(?:(?:(?:[0-9a-f]{1,4}:){6}(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3})|::(?:[0-9a-f]{1,4}:){5}(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3})|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3})|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3})|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3})|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3})|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3})|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|v[0-9a-f]+\.[-a-z0-9\._~!\$&'\(\)\*\+,;=:]+)\]|(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(?:\.(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3}|(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=])*)(?::[0-9]*)?(?:\/(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@]))*)*|\/(?:(?:(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@]))+)(?:\/(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@]))*)*)?|(?:(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@]))+)(?:\/(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@]))*)*|(?!(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@])))(?:\?(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@])|[\x{E000}-\x{F8FF}\x{F0000}-\x{FFFFD}\x{100000}-\x{10FFFD}\/\?])*)?(?:\#(?:(?:%[0-9a-f][0-9a-f]|[-a-z0-9\._~\x{A0}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFEF}\x{10000}-\x{1FFFD}\x{20000}-\x{2FFFD}\x{30000}-\x{3FFFD}\x{40000}-\x{4FFFD}\x{50000}-\x{5FFFD}\x{60000}-\x{6FFFD}\x{70000}-\x{7FFFD}\x{80000}-\x{8FFFD}\x{90000}-\x{9FFFD}\x{A0000}-\x{AFFFD}\x{B0000}-\x{BFFFD}\x{C0000}-\x{CFFFD}\x{D0000}-\x{DFFFD}\x{E1000}-\x{EFFFD}!\$&'\(\)\*\+,;=:@])|[\/\?])*)?$/i;
+export const RT_URI_LIKELY = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[\w]*))?)/;
 
 
 export const R_BIP_44 = /^m\/44'(\/[0-9]+'){2}(\/[0-9]+){2}$/;
@@ -250,7 +281,7 @@ export const SI_STORE_TAGS: StoreKey<'tags'> = 'tags';
 export const SI_STORE_MEDIA: StoreKey<'media'> = 'media';
 export const SI_STORE_PFPS: StoreKey<'pfps'> = 'pfps';
 export const SI_STORE_CHAINS: StoreKey<'chains'> = 'chains';
-export const SI_STORE_NETWORKS: StoreKey<'networks'> = 'networks';
+export const SI_STORE_PROVIDERS: StoreKey<'providers'> = 'providers';
 export const SI_STORE_ENTITIES: StoreKey<'entities'> = 'entities';
 export const SI_STORE_EVENTS: StoreKey<'events'> = 'events';
 export const SI_STORE_INCIDENTS: StoreKey<'incidents'> = 'incidents';

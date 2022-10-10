@@ -1,5 +1,5 @@
 <script context="module" type="ts">
-	import {forever, type Promisable} from '#/util/belt';
+	import {forever} from '#/util/belt';
 	import {open_external_link} from '#/util/dom';
 	import Address from './Address.svelte';
 	import Field from './Field.svelte';
@@ -31,14 +31,14 @@
 <script type="ts">
 	import type {Incident, TxSynced} from '#/meta/incident';
 	import type {ChainInterface} from '#/meta/chain';
-	import type {ActiveNetwork} from '#/store/networks';
+	import type {ActiveNetwork} from '#/store/providers';
 	import {syserr} from '../common';
 	import {ecdhNonce, extractMemoCiphertext} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
 	import {buffer_to_text} from '#/util/data';
 	import { yw_chain } from '../mem';
 	import type { PfpTarget } from '#/meta/pfp';
-    import PfpDisplay from './PfpDisplay.svelte';
+	import PfpDisplay from './PfpDisplay.svelte';
 
 	export let fields: SimpleField[];
 	export let incident: Incident.Struct | null = null;

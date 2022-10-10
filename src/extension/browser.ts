@@ -1,8 +1,3 @@
-import { Vault } from '#/crypto/vault';
-import type {Dict, JsonObject} from '#/meta/belt';
-import type { Vocab } from '#/meta/vocab';
-import type {IntraExt, PageInfo, Pwa} from '#/script/messages';
-import {once_storage_changes} from '#/script/service';
 import {
 	G_USERAGENT,
 	XT_SECONDS,
@@ -14,12 +9,23 @@ import {
 	B_WEBEXT_ACTION,
 	B_WEBEXT_BROWSER_ACTION,
 	B_FIREFOX_ANDROID,
+	B_NATIVE_IOS,
 } from '#/share/constants';
+import {do_webkit_polyfill} from '#/script/webkit-polyfill';
+
+if(B_NATIVE_IOS) {
+	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.browser: ${s}`, ...a_args));
+}
+
+import {Vault} from '#/crypto/vault';
+import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
+import type {Vocab} from '#/meta/vocab';
+import type {IntraExt, PageInfo, Pwa} from '#/script/messages';
 import {F_NOOP} from '#/util/belt';
-import { buffer_to_base64, text_to_buffer } from '#/util/data';
+import {buffer_to_base64, text_to_buffer} from '#/util/data';
 import {open_external_link, parse_params, stringify_params} from '#/util/dom';
-import type { BrowserAction } from 'webextension-polyfill';
-import { SessionStorage } from './session-storage';
+import type {BrowserAction} from 'webextension-polyfill';
+import {SessionStorage} from './session-storage';
 
 export type PopoutWindowHandle = {
 	window: chrome.windows.Window | null;
@@ -327,7 +333,7 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 							chrome.tabs.onUpdated.removeListener(tab_update);
 
 							// resolve promise
-							fk_created(dt_updated as chrome.tabs.Tab);
+							fk_created(dt_updated);
 						}
 					}
 				});
@@ -367,3 +373,125 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 		};
 	}
 }
+
+
+
+// type aliases
+interface StorageChange<w_value extends JsonValue> extends chrome.storage.StorageChange {
+	newValue?: w_value;
+	oldValue?: w_value;
+}
+
+type StorageArea = 'local' | 'session' | 'sync' | 'managed';
+
+const H_STORAGE_SCHEMAS = {
+	sync: {
+		keplr_polyfill: {},
+	},
+	local: {
+		// apps: {},
+	},
+	session: {},
+	managed: {},
+} as const;
+
+type StorageListener<
+	si_area extends StorageArea,
+> = si_area extends StorageArea
+	? Record<keyof typeof H_STORAGE_SCHEMAS[si_area], (g_change: StorageChange<SV_KeplrPolyfill>) => Promise<void>>
+	: void;
+
+type StorageListenerMap = {
+	[si_area in StorageArea]?: StorageListener<si_area>;
+};
+
+type SV_KeplrPolyfill = boolean;
+
+
+type StorageChangeCallback = (g_change: chrome.storage.StorageChange) => Promisable<void>;
+
+const g_awaiters: Record<StorageArea, Dict<StorageChangeCallback[]>> = {
+	sync: {},
+	local: {},
+	session: {},
+	managed: {},
+};
+
+export function once_storage_changes(si_area: StorageArea, si_key: string, xt_timeout=0): Promise<chrome.storage.StorageChange> {
+	return new Promise((fk_resolve, fe_reject) => {
+		const h_awaiters = g_awaiters[si_area];
+		const a_awaiters = h_awaiters[si_key] = h_awaiters[si_key] || [];
+
+		let i_awaiter = -1;
+		let i_timeout = 0;
+		if(xt_timeout > 0) {
+			i_timeout = (globalThis as typeof window).setTimeout(() => {
+				// remove awaiter
+				a_awaiters.splice(i_awaiter, 1);
+
+				// reject
+				fe_reject(new Error(`Timed out`));
+			}, xt_timeout);
+		}
+
+		i_awaiter = a_awaiters.push((g_change) => {
+			globalThis.clearTimeout(i_timeout);
+			fk_resolve(g_change);
+		});
+	});
+}
+
+function fire_storage_change(si_area: StorageArea, si_key: string, g_change: chrome.storage.StorageChange) {
+	const h_awaiters = g_awaiters[si_area];
+	const a_awaiters = h_awaiters[si_key];
+
+	if(a_awaiters?.length) {
+		// reset awaiters
+		h_awaiters[si_key] = [];
+
+		// call each listener
+		for(const f_awaiter of a_awaiters) {
+			void f_awaiter(g_change);
+		}
+	}
+}
+
+// 
+chrome.storage.onChanged?.addListener((h_changes, si_area) => {
+	const H_STORAGE_LISTENERS: StorageListenerMap = {
+		sync: {
+			// // 
+			// keplr_polyfill(g_change) {
+			// 	return set_keplr_polyfill(g_change.newValue || false);
+			// },
+
+		},
+
+		// // local storage area change listener
+		local: {},
+
+		session: {},
+
+		managed: {},
+	};
+
+	// lookup namespace-specific listener dict
+	const h_listeners = H_STORAGE_LISTENERS[si_area];
+
+	// listeners available
+	if(h_listeners) {
+		// each change changes
+		for(const si_key in h_changes) {
+			const g_change = h_changes[si_key];
+
+			// fire awaiter callbacks first
+			fire_storage_change(si_area, si_key, g_change);
+
+			// listener exists for this key
+			const f_listener = h_listeners[si_key];
+			if(f_listener) {
+				f_listener(g_change);
+			}
+		}
+	}
+});

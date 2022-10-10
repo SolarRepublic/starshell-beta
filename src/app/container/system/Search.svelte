@@ -9,7 +9,7 @@
 		CHAIN = 'chain',
 
 		// configuration for how to communicate with chain
-		NETWORK = 'network',
+		PROVIDER = 'provider',
 
 		// 
 		ACCOUNT = 'account',
@@ -229,7 +229,7 @@
 				})(),
 
 				// Entities,
-				// Networks,
+				// Providers,
 			]),
 		];
 	})();

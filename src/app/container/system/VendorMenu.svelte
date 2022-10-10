@@ -6,8 +6,8 @@
 		yw_menu_vendor,
 		yw_chain_ref,
 		yw_chain,
-		yw_network_ref,
-		yw_network,
+		yw_provider_ref,
+		yw_provider,
 	} from '##/mem';
 
 	import { global_receive } from '#/script/msg-global';
@@ -56,13 +56,13 @@ import { SI_VERSION } from '#/share/constants';
 	let s_rpc_status = '';
 
 
-	// when the network is changed
-	$: if($yw_network) {
+	// when the provider is changed
+	$: if($yw_provider) {
 		s_height = '[...]';
 		xt_when = 0;
 		xt_avg_block_time = 0;
 		s_network_status = 'Connecting';
-		p_provider = new URL($yw_network.grpcWebUrl).host;
+		p_provider = new URL($yw_provider.grpcWebUrl).host;
 		si_chain = '';
 		n_txs = 0;
 	}

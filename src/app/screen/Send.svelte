@@ -8,7 +8,7 @@
 		yw_account_ref,
 		yw_chain,
 		yw_chain_ref,
-		yw_network_active,
+		yw_network,
 		yw_owner,
 		yw_page,
 		yw_send_asset,
@@ -32,15 +32,15 @@
 	import Field from '##/ui/Field.svelte';
 
 	// import Execute from './Execute.svelte';
-	import type {Account, AccountPath} from '#/meta/account';
+	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
 
 	import {Screen, type Page} from './_screens';
-	import type {Token} from '#/meta/token';
+	import type {Token, TokenInterfaceDescriptor} from '#/meta/token';
 	import {Entities} from '#/store/entities';
 	import SenderSelect from '../ui/SenderSelect.svelte';
 	import RecipientSelect from '../ui/RecipientSelect.svelte';
-	import type {Bech32, Chain, EntityPath, NativeCoin} from '#/meta/chain';
-	import type {Contact, ContactPath} from '#/meta/contact';
+	import type {Bech32, Chain, EntityPath, CoinInfo} from '#/meta/chain';
+	import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
 	import {subscribe_store} from '#/store/_base';
 	import {Agents} from '#/store/agents';
 	import {fold, F_NOOP, ofe} from '#/util/belt';
@@ -71,7 +71,7 @@
 	/**
 	 * Which account to initiate send from
 	 */
-	export let sender: Account['interface'] = $yw_account;
+	export let sender: AccountInterface = $yw_account;
 	let p_account: AccountPath = $yw_account_ref;
 
 	/**
@@ -83,7 +83,7 @@
 	/**
 	 * Token to use for transfer (instead of native coin)
 	 */
-	export let token: Token['interface'] | null = null;
+	export let token: TokenInterfaceDescriptor | null = null;
 	const g_token = token;
 
 
@@ -108,7 +108,7 @@
 
 
 	// cache of contacts
-	let h_contacts: Record<ContactPath, Contact['interface']>;
+	let h_contacts: Record<ContactPath, ContactInterface>;
 
 	// address to contact lookup cache
 	let h_addr_to_contact: Record<Chain.Bech32String, ContactPath>;
@@ -149,7 +149,7 @@
 
 	function check_recipient_publicity() {
 		b_private_memo_recipient_published = false;
-		$yw_network_active.e2eInfoFor(sa_recipient as Bech32).then((g_info) => {
+		$yw_network.e2eInfoFor(sa_recipient as Bech32).then((g_info) => {
 			b_private_memo_recipient_published = !!g_info.sequence;
 		}).catch(() => {
 			b_memo_private = false;
@@ -222,13 +222,13 @@
 				s_balance = '[...]';
 
 				// start with the cached balance if it exists
-				const g_cached = $yw_network_active.cachedBalance($yw_owner, si_native);
+				const g_cached = $yw_network.cachedBalance($yw_owner, si_native);
 				if(g_cached && g_cached.timestamp > Date.now() - (5 * XT_MINUTES)) {
 					yg_balance = new BigNumber(g_cached.data.amount);
 				}
 
 				// get the latest balance
-				const g_bundle = await $yw_network_active.bankBalance($yw_owner, si_native);
+				const g_bundle = await $yw_network.bankBalance($yw_owner, si_native);
 				if(g_bundle) {
 					yg_balance = new BigNumber(g_bundle.balance.amount);
 				}
@@ -345,7 +345,7 @@
 		else {
 			si_address_type = 'unknown';
 
-			void $yw_network_active.isContract(sa_recipient as Bech32).then((b_contract) => {
+			void $yw_network.isContract(sa_recipient as Bech32).then((b_contract) => {
 				if(b_contract) {
 					si_address_type = 'contract';
 				}

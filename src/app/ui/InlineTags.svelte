@@ -58,7 +58,7 @@
 
 	// cache the list of tags for this resource
 	$: a_tags = $yw_store_tags!.getTagsFor(p_resource);
-	// let a_tags: Tag['interface'][];
+	// let a_tags: TagInterface[];
 
 	// // fetch tags for the given resource
 	// async function resource_tags() {
@@ -97,7 +97,7 @@
 
 	let dm_cluster: HTMLElement;
 
-	async function remove_tag(g_tag: Tag['interface']) {
+	async function remove_tag(g_tag: TagInterface) {
 		// find tag by id
 		const i_tag = a_tags.findIndex(g => g.index === g_tag.index);
 

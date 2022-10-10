@@ -169,7 +169,7 @@ export function deserialize_private_key(kn_xor: SensitiveBytes, sx_otp: string):
  * @param s_text text to encode
  * @returns UTF-8 encoded Uint8Array
  */
- export function text_to_buffer(s_text: string): Uint8Array {
+export function text_to_buffer(s_text: string): Uint8Array {
 	return new TextEncoder().encode(s_text);
 }
 

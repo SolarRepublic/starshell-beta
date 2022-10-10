@@ -12,3 +12,4 @@ export type Tag = Resource.New<{
 }>;
 
 export type TagPath = Resource.Path<Tag>;
+export type TagInterface = Tag['interface'];

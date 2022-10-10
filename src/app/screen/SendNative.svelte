@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type {Account, AccountPath} from '#/meta/account';
+	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
 	import type {Bech32} from '#/meta/chain';
-	import type {Contact} from '#/meta/contact';
+	import type {Contact, ContactInterface} from '#/meta/contact';
 	import {NB_MAX_MEMO} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
@@ -14,7 +14,7 @@
 	import {getContext} from 'svelte';
 	import {syserr} from '../common';
 	import {ThreadId} from '../def';
-	import {yw_chain, yw_navigator, yw_network_active, yw_network_ref} from '../mem';
+	import {yw_chain, yw_navigator, yw_network, yw_provider_ref} from '../mem';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Address from '../ui/Address.svelte';
 	import Field from '../ui/Field.svelte';
@@ -37,7 +37,7 @@
 	const g_coin = $yw_chain.coins[si_coin];
 
 	export let accountRef: AccountPath;
-	let g_account: Account['interface'];
+	let g_account: AccountInterface;
 	let sa_sender: Bech32;
 
 	export let amount: string;
@@ -54,7 +54,7 @@
 
 	let s_recipient_title = '';
 
-	let g_contact: Contact['interface'] | null;
+	let g_contact: ContactInterface | null;
 
 	export let fee: string;
 	const s_fee = fee;
@@ -109,7 +109,7 @@
 			try {
 				({
 					pubkey: atu8_pubkey_65,
-				} = await $yw_network_active.e2eInfoFor(sa_recipient));
+				} = await $yw_network.e2eInfoFor(sa_recipient));
 			}
 			catch(e_info) {
 				throw syserr({
@@ -123,7 +123,7 @@
 			try {
 				({
 					sequence: s_sequence,
-				} = await $yw_network_active.e2eInfoFor(sa_sender));
+				} = await $yw_network.e2eInfoFor(sa_sender));
 			}
 			catch(e_info) {
 				throw syserr({
@@ -134,7 +134,7 @@
 
 			const atu8_nonce = await ecdhNonce(`${BigInt(s_sequence) + 1n}`, `${xg_limit}`);
 
-			const atu8_ciphertext = await $yw_network_active.ecdhEncrypt(atu8_pubkey_65, atu8_plaintext, atu8_nonce);
+			const atu8_ciphertext = await $yw_network.ecdhEncrypt(atu8_pubkey_65, atu8_plaintext, atu8_nonce);
 
 			s_memo_publish = s_memo_encrypted = compileMemoPlaintext(atu8_ciphertext);
 
@@ -143,7 +143,7 @@
 				if(!s_memo_encrypted.startsWith('🔒1')) throw new Error(`Failed to verify encrypted memo prefix`);
 				const atu8_published = base93_to_buffer(s_memo_encrypted.slice(3));
 
-				const atu8_decrypted = await $yw_network_active.ecdhDecrypt(atu8_pubkey_65, atu8_published, atu8_nonce);
+				const atu8_decrypted = await $yw_network.ecdhDecrypt(atu8_pubkey_65, atu8_published, atu8_nonce);
 
 				const s_memo_decrypted = buffer_to_text(atu8_decrypted).replace(/\0+$/, '');
 				if(s_memo_decrypted !== memoPlaintext) {
@@ -172,7 +172,7 @@
 		void d_service.sendMessage({
 			type: 'bankSend',
 			value: {
-				network: $yw_network_ref,
+				provider: $yw_provider_ref,
 				sender: sa_sender,
 				recipient: sa_recipient,
 				coin: si_coin,

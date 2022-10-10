@@ -11,11 +11,11 @@ import type { Resource } from '#/meta/resource';
 export const Tags = create_store_class({
 	store: SI_STORE_TAGS,
 	class: class TagsI extends WritableStore<typeof SI_STORE_TAGS> {
-		static tagPathFor(g_tag: Tag['interface']): TagPath {
+		static tagPathFor(g_tag: TagInterface): TagPath {
 			return `/tag.${g_tag.index}`;
 		}
 
-		getTag(i_tag: number): Tag['interface'] | null {
+		getTag(i_tag: number): TagInterface | null {
 			return this._w_cache.registry[i_tag] ?? null;
 		}
 
@@ -23,7 +23,7 @@ export const Tags = create_store_class({
 			return this._w_cache.map[p_resource] ?? [];
 		}
 
-		getTagsFor(p_resource: Resource.Path): Tag['interface'][] {
+		getTagsFor(p_resource: Resource.Path): TagInterface[] {
 			return this.getIdsFor(p_resource).map(i_tag => this.getTag(i_tag)!).filter(g => !!g);
 		}
 
@@ -35,7 +35,7 @@ export const Tags = create_store_class({
 			return this.save();
 		}
 
-		setTagsFor(p_resource: Resource.Path, a_tags: Tag['interface'][]): Promise<void> {
+		setTagsFor(p_resource: Resource.Path, a_tags: TagInterface[]): Promise<void> {
 			return this.setIdsFor(p_resource, a_tags.map(g => g.index));
 		}
 	},

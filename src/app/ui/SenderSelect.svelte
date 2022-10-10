@@ -1,9 +1,11 @@
 <script lang="ts">
 	import {yw_account_ref} from '##/mem';
-	import type {Account, AccountPath} from '#/meta/account';
+	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
 	import {Accounts} from '#/store/accounts';
 	import {oderac} from '#/util/belt';
+	import { createEventDispatcher } from 'svelte';
 
+	const dispatch = createEventDispatcher();
 
 	import StarSelect, {type SelectOption} from './StarSelect.svelte';
 
@@ -11,7 +13,7 @@
 	// const p_account = accountRef;
 
 
-	const mk_account = (p_acc: AccountPath, g_acc: Account['interface']) => ({
+	const mk_account = (p_acc: AccountPath, g_acc: AccountInterface) => ({
 		value: p_acc,
 		primary: g_acc.name,
 		secondary: g_acc.extra?.total_fiat_cache || '(?)',
@@ -32,6 +34,10 @@
 
 		a_options = oderac(ks_accounts.raw, mk_account);
 		g_selected = a_options.find(g => accountRef === g.value)!;
+
+		setTimeout(() => {
+			dispatch('load');
+		}, 5);
 
 		return a_options;
 	}

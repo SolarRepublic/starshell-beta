@@ -5,9 +5,9 @@
 
 	import SX_ICON_INCREMENT from '#/icon/expand_less.svg?raw';
 	import SX_ICON_DECREMENT from '#/icon/expand_more.svg?raw';
-	import type { Entity, EntityPath, NativeCoin } from '#/meta/chain';
+	import type { Entity, EntityPath, CoinInfo } from '#/meta/chain';
 	import { Entities } from '#/store/entities';
-	import { yw_account, yw_chain, yw_network_active, yw_owner } from '../mem';
+	import { yw_account, yw_chain, yw_network, yw_owner } from '../mem';
 	import { XT_MINUTES } from '#/share/constants';
 	import { Chains } from '#/store/chains';
 	import { format_amount } from '#/util/format';
@@ -25,7 +25,7 @@
 	 */
 	export let bufferMax: BigNumber | number = 0;
 
-	let g_asset: NativeCoin | null;
+	let g_asset: CoinInfo | null;
 
 	let yg_max: BigNumber = YG_ZERO;
 	let yg_step: BigNumber = YG_ZERO;
@@ -67,13 +67,13 @@
 
 			g_asset = $yw_chain.coins[si_coin];
 
-			const g_cached = $yw_network_active.cachedBalance($yw_owner, si_coin);
+			const g_cached = $yw_network.cachedBalance($yw_owner, si_coin);
 
 			if(g_cached && g_cached.timestamp > Date.now() - (5 * XT_MINUTES)) {
 				yg_max = new BigNumber(g_cached.data.amount).shiftedBy(-g_asset.decimals).minus(new BigNumber(bufferMax));
 			}
 
-			const g_bundle = await $yw_network_active.bankBalance($yw_owner, si_coin);
+			const g_bundle = await $yw_network.bankBalance($yw_owner, si_coin);
 
 			// still on same coin
 			if(assetRef === g_bundle.holding) {

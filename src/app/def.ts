@@ -3,7 +3,7 @@ import RegisterSvelte from './screen/Register.svelte';
 import HoldingsHomeSvelte from './screen/HoldingsHome.svelte';
 import AccountHomeSvelte from './screen/AccountsHome.svelte';
 import ContactsHomeSvelte from './screen/ContactsHome.svelte';
-import NetworksHomeSvelte from './screen/NetworksHome.svelte';
+import ProvidersHomeSvelte from './screen/ProvidersHome.svelte';
 import HistoryHomeSvelte from './screen/HistoryHome.svelte';
 import AppsHomeSvelte from './screen/AppsHome.svelte';
 
@@ -15,7 +15,7 @@ export enum ThreadId {
 	NFTS='nfts',
 	CONTACTS='contacts',
 	HISTORY='history',
-	NETWORKS='networks',
+	PROVIDERS='providers',
 	ACCOUNTS='accounts',
 
 	/**
@@ -35,7 +35,7 @@ export const H_THREADS = {
 	// [ThreadId.NFTS]: Gallery,
 	[ThreadId.CONTACTS]: ContactsHomeSvelte,
 	[ThreadId.HISTORY]: HistoryHomeSvelte,
-	[ThreadId.NETWORKS]: NetworksHomeSvelte,
+	[ThreadId.PROVIDERS]: ProvidersHomeSvelte,
 	[ThreadId.ACCOUNTS]: AccountHomeSvelte,
 	// // [ThreadId.Tags]: Tags,
 	[ThreadId.APPS]: AppsHomeSvelte,

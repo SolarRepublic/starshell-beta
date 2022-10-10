@@ -42,6 +42,11 @@ export function objects_might_differ(h_a: PlainObject, h_b: PlainObject): boolea
  */
 export const is_dict = (z: unknown): z is JsonObject => z? 'object' === typeof z && !Array.isArray(z): false;
 
+/**
+ * More advanced test for whether an ES object is a plain object (dict) or not
+ */
+export const is_dict_es = (z: unknown): z is JsonObject => z? 'object' === typeof z && Object === z.constructor: false;
+
 
 /**
  * Fold array into an object
@@ -286,6 +291,58 @@ export function microtask(): Promise<void> {
 			fk_resolve();
 		});
 	});
+}
+
+
+export function defer<w_return extends any=any>(): [Promise<w_return>, (w_return: w_return | null, e_reject?: Error) => void] {
+	let fk_resolve: (w_return: w_return) => void;
+	let fe_reject: (e_reject: Error) => void;
+
+	const dp_promise = new Promise<w_return>((fk, fe) => {
+		fk_resolve = fk;
+		fe_reject = fe;
+	});
+
+	return [dp_promise, (w_return: w_return, e_reject?: Error) => {
+		if(e_reject) {
+			fe_reject(e_reject);
+		}
+		else {
+			fk_resolve(w_return);
+		}
+	}];
+}
+
+export function defer_many<
+	h_input extends Dict<unknown>,
+>(h_input: h_input): {
+	promises: {
+		[si_each in keyof typeof h_input]: Promise<typeof h_input[si_each]>;
+	};
+	resolve(h_resolves: {
+		[si_each in keyof typeof h_input]?: typeof h_input[si_each];
+	}): void;
+	reject(h_rejects: {
+		[si_each in keyof typeof h_input]?: Error;
+	}): void;
+} {
+	const h_mapped = fodemtv(h_input, () => defer());
+
+	return {
+		promises: fodemtv(h_mapped, a_defer => a_defer[0]) as {
+			[si_each in keyof typeof h_input]: Promise<typeof h_input[si_each]>;
+		},
+		resolve(h_resolves) {
+			for(const si_key in h_resolves) {
+				h_mapped[si_key]?.[1](h_resolves[si_key]);
+			}
+		},
+		reject(h_rejects) {
+			for(const si_key in h_rejects) {
+				h_mapped[si_key]?.[1](void 0, h_rejects[si_key]);
+			}
+		},
+	};
 }
 
 

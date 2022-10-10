@@ -2,14 +2,14 @@
 	export interface ContactOption {
 		value: Chain.Bech32String;
 		label: string;
-		contact: Contact['interface'];
+		contact: ContactInterface;
 	}
 </script>
 
 <script lang="ts">
 	import {yw_chain, yw_chain_namespace} from '##/mem';
 	import type { Chain } from '#/meta/chain';
-	import type { Contact, ContactPath } from '#/meta/contact';
+	import type { Contact, ContactInterface, ContactPath } from '#/meta/contact';
 	import { Agents } from '#/store/agents';
 	import { Chains } from '#/store/chains';
 	import { subscribe_store } from '#/store/_base';
@@ -21,8 +21,8 @@
 	/**
 	 * Resource path to the contact
 	 */
-	export let contact: Contact['interface'] | null = null;
-	let g_contact: Contact['interface'] = contact!;
+	export let contact: ContactInterface | null = null;
+	let g_contact: ContactInterface = contact!;
 
 	/**
 	 * Manually entered address
@@ -30,7 +30,7 @@
 	export let address: Chain.Bech32String = '';
 
 	// // resolved contact
-	// let g_contact: Contact['interface'];
+	// let g_contact: ContactInterface;
 
 	// load contact def from store
 	async function reload_contacts() {

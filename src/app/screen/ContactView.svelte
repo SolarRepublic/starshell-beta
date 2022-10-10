@@ -1,6 +1,6 @@
 <script lang="ts">
 	import {yw_account, yw_chain} from '##/mem';
-	import type { Contact, ContactPath } from '#/meta/contact';
+	import type { Contact, ContactInterface, ContactPath } from '#/meta/contact';
 	import { Agents } from '#/store/agents';
 	import { Chains } from '#/store/chains';
 	import { getContext } from 'svelte';
@@ -17,7 +17,7 @@
 	export let contactRef: ContactPath;
 	const p_contact = contactRef;
 
-	let g_contact: Contact['interface'];
+	let g_contact: ContactInterface;
 	void Agents.getContact(p_contact).then(g => g_contact = g!);
 
 	$: sa_contact = g_contact? Chains.transformBech32(g_contact.address, $yw_chain): '';

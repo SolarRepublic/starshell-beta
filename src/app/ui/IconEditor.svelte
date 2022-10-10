@@ -1,8 +1,8 @@
 <script lang="ts">
 	import SX_ICON_IMAGE from '#/icon/image.svg?raw';
-	import type { Pfp, PfpTarget } from '#/meta/pfp';
-	import { Pfps } from '#/store/pfps';
-	import { F_NOOP } from '#/util/belt';
+	import type {Pfp, PfpInterface, PfpTarget} from '#/meta/pfp';
+	import {Pfps} from '#/store/pfps';
+	import {F_NOOP} from '#/util/belt';
 
 	import PfpDisplay from './PfpDisplay.svelte';
 	
@@ -15,7 +15,7 @@
 	export let intent: 'token' | 'person' = 'token';
 	const si_intent = intent;
 
-	let g_pfp: Pfp['interface'];
+	let g_pfp: PfpInterface;
 
 	(async() => {
 		if(p_pfp) {

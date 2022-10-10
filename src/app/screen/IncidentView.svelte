@@ -8,13 +8,13 @@
 	
 	import {parse_coin_amount, to_fiat} from '#/chain/coin';
 	import type {Chain, ChainInterface, ChainPath} from '#/meta/chain';
-	import type {Incident, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
+	import type {Incident, IncidentInterface, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
 	import {R_TRANSFER_AMOUNT} from '#/share/constants';
 	import {Chains} from '#/store/chains';
 	import {
 		type ActiveNetwork,
-		Networks,
-	} from '#/store/networks';
+		Providers,
+	} from '#/store/providers';
 	import type {JsonObject, JsonValue} from '#/meta/belt';
 	import {ode, oderac} from '#/util/belt';
 	import {buffer_to_base64} from '#/util/data';
@@ -33,6 +33,7 @@
 	import {Accounts} from '#/store/accounts';
 	import Field from '../ui/Field.svelte';
 	import {load_flow_context} from '../svelte';
+    import type { FieldConfig } from '../ui/Fields.svelte';
 
 	const {
 		completed,
@@ -79,7 +80,7 @@
 	const f_send_recv = (g_data: TxPending | TxConfirmed | TxSynced) => [
 		...'string' === typeof g_data['memo']? [{
 			type: 'memo',
-			value: g_data['memo'],
+			text: g_data['memo'],
 		} as const]: [],
 		...g_data['hash'] && [{
 			type: 'links',
@@ -97,7 +98,7 @@
 				];
 			})(),
 		}],
-	] as SimpleField[];
+	] as FieldConfig[];
 
 	let s_fiat_amount = '';
 
@@ -340,7 +341,7 @@
 		}),
 	};
 
-	let g_incident!: Incident['interface'];
+	let g_incident!: IncidentInterface;
 	let g_chain: ChainInterface | null;
 	let k_network: ActiveNetwork;
 
@@ -355,7 +356,7 @@
 		g_chain = g_data['chain']? await Chains.at(g_data['chain'] as ChainPath): null;
 
 		if(g_chain) {
-			k_network = await Networks.activateDefaultFor(g_chain);
+			k_network = await Providers.activateDefaultFor(g_chain);
 		}
 
 		s_time = format_time(g_incident.time);

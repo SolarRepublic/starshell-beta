@@ -3,8 +3,8 @@ import type {ChainPath} from './chain';
 import type {Resource} from './resource';
 
 
-export type Network = Resource.New<{
-	segments: [`network.${string}`];
+export type Provider = Resource.New<{
+	segments: [`provider.${string}`];
 	interface: [{
 		chain: ChainPath;
 		grpcWebUrl: string;
@@ -12,5 +12,5 @@ export type Network = Resource.New<{
 	}, Nameable, Pfpable];
 }>;
 
-export type NetworkPath = Resource.Path<Network>;
-export type NetworkInterface = Network['interface'];
+export type ProviderPath = Resource.Path<Provider>;
+export type ProviderInterface = Provider['interface'];

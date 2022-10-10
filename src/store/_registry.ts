@@ -22,10 +22,10 @@ import {
 	SI_STORE_ENTITIES,
 	SI_STORE_PFPS,
 	SI_STORE_WEB_APIS,
-	SI_STORE_NETWORKS,
+	SI_STORE_PROVIDERS,
 	SI_STORE_EVENTS,
 } from '#/share/constants';
-import {Networks} from './networks';
+import {Providers} from './providers';
 import {Incidents} from './incidents';
 
 export const H_STORE_REGISTRY = {
@@ -38,7 +38,7 @@ export const H_STORE_REGISTRY = {
 	[SI_STORE_PFPS]: Pfps,
 	[SI_STORE_CHAINS]: Chains,
 	[SI_STORE_EVENTS]: Incidents,
-	[SI_STORE_NETWORKS]: Networks,
+	[SI_STORE_PROVIDERS]: Providers,
 	[SI_STORE_ENTITIES]: Entities,
 	[SI_STORE_WEB_APIS]: WebApis,
 } as const;

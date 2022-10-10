@@ -1,13 +1,13 @@
 <script lang="ts">
-	import type { PfpTarget } from '#/meta/pfp';
+	import type {PfpTarget} from '#/meta/pfp';
 
 	import Put from './Put.svelte';
-	import { Pfps } from '#/store/pfps';
-	import { Medias } from '#/store/medias';
+	import {Pfps} from '#/store/pfps';
+	import {Medias} from '#/store/medias';
 	import {yw_store_medias} from '../mem';
-	import type { Nameable, Pfpable } from '#/meta/able';
-	import { F_NOOP } from '#/util/belt';
-	import { createEventDispatcher } from 'svelte';
+	import type {Nameable, Pfpable} from '#/meta/able';
+	import {F_NOOP} from '#/util/belt';
+	import {createEventDispatcher} from 'svelte';
 
 	const dispatch = createEventDispatcher();
 
@@ -66,7 +66,7 @@
 		const ks_medias = $yw_store_medias || await Medias.read();
 
 		// load pfp by ref
-		const dm_pfp = await Pfps.load(ref as PfpTarget, {
+		const dm_pfp = await Pfps.load(ref!, {
 			alt: s_name,
 			dim: x_dim,
 			medias: ks_medias,

@@ -214,3 +214,17 @@ export function format_time(xt_timestamp: number): string {
 
 	return `${s_out} at ${g_then.hour}:${g_then.minute} ${g_then.dayPeriod}`;
 }
+
+
+export function snake_to_camel(s_snake: string): string {
+	const a_words = s_snake.split('_');
+	return [a_words[0], ...a_words.slice(1).map(s => s[0].toUpperCase()+s.slice(1))].join('');
+}
+
+export function camel_to_snake(s_camel: string): string {
+	return s_camel.replace(/([a-z0-9])([A-Z]+)/g, (_ignore, s_before, s_cap) => `${s_before}_${s_cap}`).toLowerCase();
+}
+
+export function phrase_to_hyphenated(s_phrase: string): string {
+	return s_phrase.toLowerCase().split(/\s+/g).join('-');
+}

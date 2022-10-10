@@ -151,15 +151,15 @@ export const Entities = create_store_class({
 
 		// static pathFrom<
 		// 	g_res extends Tag,
-		// >(g_res: Tag['interface']): Resource.Path<g_res> {
+		// >(g_res: TagInterface): Resource.Path<g_res> {
 		// 	return EntitiesI.pathFor(g_res.host, g_res.scheme);
 		// }
 
-		// static get(s_host: string, s_scheme: TagSchemeKey): Promise<null | Tag['interface']> {
+		// static get(s_host: string, s_scheme: TagSchemeKey): Promise<null | TagInterface> {
 		// 	return Entities.open(ks_ress => ks_ress.get(s_host, s_scheme));
 		// }
 
-		// get(s_host: string, s_scheme: TagSchemeKey): Tag['interface'] | null {
+		// get(s_host: string, s_scheme: TagSchemeKey): TagInterface | null {
 		// 	// prepare res path
 		// 	const p_res = EntitiesI.pathFor(s_host, s_scheme);
 
@@ -168,7 +168,7 @@ export const Entities = create_store_class({
 		// }
 
 
-		// async put(g_res: Tag['interface']): Promise<void> {
+		// async put(g_res: TagInterface): Promise<void> {
 		// 	// prepare res path
 		// 	const p_res = EntitiesI.pathFor(g_res.host, g_res.scheme);
 

@@ -1,21 +1,22 @@
-import type {Chain, NativeCoin} from '#/meta/chain';
+import type {Chain, ChainInterface, CoinInfo} from '#/meta/chain';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
 import BigNumber from 'bignumber.js';
 import {CoinGecko} from '#/store/web-apis';
 import { R_TRANSFER_AMOUNT } from '#/share/constants';
 import { ode } from '#/util/belt';
+import { format_amount } from '#/util/format';
 
-export function as_amount(g_balance: Coin, g_coin: NativeCoin): string {
-	const s_norm = g_balance.amount.padStart(g_coin.decimals + 2, '0');
+export function as_amount(g_coin: Coin, g_info: CoinInfo): string {
+	const s_norm = g_coin.amount.padStart(g_info.decimals + 2, '0');
 
-	return s_norm.slice(0, -g_coin.decimals).replace(/^0+/, '0')+'.'+s_norm.slice(-g_coin.decimals);
+	return s_norm.slice(0, -g_info.decimals).replace(/^0+/, '0')+'.'+s_norm.slice(-g_info.decimals);
 
 	// // g_coin.decimals
 	// return g_balance.amount;
 }
 
-export async function to_fiat(g_balance: Coin, g_coin: NativeCoin, si_versus='usd'): Promise<BigNumber> {
+export async function to_fiat(g_balance: Coin, g_coin: CoinInfo, si_versus='usd'): Promise<BigNumber> {
 	// zero
 	if('0' === g_balance.amount) return new BigNumber(0);
 
@@ -50,7 +51,7 @@ export interface CoinFormats {
 	worth: number;
 }
 
-export async function coin_formats(g_balance: Coin, g_coin: NativeCoin, si_versus='usd'): Promise<CoinFormats> {
+export async function coin_formats(g_balance: Coin, g_coin: CoinInfo, si_versus='usd'): Promise<CoinFormats> {
 	// lookup price
 	const si_gecko = g_coin.extra!.coingecko_id;
 	const g_versus = await CoinGecko.coinsVersus([si_gecko], si_versus);
@@ -69,10 +70,12 @@ export async function coin_formats(g_balance: Coin, g_coin: NativeCoin, si_versu
 }
 
 
+
+
 export class CoinParseError extends Error {}
 export class DenomNotFoundError extends Error {}
 
-export function parse_coin_amount(s_input: string, g_chain: ChainInterface): [bigint, string, NativeCoin] {
+export function parse_coin_amount(s_input: string, g_chain: ChainInterface): [bigint, string, CoinInfo] {
 	// attempt to parse amount
 	const m_amount = R_TRANSFER_AMOUNT.exec(s_input);
 	if(!m_amount) {
@@ -96,3 +99,89 @@ export function parse_coin_amount(s_input: string, g_chain: ChainInterface): [bi
 		throw new DenomNotFoundError(`Did not find "${si_denom}" denomination in ${g_chain.name}`);
 	}
 }
+
+/**
+ * Convenience function wraps getting info from Coin by asserting that the given Coin is defined in the chain
+ */
+function coin_info(g_coin: Coin, g_chain: ChainInterface): [string, CoinInfo] {
+	// find coin's info
+	const a_info = Coins.infoFromDenom(g_coin.denom, g_chain);
+	if(!a_info) {
+		throw new Error(`No coin info found for '${g_coin.denom}'`);
+	}
+
+	return a_info;
+}
+
+export const Coins = {
+	infoFromDenom(si_denom: string, g_chain: ChainInterface): [string, CoinInfo] | null {
+		for(const [si_coin, g_coin] of ode(g_chain.coins)) {
+			if(si_denom === g_coin.denom) {
+				return [si_coin, g_coin];
+			}
+		}
+
+		return null;
+	},
+
+	idFromDenom(si_denom: string, g_chain: ChainInterface): string | null {
+		return Coins.infoFromDenom(si_denom, g_chain)?.[0] || null;
+	},
+
+
+	detail(g_coin: Coin, g_chain: ChainInterface): {
+		id: string;
+		info: CoinInfo;
+		balance: BigNumber;
+	} {
+		const [si_coin, g_info] = coin_info(g_coin, g_chain);
+		return {
+			id: si_coin,
+			info: g_info,
+			balance: new BigNumber(g_coin.amount).shiftedBy(-g_info.decimals),
+		};
+	},
+
+	/**
+	 * Extract the balance amount as a BigNumber for the given Coin
+	 */
+	balance(g_coin: Coin, g_chain: ChainInterface): BigNumber {
+		return Coins.detail(g_coin, g_chain).balance;
+	},
+
+	/**
+	 * Create a human-readable amount summary for the given Coin
+	 */
+	summarizeAmount(g_coin: Coin, g_chain: ChainInterface, b_imprecise=false): string {
+		// lookup coin's id
+		const si_coin = Coins.idFromDenom(g_coin.denom, g_chain);
+
+		// convert balance to amount
+		const x_amount = Coins.balance(g_coin, g_chain).toNumber();
+
+		// 
+		return `${format_amount(x_amount, b_imprecise)} ${si_coin!}`;
+	},
+
+	async displayInfo(g_coin: Coin, g_chain: ChainInterface, si_versus='usd'): Promise<CoinFormats> {
+		const [, g_info] = coin_info(g_coin, g_chain);
+
+		// lookup price
+		const si_gecko = g_info.extra!.coingecko_id;
+		const g_versus = await CoinGecko.coinsVersus([si_gecko], si_versus);
+
+		// get fiat value
+		const x_worth = g_versus[si_gecko];
+
+		// multiply by holdings to get balance
+		const yg_balance = Coins.balance(g_coin, g_chain).times(x_worth);
+
+		// parse balance and multiply by value
+		return {
+			versus: si_versus,
+			balance: yg_balance,
+			fiat: yg_balance.times(x_worth).toNumber(),
+			worth: x_worth,
+		};
+	},
+};

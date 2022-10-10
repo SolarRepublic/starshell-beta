@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en"> 
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<meta name="application-name" content="StarShell Demo">
+
+	<!-- <link rel="icon" href="/media/favicon-192.png"> -->
+	<link rel="icon" type="image/svg+xml" href="/media/logo.svg">
+
+	<title>StarShell Wallet developer sample page</title>
+
+
+	<link rel="prefetch" as="image" href="/media/secret-usdc-eth.svg" data-caip-10="cosmos:pulsar-2:secret1h6z05y90gwm4sqxzhz4pkyp36cna9xtp7q0urv">
+
+	<link rel="prefetch" as="image" href="/media/secret-scrt.svg" data-caip-10="cosmos:pulsar-2:secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek">
+
+	<!-- <link rel="prefetch" as="image" href="/media/stashh.png" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx"> -->
+
+	<!-- <link rel="prefetch" as="image" href="/media/stashh.svg" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9xxtzx"> -->
+
+	<link rel="prefetch" as="image" href="/media/gamepad-solid.svg" data-caip-10="cosmos:pulsar-2:secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx">
+
+	<!-- <link rel="prefetch" as="image" href="/media/trophy-solid.svg" data-caip-10="cosmos:pulsar-2:secret1vux78y49ehf29kf7pjujvwsa2td6dyyxkkslne"> -->
+
+	<script src="/node_modules/secretjs/dist/browser.js"></script>
+
+	<script type="application/toml" data-whip-2>
+		[contracts.sSCRT]
+		chain = "cosmos:secret-4"
+		address = "secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek"
+		name = "Secret SCRT"
+		[contracts.sSCRT.interfaces.snip20]
+		symbol = "sSCRT"
+
+		[contracts.sUSDC]
+		chain = "cosmos:secret-4"
+		address = "secret1h6z05y90gwm4sqxzhz4pkyp36cna9xtp7q0urv"
+		name = "Secret USDC (ETH)"
+		[contracts.sSCRT.interfaces.snip20]
+		symbol = "sUSDC"
+
+		[contracts.demo]
+		chain = "cosmos:pulsar-2"
+		address = "secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx"
+		name = "Balancer Contract"
+
+	</script>
+
+	<script type="module">
+		(async() => {
+			console.debug('enabling chain');
+			await window.keplr.enable('pulsar-2');
+
+			const y_signer = keplr.getOfflineSignerOnlyAmino('pulsar-2');
+			
+			console.debug('getting accounts');
+			const [g_key] = await y_signer.getAccounts('pulsar-2');
+			console.log(g_key);
+
+
+			const sa_owner = g_key.address;
+			const sa_contact_supdoggie = 'secret10mtm48ul5mcgjj4hm0a4j3td4l5pt590erl3k9';
+			const sa_faucet = 'secret1x0dh57m99fg2vwg49qxpuadhq4dz3gsvn3nq2r';
+
+			const sa_contract = 'secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx';
+
+			const y_client = await secretjs.SecretNetworkClient.create({
+				grpcWebUrl: 'https://grpc.testnet.secretsaturn.net',
+				chainId: 'pulsar-2',
+				wallet: y_signer,
+				walletAddress: sa_owner,
+				encryptionUtils: keplr.getEnigmaUtils('pulsar-2'),
+			});
+
+			await y_client.tx.gov.vote({
+				proposalId: '1',
+				voter: sa_owner,
+				options: [{
+					option: 2,
+					weight: 1,
+				}],
+			});
+
+// 			await y_client.tx.gov.submitProposal({
+// 				proposer: sa_owner,
+// 				type: 'ParameterChangeProposal',
+// 				initialDeposit: [{amount: '100000000', denom: 'uscrt'}],
+// 				content: {
+// 					title: 'Increase max gas per block from 6M to 8M',
+// 					description: `
+// # Markdown Proposal Demo
+
+// **You** can use this to generate markdown proposals.
+
+// \`\`\`js
+// let example = 'string';
+// callback(example).property = true;
+// \`\`\`
+
+// ## h2
+// And some [links](http://google.com/).
+
+// ### h3
+// 					`,
+// 					changes: [
+// 						{
+// 							subspace: 'baseapp',
+// 							key: 'BlockParams',
+// 							value: `{ "max_bytes": "22020096", "max_gas": "8000000" }`,
+// 						},
+// 					],
+// 				},
+// 			}, {
+// 				gasLimit: 50_000,
+// 			});
+
+			// await y_client.tx.gov.voteWeighted({
+			// 	voter: sa_owner,
+			// 	proposalId: '69',
+			// 	options: [
+			// 		{
+			// 			weight: 0.7,
+			// 			option: 3,
+			// 		},
+			// 		{
+			// 			weight: 0.3,
+			// 			option: 2,
+			// 		},
+			// 	],
+			// }, {
+			// 	gasLimit: 50_000,
+			// });
+
+			// await y_client.tx.bank.multiSend({
+			// 	inputs: [
+			// 		{
+			// 			address: sa_owner,
+			// 			coins: [{
+			// 				denom: 'uscrt',
+			// 				amount: '2000000',
+			// 			}],
+			// 		},
+			// 		{
+			// 			address: sa_faucet,
+			// 			coins: [{
+			// 				denom: 'uscrt',
+			// 				amount: '51000000',
+			// 			}],
+			// 		},
+			// 	],
+			// 	outputs: [
+			// 		{
+			// 			address: sa_contact_supdoggie,
+			// 			coins: [{
+			// 				denom: 'uscrt',
+			// 				amount: '53000000',
+			// 			}],
+			// 		}
+			// 	],
+			// }, {
+			// 	gasLimit: 20_000,
+			// });
+
+			// await y_client.tx.bank.send({
+			// 	fromAddress: sa_owner,
+			// 	toAddress: sa_contract,
+			// 	amount: [{
+			// 		amount: '5100000',
+			// 		denom: 'uscrt',
+			// 	}],
+			// }, {
+			// 	gasLimit: 20_000,
+			// });
+
+			console.log(g_response);
+
+			// await y_signer.signAmino(sa_owner, {
+			// 	chain_id: 'pulsar-2',
+			// 		account_number: '0',
+			// 		sequence: '0',
+			// 		fee: {
+			// 			gas: '1',
+			// 			amount: [{denom: 'uscrt', amount: '0',},],
+			// 		},
+			// 		msgs: [
+			// 			{
+			// 				type: 'cosmos-sdk/MsgBankSend',
+			// 				value: {
+			// 					from_address: sa_owner,
+			// 					to_address: sa_contract,
+			// 					coins: [
+			// 						{
+			// 							amount: '51000000',
+			// 							denom: 'uscrt',
+			// 						},
+			// 					],
+			// 				},
+			// 			},
+			// 		],
+			// 		memo: '',
+			// });
+		})();
+	</script>
+<body>
+	<style>
+		body {
+			background-color: black;
+		}
+	</style>
+
+</body>

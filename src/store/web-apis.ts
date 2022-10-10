@@ -10,7 +10,7 @@ import type {ResponseCache, WebApi, WebApiPath} from '#/meta/web-api';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
 import type {Values} from '#/meta/belt';
 import type {Dict, JsonObject} from '#/meta/belt';
-import {ode, oderac} from '#/util/belt';
+import {fodemtv, ode, oderac} from '#/util/belt';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 export const A_COINGECKO_VS = [
@@ -89,72 +89,78 @@ const coingecko_url = (a_coins: string[], si_versus: CoinGeckoFiat) => 'https://
 type CoinGeckoSimplePrice<
 	si_coin extends string=string,
 	si_versus extends CoinGeckoFiat=CoinGeckoFiat,
-> = Record<si_coin, Merge<{
+> = Record<si_coin, {
 	[si_v in si_versus]: number;
-}, {
-	last_updated_at: number;
-}>>;
+}>;
+
+const SI_CACHE_COINGECKO = 'coingecko';
+
+
+async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Promise<Response> {
+	// open cache
+	const d_cache = await caches.open(SI_CACHE_COINGECKO);
+
+	// attempt to match cache
+	const d_res = await d_cache.match(p_url);
+
+	// cache hit
+	CACHE_HIT:
+	if(d_res) {
+		// check cache info
+		const sx_cache_info = sessionStorage.getItem(`@cache:${p_url}`);
+
+		// non-existant, don't trust
+		if(!sx_cache_info) break CACHE_HIT;
+
+		// parse
+		let g_cache_info: {time: number};
+		try {
+			g_cache_info = JSON.parse(sx_cache_info);
+		}
+		catch(e_parse) {
+			break CACHE_HIT;
+		}
+
+		// invalid type
+		if('number' !== typeof g_cache_info?.time) break CACHE_HIT;
+
+		// parse cache time
+		const xt_cache = +g_cache_info.time;
+
+		// expired cache
+		if(Date.now() - xt_cache > xt_max_age) break CACHE_HIT;
+
+		// cache still valid, use it
+		return d_res;
+	}
+
+	// prevent infinite loop; give up on cache and use fetch directly
+	if(c_retries) {
+		return await fetch(p_url);
+	}
+
+	// make new request and add to cache
+	await d_cache.add(p_url);
+
+	// save time of cache
+	sessionStorage.setItem(`@cache:${p_url}`, JSON.stringify({
+		time: Date.now(),
+	}));
+
+	// retry
+	return await cached_fetch(p_url, xt_max_age, c_retries+1);
+}
 
 export const CoinGecko = {
 	async coinsVersus(a_coins: string[], si_versus: CoinGeckoFiat='usd', xt_max_age=5*XT_MINUTES): Promise<Dict<number>> {
-		// map each coin to request path
-		const a_apis = a_coins.map(si => WebApis.pathFor('GET', coingecko_url([si], si_versus)));
-
-		// read from store
-		const ks_apis = await WebApis.read();
-
-		// prep out map
-		const h_out: Dict<number> = {};
-
-		// try to use cache
-		if(xt_max_age > 0) {
-			// expiry cutoff
-			const xt_cutoff = Date.now() - xt_max_age;
-
-			// if cache is still valid
-			let b_cache_valid = true;
-
-			// each coin being requested
-			for(let i_coin=0; i_coin<a_coins.length; i_coin++) {
-				const g_api = ks_apis.at(a_apis[i_coin]);
-
-				// not yet stale
-				if(g_api && g_api.time > xt_cutoff) {
-					const si_coin = a_coins[i_coin];
-					h_out[si_coin] = (g_api.response.cache as CoinGeckoSimplePrice)[si_coin][si_versus]!;
-				}
-				// encountered stale entry
-				else {
-					b_cache_valid = false;
-					break;
-				}
-			}
-
-			// cache is still valid; return responses
-			if(b_cache_valid) {
-				return h_out;
-			}
-		}
-
 		// fetch from api
-		const d_res = await fetch(coingecko_url(a_coins, si_versus));
+		const d_res = await cached_fetch(coingecko_url(a_coins, si_versus), xt_max_age);
 
 		// load response
 		const h_response = await d_res.json() as CoinGeckoSimplePrice;
 
-		// ref raw cache
-		const h_cache = ks_apis.raw;
-
-		// cache datetime
-		const xt_now = Date.now();
-		for(const [si_coin, g_coin] of ode(h_response)) {
-			const g_cache = h_cache[si_coin] = h_cache[si_coin] || {};
-			g_cache.response = g_coin;
-			g_cache.time = xt_now;
-			h_out[si_coin] = g_coin[si_versus]!;
-		}
-
-		return h_out;
+		// transform by selecting the versus coin
+		return fodemtv(h_response, g_coin => g_coin[si_versus]);
 	},
 };
 

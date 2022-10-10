@@ -16,9 +16,9 @@
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
 	import { Header, Screen, type Page } from './_screens';
 	import Portrait, {type Actions} from '../ui/Portrait.svelte';
-	import type { ContractInterface, ContractPath, EntityPath, NativeCoin } from '#/meta/chain';
+	import type { ContractInterface, ContractPath, EntityPath, CoinInfo } from '#/meta/chain';
 	import { Entities } from '#/store/entities';
-	import { yw_chain, yw_chain_ref, yw_network_active } from '../mem';
+	import { yw_chain, yw_chain_ref, yw_network } from '../mem';
 	import { SI_STORE_CHAINS, XT_MINUTES } from '#/share/constants';
 	import { getContext } from 'svelte';
 	import Send from './Send.svelte';
@@ -44,7 +44,7 @@
 
 	// the coin's id and object (if its a coin)
 	let si_coin = '';
-	let g_coin: NativeCoin | null = null;
+	let g_coin: CoinInfo | null = null;
 
 	// the token's path and object (if it's a token)
 	let p_token: ContractPath | '' = '';
@@ -103,7 +103,7 @@
 				p_pfp = g_coin.pfp;
 
 				// read cache
-				const g_cached = $yw_network_active.cachedBalance(g_info.bech32, si_coin);
+				const g_cached = $yw_network.cachedBalance(g_info.bech32, si_coin);
 
 				let g_balance: Coin;
 
@@ -115,7 +115,7 @@
 					// destructure balance
 					({
 						balance: g_balance,
-					} = await $yw_network_active.bankBalance(g_info.bech32, si_coin));
+					} = await $yw_network.bankBalance(g_info.bech32, si_coin));
 				}
 
 				// set amount

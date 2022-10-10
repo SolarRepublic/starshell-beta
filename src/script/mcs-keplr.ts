@@ -6,8 +6,8 @@ import type {Dict} from '#/meta/belt';
 import type * as UtilBelt from '#/util/belt';
 
 import type * as InjectedKeplrImport from './injected-keplr';
-import type { Vocab } from '#/meta/vocab';
-import type { WitnessToKeplr } from './messages';
+import type {Vocab} from '#/meta/vocab';
+import type {WitnessToKeplr} from './messages';
 
 (function() {
 	const {

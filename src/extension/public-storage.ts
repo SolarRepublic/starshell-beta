@@ -62,36 +62,41 @@ const async_callback = (f_action: (f: () => void) => void): Promise<any> => new 
 });
 
 export function storage_get_all(): Promise<JsonObject> {
-	return new Promise((fk_resolve) => {
-		chrome.storage.local.get(null, (h_all) => {
-			fk_resolve(h_all);
-		});
-	});
+	return chrome.storage.local.get(null);
+
+	// return new Promise((fk_resolve) => {
+	// 	chrome.storage.local.get(null, (h_all) => {
+	// 		fk_resolve(h_all);
+	// 	});
+	// });
 }
 
-export function storage_get<w_value extends any=any>(si_key: string): Promise<w_value | null> {
-	return new Promise((fk_resolve) => {
-		chrome.storage.local.get([si_key], (h_gets) => {
-			fk_resolve(h_gets[si_key] as w_value || null);
-		});
-	});
+export async function storage_get<w_value extends any=any>(si_key: string): Promise<w_value | null> {
+	return (await chrome.storage.local.get([si_key]))[si_key] || null;
+	// return new Promise((fk_resolve) => {
+	// 	chrome.storage.local.get([si_key], (h_gets) => {
+	// 		fk_resolve(h_gets[si_key] as w_value || null);
+	// 	});
+	// });
 }
 
 export function storage_set(h_set: JsonObject): Promise<void> {
-	return new Promise((fk_resolve) => {
-		if('salt' in h_set) debugger;
-		chrome.storage.local.set(h_set, () => {
-			fk_resolve();
-		});
-	});
+	return chrome.storage.local.set(h_set);
+	// return new Promise((fk_resolve) => {
+	// 	chrome.storage.local.set(h_set, () => {
+	// 		fk_resolve();
+	// 	});
+	// });
 }
 
 export function storage_remove(si_key: string): Promise<void> {
-	return async_callback(f => chrome.storage.local.remove(si_key, f));
+	return chrome.storage.local.remove(si_key);
+	// return async_callback(f => chrome.storage.local.remove(si_key, f));
 }
 
 export function storage_clear(): Promise<void> {
-	return async_callback(f => chrome.storage.local.clear(f));
+	return chrome.storage.local.clear();
+	// return async_callback(f => chrome.storage.local.clear(f));
 }
 
 

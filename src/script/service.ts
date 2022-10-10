@@ -1,6 +1,10 @@
 import type Browser from 'webextension-polyfill';
 
-import {B_IPHONE_IOS, G_USERAGENT, R_SCRT_COMPUTE_ERROR, R_TRANSFER_AMOUNT, XT_MINUTES} from '#/share/constants';
+import {B_IPHONE_IOS, B_NATIVE_IOS, G_USERAGENT, H_PARAMS, R_SCRT_COMPUTE_ERROR, R_TRANSFER_AMOUNT, XT_MINUTES} from '#/share/constants';
+import {do_webkit_polyfill} from './webkit-polyfill';
+if(B_NATIVE_IOS) {
+	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.background: ${s}`, ...a_args));
+}
 
 import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
 import {F_NOOP, ode, timeout} from '#/util/belt';
@@ -24,19 +28,19 @@ import {Vault} from '#/crypto/vault';
 import {Apps} from '#/store/apps';
 import {open_flow} from './msg-flow';
 import {Chains} from '#/store/chains';
-import {ActiveNetwork, Networks} from '#/store/networks';
-import {fold_attrs, TypedEvent} from '#/chain/main';
+import {ActiveNetwork, Providers} from '#/store/providers';
+import {fold_attrs, TypedEvent} from '#/chain/cosmos-network';
 import {Accounts} from '#/store/accounts';
 import BigNumber from 'bignumber.js';
 import {abbreviate_addr, format_amount} from '#/util/format';
-import type {Bech32, Caip2, ChainInterface, ChainPath, NativeCoin} from '#/meta/chain';
+import type {Bech32, Caip2, ChainInterface, ChainPath, CoinInfo} from '#/meta/chain';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import {global_broadcast, global_receive} from './msg-global';
-import type {Network} from '#/meta/network';
+import type {Provider, ProviderInterface} from '#/meta/provider';
 import {syserr, syswarn} from '#/app/common';
 import {Agents} from '#/store/agents';
 import type {BlockInfoHeader} from './common';
-import type {Account, AccountPath} from '#/meta/account';
+import type {Account, AccountInterface, AccountPath} from '#/meta/account';
 import {Incidents} from '#/store/incidents';
 import {WebResourceCache} from '#/store/web-resource-cache';
 import {BroadcastMode} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
@@ -59,6 +63,9 @@ import {fromBech32, toBech32} from '@cosmjs/encoding';
 import {Contracts} from '#/store/contracts';
 import {H_HANDLERS_ICS_APP} from './service-handlers-ics-app';
 import {SessionStorage} from '#/extension/session-storage';
+import SensitiveBytes from '#/crypto/sensitive-bytes';
+import {import_private_key} from '#/share/account';
+import type { SecretInterface } from '#/meta/secret';
 
 type ServiceMessageHandler = (message: any, sender: MessageSender, sendResponse: (response?: any) => void) => void;
 
@@ -68,126 +75,6 @@ const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => c
 const f_scripting = () => chrome.scripting as Browser.Scripting.Static;
 
 
-
-// type aliases
-interface StorageChange<w_value extends JsonValue> extends chrome.storage.StorageChange {
-	newValue?: w_value;
-	oldValue?: w_value;
-}
-
-type StorageArea = 'local' | 'session' | 'sync' | 'managed';
-
-const H_STORAGE_SCHEMAS = {
-	sync: {
-		keplr_polyfill: {},
-	},
-	local: {
-		// apps: {},
-	},
-	session: {},
-	managed: {},
-} as const;
-
-type StorageListener<
-	si_area extends StorageArea,
-> = si_area extends StorageArea
-	? Record<keyof typeof H_STORAGE_SCHEMAS[si_area], (g_change: StorageChange<SV_KeplrPolyfill>) => Promise<void>>
-	: void;
-
-type StorageListenerMap = {
-	[si_area in StorageArea]?: StorageListener<si_area>;
-};
-
-type SV_KeplrPolyfill = boolean;
-
-
-type StorageChangeCallback = (g_change: chrome.storage.StorageChange) => Promisable<void>;
-
-const g_awaiters: Record<StorageArea, Dict<StorageChangeCallback[]>> = {
-	sync: {},
-	local: {},
-	session: {},
-	managed: {},
-};
-
-export function once_storage_changes(si_area: StorageArea, si_key: string, xt_timeout=0): Promise<chrome.storage.StorageChange> {
-	return new Promise((fk_resolve, fe_reject) => {
-		const h_awaiters = g_awaiters[si_area];
-		const a_awaiters = h_awaiters[si_key] = h_awaiters[si_key] || [];
-
-		let i_awaiter = -1;
-		let i_timeout = 0;
-		if(xt_timeout > 0) {
-			i_timeout = (globalThis as typeof window).setTimeout(() => {
-				// remove awaiter
-				a_awaiters.splice(i_awaiter, 1);
-
-				// reject
-				fe_reject(new Error(`Timed out`));
-			}, xt_timeout);
-		}
-
-		i_awaiter = a_awaiters.push((g_change) => {
-			globalThis.clearTimeout(i_timeout);
-			fk_resolve(g_change);
-		});
-	});
-}
-
-function fire_storage_change(si_area: StorageArea, si_key: string, g_change: chrome.storage.StorageChange) {
-	const h_awaiters = g_awaiters[si_area];
-	const a_awaiters = h_awaiters[si_key];
-
-	if(a_awaiters?.length) {
-		// reset awaiters
-		h_awaiters[si_key] = [];
-
-		// call each listener
-		for(const f_awaiter of a_awaiters) {
-			void f_awaiter(g_change);
-		}
-	}
-}
-
-// 
-chrome.storage.onChanged?.addListener((h_changes, si_area) => {
-	const H_STORAGE_LISTENERS: StorageListenerMap = {
-		sync: {
-			// // 
-			// keplr_polyfill(g_change) {
-			// 	return set_keplr_polyfill(g_change.newValue || false);
-			// },
-
-		},
-
-		// // local storage area change listener
-		local: {},
-
-		session: {},
-
-		managed: {},
-	};
-
-	// lookup namespace-specific listener dict
-	const h_listeners = H_STORAGE_LISTENERS[si_area];
-
-	// listeners available
-	if(h_listeners) {
-		// each change changes
-		for(const si_key in h_changes) {
-			const g_change = h_changes[si_key];
-
-			// fire awaiter callbacks first
-			fire_storage_change(si_area, si_key, g_change);
-
-			// listener exists for this key
-			const f_listener = h_listeners[si_key];
-			if(f_listener) {
-				f_listener(g_change);
-			}
-		}
-	}
-});
 
 
 type MessageSender = chrome.runtime.MessageSender;
@@ -752,25 +639,25 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 		// ack
 		fk_respond(true);
 
-		// dereference network
-		const g_network = (await Networks.at(g_value.network))!;
+		// dereference provider
+		const g_provider = (await Providers.at(g_value.provider))!;
 
 		// dereference chain
-		const g_chain = (await Chains.at(g_network.chain))!;
+		const g_chain = (await Chains.at(g_provider.chain))!;
 
 		// activate network
-		const k_active = Networks.activate(g_network, g_chain);
+		const k_network = Providers.activate(g_provider, g_chain);
 
 		// find account that owns address
 		const [, g_account] = await Accounts.find(g_value.sender, g_chain);
 
 		// ensure websocket is listening for transfers
-		await await_transfer(`${g_network.chain}\n${g_network.rpcHost!}\n`, k_active, g_chain, g_account, g_value.sender, 'Send');
+		await await_transfer(`${g_provider.chain}\n${g_provider.rpcHost!}\n`, k_network, g_chain, g_account, g_value.sender, 'Send');
 
-		console.debug(`awaiting transfer on ${g_network.chain}...`);
+		console.debug(`awaiting transfer on ${g_provider.chain}...`);
 
 		// execute transfer
-		const g_attempt = await k_active.bankSend(
+		const g_attempt = await k_network.bankSend(
 			g_value.sender,
 			g_value.recipient,
 			g_value.coin,
@@ -1163,7 +1050,7 @@ async function transfer_notification(
 	si_txn: string,
 	g_transfer: MsgEventRegistry['transfer'],
 	g_chain: ChainInterface,
-	g_account: Account['interface'],
+	g_account: AccountInterface,
 	k_network: ActiveNetwork
 ) {
 	// default receive string
@@ -1171,7 +1058,7 @@ async function transfer_notification(
 
 	// attempt to parse amount
 	let si_coin = '';
-	let g_coin: NativeCoin;
+	let g_coin: CoinInfo;
 	let g_amount: Coin;
 	const m_amount = R_TRANSFER_AMOUNT.exec(g_transfer.amount);
 	if(!m_amount) {
@@ -1263,7 +1150,7 @@ async function await_transfer(
 	si_socket_group: string,
 	k_network: ActiveNetwork,
 	g_chain: ChainInterface,
-	g_account: Account['interface'],
+	g_account: AccountInterface,
 	sa_owner: Bech32,
 	si_type: 'Receive' | 'Send'
 ): Promise<VoidFunction> {
@@ -1463,22 +1350,22 @@ async function periodic_check(b_init=false) {
 	const [
 		ks_accounts,
 		ks_chains,
-		ks_networks,
+		ks_providers,
 	] = await Promise.all([
 		Accounts.read(),
 		Chains.read(),
-		Networks.read(),
+		Providers.read(),
 	]);
 
 	// prep network => chain map
-	const h_networks: Record<ChainPath, Network['interface']> = {};
-	for(const [p_network, g_network] of ks_networks.entries()) {
-		h_networks[g_network.chain] = h_networks[g_network.chain] || g_network;
+	const h_providers: Record<ChainPath, ProviderInterface> = {};
+	for(const [p_provider, g_provider] of ks_providers.entries()) {
+		h_providers[g_provider.chain] = h_providers[g_provider.chain] || g_provider;
 	}
 
 
 	// each chain w/ its default provider
-	for(const [p_chain, g_network] of ode(h_networks)) {
+	for(const [p_chain, g_provider] of ode(h_providers)) {
 		// skip broken cosmos
 		if('/family.cosmos/chain.theta-testnet-001' === p_chain) continue;
 
@@ -1489,8 +1376,8 @@ async function periodic_check(b_init=false) {
 		const g_chain = ks_chains.at(p_chain)!;
 
 		// create network
-		const p_network = Networks.pathFrom(g_network);
-		const k_network = Networks.activate(g_network, g_chain);
+		const p_provider = Providers.pathFrom(g_provider);
+		const k_network = Providers.activate(g_provider, g_chain);
 
 		// listen for new blocks
 		const a_recents: number[] = [];
@@ -1520,7 +1407,7 @@ async function periodic_check(b_init=false) {
 						value: {
 							header: g_block.header,
 							chain: p_chain,
-							network: p_network,
+							provider: p_provider,
 							recents: a_recents,
 							txCount: g_block.data.txs.length,
 						},
@@ -1560,7 +1447,7 @@ async function periodic_check(b_init=false) {
 			}
 
 			if(k_network.hasRpc) {
-				const si_socket_group = p_chain+'\n'+g_network.rpcHost!+'\n';
+				const si_socket_group = p_chain+'\n'+g_provider.rpcHost!+'\n';
 
 				// subscribe to websocket events
 				const f_close = h_sockets[si_socket_group];
@@ -1773,6 +1660,9 @@ Object.assign(globalThis, {
 	},
 
 	Secrets,
+	Accounts,
+	Apps,
+	Contracts,
 
 	base93_to_buffer,
 	buffer_to_base93,
@@ -1789,12 +1679,28 @@ Object.assign(globalThis, {
 	toBech32,
 	bech32_to_pubkey,
 	SessionStorage,
-	Contracts,
-	Apps,
 	G_USERAGENT,
 
 	decodeTxRaw,
 	set_keplr_compatibility_mode,
+
+	async import_sk(sxb64_sk: string, s_name='Citizen '+uuid_v4().slice(0, 4)) {
+		const atu8_sk = base64_to_buffer(sxb64_sk);
+
+		const kn_sk = new SensitiveBytes(atu8_sk);
+
+		return await import_private_key(kn_sk, s_name);
+	},
+
+	async import_account(g_account: AccountInterface): Promise<AccountPath> {
+		return await Accounts.open(ks_accounts => ks_accounts.put(g_account));
+	},
+
+	async import_secrets(a_data: Array<number[]>, a_secrets: SecretInterface[]) {
+		for(let i_secret=0; i_secret<a_secrets.length; i_secret++) {
+			await Secrets.put(Uint8Array.from(a_data[i_secret]), a_secrets[i_secret]);
+		}
+	},
 });
 
 

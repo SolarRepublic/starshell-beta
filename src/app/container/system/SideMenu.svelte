@@ -63,11 +63,11 @@
 			},
 		},
 		{
-			label: 'Networks',
+			label: 'Providers',
 			// icon: Icon.fromHtml(SX_ICON_CHAINS),
 			icon: SX_ICON_CHAINS,
 			click() {
-				activate(ThreadId.NETWORKS);
+				activate(ThreadId.PROVIDERS);
 			},
 		},
 		// {

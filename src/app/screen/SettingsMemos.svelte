@@ -14,9 +14,9 @@
 	import {syserr} from '../common';
 	import {
 		type ActiveNetwork,
-		Networks,
+		Providers,
 		UnpublishedAccountError,
-	} from '#/store/networks';
+	} from '#/store/providers';
 
 	const k_page = getContext<Page>('page');
 	const g_intent = getContext<Intent | null>('intent') || null;
@@ -59,12 +59,12 @@
 			// check if user is published
 			try {
 				// create network provider
-				const ks_networks = await Networks.read();
+				const ks_providers = await Providers.read();
 				let k_network: ActiveNetwork | undefined;
-				for(const [p_network, g_network] of ks_networks.entries()) {
-					const p_chain_test = g_network.chain;
+				for(const [p_provider, g_provider] of ks_providers.entries()) {
+					const p_chain_test = g_provider.chain;
 					if(p_chain === p_chain_test) {
-						k_network = Networks.activate(g_network, g_chain);
+						k_network = Providers.activate(g_provider, g_chain);
 						break;
 					}
 				}

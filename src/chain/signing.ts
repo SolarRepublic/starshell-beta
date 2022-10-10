@@ -51,7 +51,7 @@ export async function signAmino(
 
 	// sign doc as buffer
 	const atu8_signature = await k_key.sign(atu8_amino);
-
+debugger;
 	// produce signed doc bytes
 	return encodeSecp256k1Signature(k_key.exportPublicKey(), atu8_signature) as AdaptedStdSignature;
 }

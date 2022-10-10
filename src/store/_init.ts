@@ -1,6 +1,6 @@
 import {App, AppApiMode, AppInterface, AppPath} from '#/meta/app';
 import {Contact, ContactAgentType, ContactInterface, ContactPath} from '#/meta/contact';
-import type {Network, NetworkPath} from '#/meta/network';
+import type {Provider, ProviderPath} from '#/meta/provider';
 import type {Pfp, PfpTarget} from '#/meta/pfp';
 import type {Store, StoreKey} from '#/meta/store';
 
@@ -15,7 +15,7 @@ import {
 	SI_STORE_INCIDENTS,
 	SI_STORE_HISTORIES,
 	SI_STORE_MEDIA,
-	SI_STORE_NETWORKS,
+	SI_STORE_PROVIDERS,
 	SI_STORE_PFPS,
 	SI_STORE_QUERY_CACHE,
 	SI_STORE_SECRETS,
@@ -47,7 +47,7 @@ const cosmos_bech32s = <s_prefix extends string=string>(s_prefix: s_prefix) => (
 	valconspub: `${s_prefix}valconspub`,
 }) as const;
 
-export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(fold<Pfp['interface'], Pfp['interface']>([
+export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(fold<PfpInterface, PfpInterface>([
 	{
 		type: 'plain',
 		image: {
@@ -140,6 +140,14 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 				},
 			},
 		},
+		gasPrices: {
+			default: 0.1,
+			steps: [
+				0.0125,
+				0.1,
+				0.25,
+			],
+		},
 		features: {
 			'secretwasm': {
 				consensusIoPubkey: '|dB)LVfX1mgQ<eeI6X*Uxq]/H-KwnPj1dPZ30;iB',
@@ -177,6 +185,14 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 					coingecko_id: 'cosmos-hub',
 				},
 			},
+		},
+		gasPrices: {
+			default: 0.025,
+			steps: [
+				0,
+				0.025,
+				0.04,
+			],
 		},
 		features: {
 			'ibc-go': {},
@@ -239,7 +255,7 @@ export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold
 	[`${g_each.chain}/bech32.${g_each.bech32}/as.contract`]: g_each,
 })));
 
-export const H_STORE_INIT_NETWORKS = type_check<typeof SI_STORE_NETWORKS>(fold([
+export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold([
 	{
 		name: '𝕊ecret 𝕊aturn',
 		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
@@ -255,9 +271,9 @@ export const H_STORE_INIT_NETWORKS = type_check<typeof SI_STORE_NETWORKS>(fold([
 		rpcHost: 'rpc.cosmos-theta.starshell.net',
 	},
 ], g_each => ({
-	[`/network.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: g_each,
-	// [Networks.pathFrom(g_each as Network['interface'])]: g_each,
-})) as Record<NetworkPath, Network['interface']>);
+	[`/provider.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: g_each,
+	// [Provider.pathFrom(g_each as ProviderInterface)]: g_each,
+})) as Record<ProviderPath, ProviderInterface>);
 
 
 export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
@@ -267,6 +283,11 @@ export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
 	// 	api: AppApiMode.STARSHELL,
 	// 	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 	// },
+
+	{
+		host: 'faucet.starshell.net',
+		name: 'StarShell Pulsar-2 Faucet',
+	},
 	{
 		host: 'faucet.secrettestnet.io',
 		name: 'Pulsar-2 Faucet',
@@ -304,6 +325,17 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		chains: ['/family.cosmos/chain.pulsar-2'],
 		agentType: ContactAgentType.ROBOT,
 		addressSpace: 'acc',
+		addressData: 'x0dh57m99fg2vwg49qxpuadhq4dz3gsv',
+		origin: 'built-in',
+		name: 'faucet.starshell.net',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+		notes: '',
+	} as ContactInterface,
+	{
+		namespace: 'cosmos',
+		chains: ['/family.cosmos/chain.pulsar-2'],
+		agentType: ContactAgentType.ROBOT,
+		addressSpace: 'acc',
 		addressData: '3fqtu0lxsvn8gtlf3mz5kt75spxv93ss',
 		origin: 'built-in',
 		name: 'faucet.secrettestnet.io',
@@ -323,7 +355,7 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 	} as ContactInterface,
 ], g_contact => ({
 	[`/family.${g_contact.namespace}/agent.${g_contact.addressData}/as.contact`]: g_contact,
-})) as Record<ContactPath, Contact['interface']>);
+})) as Record<ContactPath, ContactInterface>);
 
 // export const H_STORE_INIT_ENTITIES = type_check<typeof SI_STORE_ENTITIES>(fold([]));
 
@@ -342,7 +374,7 @@ export const H_STORE_INITS: {
 	[SI_STORE_AGENTS]: H_STORE_INIT_AGENTS,
 	[SI_STORE_CHAINS]: H_STORE_INIT_CHAINS,
 	[SI_STORE_CONTRACTS]: H_STORE_INIT_CONTRACTS,
-	[SI_STORE_NETWORKS]: H_STORE_INIT_NETWORKS,
+	[SI_STORE_PROVIDERS]: H_STORE_INIT_PROVIDERS,
 	[SI_STORE_SETTINGS]: {},
 	[SI_STORE_MEDIA]: H_STORE_INIT_MEDIA,
 	[SI_STORE_PFPS]: H_STORE_INIT_PFPS,

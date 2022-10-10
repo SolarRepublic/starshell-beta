@@ -1,32 +1,28 @@
 <script lang="ts">
-	import {yw_account, yw_chain} from '##/mem';
-	import { Chains } from '#/store/chains';
-	import { getContext } from 'svelte';
+	import {Chains} from '#/store/chains';
 	
-	import { Header, type Page, Screen } from '../screen/_screens';
+	import {Header, Screen} from './_screens';
 	import Portrait from '##/ui/Portrait.svelte';
-	import type { Network, NetworkPath } from '#/meta/network';
-	import { Networks } from '#/store/networks';
-	import type { Chain, ChainPath } from '#/meta/chain';
-import Field from '../ui/Field.svelte';
-import Info from '../ui/Info.svelte';
-import Gap from '../ui/Gap.svelte';
+	import type {ProviderInterface, ProviderPath} from '#/meta/provider';
+	import {Providers} from '#/store/providers';
+	import type {ChainInterface, ChainPath} from '#/meta/chain';
+	import Field from '../ui/Field.svelte';
+	import Info from '../ui/Info.svelte';
+	import Gap from '../ui/Gap.svelte';
 
 
-	export let networkRef: NetworkPath;
-	const p_network = networkRef;
+	export let providerPath: ProviderPath;
+	const p_provider = providerPath;
 
-	let g_network: Network['interface'];
-	void Networks.at(p_network).then(g => g_network = g!);
+	let g_provider: ProviderInterface;
+	void Providers.at(p_provider).then(g => g_provider = g!);
 
-	$: p_chain = g_network?.chain;
+	$: p_chain = g_provider?.chain;
 
 	let g_chain: ChainInterface;
 	$: if(p_chain) {
 		void Chains.at(p_chain as ChainPath).then(g => g_chain = g!);
 	}
-
-	const k_page = getContext<Page>('page');
 
 	const gc_actions = {
 		// send: {
@@ -35,7 +31,7 @@ import Gap from '../ui/Gap.svelte';
 		// 		k_page.push({
 		// 			creator: Send,
 		// 			props: {
-		// 				to: Chains.bech32(g_network.address),
+		// 				to: Chains.bech32(g_provider.address),
 		// 			},
 		// 		});
 		// 	},
@@ -46,7 +42,7 @@ import Gap from '../ui/Gap.svelte';
 		// 		k_page.push({
 		// 			creator: ContactEdit,
 		// 			props: {
-		// 				contactRef: p_network,
+		// 				contactRef: p_provider,
 		// 			},
 		// 		});
 		// 	},
@@ -85,11 +81,11 @@ import Gap from '../ui/Gap.svelte';
 	<Header pops search network account />
 
 	{#if !g_chain}
-		Loading network...
+		Loading provider...
 	{:else}
 		<Portrait
-			resource={g_network}
-			resourcePath={p_network}
+			resource={g_provider}
+			resourcePath={p_provider}
 			actions={gc_actions}
 		>
 			<svelte:fragment slot="subtitle">
@@ -104,17 +100,17 @@ import Gap from '../ui/Gap.svelte';
 			key='grpc-web'
 		>
 			<Info key='grpc-web-value'>
-				{g_network.grpcWebUrl}
+				{g_provider.grpcWebUrl}
 			</Info>
 		</Field>
 
-		{#if g_network.rpcHost}
+		{#if g_provider.rpcHost}
 			<Field
 				name='RPC Host'
 				key='rpc'
 			>
 				<Info key='rpc-value'>
-					{g_network.rpcHost}
+					{g_provider.rpcHost}
 				</Info>
 			</Field>
 		{/if}

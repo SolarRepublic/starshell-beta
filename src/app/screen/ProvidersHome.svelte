@@ -1,31 +1,31 @@
 <script lang="ts">
 	import {Chains} from '#/store/chains';
-	import {Networks} from '#/store/networks';
+	import {Providers} from '#/store/providers';
 	import {getContext} from 'svelte';
 	import Header from '../ui/Header.svelte';
 	import Row from '../ui/Row.svelte';
-	import NetworkView from './NetworkView.svelte';
+	import ProviderView from './ProviderView.svelte';
 	import {Screen, SubHeader, type Page} from './_screens';
 
 	const k_page = getContext<Page>('page');
 
 	let ks_chains: Awaited<ReturnType<typeof Chains.read>>;
-	let ks_networks: Awaited<ReturnType<typeof Networks.read>>;
-	async function load_networks() {
+	let ks_providers: Awaited<ReturnType<typeof Providers.read>>;
+	async function load_providers() {
 		[
 			ks_chains,
-			ks_networks,
+			ks_providers,
 		] = await Promise.all([
 			Chains.read(),
-			Networks.read(),
+			Providers.read(),
 		]);
 
-		return ks_networks.entries();
+		return ks_providers.entries();
 	}
 
 	// function add_new_network() {
 	// 	k_page.push({
-	// 		creator: NetworkCreate,
+	// 		creator: ProviderCreate,
 	// 	});
 	// }
 </script>
@@ -34,30 +34,30 @@
 	
 </style>
 
-<Screen debug='NetworksHome' nav root>
+<Screen debug='ProvidersHome' nav root>
 	<Header search network account />
 
 	<SubHeader bare
-		title='Networks'
+		title='Providers'
 	/>
 		<!-- on:add_new={add_new_network} -->
 
 	<div class="rows no-margin">
-		{#await load_networks()}
+		{#await load_providers()}
 			Loading...
-		{:then a_networks} 
-			{#each a_networks as [p_network, g_network]}
-				{@const g_chain = ks_chains.at(g_network.chain)}
+		{:then a_providers} 
+			{#each a_providers as [p_provider, g_provider]}
+				{@const g_chain = ks_chains.at(g_provider.chain)}
 				<Row
-					resource={g_network}
-					resourcePath={p_network}
+					resource={g_provider}
+					resourcePath={p_provider}
 					iconClass={'square pfp'}
 					detail={`${g_chain?.name} (${g_chain?.reference})`}
 					on:click={() => {
 						k_page.push({
-							creator: NetworkView,
+							creator: ProviderView,
 							props: {
-								networkRef: p_network,
+								networkRef: p_provider,
 							},
 						});
 					}}

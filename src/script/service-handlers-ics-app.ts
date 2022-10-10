@@ -12,7 +12,7 @@ import {Snip24} from '#/schema/snip-24-const';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
-import {Networks} from '#/store/networks';
+import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {is_dict, ode} from '#/util/belt';
 import {base93_to_buffer, buffer_to_base93, buffer_to_json} from '#/util/data';
@@ -45,7 +45,7 @@ async function use_secret_wasm<
 	}
 	// need to fetch consensus pubkey
 	else {
-		const k_network = await Networks.activateDefaultFor(g_chain);
+		const k_network = await Providers.activateDefaultFor(g_chain);
 
 		const atu8_cert = await k_network.secretConsensusIoPubkey();
 
@@ -179,8 +179,8 @@ const H_AMINO_SANITIZERS = {
 			type: 'query_permit',
 			value: {
 				permit_name: s_name,
-				allowed_tokens: [...as_tokens].sort(),
-				permissions: [...as_permissions].sort(),
+				allowed_tokens: [...as_tokens],
+				permissions: [...as_permissions],
 			},
 		};
 

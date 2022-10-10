@@ -37,6 +37,8 @@ import {
 import webExtension from '@solar-republic/vite-plugin-web-extension';
 // import webExtension from '@samrum/vite-plugin-web-extension';
 
+import {viteSingleFile} from 'vite-plugin-singlefile';
+
 // // inlined scripts are required to reach window before page scripts
 // import { bundleImports } from 'rollup-plugin-bundle-imports';
 
@@ -121,11 +123,14 @@ export default defineConfig((gc_run) => {
 	// compute lookup table
 	const H_MEDIA_LOOKUP = Object.fromEntries(Object.entries(H_MEDIA_BUILTINT).map(([si_key, g_media]) => [g_media.data, si_key]));
 
+	const SI_BROWSER = 'ios' === SI_ENGINE? 'safari': SI_ENGINE;
+
 	return {
 		define: {
 			__H_MEDIA_BUILTIN: JSON.stringify(H_MEDIA_BUILTINT),
 			__H_MEDIA_LOOKUP: JSON.stringify(H_MEDIA_LOOKUP),
 			__SI_VERSION: JSON.stringify(G_PACKAGE_JSON.version),
+			__SI_ENGINE: JSON.stringify(SI_ENGINE),
 		},
 
 		plugins: [
@@ -147,16 +152,22 @@ export default defineConfig((gc_run) => {
 			// build svelte components
 			svelte(),
 
-			// build scripts and output manifest for web extension
-			webExtension({
-				manifest: {
-					author: G_PACKAGE_JSON.author.name,
-					description: G_PACKAGE_JSON.description,
-					name: G_PACKAGE_JSON.displayName,
-					version: G_PACKAGE_JSON.version,
-					...H_BROWSERS[SI_ENGINE].manifest,
-				} as chrome.runtime.ManifestV2 & chrome.runtime.ManifestV3,
-			}),
+			...'ios' === SI_ENGINE
+				? [
+					// viteSingleFile(),
+				]
+				// build scripts and output manifest for web extension
+				: [
+					webExtension({
+						manifest: {
+							author: G_PACKAGE_JSON.author.name,
+							description: G_PACKAGE_JSON.description,
+							name: G_PACKAGE_JSON.displayName,
+							version: G_PACKAGE_JSON.version,
+							...H_BROWSERS[SI_BROWSER].manifest,
+						} as chrome.runtime.ManifestV2 & chrome.runtime.ManifestV3,
+					}),
+				],
 
 			graph({
 				prune: true,
@@ -180,6 +191,10 @@ export default defineConfig((gc_run) => {
 			},
 		},
 
+		// ...'ios' === SI_ENGINE? {
+		// 	base: '../../',
+		// }: {},
+
 		build: {
 			// sourcemap: ['safari', 'firefox'].includes(SI_ENGINE)? false: 'inline',
 			sourcemap: true,
@@ -189,6 +204,13 @@ export default defineConfig((gc_run) => {
 			target: 'es2020',
 
 			rollupOptions: {
+				...'ios' === SI_ENGINE && {
+					input: {
+						popup: 'src/entry/popup.html',
+						flow: 'src/entry/flow.html',
+					},
+				},
+
 				output: {
 					...('firefox' === SI_ENGINE) && {
 						manualChunks: {

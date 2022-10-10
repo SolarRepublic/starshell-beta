@@ -128,3 +128,13 @@
 	width: if('' = @dims, var(--app-window-width), @dims);
 	height: if('' = @dims, var(--app-window-height), @dims);
 }
+
+
+.high-contrast-selection(@mode) {
+	user-select: @mode;
+
+	&::selection {
+		color: black;
+		background-color: white;
+	}
+}

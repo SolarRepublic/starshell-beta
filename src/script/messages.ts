@@ -8,10 +8,10 @@ import type {BlockInfoHeader} from './common';
 import type {Vocab} from '#/meta/vocab';
 import type {ConnectionHandleConfig} from '#/provider/connection';
 import type {App, AppChainConnection, AppInterface, AppPath} from '#/meta/app';
-import type {StoreKey} from '#/meta/store';
+import type {Store, StoreKey} from '#/meta/store';
 import type {PromptConfig} from './msg-flow';
 import type {Bech32, Caip2, ChainInterface, ChainNamespaceKey, ChainPath} from '#/meta/chain';
-import type {NetworkPath} from '#/meta/network';
+import type {ProviderPath} from '#/meta/provider';
 import type {IncidentPath, TxConfirmed, TxSynced} from '#/meta/incident';
 import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
 import type {AccountPath} from '#/meta/account';
@@ -146,12 +146,15 @@ export type SessionCommand = Vocab.New<{
 	};
 	set: {
 		value: JsonObject;
+		response: undefined;
 	};
 	remove: {
 		value: string;
+		response: undefined;
 	};
 	clear: {
 		value?: undefined;
+		response: undefined;
 	};
 }>;
 
@@ -218,6 +221,7 @@ export namespace IcsToService {
 		// 
 		sessionStorage: {
 			value: Vocab.Message<SessionCommand>;
+			response: Vocab.Response<SessionCommand>;
 		};
 
 		// 
@@ -249,6 +253,13 @@ export namespace IcsToService {
 			};
 			response: AppResponse<ErrorRegistry.Types>;
 		};
+
+		// requestCosmosSignatureText: {
+		// 	value: {
+		// 		text: string;
+		// 	};
+		// 	// response: 
+		// };
 
 		requestAddTokens: {
 			value: {
@@ -553,7 +564,7 @@ export namespace IntraExt {
 			value: {
 				header: BlockInfoHeader;
 				chain: ChainPath;
-				network: NetworkPath;
+				provider: ProviderPath;
 				recents: number[];
 				txCount: number;
 			};
@@ -755,6 +766,7 @@ export namespace IntraExt {
 		// 
 		sessionStorage: {
 			value: Vocab.Message<SessionCommand>;
+			response: Vocab.Response<SessionCommand>;
 		};
 
 		/**
@@ -783,7 +795,7 @@ export namespace IntraExt {
 
 		bankSend: {
 			value: {
-				network: NetworkPath;
+				provider: ProviderPath;
 				sender: Bech32;
 				recipient: Bech32;
 				coin: string;
@@ -844,6 +856,30 @@ export namespace ExtToNative {
 				title: string;
 				message: string;
 			};
+		};
+	}>;
+
+
+	/**
+	 * Vocab for storage commands
+	 */
+	export type StorageVocab = Vocab.New<{
+		get: {
+			value: StoreKey[];
+		};
+
+		set: {
+			value: {
+				[si_key in StoreKey]: Store[si_key]
+			};
+		};
+
+		remove: {
+			value: StoreKey;
+		};
+
+		clear: {
+			value: undefined;
 		};
 	}>;
 }

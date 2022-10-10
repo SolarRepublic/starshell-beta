@@ -15,7 +15,7 @@ import type {Cast} from 'ts-toolbelt/out/Any/Cast';
 import type {Media} from './media';
 import type {Pfp} from './pfp';
 import type {Tag} from './tag';
-import type {Network} from './network';
+import type {Provider} from './provider';
 import type {Secret} from './secret';
 import type {ResponseCache, WebApi} from './web-api';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
@@ -132,7 +132,7 @@ export type Store = Merge<{
 	// root elements
 	accounts: RootDoc<Account>;
 	chains: RootDoc<Chain>;
-	networks: RootDoc<Network>;
+	providers: RootDoc<Provider>;
 	apps: RootDoc<App>;
 	media: RootDoc<Media>;
 	pfps: RootDoc<Pfp>;
@@ -151,7 +151,7 @@ export type Store = Merge<{
 
 	// tags only exist as mapped references to simplify forwards-compatiblity, schema, and indexing
 	tags: {
-		registry: Tag['interface'][];
+		registry: TagInterface[];
 		map: DataMap<Resource, number[]>;
 	};
 

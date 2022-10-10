@@ -329,7 +329,7 @@ export function create_store_class<
 			},
 
 			async delete<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<boolean> {
-				return (await dc_store['open']()).delete(si_key);
+				return await dc_store['open'](ks_self => ks_self.delete(si_key));
 			},
 		},
 

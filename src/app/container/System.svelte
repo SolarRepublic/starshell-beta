@@ -28,12 +28,13 @@
 	import {Navigator, type NavigatorConfig} from '##/nav/navigator';
 
 	import {H_THREADS} from '##/def';
-	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_nav_visible, yw_network, yw_network_active, yw_network_ref, yw_page, yw_thread} from '##/mem';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_nav_visible, yw_provider, yw_network, yw_provider_ref, yw_page, yw_thread} from '##/mem';
 	import {Chains} from '#/store/chains';
 	import {Accounts} from '#/store/accounts';
 	import {once_store_updates} from '../svelte';
-	import {Networks} from '#/store/networks';
+	import {Providers} from '#/store/providers';
 	import {Vault} from '#/crypto/vault';
+    import { Gestures } from '../helper/gestures';
 
 	export let page: PageConfig;
 	const gc_page = page;
@@ -112,8 +113,8 @@
 				Chains.read().then(ks => $yw_chain_ref = ode(ks.raw)[0][0]),
 
 				// default network
-				$yw_network_active || once_store_updates(yw_network_active, true),
-				Networks.read().then(ks => $yw_network_ref = ode(ks.raw)[0][0]),
+				$yw_network || once_store_updates(yw_network, true),
+				Providers.read().then(ks => $yw_provider_ref = ode(ks.raw)[0][0]),
 
 				// default account
 				$yw_account || once_store_updates(yw_account, true),
@@ -516,6 +517,50 @@
 	// 			});
 	// 		},
 	// 	}));
+
+
+		let xl_dx_tracking = 0;
+
+		// gestures
+		Gestures.swipe_right<{
+			dom: HTMLElement;
+		}>({
+			init() {
+				if($yw_navigator.activeThread.history.length > 1) {
+					return {
+						dom: $yw_navigator.activePage.dom,
+					};
+				}
+			},
+
+			move(xl_dx, g_context) {
+				g_context.dom.style.transform = `translateX(${xl_dx}px)`;
+				xl_dx_tracking = xl_dx;
+			},
+
+			release(g_context) {
+				const xl_width = visualViewport?.width || window.innerWidth;
+
+				// ref style
+				const g_style = g_context.dom.style;
+
+				// cleared threshold for pop
+				if(xl_dx_tracking > 0.45 * xl_width) {
+					g_style.transform = `translateX(${xl_width})`;
+
+					// pop page
+					$yw_navigator.activePage.pop();
+				}
+				// did not clear threshold
+				else {
+					g_style.transform = `translateX(0px)`;
+				}
+			},
+
+			cancel(g_context) {
+				g_context.dom.style.transform = 'translateX(0px)';
+			},
+		});
 	});
 	
 </script>

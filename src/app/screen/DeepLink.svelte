@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type {Bech32, Chain, ChainNamespaceKey} from '#/meta/chain';
-	import type {Contact} from '#/meta/contact';
+	import type {Bech32, Chain, ChainInterface, ChainNamespaceKey} from '#/meta/chain';
+	import type {Contact, ContactInterface} from '#/meta/contact';
 	import {R_CHAIN_ID_VERSION, R_BECH32} from '#/share/constants';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
@@ -57,13 +57,13 @@
 		contact: {
 			bech32: Bech32;
 			name: string | null;
-			resolved: Contact['interface'] | null;
+			resolved: ContactInterface | null;
 		};
 	}
 
 	interface Linked {
 		title: string;
-		existing?: ChainInterface | Contact['interface'] | null;
+		existing?: ChainInterface | ContactInterface | null;
 		fields: SimpleField[];
 	}
 

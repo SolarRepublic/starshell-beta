@@ -37,19 +37,19 @@ export const Agents = create_store_class({
 			return `${AgentsI.pathForAgentFromAddress(sa_addr, si_family)}/as.contact`;
 		}
 
-		static pathFromContact(g_contact: Contact['interface']): ContactPath {
+		static pathFromContact(g_contact: ContactInterface): ContactPath {
 			return AgentsI.pathForContactFromData(g_contact.addressData, g_contact.namespace);
 		}
 
 		/**
 		 * Loads agents store and finds the contact by its path
 		 */
-		static async getContact(p_contact: ContactPath): Promise<Contact['interface'] | null> {
+		static async getContact(p_contact: ContactPath): Promise<ContactInterface | null> {
 			// read agents store
 			const ks_agents = await Agents.read();
 
 			// find contact
-			return ks_agents.at(p_contact) as Contact['interface'];
+			return ks_agents.at(p_contact) as ContactInterface;
 		}
 
 		/**
@@ -74,7 +74,7 @@ export const Agents = create_store_class({
 			return sa_contact as Bech32;
 		}
 
-		* contacts(si_family: ChainNamespaceKey=yw_chain_namespace.get()): IterableIterator<[ContactPath, Contact['interface']]> {
+		* contacts(si_family: ChainNamespaceKey=yw_chain_namespace.get()): IterableIterator<[ContactPath, ContactInterface]> {
 			// ref cache
 			const h_cache = this._w_cache;
 
@@ -94,7 +94,7 @@ export const Agents = create_store_class({
 			}
 		}
 
-		async putContact(g_res: Contact['interface']): Promise<ContactPath> {
+		async putContact(g_res: ContactInterface): Promise<ContactPath> {
 			// prepare contact path
 			const p_res = AgentsI.pathFromContact(g_res);
 

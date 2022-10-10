@@ -48,6 +48,11 @@ const H_ICONS = {
 // const pd_media = path.resolve(__dirname, './media');
 // fs.readdirSync(pd_media);
 
+
+const A_EXCLUDE_DEVELOPMENT = [
+	// 'http://localhost:8188/*',
+];
+
 const A_MATCH_LOCALHOST = [
 	'http://localhost/*',
 	'http://127.0.0.1/*',
@@ -55,7 +60,6 @@ const A_MATCH_LOCALHOST = [
 
 const A_MATCH_ALL = [
 	'file://*/*',
-	// 'http://*/*',
 	...A_MATCH_LOCALHOST,
 	'https://*/*',
 ];
@@ -68,32 +72,42 @@ const A_MATCH_LINK = [
 	'https://link.starshell.net/*',
 ];
 
+
 type ContentScriptOverrides = Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>;
+
+const B_ALL_FRAMES = false;
+
+const G_CONTENT_SCRIPT_DEFAULT = {
+	// exclude_matches: A_EXCLUDE_DEVELOPMENT,
+};
 
 const G_CONTENT_SCRIPTS = {
 	ics_spotter(h_overrides?: ContentScriptOverrides) {
 		return {
+			...G_CONTENT_SCRIPT_DEFAULT,
 			js: ['src/script/ics-spotter.ts'],
 			matches: A_MATCH_ALL,
 			run_at: 'document_start',
-			all_frames: true,
+			all_frames: B_ALL_FRAMES,
 			...h_overrides,
 		};
 	},
 
 	mcs_relay() {
 		return {
+			...G_CONTENT_SCRIPT_DEFAULT,
 			js: ['src/script/mcs-relay.ts'],
 			matches: [
 				'file:///:never:',
 			],
 			run_at: 'document_start',
-			all_frames: true,
+			all_frames: B_ALL_FRAMES,
 		};
 	},
 
 	ics_launch(h_overrides?: ContentScriptOverrides) {
 		return {
+			...G_CONTENT_SCRIPT_DEFAULT,
 			js: ['src/script/ics-launch.ts'],
 			matches: A_MATCH_LAUNCH,
 			run_at: 'document_start',
@@ -103,6 +117,7 @@ const G_CONTENT_SCRIPTS = {
 
 	ics_link(h_overrides?: ContentScriptOverrides) {
 		return {
+			...G_CONTENT_SCRIPT_DEFAULT,
 			js: ['src/script/ics-link.ts'],
 			matches: A_MATCH_LINK,
 			run_at: 'document_start',
@@ -112,13 +127,25 @@ const G_CONTENT_SCRIPTS = {
 
 	ics_witness(h_overrides?: ContentScriptOverrides) {
 		return {
+			...G_CONTENT_SCRIPT_DEFAULT,
 			js: ['src/script/ics-witness.ts'],
 			matches: A_MATCH_ALL,
 			run_at: 'document_start',
-			all_frames: true,
+			all_frames: B_ALL_FRAMES,
 			...h_overrides,
 		};
 	},
+
+	// ics_polyfill(h_overrides?: ContentScriptOverrides) {
+	// 	return {
+	// 		...G_CONTENT_SCRIPT_DEFAULT,
+	// 		js: ['src/script/ics-polyfill.ts'],
+	// 		matches: [],
+	// 		run_at: 'document_start',
+	// 		all_frames: false,
+	// 		...h_overrides,
+	// 	};
+	// },
 
 	// mcs_keplr(h_overrides?: ContentScriptOverrides) {
 	// 	return {
@@ -314,6 +341,14 @@ export const H_BROWSERS = {
 			content_scripts: [
 				...GC_MANIFEST_V2.content_scripts!,
 				G_CONTENT_SCRIPTS.ics_witness(),
+			],
+
+			// for the native iOS app, include the webkit content script in the build output
+			web_accessible_resources: [
+				...GC_MANIFEST_V2.web_accessible_resources!,
+				'src/script/ics-webkit.ts',
+				'src/script/ics-webkit-bg.ts',
+				// 'src/script/service.ts',
 			],
 		},
 	},

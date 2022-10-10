@@ -34,7 +34,7 @@ const f_runtime = () => chrome.runtime as Vocab.TypedRuntime<IcsToService.Public
 export const ServiceRouter = {
 	async connect(g_manifest: ConnectionManifestV1): Promise<{}> {
 		debug(`Evaluating connection manifest: %o`, g_manifest);
-
+debugger;
 		// invalid structure
 		if(!is_dict(g_manifest) || 'string' !== typeof g_manifest.schema) {
 			throw new Error('Invalid manifest structure');
@@ -318,6 +318,7 @@ export const ServiceRouter = {
 
 		// go async
 		return new Promise((fk_resolve, fe_reject) => {
+			debugger;
 			// send connection requestion to service
 			f_runtime().sendMessage({
 				type: 'requestConnection',
@@ -421,8 +422,8 @@ async function generate_token_symbol(sa_token: Bech32) {
  */
 export async function load_app_pfp(): Promise<void> {
 	// grab site pfp
-	const sq_icons = ['icon', 'apple-touch-icon'].map(s => `head link[rel="${s}"]`).join(',');
-	const a_icons = [...document.querySelectorAll(sq_icons)] as HTMLLinkElement[];
+	const sq_icons = ['icon', 'apple-touch-icon'].map(s => `link[rel="${s}"]`).join(',');
+	const a_icons = [...document.head.querySelectorAll(sq_icons)] as HTMLLinkElement[];
 
 	// 
 	let dm_selected: HTMLLinkElement | null = null;
@@ -497,7 +498,7 @@ export async function load_app_pfp(): Promise<void> {
 export async function create_app_profile(): Promise<AppProfile> {
 	// load all links
 	const a_res_entries = await Promise.all([
-			// each caip-2 link
+		// each caip-2 link
 		...[...destructure_links('caip-2')].map(async({href:p_href, value:si_caip2}) => {
 			// invalid CAIP-2
 			if(!R_CAIP_2.test(si_caip2)) return;
@@ -567,7 +568,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 		}),
 	]);
 
-	console.debug(`App profiler finished scanning links in head`);
+	debug(`App profiler finished scanning links in head`);
 
 	// prep sanitized contract def dict
 	const h_contract_defs: Dict<ContractInterface> = {};

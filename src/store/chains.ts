@@ -1,4 +1,4 @@
-import type {Bech32, BlockExplorerConfig, Chain, ChainPath, ChainNamespaceKey, ChainInterface, Caip2, ChainNamespace} from '#/meta/chain';
+import type {Bech32, BlockExplorerConfig, Chain, ChainPath, ChainNamespaceKey, ChainInterface, Caip2, ChainNamespace, CoinInfo} from '#/meta/chain';
 
 import {fromBech32, toBech32} from '@cosmjs/encoding';
 
@@ -96,6 +96,12 @@ export const Chains = create_store_class({
 			}
 
 			return sx_url;
+		}
+
+		static feeCoin(g_chain: ChainInterface): [string, CoinInfo] {
+			const si_coin = g_chain.feeCoinIds?.[0] || Object.keys(g_chain.coins)[0];
+
+			return [si_coin, g_chain.coins[si_coin]];
 		}
 
 		// TODO: return normalized address using `normalizeBech32()`

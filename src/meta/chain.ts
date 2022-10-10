@@ -1,4 +1,4 @@
-import type { BalanceBundle } from '#/store/networks';
+import type { BalanceBundle } from '#/store/providers';
 import type { Dict, JsonObject } from '#/meta/belt';
 import type { Compute, ComputeRaw } from 'ts-toolbelt/out/Any/Compute';
 import type { Type } from 'ts-toolbelt/out/Any/Type';
@@ -128,7 +128,7 @@ export namespace Slip44 {
 }
 
 
-export type NativeCoin = {
+export type CoinInfo = {
 	decimals: number;
 	denom: string;
 	name: string;
@@ -195,7 +195,7 @@ export type Chain<
 		 * Specifies all "built-in" assets for the chain. By default, the first entry will be used as fee and stake currency.
 		 * To specify different currenc(ies) for fee or stake, provide entries for `feeCoinIds` and `stakeCoinIds` respectively.
 		 */
-		coins: Dict<NativeCoin>;
+		coins: Dict<CoinInfo>;
 
 		/**
 		 * Optionally specifies the list of coins in `coins` with the corresponding ids to be used for fees.
@@ -208,6 +208,11 @@ export type Chain<
 		 * If omitted, stake currency will default to the first entry in `coins`.
 		 */
 		stakeCoinIds?: string[];
+
+		gasPrices: {
+			default: number;
+			steps: number[];
+		};
 
 		features: ChainFeaturesConfig;
 
@@ -364,7 +369,7 @@ export type Agent<
 }>;
 
 export type AgentPath = Resource.Path<Agent>;
-export type AgentIntergace = Agent['interface'];
+export type AgentInterface = Agent['interface'];
 
 export namespace Agent {
 	export type ProxyFromEntity = Resource.New<{
@@ -454,4 +459,4 @@ export type Contract<
 
 
 export type ContractPath = Resource.Path<Contract>;
-export type ContractInterface = Contract['interface'];
+export type ContractInterface = ContractInterface;

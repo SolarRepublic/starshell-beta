@@ -1,17 +1,17 @@
 import type {AccountInterface, AccountPath} from '#/meta/account';
 import type {Bech32, ChainPath, ChainNamespaceKey, ChainInterface, ContractInterface} from '#/meta/chain';
-import type {Network, NetworkPath} from '#/meta/network';
+import type {Provider, ProviderInterface, ProviderPath} from '#/meta/provider';
 import type {StoreKey} from '#/meta/store';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import {global_receive} from '#/script/msg-global';
-import {B_FIREFOX_ANDROID, B_MOBILE, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
+import {B_FIREFOX_ANDROID, B_MOBILE, B_NATIVE_IOS, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Medias} from '#/store/medias';
 import {
 	type ActiveNetwork,
-	Networks,
-} from '#/store/networks';
+	Providers,
+} from '#/store/providers';
 import {Tags} from '#/store/tags';
 import type {StoreRegistry} from '#/store/_registry';
 import {F_NOOP, microtask, timeout} from '#/util/belt';
@@ -30,6 +30,7 @@ import {once_store_updates} from './svelte';
 import PopupReceive from './ui/PopupReceive.svelte';
 import type { Vocab } from '#/meta/vocab';
 import type { Pwa } from '#/script/messages';
+import type { CosmosNetwork } from '#/chain/cosmos-network';
 
 
 /**
@@ -159,45 +160,45 @@ export const yw_chain = derivedSync<ChainInterface>(yw_chain_ref, (p_chain, fk_s
 			fk_set(null);
 		});
 
-	// propagate change of chain to default network provider
-	void Networks.read().then(ks => ks.entries().some(([p_network, g_network]) => {
-		if(p_chain === g_network.chain) {
-			yw_network_ref.set(p_network);
+	// propagate change of chain to default provider
+	void Providers.read().then(ks => ks.entries().some(([p_provider, g_provider]) => {
+		if(p_chain === g_provider.chain) {
+			yw_provider_ref.set(p_provider);
 			return true;
 		}
 
 		return false;
 	})).catch((e_auth) => {
-		yw_network_ref.set('');
+		yw_provider_ref.set('');
 	});
 });
 
 
 /**
- * Selects the active network
+ * Selects the active provider
  */
-export const yw_network_ref = writableSync<NetworkPath>('' as NetworkPath);
-export const yw_network = writableSync<Network['interface']>(null! as Network['interface']);
-export const yw_network_active = derivedSync<ActiveNetwork>(yw_network_ref, (p_network, fk_set) => {
-	if(!p_network) {
-		yw_network.set(null as unknown as Network['interface']);
-		fk_set(null as unknown as ActiveNetwork);
+export const yw_provider_ref = writableSync<ProviderPath>('' as ProviderPath);
+export const yw_provider = writableSync<ProviderInterface>(null! as ProviderInterface);
+export const yw_network = derivedSync<CosmosNetwork>(yw_provider_ref, (p_provider, fk_set) => {
+	if(!p_provider) {
+		yw_provider.set(null as unknown as ProviderInterface);
+		fk_set(null as unknown as CosmosNetwork);
 	}
 	else {
 		(async() => {
-			const ks_networks = await Networks.read();
-			const g_network = ks_networks.at(p_network as NetworkPath)!;
-			yw_network.set(g_network);
+			const ks_providers = await Providers.read();
+			const g_provider = ks_providers.at(p_provider as ProviderPath)!;
+			yw_provider.set(g_provider);
 
 			// chain differs; update
-			if(g_network.chain !== yw_chain_ref.get()) {
-				yw_chain_ref.set(g_network.chain);
+			if(g_provider.chain !== yw_chain_ref.get()) {
+				yw_chain_ref.set(g_provider.chain);
 			}
 
 			const ks_chains = await Chains.read();
-			const g_chain = ks_chains.at(g_network.chain)!;
+			const g_chain = ks_chains.at(g_provider.chain)!;
 
-			fk_set(Networks.activate(g_network, g_chain));
+			fk_set(Providers.activate(g_provider, g_chain));
 		})();
 	}
 });
@@ -454,6 +455,8 @@ enum SCROLLABLE {
 // wait for window to load
 if('undefined' !== typeof document) {
 	void once_store_updates(yw_navigator).then(async() => {
+		console.debug(`System navigator ready`);
+
 		// ref html element
 		const dm_html = document.documentElement;
 
@@ -516,7 +519,7 @@ if('undefined' !== typeof document) {
 
 			// safari mobile
 			if(B_SAFARI_MOBILE) {
-				// within native popup
+				// within webext popup
 				if(B_WITHIN_WEBEXT_POPOVER) {
 					// set padding bottom in order to clear home bar
 					d_style_root.setProperty('--app-window-padding-bottom', '15px');
@@ -669,6 +672,23 @@ if('undefined' !== typeof document) {
 				document.body.style.height = '100vh';
 				document.body.style.maxHeight = 'var(--app-window-height)';
 			}
+			// within native ios webkit view
+			else if(B_NATIVE_IOS) {
+				fit_viewport();
+
+				// set body height
+				document.body.style.height = '100vh';
+				document.body.style.maxHeight = 'var(--app-window-height)';
+
+				// set padding bottom in order to clear home bar
+				d_style_root.setProperty('--app-window-padding-bottom', '20px');
+
+				// dynamic app height
+				continually_adjust_height(0, () => {
+					// scroll document to nearly top
+					dm_html.scrollTo({top:0, behavior:'smooth'});
+				});
+			}
 
 			// resize app on mobile
 			await resize_app();
@@ -678,11 +698,13 @@ if('undefined' !== typeof document) {
 			fit_viewport();
 
 			// window
-			if('window' === H_PARAMS.tab) {
+			if(['popout', 'tab'].includes(H_PARAMS.within as string)) {
 				fit_viewport();
 
 				// take up fill window
 				d_style_root.width = d_style_root.height = '100%';
+
+				continually_adjust_height();
 			}
 		}
 

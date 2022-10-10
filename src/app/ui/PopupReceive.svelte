@@ -24,7 +24,7 @@
 	$: p_account_selected = g_option_selected_account.value;
 
 	// reactively update account
-	let g_account_selected: Account['interface'];
+	let g_account_selected: AccountInterface;
 	$: {
 		if(p_account_selected) {
 			void Accounts.read().then((ks_accounts) => {
@@ -34,7 +34,7 @@
 	}
 
 	// convert an account path+interface to a select option
-	const account_to_option = (p_account: AccountPath, g_account: Account['interface']): SelectOption<AccountPath> => ({
+	const account_to_option = (p_account: AccountPath, g_account: AccountInterface): SelectOption<AccountPath> => ({
 		object: g_account,
 		value: p_account,
 		primary: g_account.name,

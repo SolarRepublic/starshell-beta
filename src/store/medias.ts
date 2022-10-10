@@ -30,7 +30,7 @@ export const Medias = create_store_class({
 
 		// static get<
 		// 	si_media extends MediaTypeKey=MediaTypeKey,
-		// >(p_media: si_media, s_scheme: AppSchemeKey): Promise<null | App['interface']> {
+		// >(p_media: si_media, s_scheme: AppSchemeKey): Promise<null | AppInterface> {
 		// 	return Media.open(ks => ks.get(s_host, s_scheme));
 		// }
 

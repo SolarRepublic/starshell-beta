@@ -29,6 +29,7 @@ export {
 export {
 	microtask,
 	timeout,
+	timeout_exec,
 	fold,
 	ode,
 	oderom,

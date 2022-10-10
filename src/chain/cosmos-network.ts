@@ -5,7 +5,7 @@ import type {
 	HoldingPath,
 	ChainInterface,
 } from '#/meta/chain';
-import type {Network, NetworkInterface} from '#/meta/network';
+import type {Provider, ProviderInterface} from '#/meta/provider';
 import {Chains} from '#/store/chains';
 import {Entities} from '#/store/entities';
 import {
@@ -19,7 +19,7 @@ import {
 	UnpublishedAccountError,
 	WrongKeyTypeError,
 	WsTxResult,
-} from '#/store/networks';
+} from '#/store/providers';
 import {QueryCache} from '#/store/query-cache';
 import {
 	fold,
@@ -40,6 +40,11 @@ import {
 import {
 	QueryClientImpl as StakingQueryClient,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/staking/v1beta1/query';
+
+import {
+	QueryClientImpl as ParamsQueryClient,
+	QueryParamsRequest as ParamsQueryConfig,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/params/v1beta1/query';
 
 import {
 	MsgClientImpl as ExecContractClient, MsgExecuteContract, MsgExecuteContractResponse,
@@ -69,6 +74,7 @@ import {
 	BroadcastMode,
 	BroadcastTxResponse,
 	GetTxResponse,
+	SimulateRequest,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 
 import {
@@ -76,6 +82,9 @@ import {
 	ServiceClientImpl as TendermintServiceClient,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 
+import {
+	QueryClientImpl as GovQueryClient,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/query';
 
 import {
 	MsgSend,
@@ -105,6 +114,9 @@ import {SecretWasm} from '#/crypto/secret-wasm';
 import {signDirectDoc, SignedDoc} from './signing';
 import type {AminoMsg} from '@cosmjs/amino';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
+import { amino_to_base, encode_proto, ProtoMsg, proto_to_amino, TypedValue } from './cosmos-msgs';
+import type { ParamChange } from '@solar-republic/cosmos-grpc/dist/cosmos/params/v1beta1/params';
+import type { Proposal, TallyResult } from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/gov';
 
 export type IncidentTx = Incident.Struct<'tx_in' | 'tx_out'>;
 
@@ -124,7 +136,7 @@ export interface BroadcastConfig {
 	gasFee: Coin | {
 		price: number | string | BigNumber;
 	};
-	account: Account['interface'];
+	account: AccountInterface;
 	mode: BroadcastMode;
 }
 
@@ -238,14 +250,14 @@ export interface PendingSend extends JsonObject {
 }
 
 export class CosmosNetwork implements ActiveNetwork {
-	private readonly _p_chain: ChainPath;
-	private readonly _y_grpc: GrpcWebImpl;
-	private _ks_cache: Awaited<ReturnType<typeof QueryCache.read>>;
+	protected readonly _p_chain: ChainPath;
+	protected readonly _y_grpc: GrpcWebImpl;
+	protected _ks_cache: Awaited<ReturnType<typeof QueryCache.read>>;
 
-	constructor(private readonly _g_network: NetworkInterface, private readonly _g_chain: ChainInterface) {
+	constructor(private readonly _g_provider: ProviderInterface, private readonly _g_chain: ChainInterface) {
 		this._p_chain = Chains.pathFrom(_g_chain);
 
-		this._y_grpc = new GrpcWebImpl(_g_network.grpcWebUrl, {
+		this._y_grpc = new GrpcWebImpl(_g_provider.grpcWebUrl, {
 			transport: grpc.CrossBrowserHttpTransport({withCredentials:false}),
 		});
 
@@ -401,17 +413,17 @@ export class CosmosNetwork implements ActiveNetwork {
 		return h_outs;
 	}
 
-	get network(): NetworkInterface {
-		return this._g_network;
+	get provider(): ProviderInterface {
+		return this._g_provider;
 	}
 
 	get hasRpc(): boolean {
-		return !!this._g_network.rpcHost;
+		return !!this._g_provider.rpcHost;
 	}
 
 	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_value?: JsonObject, si_txn?: string) => Promisable<void>): Promise<() => void> {
 		return new Promise((fk_resolve) => {
-			const p_host = this._g_network.rpcHost;
+			const p_host = this._g_provider.rpcHost;
 
 			if(!p_host) throw new Error('Cannot subscribe to events; no RPC host configured on network');
 
@@ -648,7 +660,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		});
 		y_client.finishSend();
 
-			// this._y_grpc = new GrpcWebImpl(_g_network.grpcWebUrl, {
+			// this._y_grpc = new GrpcWebImpl(_g_provider.grpcWebUrl, {
 			// 	transport: grpc.CrossBrowserHttpTransport({withCredentials:false}),
 			// });',
 			// transport: grpc.CrossBrowserHttpTransport({withCredentials:false}),
@@ -725,7 +737,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		};
 
 		// locate account
-		let g_account!: Account['interface'];
+		let g_account!: AccountInterface;
 		const ks_accounts = await Accounts.read();
 		for(const [, g_account_test] of ks_accounts.entries()) {
 			if(sa_sender === Chains.addressFor(g_account_test.pubkey, g_chain)) {
@@ -894,7 +906,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		// if(!si_txn) {
 		// 	throw syserr({
 		// 		title: 'Provider Error',
-		// 		text: `The ${this._g_network.name} provider node failed to broadcast your transaction.`,
+		// 		text: `The ${this._g_provider.name} provider node failed to broadcast your transaction.`,
 		// 	});
 		// }
 
@@ -908,6 +920,29 @@ export class CosmosNetwork implements ActiveNetwork {
 			maxMemoCharacters: nl_memo_chars_max,
 			txSizeCostPerByte: n_cost_per_byte,
 		} = g_response.params!;
+	}
+
+
+	async networkParam(gc_params: ParamsQueryConfig): Promise<ParamChange | undefined> {
+		const g_response = await new ParamsQueryClient(this._y_grpc).params(gc_params);
+
+		return g_response.param;
+	}
+
+	async proposal(si_proposal: string): Promise<Proposal | undefined> {
+		const g_response = await new GovQueryClient(this._y_grpc).proposal({
+			proposalId: si_proposal,
+		});
+
+		return g_response?.proposal;
+	}
+
+	async tallyResult(si_proposal: string): Promise<TallyResult | undefined> {
+		const g_response = await new GovQueryClient(this._y_grpc).tallyResult({
+			proposalId: si_proposal,
+		});
+
+		return g_response.tally;
 	}
 
 	fetchTx(si_txn: string): Promise<GetTxResponse> {
@@ -980,7 +1015,7 @@ export class CosmosNetwork implements ActiveNetwork {
 		if(!s_latest) {
 			throw syserr({
 				title: 'Sync failed',
-				text: `${this._g_network.name} returned an invalid block`,
+				text: `${this._g_provider.name} returned an invalid block`,
 			});
 		}
 
@@ -1113,17 +1148,6 @@ export class CosmosNetwork implements ActiveNetwork {
 		return g_response.validators;
 	}
 
-	async sign(g_account: AccountInterface, g_chain: ChainInterface, atu8_body: Uint8Array, atu8_auth: Uint8Array): Promise<SignedDoc> {
-		// derive account's address
-		const sa_owner = Chains.addressFor(g_account.pubkey, this._g_chain);
-
-		// fetch latest signer info
-		const g_signer = await this._signer_data(sa_owner);
-
-		// produce signed doc bytes
-		return await signDirectDoc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
-	}
-
 	async secretConsensusIoPubkey(): Promise<Uint8Array> {
 		if(!this._g_chain.features['secretwasm']) {
 			throw new Error(`Cannot get consensus IO pubkey on non-secret chain "${this._g_chain.reference}"`);
@@ -1209,5 +1233,57 @@ export class CosmosNetwork implements ActiveNetwork {
 				value: MsgExecuteContract.encode(g_proto_exec).finish(),
 			},
 		};
+	}
+
+
+	// -----------
+
+	/**
+	 * 
+	 */
+	async sign(g_account: AccountInterface, g_chain: ChainInterface, atu8_body: Uint8Array, atu8_auth: Uint8Array): Promise<SignedDoc> {
+		// derive account's address
+		const sa_owner = Chains.addressFor(g_account.pubkey, this._g_chain);
+
+		// fetch latest signer info
+		const g_signer = await this._signer_data(sa_owner);
+
+		// produce signed doc bytes
+		return await signDirectDoc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
+	}
+
+
+	// async 
+
+	async simulate(g_account: AccountInterface, g_body: Partial<TxBody>, g_auth: Partial<AuthInfo>) {
+		const g_chain = this._g_chain;
+
+		const atu8_body = encode_proto(TxBody, g_body);
+
+		const atu8_auth = encode_proto(AuthInfo, g_auth);
+
+		const sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
+
+		// fetch latest signer info
+		const g_signer = await this._signer_data(sa_owner);
+
+		const {
+			signature: atu8_signature,
+		} = await signDirectDoc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
+
+
+		const atu8_tx = encode_proto(TxRaw, {
+			bodyBytes: atu8_body,
+			authInfoBytes: atu8_auth,
+			signatures: [atu8_signature],
+		});
+
+		const g_simulated = await new TxServiceClient(this._y_grpc).simulate({
+			txBytes: atu8_tx,
+		});
+
+		debugger;
+
+		return g_simulated;
 	}
 }

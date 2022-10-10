@@ -192,7 +192,7 @@ import type * as ImportHelper from './ics-spotter-imports';
 				justify-content: center;
 				color: #f7f7f7;
 
-				${['absolute', 'fixed'].includes(g_computed.position)? `margin-top: -${xl_height_input - 1}px;`: ''}
+				${['absolute', 'fixed', 'static'].includes(g_computed.position)? `margin-top: -${xl_height_input - 1}px;`: ''}
 
 				border-radius: 2em ${s_border_tr} ${s_border_br} 2em;
 			`,
@@ -282,8 +282,8 @@ import type * as ImportHelper from './ics-spotter-imports';
 	async function dom_ready() {
 		debug('dom_ready triggered');
 
-		// load the app's pfp
-		void load_app_pfp();
+		// // load the app's pfp
+		// void load_app_pfp();
 
 		// logged in
 		if(await Vault.isUnlocked()) {

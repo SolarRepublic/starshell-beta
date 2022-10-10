@@ -1,5 +1,6 @@
 import type Browser from 'webextension-polyfill';
 import type { Dict, JsonValue } from './meta/belt';
+import { B_LOCALHOST } from './share/constants';
 
 import {
 	ode,
@@ -7,7 +8,7 @@ import {
 } from './util/belt';
 
 // TODO: incorporate import.meta.env.DEV
-if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) {
+if(B_LOCALHOST) {
 	const d_chrome = globalThis['chrome'];
 
 	// polyfill storage
@@ -15,7 +16,17 @@ if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) 
 		function polyfill_chrome_storage(si_area: chrome.storage.AreaName): chrome.storage.StorageArea {
 			return {
 				/* eslint-disable @typescript-eslint/require-await */
-				async get(z_keys: string | string[], fk_respond?: (h_store: Dict<JsonValue | undefined>) => void): Promise<Dict<JsonValue | undefined>> {
+				async get(z_keys: null | string | string[], fk_respond?: (h_store: Dict<JsonValue | undefined>) => void): Promise<Dict<JsonValue | undefined>> {
+					if(null === z_keys) {
+						z_keys = [];
+						for(let i_key=0; i_key<localStorage.length; i_key++) {
+							const si_key = localStorage.key(i_key);
+							if(si_key?.startsWith(`chrome.${si_area}:`)) {
+								z_keys.push(si_key.replace(/^chrome\.[^:]+:/, ''));
+							}
+						}
+					}
+
 					const a_keys = Array.isArray(z_keys)? z_keys: [z_keys];
 					const h_store = fold(a_keys, (si_key) => {
 						const z_value = localStorage.getItem(`chrome.${si_area}:${si_key}`);
@@ -175,7 +186,7 @@ if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) 
 
 			onInstalled: {
 				addListener(f_listener) {
-					f_listener();
+					// f_listener();
 				},
 
 				removeListener() {
@@ -243,7 +254,9 @@ if('undefined' !== typeof window && 'localhost' === window?.location?.hostname) 
 	if(!d_chrome['extension']) {
 		d_chrome.extension = {
 			getBackgroundPage() {
-				debugger;
+				return {
+					sessionStorage,
+				};
 			},
 		};
 	}

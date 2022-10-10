@@ -10,7 +10,7 @@
 	import {onMount} from 'svelte';
 	import {dd, qs} from '#/util/dom';
 	import type {AgentPath, Chain} from '#/meta/chain';
-	import type { Contact } from '#/meta/contact';
+	import type { Contact, ContactInterface } from '#/meta/contact';
 	import { Agents } from '#/store/agents';
 	import { Chains } from '#/store/chains';
 	import type { ContactOption } from './InlineContactSelection.svelte';
@@ -23,9 +23,9 @@
 	let s_manual_input: string;
 	let g_item_select: ContactOption;
 
-	let a_contacts: [AgentPath, Contact['interface']][];
+	let a_contacts: [AgentPath, ContactInterface][];
 
-	const contact_to_option = (g: Contact['interface']): ContactOption => ({
+	const contact_to_option = (g: ContactInterface): ContactOption => ({
 		value: Agents.addressFor(g, $yw_chain),
 		label: g.name,
 		contact: g,
