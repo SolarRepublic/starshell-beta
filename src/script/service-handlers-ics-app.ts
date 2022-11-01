@@ -1,28 +1,35 @@
-import {syserr} from '#/app/common';
-import {SecretWasm} from '#/crypto/secret-wasm';
+import type {IcsToService} from './messages';
+
 import type {AccountPath} from '#/meta/account';
-import type {AppChainConnection, AppInterface, AppPath} from '#/meta/app';
+import type {AppChainConnection, AppStruct, AppPath} from '#/meta/app';
 import type {JsonArray, JsonObject, Promisable} from '#/meta/belt';
-import type {Bech32, ChainInterface, ChainPath} from '#/meta/chain';
-import type {SecretInterface} from '#/meta/secret';
+import type {Bech32, ChainStruct, ChainPath} from '#/meta/chain';
 import type {Vocab} from '#/meta/vocab';
+
 import type {AdaptedAminoResponse, AdaptedStdSignDoc, GenericAminoMessage} from '#/schema/amino';
-import type {Snip24Permission, Snip24PermitMsg} from '#/schema/snip-24';
 import {Snip24} from '#/schema/snip-24-const';
+import type {Snip24Permission, Snip24PermitMsg} from '#/schema/snip-24-def';
+
+import {open_flow, RegisteredFlowError} from './msg-flow';
+import {page_info_from_sender, position_widow_over_tab} from './service-apps';
+
+import {syserr} from '#/app/common';
+import {yw_account} from '#/app/mem';
+import {SecretWasm} from '#/crypto/secret-wasm';
+
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
-import {is_dict, ode} from '#/util/belt';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json} from '#/util/data';
+import {fold, is_dict, ode} from '#/util/belt';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json, json_to_buffer} from '#/util/data';
 import {uuid_v4} from '#/util/dom';
-import type {IcsToService} from './messages';
-import {open_flow, RegisteredFlowError} from './msg-flow';
-import {page_info_from_sender, position_widow_over_tab} from './service-apps';
+import { SecretNetwork } from '#/chain/secret-network';
+
 
 interface Resolved {
-	app: AppInterface;
+	app: AppStruct;
 	appPath: AppPath;
 	connection: AppChainConnection;
 }
@@ -124,7 +131,7 @@ const JsonValidator = {
 
 
 const H_AMINO_SANITIZERS = {
-	async query_permit(g_request: AminoRequest, g_resolved: Resolved, g_chain: ChainInterface, fk_flow: AminoFlowCallback) {
+	async query_permit(g_request: AminoRequest, g_resolved: Resolved, g_chain: ChainStruct, fk_flow: AminoFlowCallback) {
 		// guaranteed to only be one message
 		const g_msg = g_request.doc.msgs[0];
 
@@ -174,19 +181,26 @@ const H_AMINO_SANITIZERS = {
 			}
 		}
 
+		const a_tokens = [...as_tokens];
+		const a_permissions = [...as_permissions];
+
 		// type-check sanitized and canonicalized msg
 		const g_permit_msg: Snip24PermitMsg = {
 			type: 'query_permit',
 			value: {
 				permit_name: s_name,
-				allowed_tokens: [...as_tokens],
-				permissions: [...as_permissions],
+				allowed_tokens: a_tokens,
+				permissions: a_permissions,
 			},
 		};
+
+		// read account
+		const g_account = (await Accounts.at(g_request.accountPath))!;
 
 		// search for existing permit
 		const a_permits = await Secrets.filter({
 			type: 'query_permit',
+			owner: Chains.addressFor(g_account.pubkey, g_chain),
 			chain: g_request.chainPath,
 			name: s_name,
 		});
@@ -194,7 +208,7 @@ const H_AMINO_SANITIZERS = {
 		// a permit with the same name already exists on this chain
 		CONSOLIDATE_PERMIT:
 		if(a_permits.length) {
-			const g_secret = a_permits[0] as SecretInterface<'query_permit'>;
+			const g_secret = a_permits[0];
 
 			// contracts
 			const h_contracts = g_secret.contracts;
@@ -230,8 +244,8 @@ const H_AMINO_SANITIZERS = {
 			if(s_contracts_a === s_contracts_b) {
 				// identical permissions
 				if(s_permissions_a === s_permissions_b) {
-					// same app
-					if(g_secret.app === g_resolved.appPath) {
+					// app is already an outlet
+					if(g_secret.outlets.includes(g_resolved.appPath)) {
 						// return existing permit
 						return await Secrets.borrowPlaintext(Secrets.pathFrom(g_secret), kn => buffer_to_json(kn.data)) as AdaptedAminoResponse;
 					}
@@ -252,7 +266,9 @@ const H_AMINO_SANITIZERS = {
 			else {
 				// search for intersection
 				INTERSECTION: {
-					for(const sa_contract of g_secret.contracts) {
+					for(const [sa_contract, s_revoked] of ode(g_secret.contracts)) {
+						// TODO: handle revoked
+
 						// there is an intersection of contracts
 						if(as_tokens.has(sa_contract)) {
 							// stop searching
@@ -265,7 +281,29 @@ const H_AMINO_SANITIZERS = {
 			}
 		}
 
-		return fk_flow(Snip24.construct(g_chain.reference, g_permit_msg), 'snip24');
+		// request signature
+		const g_completed = await fk_flow(Snip24.construct(g_chain.reference, g_permit_msg), 'snip24');
+
+		// convert permit to buffer
+		const atu8_permit = json_to_buffer(g_completed);
+
+		// save to secrets
+		await Secrets.put(atu8_permit, {
+			type: 'query_permit',
+			uuid: SecretNetwork.uuidForQueryPermit(g_chain, g_permit_msg.value.permit_name),
+			security: {
+				type: 'none',
+			},
+			chain: g_request.chainPath,
+			owner: Chains.addressFor(g_account.pubkey, g_chain),
+			name: g_permit_msg.value.permit_name,
+			permissions: a_permissions,
+			contracts: fold(a_tokens, sa_token => ({[sa_token]:''})),
+			outlets: [g_resolved.appPath],
+		});
+
+		// return signed response
+		return g_completed;
 	},
 };
 
@@ -274,7 +312,7 @@ const H_AMINO_SANITIZERS = {
 function sanitize_amino(
 	g_request: AminoRequest,
 	g_resolved: Resolved,
-	g_chain: ChainInterface,
+	g_chain: ChainStruct,
 	fk_flow: AminoFlowCallback
 ) {
 	// validate doc is dict
@@ -403,6 +441,29 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 
 		if(b_approved) {
 			return void 0;
+		}
+		else {
+			throw new Error('Request rejected');
+		}
+	},
+
+	async requestViewingKeys(g_request, g_resolved, g_sender) {
+		const {answer:a_approved} = open_flow({
+			flow: {
+				type: 'exposeViewingKeys',
+				value: {
+					appPath: Apps.pathFrom(g_resolved.app),
+					chainPath: g_request.chainPath,
+					accountPath: g_request.accountPath,
+					bech32s: g_request.bech32s,
+				},
+				page: page_info_from_sender(g_sender),
+			},
+			open: await position_widow_over_tab(g_sender.tab!.id!),
+		});
+
+		if(a_approved) {
+			return a_approved;
 		}
 		else {
 			throw new Error('Request rejected');

@@ -1,7 +1,7 @@
 import type { Replace } from 'ts-toolbelt/out/String/Replace';
 import type { App, AppSchemeKey } from '#/meta/app';
 import type { Resource } from '#/meta/resource';
-import type { ImageMedia, ImageMediaPath, Media, MediaInterface, MediaPath, MediaTypeKey } from '#/meta/media';
+import type { ImageMedia, ImageMediaPath, Media, MediaStruct, MediaPath, MediaTypeKey } from '#/meta/media';
 
 import {
 	create_store_class,
@@ -30,11 +30,11 @@ export const Medias = create_store_class({
 
 		// static get<
 		// 	si_media extends MediaTypeKey=MediaTypeKey,
-		// >(p_media: si_media, s_scheme: AppSchemeKey): Promise<null | AppInterface> {
+		// >(p_media: si_media, s_scheme: AppSchemeKey): Promise<null | AppStruct> {
 		// 	return Media.open(ks => ks.get(s_host, s_scheme));
 		// }
 
-		// get(s_host: string, s_scheme: AppSchemeKey): Media['interface'] | null {
+		// get(s_host: string, s_scheme: AppSchemeKey): Media['struct'] | null {
 		// 	// prepare app path
 		// 	const p_app = MediaI.pathFor(s_host, s_scheme);
 

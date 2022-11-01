@@ -1,4 +1,4 @@
-import type {Bech32, ChainInterface, KnownChain} from '#/meta/chain';
+import type {Bech32, ChainStruct} from '#/meta/chain';
 import type {JsonObject} from '#/meta/belt';
 import type {AdaptedStdSignDoc} from './amino';
 
@@ -9,7 +9,7 @@ export type Snip24Permission =
 	| 'owner';
 
 export interface Snip24PermitMsg<
-	g_chain extends ChainInterface=ChainInterface,
+	g_chain extends ChainStruct=ChainStruct,
 	si_hrp extends string=g_chain['bech32s']['acc'],
 > extends JsonObject {
 	type: 'query_permit';
@@ -21,7 +21,7 @@ export interface Snip24PermitMsg<
 }
 
 export interface Snip24Tx<
-	g_chain extends ChainInterface=ChainInterface,
+	g_chain extends ChainStruct=ChainStruct,
 	si_hrp extends string=g_chain['bech32s']['acc'],
 	g_permit_msg extends Snip24PermitMsg<g_chain, si_hrp>=Snip24PermitMsg<g_chain, si_hrp>,
 > extends AdaptedStdSignDoc {

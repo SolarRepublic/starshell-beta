@@ -27,14 +27,15 @@
 	import type {PopConfig, Thread} from '##/nav/thread';
 	import {Navigator, type NavigatorConfig} from '##/nav/navigator';
 
-	import {H_THREADS} from '##/def';
+	import {H_THREADS, ThreadId} from '##/def';
 	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_nav_visible, yw_provider, yw_network, yw_provider_ref, yw_page, yw_thread} from '##/mem';
 	import {Chains} from '#/store/chains';
 	import {Accounts} from '#/store/accounts';
 	import {once_store_updates} from '../svelte';
 	import {Providers} from '#/store/providers';
 	import {Vault} from '#/crypto/vault';
-    import { Gestures } from '../helper/gestures';
+	import {Gestures} from '../helper/gestures';
+	import {await_transition, GC_HOOKS_DEFAULT, page_slide} from '../nav/defaults';
 
 	export let page: PageConfig;
 	const gc_page = page;
@@ -50,58 +51,6 @@
 
 	// get all contexts
 	const h_context_all = Object.fromEntries(getAllContexts().entries());
-
-	async function slide(dm_slide: HTMLElement, b_in=false): Promise<void> {
-		// smoother, allow for previous mods to make element visible
-		await timeout(2);
-
-		// go async
-		return new Promise((fk_resolve) => {
-			function finalize() {
-				// change class
-				dm_slide.classList.add('slid');
-
-				// resolve promise
-				fk_resolve();
-			}
-
-			// make sure transition runs first
-			function transition_run(d_event) {
-				// not the intended property
-				if('transform' !== d_event.propertyName) return;
-
-				// wait for transition to complete
-				dm_slide.addEventListener('transitionend', function transition_end(d_event) {
-					// not the intended property
-					if('transform' !== d_event.propertyName) return;
-				
-					// remove listener
-					dm_slide.removeEventListener('transitionend', transition_end);
-
-					// complete
-					finalize();
-				});
-
-				// remove listener
-				dm_slide.removeEventListener('transitionrun', transition_run);
-			}
-
-			// start listening
-			dm_slide.addEventListener('transitionrun', transition_run);
-
-			// timeout handler
-			setTimeout(() => {
-				// cancel listening for transition event
-				dm_slide.removeEventListener('transitionrun', transition_run);
-
-				// complete
-				finalize();
-			}, 300);
-
-			// apply transform
-			dm_slide.style.transform = `translateX(${b_in? '0px': 'var(--app-window-width)'})`;
-		});
-	}
 
 	async function initialize_mem() {
 		// allow these to fail in order to recover from disasters
@@ -127,6 +76,9 @@
 	}
 
 	onMount(async() => {
+		// track thread switching history
+		const a_switches: ThreadId[] = [];
+
 		// navigator config
 		const gc_navigator: NavigatorConfig = {
 			// threads container
@@ -144,78 +96,31 @@
 
 			// default hooks
 			hooks: {
-				before_change(kt_context, kp_src, kp_dst) {
-					// blur on page
-					void kp_src.fire('blur');
-				},
+				...GC_HOOKS_DEFAULT,
 
-				// once a new page has been pushed
-				after_push(kt_context, kp_src, kp_dst) {
-					// // push state to navigator history
-					// history.pushState(null, '', '#page:'+kp_dst.id);
+				// // handle a special case when popping off bottom of scratch thread
+				// after_pop(kt_context, kp_src, kp_dst, gc_pop) {
+				// 	// thread was created by transferring search result pages
+				// 	if(ThreadId.SCRATCH === kt_context.id) {
+				// 		// reached bottom of scratch thread history
+				// 		if(1 === kt_context.history.length) {
+				// 			// remove scratch thread from switch history
+				// 			const i_scratch = a_switches.indexOf(ThreadId.SCRATCH);
+				// 			if(i_scratch) a_switches.splice(i_scratch, 1);
 
-					// wait for svelte to render component before querying container
-					void tick().then(() => {
-						// query container for last element child
-						void slide(kp_dst.dom, true);
-					});
-				},
+				// 			// go back to previous thread
+				// 			void $yw_navigator.activateThread(a_switches.at(-1)!);
+				// 		}
+				// 	}
 
-				// once a page has been popped
-				after_pop(kt_context, kp_src, kp_dst, gc_pop) {
-					// notify dst page
-					void kp_dst.fire('restore');
+				// 	GC_HOOKS_DEFAULT.after_pop!(kt_context, kp_src, kp_dst, gc_pop);
+				// },
 
-					// do not bypass animation
-					if(!gc_pop.bypassAnimation) {
-						function finalize() {
-							// destroy component
-							kp_src.destroy();
-						}
+				async before_switch() {
+					await initialize_mem();
 
-						// ref dom
-						const dm_src = kp_src.dom;
-
-						// make sure transition runs first
-						function transition_run(d_event) {
-							// not the intended property
-							if('transform' !== d_event.propertyName) return;
-
-							// wait for transition to complete
-							dm_src.addEventListener('transitionend', function transition_end(d_event) {
-								// not the intended property
-								if('transform' !== d_event.propertyName) return;
-							
-								// remove listener
-								dm_src.removeEventListener('transitionend', transition_end);
-
-								// complete
-								finalize();
-							});
-
-							// remove listener
-							dm_src.removeEventListener('transitionrun', transition_run);
-						}
-
-						// start listening
-						dm_src.addEventListener('transitionrun', transition_run);
-
-						// timeout handler if transition does not run within certain amount of time
-						setTimeout(() => {
-							// cancel listening for transition event
-							dm_src.removeEventListener('transitionrun', transition_run);
-
-							// complete
-							finalize();
-						}, 500);
-
-						// apply translation transform to src page
-						kp_src.dom.style.transform = `translateX(var(--app-window-width))`;
-					}
-					// bypass animation; destroy component
-					else {
-						kp_src.destroy();
-					}
+					// only needs to happen once
+					delete this.before_switch;
 				},
 
 				// upon any page change
@@ -231,15 +136,25 @@
 					// const x_scroll_top = kp_src.dom.scrollTop;
 
 					// debugger;
+
+					// thread was created by transferring search result pages
+					if(ThreadId.SCRATCH === kt_context.id) {
+						// reached bottom of scratch thread history
+						if('pop' === s_transition && 1 === kt_context.history.length) {
+							// await for pop transition to complete
+							void await_transition(kp_src!.dom, 500).then(() => {
+								// remove scratch thread from switch history
+								const i_scratch = a_switches.indexOf(ThreadId.SCRATCH);
+								if(i_scratch) a_switches.splice(i_scratch, 1);
+
+								// go back to previous thread
+								void $yw_navigator.activateThread(a_switches.at(-1)!);
+							});
+						}
+					}
 				},
 
-				async before_switch() {
-					await initialize_mem();
-
-					// only needs to happen once
-					delete this.before_switch;
-				},
-
+				// upon thread switch
 				async after_switch(kt_src, kt_dst) {
 					// set global page and thread
 					$yw_page = kt_dst.page;
@@ -251,8 +166,13 @@
 					// wait for svelte to render component before querying container
 					await tick();
 
+					// record switch
+					const i_existing = a_switches.indexOf(kt_dst.id);
+					if(i_existing >= 0) a_switches.splice(i_existing, 1);
+					a_switches.push(kt_dst.id);
+
 					// query container for last element child
-					await slide(kt_dst.page.dom, true);
+					await page_slide(kt_dst.page.dom, true);
 				},
 			},
 		};
@@ -527,8 +447,14 @@
 		}>({
 			init() {
 				if($yw_navigator.activeThread.history.length > 1) {
+					// ref page dom
+					const dm_page = $yw_navigator.activePage.dom;
+
+					// temporarily disable its transition
+					dm_page.style.transition = 'unset';
+
 					return {
-						dom: $yw_navigator.activePage.dom,
+						dom: dm_page,
 					};
 				}
 			},
@@ -543,6 +469,9 @@
 
 				// ref style
 				const g_style = g_context.dom.style;
+
+				// remove temporary 'unset' transition style property
+				g_context.dom.style.removeProperty('transition');
 
 				// cleared threshold for pop
 				if(xl_dx_tracking > 0.45 * xl_width) {
@@ -559,9 +488,47 @@
 
 			cancel(g_context) {
 				g_context.dom.style.transform = 'translateX(0px)';
+				g_context.dom.style.removeProperty('transition');
 			},
 		});
+
+		// 
+		addEventListener('keydown', (d_event) => {
+			// a slash "/" keydown initiates a search
+			if(['/', 'Divide'].includes(d_event.key)) {
+				void $yw_navigator.activePage.fire('search', () => {
+					d_event.preventDefault();
+				});
+			}
+		});
 	});
+
+
+	let x_overscroll_progress = 0;
+	let x_overscroll_position = 0;
+	{
+		Gestures.overscroll({
+			init() {
+				if(0 === $yw_navigator.activePage.dom.scrollTop) {
+					return {};
+				}
+			},
+
+			move(xl_dy) {
+				console.log(`Overscroll position: ${xl_dy}`);
+				x_overscroll_progress = (xl_dy / 50);
+				x_overscroll_position = xl_dy / 80;
+			},
+
+			release() {
+				x_overscroll_position = 0;
+			},
+
+			cancel() {
+				x_overscroll_position = 0;
+			},
+		});
+	}
 	
 </script>
 
@@ -586,6 +553,13 @@
 
 		color: var(--theme-color-text-light);
 		background-color: var(--theme-color-bg);
+
+		// .selected {
+		// 	:global(&) {
+		// 		color: var(--theme-color-black);
+		// 		background-color: var(--theme-color-primary);
+		// 	}
+		// }
 
 		>.content {
 			.full(relative);
@@ -628,7 +602,7 @@
 	{#if b_main}
 		{#await Vault.isUnlocked() then b_unlocked}
 			{#if b_unlocked}
-				<OverscrollSvelte />
+				<OverscrollSvelte bind:progress={x_overscroll_progress} bind:position={x_overscroll_position} />
 				<NavSvelte />
 				<SearchSvelte />
 				<VendorMenuSvelte />

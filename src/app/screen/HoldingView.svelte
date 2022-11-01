@@ -1,54 +1,58 @@
 <script lang="ts">
-	import BigNumber from 'bignumber.js';
-
-	import SX_ICON_SEND from '#/icon/send.svg?raw';
-	import SX_ICON_RECV from '#/icon/recv.svg?raw';
-
 	// import {definition} from '@fortawesome/free-solid-svg-icons/faRobot';
 	// const SXP_ROBOT = definition.icon[4];
 	const SXP_ROBOT = '';
-
+	
 	// import SX_NORTH_EAST from '@material-design-icons/svg/filled/north_east.svg?raw';
 	// import SX_EDIT from '@material-design-icons/svg/filled/edit.svg?raw';
 	// import SX_INFO from '@material-design-icons/svg/outlined/info.svg?raw';
-
+	
+	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
+	
+	import type {ContractStruct, ContractPath, EntityPath, CoinInfo, HoldingPath} from '#/meta/chain';
+	import type {IncidentStruct, IncidentType} from '#/meta/incident';
+	import type {PfpTarget} from '#/meta/pfp';
+	
+	import BigNumber from 'bignumber.js';
+	import {getContext} from 'svelte';
+	
+	import {Header, Screen, type Page} from './_screens';
+	import {yw_chain, yw_chain_ref, yw_network} from '../mem';
+	
+	import {coin_formats, parse_coin_amount, to_fiat} from '#/chain/coin';
+	import {proto_to_amino} from '#/chain/cosmos-msgs';
+	import {fold_attrs} from '#/chain/cosmos-network';
+	import {SI_STORE_CHAINS, XT_MINUTES} from '#/share/constants';
+	import {Chains} from '#/store/chains';
+	import {Entities} from '#/store/entities';
+	import {Incidents} from '#/store/incidents';
+	import {format_amount, format_fiat} from '#/util/format';
+	
+	import Send from './Send.svelte';
+	import Gap from '../ui/Gap.svelte';
+	import IncidentsList from '../ui/IncidentsList.svelte';
+	import LoadingRows from '../ui/LoadingRows.svelte';
+	import Portrait, {type Actions} from '../ui/Portrait.svelte';
+	import Row from '../ui/Row.svelte';
+	
 	import SX_ICON_PERSONAL from '#/icon/account_box.svg?raw';
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
-	import { Header, Screen, type Page } from './_screens';
-	import Portrait, {type Actions} from '../ui/Portrait.svelte';
-	import type { ContractInterface, ContractPath, EntityPath, CoinInfo } from '#/meta/chain';
-	import { Entities } from '#/store/entities';
-	import { yw_chain, yw_chain_ref, yw_network } from '../mem';
-	import { SI_STORE_CHAINS, XT_MINUTES } from '#/share/constants';
-	import { getContext } from 'svelte';
-	import Send from './Send.svelte';
-	import { Chains } from '#/store/chains';
-	import { coin_formats, to_fiat } from '#/chain/coin';
-	import { format_amount, format_fiat } from '#/util/format';
-	import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-	import type { PfpTarget } from '#/meta/pfp';
-	import Gap from '../ui/Gap.svelte';
-	import Row from '../ui/Row.svelte';
+	import SX_ICON_RECV from '#/icon/recv.svg?raw';
+	import SX_ICON_SEND from '#/icon/send.svg?raw';
+	
 
 	const k_page = getContext<Page>('page');
 
 	/**
 	 * Entity path should be either a holding or token
 	 */
-	export let entityRef: EntityPath;
-	const p_entity = entityRef;
+	export let holdingPath: HoldingPath;
+	const p_holding = holdingPath;
 
-
-	// either a native coin or a fungible token
-	let si_type: 'coin' | 'token' | '' = '';
 
 	// the coin's id and object (if its a coin)
 	let si_coin = '';
 	let g_coin: CoinInfo | null = null;
-
-	// the token's path and object (if it's a token)
-	let p_token: ContractPath | '' = '';
-	let g_token: ContractInterface | null = null;
 
 
 	// its pfp
@@ -66,7 +70,7 @@
 	// the equivalent in fiat
 	let s_fiat = '';
 
-	// the fiat worth of exactly 1 coin/token
+	// the fiat worth of exactly 1 coin
 	let s_worth = '';
 
 
@@ -76,79 +80,51 @@
 	async function load_entity() {
 		const ks_entities = await Entities.read();
 
-		const g_info = Entities.parseEntityPath(p_entity);
+		const g_info = Entities.parseEntityPath(p_holding);
 
 		if(!g_info) {
-			throw new Error(`Attempted to load holding view on non-entity path "${p_entity}"`);
+			throw new Error(`Attempted to load holding view on non-entity path "${p_holding}"`);
 		}
 
-		switch(g_info.type) {
-			// native coin
-			case 'holding': {
-				si_type = 'coin';
+		// destructure
+		({
+			coin: si_coin,
+		} = g_info);
 
-				// destructure
-				({
-					coin: si_coin,
-				} = g_info);
+		// lookup details from chain
+		const p_chain = g_info.chainRef;
+		const g_chain = p_chain === $yw_chain_ref? $yw_chain: (await Chains.at(p_chain))!;
+		g_coin = g_chain.coins[si_coin];
 
-				// lookup details from chain
-				const p_chain = g_info.chainRef;
-				const g_chain = p_chain === $yw_chain_ref? $yw_chain: (await Chains.at(p_chain))!;
-				g_coin = g_chain.coins[si_coin];
+		// set details
+		s_symbol = si_coin;
+		s_name = g_coin.name;
+		p_pfp = g_coin.pfp;
 
-				// set details
-				s_symbol = si_coin;
-				s_name = g_coin.name;
-				p_pfp = g_coin.pfp;
+		// read cache
+		const g_cached = $yw_network.cachedCoinBalance(g_info.bech32, si_coin);
 
-				// read cache
-				const g_cached = $yw_network.cachedBalance(g_info.bech32, si_coin);
+		let g_balance: Coin;
 
-				let g_balance: Coin;
-
-				// cache is within asking time
-				if(g_cached && g_cached.timestamp >= Date.now() - (2 * XT_MINUTES)) {
-					g_balance = g_cached.data;
-				}
-				else {
-					// destructure balance
-					({
-						balance: g_balance,
-					} = await $yw_network.bankBalance(g_info.bech32, si_coin));
-				}
-
-				// set amount
-				yg_amount = new BigNumber(g_balance.amount).shiftedBy(-g_coin.decimals);
-
-				// set fiat amount asynchronously
-				void coin_formats(g_balance, g_coin).then((g_formats) => {
-					s_fiat = format_fiat(g_formats.fiat, g_formats.versus);
-					s_worth = format_fiat(g_formats.worth, g_formats.versus);
-				});
-
-				break;
-			}
-
-			// token
-			case 'token': {
-				si_type = 'token';
-
-				// set token path
-				p_token = p_entity as ContractPath;
-
-				// read token interfaces
-				const ks_entites = await Entities.read();
-				const h_ifaces = ks_entites.tokens(g_info.entityRef, Entities.fungibleInterfacesFor($yw_chain));
-				debugger;
-
-				break;
-			}
-
-			default: {
-				throw new Error(`Unhandled entity type: "${g_info.type}"`);
-			}
+		// cache is within asking time
+		if(g_cached && g_cached.timestamp >= Date.now() - (2 * XT_MINUTES)) {
+			g_balance = g_cached.data;
 		}
+		else {
+			// destructure balance
+			({
+				balance: g_balance,
+			} = await $yw_network.bankBalance(g_info.bech32, si_coin));
+		}
+
+		// set amount
+		yg_amount = new BigNumber(g_balance.amount).shiftedBy(-g_coin.decimals);
+
+		// set fiat amount asynchronously
+		void coin_formats(g_balance, g_coin).then((g_formats) => {
+			s_fiat = format_fiat(g_formats.fiat, g_formats.versus);
+			s_worth = format_fiat(g_formats.worth, g_formats.versus);
+		});
 	}
 
 	load_entity();
@@ -188,15 +164,9 @@
 			trigger() {
 				k_page.push({
 					creator: Send,
-					props: g_token
-						? {
-							token: g_token,
-						}
-						: si_coin
-							? {
-								native: si_coin,
-							}
-							: {},
+					props: {
+						assetPath: p_holding,
+					},
 				});
 			},
 		},
@@ -297,6 +267,32 @@
 	// 		$yw_task = -$yw_task;
 	// 	}, 1400);
 	// }
+
+	const AS_TXN_TYPES = new Set<IncidentType>(['tx_in', 'tx_out']);
+
+	async function load_incidents() {
+		const a_incidents: IncidentStruct[] = [];
+
+		const ks_incidents = await Incidents.read();
+		for(const [, g_incident] of ks_incidents.entries()) {
+			// skip non-transaction incidents
+			if(!AS_TXN_TYPES.has(g_incident.type)) continue;
+
+			const {
+				events: h_events,
+			} = (g_incident as IncidentStruct<'tx_in' | 'tx_out'>).data;
+
+			for(const g_event of h_events.transfer || []) {
+				const [, si_parsed] = parse_coin_amount(g_event.amount, $yw_chain);
+
+				if(si_parsed === si_coin) {
+					a_incidents.push(g_incident);
+				}
+			}
+		}
+
+		return a_incidents;
+	}
 </script>
 
 <style lang="less">
@@ -362,10 +358,10 @@
 
 	<Portrait
 		pfp={p_pfp}
-		resource={g_coin || g_token || null}
-		resourcePath={p_entity}
+		resource={g_coin || null}
+		resourcePath={p_holding}
 		title={yg_amount? `${format_amount(yg_amount.toNumber())} ${s_symbol}`: '...'}
-		subtitle={`${s_fiat} (${s_worth} per ${si_type})`}
+		subtitle={`${s_fiat} (${s_worth} per coin)`}
 		actions={gc_actions}
 		circular
 	/>
@@ -391,6 +387,11 @@
 	<Gap />
 
 	<div class="txns no-margin">
+		{#await load_incidents()}
+			<LoadingRows count={3} />
+		{:then a_incidents}
+			<IncidentsList incidents={a_incidents} />
+		{/await}
 
 		<!-- {#if k_ibct_native}
 			<div class="section">

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import type {App, AppInterface} from '#/meta/app';
+	import type {App, AppStruct} from '#/meta/app';
 	import {Apps} from '#/store/apps';
 
 	import {P_PUBLIC_SUFFIX_LIST, R_DOMAIN_IP, R_DOMAIN_LOCALHOST} from '#/share/constants';
@@ -29,7 +29,7 @@
 	/**
 	 * Information about the app requesting the advertisement
 	 */
-	export let app: AppInterface;
+	export let app: AppStruct;
 	const g_app = app;
 
 	/**

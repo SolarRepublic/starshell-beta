@@ -3,7 +3,7 @@
 
 	import type {Completed} from '#/entry/flow';
 
-	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
+	import type {Account, AccountStruct, AccountPath} from '#/meta/account';
 	import type {Bech32} from '#/meta/chain';
 	import {Accounts} from '#/store/accounts';
 	import {Chains} from '#/store/chains';
@@ -29,11 +29,12 @@
 	import { syserr } from '../common';
 	import { load_flow_context } from '../svelte';
     import { Incidents } from '#/store/incidents';
+    import Load from '../ui/Load.svelte';
 
 	export let accountPath: AccountPath;
 	const p_account = accountPath;
 
-	let g_account: AccountInterface;
+	let g_account: AccountStruct;
 
 	export let oneway = false;
 
@@ -318,7 +319,7 @@
 	<span style="display:none" class:pfpg-preview={false} class:generator={false}></span>
 
 	{#await load_account()}
-		Loading accounts...
+		<Load forever />
 	{:then}
 		<Field key="profile-icon" name="Profile image">
 			<span class="tooltip">

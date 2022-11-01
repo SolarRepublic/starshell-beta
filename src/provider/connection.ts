@@ -14,7 +14,7 @@ import {DoxxModule} from './modules/doxx';
 import {StorageModule} from './modules/storage-module';
 import type {HotWalletModule} from './modules/host-wallet-module';
 import type {AccountPath} from '#/meta/account';
-import type {ChainInterface, ChainPath} from '#/meta/chain';
+import type {ChainStruct, ChainPath} from '#/meta/chain';
 import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 import type { AppChainConnection } from '#/meta/app';
 
@@ -24,7 +24,7 @@ import type { AppChainConnection } from '#/meta/app';
  */
 export interface ConnectionHandleConfig extends JsonObject {
 	account_path: AccountPath;
-	chain: ChainInterface;
+	chain: ChainStruct;
 	features: {
 		doxx?: {
 			name?: boolean;
@@ -49,7 +49,7 @@ export interface ConnectionModule<k_instance extends object> {
 }
 
 export type InternalSessionResponse = Merge<AppChainConnection, {
-	chain: ChainInterface;
+	chain: ChainStruct;
 }>;
 
 export type InternalConnectionsResponse = Record<ChainPath, InternalSessionResponse>;

@@ -4,7 +4,7 @@ import type {Resource} from './resource';
 
 // export type Media = Resource.New<{
 // 	segments: ['media'],
-// 	interface: {
+// 	struct: {
 
 // 	};
 // }>;
@@ -21,7 +21,7 @@ export type ImageMedia<
 > = Resource.New<{
 	// extends: Media;
 	segments: [`media.${si_media}`, `sha256.${s_hash}`];
-	interface: {
+	struct: {
 		hash: s_hash;
 		data: string;
 	};
@@ -34,7 +34,7 @@ export type ImageMediaPath<
 	s_hash extends string=string,
 > = Resource.Path<ImageMedia<si_media, s_hash>>;
 export type ImageMediaTarget = ImageMediaPath | ImageDataUrl;
-export type ImageMediaInterface = ImageMedia['interface'];
+export type ImageMediaStruct = ImageMedia['struct'];
 
 export type Media = ImageMedia;
 export type MediaPath<
@@ -42,4 +42,4 @@ export type MediaPath<
 	s_hash extends string=string,
 > = ImageMediaPath<si_media, s_hash>;
 export type Mediatarget = ImageMediaTarget;
-export type MediaInterface = ImageMediaInterface;
+export type MediaStruct = ImageMediaStruct;

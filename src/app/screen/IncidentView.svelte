@@ -1,39 +1,53 @@
 <script lang="ts">
-	import {Tab, TabList, TabPanel, Tabs} from 'svelte-tabs';
-	import {Header, Screen} from './_screens';
-	
-	import {JsonView} from '@zerodevx/svelte-json-view';
+	import type {LocalAppContext} from '../svelte';
 
-	import {format_amount, format_fiat, format_time} from '#/util/format';
+	import type {AccountStruct} from '#/meta/account';
+	import type {AppPath, AppStruct} from '#/meta/app';
+	import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
+	import type {ChainStruct, ChainPath} from '#/meta/chain';
+	import type {FieldConfig} from '#/meta/field';
+	import type {Incident, IncidentStruct, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
 	
-	import {parse_coin_amount, to_fiat} from '#/chain/coin';
-	import type {Chain, ChainInterface, ChainPath} from '#/meta/chain';
-	import type {Incident, IncidentInterface, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
-	import {R_TRANSFER_AMOUNT} from '#/share/constants';
-	import {Chains} from '#/store/chains';
-	import {
-		type ActiveNetwork,
-		Providers,
-	} from '#/store/providers';
-	import type {JsonObject, JsonValue} from '#/meta/belt';
-	import {ode, oderac} from '#/util/belt';
-	import {buffer_to_base64} from '#/util/data';
-	import BigNumber from 'bignumber.js';
-	import {syswarn} from '../common';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-
-	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
-	import {Incidents} from '#/store/incidents';
 	import {MsgSend} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
 	import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 	import {Tx} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-	import type {SimpleField} from '../ui/IncidentFields.svelte';
-	import IncidentFields from '../ui/IncidentFields.svelte';
-	import {Apps} from '#/store/apps';
+	import {JsonView} from '@zerodevx/svelte-json-view';
+	import BigNumber from 'bignumber.js';
+	import {Tab, TabList, TabPanel, Tabs} from 'svelte-tabs';
+	
+	import {Header, Screen} from './_screens';
+	import {syswarn} from '../common';
+	import {yw_account, yw_account_ref} from '../mem';
+	import {load_flow_context, load_page_context} from '../svelte';
+	
+	import {parse_coin_amount, to_fiat} from '#/chain/coin';
+	import {proto_to_amino} from '#/chain/cosmos-msgs';
+	import type {CosmosNetwork} from '#/chain/cosmos-network';
+	import type {ReviewedMessage} from '#/chain/messages/_types';
+	import {kv} from '#/chain/messages/_util';
+	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
+	import type {NotifyItemConfig} from '#/extension/notifications';
+	import {R_TRANSFER_AMOUNT} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
+	import {Apps, G_APP_EXTERNAL} from '#/store/apps';
+	import {Chains} from '#/store/chains';
+	import {Incidents} from '#/store/incidents';
+	import {Providers} from '#/store/providers';
+	import {ode, oderac} from '#/util/belt';
+	import {base93_to_buffer, buffer_to_base64} from '#/util/data';
+	import {dd} from '#/util/dom';
+	import {format_amount, format_date_long, format_fiat, format_time} from '#/util/format';
+	
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import AppBanner from '../ui/AppBanner.svelte';
 	import Field from '../ui/Field.svelte';
-	import {load_flow_context} from '../svelte';
-    import type { FieldConfig } from '../ui/Fields.svelte';
+	import Fields from '../ui/Fields.svelte';
+	import Gap from '../ui/Gap.svelte';
+	import IncidentFields from '../ui/IncidentFields.svelte';
+	import type {SimpleField} from '../ui/IncidentFields.svelte';
+	import Spacer from '../ui/Spacer.svelte';
+	
+	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
 
 	const {
 		completed,
@@ -43,16 +57,29 @@
 		completed!(true);
 	}
 
+	const g_context_page = load_page_context();
+
 	export let incident: IncidentPath;
 	const p_incident = incident;
 
 	interface EventViewConfig {
 		s_title: string;
-		a_fields: SimpleField[];
+		a_fields: FieldConfig[];
 	}
-		// const a_fields: SimpleField[] = [];
+
+	// setting this value causes an app banner to be displayed
+	let gc_banner: {
+		app: AppStruct;
+		chain: ChainStruct;
+		account: AccountStruct;
+	};
+
+	// determines view mode for app banner
+	const b_banner_view = true;
+
+	// const a_fields: SimpleField[] = [];
 	async function pretty_amount(s_input: string, p_chain: ChainPath): Promise<string> {
-		// attempt to parse amount
+			// attempt to parse amount
 		const m_amount = R_TRANSFER_AMOUNT.exec(s_input);
 		if(!m_amount) {
 			syswarn({
@@ -60,12 +87,12 @@
 			});
 		}
 		else {
-			// destructure into amount and denom
+				// destructure into amount and denom
 			const [, s_amount, si_denom] = m_amount;
 
 			const g_chain = (await Chains.at(p_chain))!;
 
-			// locate coin
+				// locate coin
 			for(const [si_coin_test, g_coin_test] of ode(g_chain.coins)) {
 				if(si_denom === g_coin_test.denom) {
 					const x_amount = new BigNumber(s_amount).shiftedBy(-g_coin_test.decimals).toNumber();
@@ -90,7 +117,6 @@
 					{
 						href: Chains.blockExplorer('transaction', {
 							...g_data,
-							chain_prefix: g_chain.reference.replace(/-.+$/, ''),
 						}, g_chain),
 						icon: SX_ICON_LAUNCH,
 						text: 'Block explorer',
@@ -100,7 +126,7 @@
 		}],
 	] as FieldConfig[];
 
-	let s_fiat_amount = '';
+	const s_fiat_amount = '';
 
 	const H_RELABELS = {
 		'extra.pfpg.offset': 'pfp offset',
@@ -109,181 +135,172 @@
 	const relabel = s => H_RELABELS[s] ?? s;
 
 	const H_EVENTS: {
-		[si_type in IncidentType]: (g_data: Incident.Struct<si_type>['data'], g_chain: ChainInterface) => EventViewConfig;
+		[si_type in IncidentType]: (g_data: Incident.Struct<si_type>['data'], g_context: LocalAppContext) => Promisable<EventViewConfig>;
 	} = {
-		tx_out: (g_data, g_chain) => {
-			if('confirmed' === g_data.stage || 'synced' === g_data.stage) {
-				const g_msg = g_data.msgs[0];
-				const h_events = g_msg.events;
+		async tx_out(g_data, g_context) {
+			const h_events = g_data.events;
 
-				if(h_events.transfer) {
-					const g_transfer = h_events.transfer;
-					const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
-
-					// missing fiat
-					if('synced' === g_data.stage && !('usd' in (g_data.fiats || {}))) {
-						const m_amount = R_TRANSFER_AMOUNT.exec(g_transfer.amount);
-						if(m_amount) {
-							void to_fiat({
-								amount: m_amount[1],
-								denom: m_amount[2],
-							}, g_coin, 'usd').then((yg_fiat) => {
-								void Incidents.mutateData(p_incident, {
-									fiats: {
-										usd: yg_fiat.toNumber(),
-									},
-								}).then(() => {
-									s_fiat_amount = format_fiat(yg_fiat.toNumber(), 'usd');
-								});
-							});
-						}
-					}
-
-					return {
-						s_title: `Sent ${si_coin}`,
-						a_fields: [
-							{
-								type: 'key_value',
-								key: 'Status',
-								value: 'Confirmed',
-							},
-							{
-								type: 'key_value',
-								key: 'Sender',
-								value: g_transfer.sender,
-								render: 'address',
-							},
-							{
-								type: 'key_value',
-								key: 'Recipient',
-								value: g_transfer.recipient,
-								render: 'address',
-							},
-							{
-								type: 'key_value',
-								key: 'Amount',
-								value: pretty_amount(g_transfer.amount, g_data.chain),
-								// subvalue: `${format_amount(Number(xg_amount))} ${g_coin.denom}`,
-							},
-							{
-								type: 'key_value',
-								key: 'Fiat',
-								value: 'usd' in (g_data.fiats || {})? format_fiat(g_data.fiats['usd'], 'usd'): '',
-							},
-							{
-								type: 'key_value',
-								key: 'Fee',
-								value: `${format_amount(new BigNumber(g_data.gas_wanted).shiftedBy(-g_coin.decimals).toNumber())} ${si_coin}`,
-								subvalue: `${format_amount(+g_data.gas_wanted)} ${g_coin.denom}`,
-							},
-							// {
-							// 	type: 'key_value',
-							// 	key: 'Total',
-							// 	value: `${format_amount(g_data.gas_wanted)}`,
-							// },
-							...f_send_recv(g_data),
-						],
-					};
-				}
-			}
-			else {
-				const g_msg = g_data.msgs[0];
-				const h_events = g_msg.events;
-
-				if(h_events.transfer) {
-					const g_transfer = h_events.transfer;
-					const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
-
-					return {
-						s_title: `Send ${si_coin}`,
-						a_fields: [
-							{
-								type: 'key_value',
-								key: 'Status',
-								value: 'Confirmed',
-							},
-							{
-								type: 'key_value',
-								key: 'Sender',
-								value: g_transfer.sender,
-								render: 'address',
-							},
-							{
-								type: 'key_value',
-								key: 'Recipient',
-								value: g_transfer.recipient,
-								render: 'address',
-							},
-							{
-								type: 'key_value',
-								key: 'Amount',
-								value: pretty_amount(g_transfer.amount, g_data.chain),
-								// subvalue: `${format_amount(Number(xg_amount))} ${g_coin.denom}`,
-							},
-							{
-								type: 'key_value',
-								key: 'Fee',
-								value: `${format_amount(new BigNumber(g_data.gas_wanted).shiftedBy(-g_coin.decimals).toNumber())} ${si_coin}`,
-								subvalue: `${format_amount(+g_data.gas_wanted)} ${g_coin.denom}`,
-							},
-							// {
-							// 	type: 'key_value',
-							// 	key: 'Total',
-							// 	value: `${format_amount(g_data.gas_wanted)}`,
-							// },
-							...f_send_recv(g_data),
-						],
-					};
-				}
-			}
-
-			return {
-				s_title: 'Pending',
-				a_fields: [],
+			// set app banner
+			gc_banner = {
+				app: (await Apps.at(g_data.app!))!,
+				chain: (await Chains.at(g_data.chain))!,
+				account: (await Accounts.at(g_data.account))!,
 			};
-		},
 
-		tx_in: (g_data, g_chain) => {
-			const g_msg = g_data.msgs[0];
-			const h_events = g_msg.events;
+			// interpret raw messages
+			const a_reviewed = await Promise.all(g_data.msgs.map(async(g_msg_proto) => {
+				const g_msg_amino = proto_to_amino({
+					typeUrl: g_msg_proto.typeUrl,
+					value: base93_to_buffer(g_msg_proto.value),
+				}, g_context.g_chain.bech32s.acc);
 
-			if(h_events.transfer) {
-				const g_transfer = h_events.transfer;
-				const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+				const g_interpretted = await H_INTERPRETTERS[g_msg_amino.type]?.(g_msg_amino.value, g_context);
+				return await g_interpretted?.review?.('pending' === g_data.stage);
+			}));
+
+			const a_fields_outbound_before: FieldConfig[] = [
+				{
+					type: 'transaction',
+					hash: g_data.hash,
+					chain: g_context.g_chain,
+				},
+			];
+
+			const a_fields_outbound_after: FieldConfig[] = [
+				{
+					type: 'group',
+					flex: true,
+					fields: [
+						{
+							type: 'key_value',
+							key: 'Gas Payed',
+							value: g_data.gas_wanted,
+							render: 'mono',
+						},
+						{
+							type: 'key_value',
+							key: 'Gas Used',
+							value: g_data.gas_used,
+							render: 'mono',
+						},
+					],
+				},
+			];
+
+			// single message
+			if(1 === a_reviewed.length) {
+				const g_reviewed = a_reviewed[0];
 
 				return {
-					s_title: `Received ${si_coin}`,
+					s_title: g_reviewed?.title || 'Outbound Transaction',
 					a_fields: [
-						{
-							type: 'key_value',
-							key: 'Status',
-							value: 'Confirmed',
-						},
-						{
-							type: 'key_value',
-							key: 'Sender',
-							value: g_transfer.sender,
-							render: 'address',
-						},
-						{
-							type: 'key_value',
-							key: 'Recipient',
-							value: g_transfer.recipient,
-							render: 'address',
-						},
-						{
-							type: 'key_value',
-							key: 'Amount',
-							value: pretty_amount(g_transfer.amount, g_data.chain),
-							subvalue: `${new BigNumber(''+xg_amount).shiftedBy(-g_coin.decimals).toString()} ${si_coin}`,
-						},
-						...f_send_recv(g_data),
+						...a_fields_outbound_before,
+						...g_reviewed?.fields || [],
+						...a_fields_outbound_after,
 					],
 				};
 			}
 
+			// multiple messages
 			return {
-				s_title: 'pending',
+				s_title: `Sent Multi-Message Transaction`,
+				a_fields: [
+					...a_fields_outbound_before,
+					...a_reviewed.flatMap((g, i) => [
+						{
+							type: 'gap',
+						},
+						{
+							type: 'dom',
+							title: `Message #${i+1}`,
+							dom: dd('span'),
+						},
+						{
+							type: 'group',
+							fields: g?.fields || [],
+						},
+					]),
+					...a_fields_outbound_after,
+				],
+			};
+		},
+
+		tx_in: async(g_data, g_context) => {
+			// interpret raw messages
+			const a_reviewed: ReviewedMessage[] = [];
+			for(const g_msg_proto of g_data.msgs) {
+				const g_msg_amino = proto_to_amino({
+					typeUrl: g_msg_proto.typeUrl,
+					value: base93_to_buffer(g_msg_proto.value),
+				}, g_context.g_chain.bech32s.acc);
+
+				const g_interpretted = await H_INTERPRETTERS[g_msg_amino.type]?.(g_msg_amino.value, g_context);
+				const g_reviewed = await g_interpretted?.review?.(false, true);
+				if(g_reviewed) {
+					a_reviewed.push(g_reviewed);
+				}
+			}
+
+			const a_fields_inbound_before: FieldConfig[] = [
+				{
+					type: 'transaction',
+					hash: g_data.hash,
+					chain: g_context.g_chain,
+				},
+			];
+
+			// single message
+			if(1 === a_reviewed.length) {
+				const g_reviewed = a_reviewed[0];
+
+				return {
+					s_title: g_reviewed?.title || 'Inbound Transaction',
+					a_fields: [
+						...a_fields_inbound_before,
+						...g_reviewed?.fields || [],
+						// ...a_fields_inbound_after,
+					],
+				};
+			}
+
+			// const h_events = g_data.events;
+
+			// for(const g_transfer of h_events.transfer || []) {
+			// 	const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_transfer.amount, g_chain);
+
+			// 	return {
+			// 		s_title: `Received ${si_coin}`,
+			// 		a_fields: [
+			// 			{
+			// 				type: 'key_value',
+			// 				key: 'Status',
+			// 				value: 'Confirmed',
+			// 			},
+			// 			{
+			// 				type: 'key_value',
+			// 				key: 'Sender',
+			// 				value: g_transfer.sender,
+			// 				render: 'address',
+			// 			},
+			// 			{
+			// 				type: 'key_value',
+			// 				key: 'Recipient',
+			// 				value: g_transfer.recipient,
+			// 				render: 'address',
+			// 			},
+			// 			{
+			// 				type: 'key_value',
+			// 				key: 'Amount',
+			// 				value: pretty_amount(g_transfer.amount, g_data.chain),
+			// 				subvalue: `${new BigNumber(''+xg_amount).shiftedBy(-g_coin.decimals).toString()} ${si_coin}`,
+			// 			},
+			// 			...f_send_recv(g_data),
+			// 		],
+			// 	};
+			// }
+
+			return {
+				s_title: 'Inbound Transaction',
 				a_fields: [],
 			};
 		},
@@ -341,19 +358,32 @@
 		}),
 	};
 
-	let g_incident!: IncidentInterface;
-	let g_chain: ChainInterface | null;
-	let k_network: ActiveNetwork;
+	let g_incident!: IncidentStruct;
+	let g_chain: ChainStruct | null;
+	let k_network: CosmosNetwork;
 
 	let s_time = '';
 	let s_title = '';
-	let a_fields: SimpleField[] = [];
-	const dp_loaded = (async() => {
+	let a_fields: FieldConfig[] = [];
+
+	async function reload() {
 		g_incident = (await Incidents.at(p_incident))!;
 
 		const g_data = g_incident.data;
 
 		g_chain = g_data['chain']? await Chains.at(g_data['chain'] as ChainPath): null;
+
+		const p_app = g_data['app'] as AppPath;
+
+			// prep local app context
+		const g_context = {
+			g_app: p_app? await Apps.at(p_app): G_APP_EXTERNAL,
+			p_app: p_app,
+			g_chain,
+			p_chain: g_chain? Chains.pathFrom(g_chain): '',
+			p_account: $yw_account_ref,
+			g_account: $yw_account,
+		};
 
 		if(g_chain) {
 			k_network = await Providers.activateDefaultFor(g_chain);
@@ -364,13 +394,15 @@
 		({
 			s_title,
 			a_fields,
-		} = H_EVENTS[g_incident.type](g_data, g_chain));
-	})();
+		} = await H_EVENTS[g_incident.type](g_data, g_context));
+	}
 
-	// const {
-	// 	s_title,
-	// 	a_fields,
-	// } = H_EVENTS[event.type](event.data);
+	let dp_loaded = reload();
+
+		// const {
+		// 	s_title,
+		// 	a_fields,
+		// } = H_EVENTS[event.type](event.data);
 
 
 	const H_GRPC_MAP = {
@@ -381,15 +413,15 @@
 
 	function recode(w_value: JsonValue) {
 		if(w_value && 'object' === typeof w_value) {
-			// array of values
+				// array of values
 			if(Array.isArray(w_value)) {
 				return w_value.map(recode);
 			}
-			// raw data; replace with base64 encoding
+				// raw data; replace with base64 encoding
 			else if(ArrayBuffer.isView(w_value)) {
 				return buffer_to_base64(w_value as unknown as Uint8Array);
 			}
-			// nested object
+				// nested object
 			else {
 				return decode_proto(w_value);
 			}
@@ -399,10 +431,10 @@
 	}
 
 	function decode_proto(g_top: JsonObject): JsonObject {
-		// proto thing
+			// proto thing
 		const si_proto = g_top.typeUrl;
 		if('string' === typeof si_proto) {
-			// has value
+				// has value
 			if(ArrayBuffer.isView(g_top.value)) {
 				if(si_proto in H_GRPC_MAP) {
 					return {
@@ -416,13 +448,13 @@
 		for(const [si_key, w_value] of ode(g_top)) {
 			const si_type = typeof w_value;
 
-			// ignore functions and undefined
+				// ignore functions and undefined
 			if('function' === si_type || 'undefined' === si_type) {
 				delete g_top[si_key];
 				continue;
 			}
 
-			// recode everything else
+				// recode everything else
 			g_top[si_key] = recode(w_value);
 		}
 
@@ -437,6 +469,12 @@
 		const g_formatted = decode_proto(g_response);
 
 		return g_formatted;
+	}
+
+	let c_updates = 0;
+
+	$: if(c_updates) {
+		dp_loaded = reload();
 	}
 </script>
 
@@ -461,100 +499,71 @@
 
 <Screen>
 	<Header
+		search={!completed}
 		pops={!completed}
 		title={s_title}
 		subtitle={s_time}
+		on:update={() => c_updates++}
 	/>
 
-	{#if s_title}
-		{#if 'tx_in' === g_incident.type || 'tx_out' === g_incident.type}
-			<Tabs>
-				<TabList>
-					<Tab>
-						Overview
-					</Tab>
-
-					<Tab>
-						Raw JSON
-					</Tab>
-				</TabList>
-
-				<!-- Overview -->
-				<TabPanel>
-					<span>&nbsp;</span>
-
-					<Field
-						short
-						key='datetime'
-						name='Date'
-					>
-						{new Intl.DateTimeFormat('en-US', {
-							year: 'numeric',
-month: 'numeric',
-day: 'numeric',
-							hour: 'numeric',
-minute: 'numeric',
-second: 'numeric',
-							hour12: false,
-							timeZone: 'America/Los_Angeles',
-						}).format(new Date(g_incident.time))}
-					</Field>
-
-					<IncidentFields
-						incident={g_incident}
-						fields={a_fields}
-						chain={g_chain}
-						network={k_network}
-						loaded={dp_loaded}
+	{#key c_updates}
+		{#if s_title}
+			{#if 'tx_in' === g_incident.type || 'tx_out' === g_incident.type}
+				{#if gc_banner}
+					<AppBanner embedded
+						app={gc_banner.app}
+						chain={gc_banner.chain}
+						account={gc_banner.account}
 					/>
-				</TabPanel>
 
-				<!-- Raw JSON -->
-				<TabPanel>
-					<span>&nbsp;</span>
+					<hr>
+				{/if}
 
-					{#await load_raw_json()}
-						Loading JSON...
-					{:then g_response}
-						<div class="raw-json">
-							<JsonView
-								--nodeColor='var(--theme-color-text-light)'
-								json={g_response}
-							/>
-						</div>
-					{/await}
-				</TabPanel>
-			</Tabs>
-		{:else}
-			<span>&nbsp;</span>
+				<Fields
+					incident={g_incident}
+					configs={[
+						{
+							type: 'key_value',
+							key: 'Date',
+							value: format_date_long(g_incident.time),
+						},
+						...a_fields,
+					]}
+					chain={g_chain}
+					network={k_network}
+					loaded={dp_loaded}
+				/>
 
-			<Field
-				short
-				key='datetime'
-				name='Date'
-			>
-				{new Intl.DateTimeFormat('en-US', {
-					year: 'numeric',
-month: 'numeric',
-day: 'numeric',
-					hour: 'numeric',
-minute: 'numeric',
-second: 'numeric',
-					hour12: false,
-					timeZone: 'America/Los_Angeles',
-				}).format(new Date(g_incident.time))}
-			</Field>
+			{:else}
+				<span>&nbsp;</span>
 
-			<IncidentFields
-				incident={g_incident}
-				fields={a_fields}
-				chain={g_chain}
-				network={k_network}
-				loaded={dp_loaded}
-			/>
+				<!-- <Field
+					short
+					key='datetime'
+					name='Date'
+				>
+					{format_date_long(g_incident.time)}
+				</Field> -->
+
+				<Fields
+					incident={g_incident}
+					configs={[
+						{
+							type: 'key_value',
+							key: 'Date',
+							value: format_date_long(g_incident.time),
+						},
+						...a_fields,
+					]}
+					chain={g_chain}
+					network={k_network}
+					loaded={dp_loaded}
+				/>
+			{/if}
 		{/if}
-	{/if}
+	{/key}
 
+	<Spacer height="2em" />
 
 	{#if completed}
 		<ActionsLine confirm={['Done', complete]} />

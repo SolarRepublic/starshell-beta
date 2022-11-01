@@ -1,7 +1,8 @@
+import type {O} from 'ts-toolbelt';
+import type {Type} from 'ts-toolbelt/out/Any/Type';
+
 import type {Dict, JsonObject} from '#/meta/belt';
-import type {ChainInterface} from '#/meta/chain';
-import {fold, is_dict, oderom} from '#/util/belt';
-import { camel_to_snake, snake_to_camel } from '#/util/format';
+import type {Bech32, ChainStruct} from '#/meta/chain';
 
 import {
 	MsgSend,
@@ -25,17 +26,25 @@ import {
 	MsgVoteWeighted,
 	MsgDeposit,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/tx';
-import { ParameterChangeProposal } from '@solar-republic/cosmos-grpc/dist/cosmos/params/v1beta1/params';
+import {ParameterChangeProposal} from '@solar-republic/cosmos-grpc/dist/cosmos/params/v1beta1/params';
 
-import { TxBody } from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-import { CancelSoftwareUpgradeProposal, SoftwareUpgradeProposal } from '@solar-republic/cosmos-grpc/dist/cosmos/upgrade/v1beta1/upgrade';
+import {TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+import {CancelSoftwareUpgradeProposal, SoftwareUpgradeProposal} from '@solar-republic/cosmos-grpc/dist/cosmos/upgrade/v1beta1/upgrade';
 
 import {
 	MsgExecuteContract as SecretMsgExecuteContract,
 	MsgInstantiateContract as SecretMsgInstantiateContract,
 	MsgStoreCode as SecretMsgStoreCode,
 } from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/msg';
-import type { Type } from 'ts-toolbelt/out/Any/Type';
+
+import {bech32PaddedToBin, binToBech32Padded, decodeBech32} from '@solar-republic/wasm-secp256k1';
+import {toWords} from 'bech32';
+
+import {bech32_to_buffer, buffer_to_bech32} from '#/crypto/bech32';
+import {fold, is_dict, oderom} from '#/util/belt';
+import {base64_to_buffer, buffer_to_base64} from '#/util/data';
+import {camel_to_snake, snake_to_camel} from '#/util/format';
+
 
 export interface CanonicalBase {
 	// id: `/${'cosmos' | 'secret'}.${string}`;
@@ -220,9 +229,15 @@ const H_METHODS_PROTO = oderom(H_ROOT_DEFS, (si_root, {groups:h_groups}) => oder
 
 
 
-function recase_keys_snake_to_camel(g_object: Dict<any>): Dict<any> {
+function recase_keys_snake_to_camel(g_object: Dict<any>, f_transform?: null | ((si_key: string, w_value: any) => any)): Dict<any> {
 	return oderom(g_object, (si_key, z_value) => {
-		const w_recased = is_dict(z_value)? recase_keys_snake_to_camel(z_value): z_value;
+		const w_value = f_transform? f_transform(si_key, z_value): z_value;
+
+		const w_recased = w_value instanceof Uint8Array
+			? buffer_to_base64(w_value)
+			: is_dict(w_value)
+				? recase_keys_snake_to_camel(w_value, f_transform)
+				: w_value;
 
 		return {
 			[snake_to_camel(si_key)]: w_recased,
@@ -240,7 +255,15 @@ export function amino_to_base(g_msg: TypedValue): CanonicalBase {
 	if(si_proto && si_proto in H_METHODS_PROTO) {
 		const y_methods = H_METHODS_PROTO[si_proto];
 
-		const g_recased = recase_keys_snake_to_camel(g_value);
+		const g_recased = recase_keys_snake_to_camel(g_value, (si_key, w_value) => {
+			// replace bech32 with address buffer
+			if('string' === typeof w_value && ['sender', 'recipient', 'contract'].includes(si_key)) {
+				return bech32_to_buffer(w_value as Bech32);
+			}
+
+			// keep as-is
+			return w_value;
+		});
 
 		const g_data = y_methods.fromJSON(g_recased);
 
@@ -254,34 +277,43 @@ export function amino_to_base(g_msg: TypedValue): CanonicalBase {
 		};
 	}
 
-	throw new Error(`Unable to remap amino msg to proto`);
+	throw new Error(`Unable to remap amino msg "${si_msg}" to proto`);
 }
-
-type ProtoInfer = {
-
-};
 
 export function encode_proto<
 	y_methods extends {
 		fromPartial(g: object): any;
 	},
->(y_methods: y_methods, g_partial: Partial<ReturnType<y_methods['fromPartial']>>): Uint8Array {
+>(y_methods: y_methods, g_partial: O.Partial<ReturnType<y_methods['fromPartial']>, 'deep'>): Uint8Array {
 	return (y_methods as unknown as Methods).encode((y_methods as unknown as Methods).fromPartial(g_partial)).finish();
 }
 
-function recase_keys_camel_to_snake(g_object: Dict<any>) {
+
+const A_ADDRESSABLE_KEYS = ['sender', 'recipient', 'contract'];
+
+function recase_item_camel_to_snake(w_value: any, f_transform?: null | ((si_key: string | number, w_value: any) => any)) {
+	return is_dict(w_value) && !(w_value instanceof Uint8Array)
+		? recase_keys_camel_to_snake(w_value, f_transform)
+		: Array.isArray(w_value)
+			? w_value.map((w_item, i_item) => f_transform
+				? f_transform(i_item, w_item)
+				: recase_item_camel_to_snake(w_item, f_transform))
+			: w_value;
+}
+
+function recase_keys_camel_to_snake(g_object: Dict<any>, f_transform?: null | ((si_key: string | number, w_value: any) => any)): Dict<any> {
 	return oderom(g_object, (si_key, z_value) => {
-		const w_recased = is_dict(z_value)? recase_keys_camel_to_snake(z_value): z_value;
+		const w_value = f_transform? f_transform(si_key, z_value): z_value;
 
 		return {
-			[camel_to_snake(si_key)]: w_recased,
+			[camel_to_snake(si_key)]: recase_item_camel_to_snake(w_value, f_transform),
 		};
 	});
 }
 
 export function proto_to_amino<
 	g_amino extends TypedValue=TypedValue,
->(g_msg: ProtoMsg): g_amino {
+>(g_msg: ProtoMsg, s_hrp: string | null): g_amino {
 	const {
 		typeUrl: si_proto,
 		value: atu8_value,
@@ -304,7 +336,32 @@ export function proto_to_amino<
 				delete g_json[si_delete];
 			}
 
-			const g_recased = recase_keys_camel_to_snake(g_json);
+			// recase dict keys
+			const g_recased = recase_keys_camel_to_snake(g_json, s_hrp? (z_key, w_value) => {
+				// sub message
+				if(is_dict(w_value) && 'string' === typeof w_value.typeUrl && 'undefined' !== typeof w_value.value) {
+					if('string' === typeof w_value.value) {
+						return proto_to_amino({
+							typeUrl: w_value.typeUrl,
+							value: base64_to_buffer(w_value.value),
+						}, s_hrp);
+					}
+					else {
+						throw new Error(`Uncertain how to parse typed value with non-string value type: %o`, w_value);
+					}
+				}
+
+				// object
+				if('string' === typeof z_key) {
+					// replace address buffer with bech32
+					if('string' === typeof w_value && A_ADDRESSABLE_KEYS.includes(z_key)) {
+						return buffer_to_bech32(base64_to_buffer(w_value), s_hrp);
+					}
+				}
+
+				// keep as-is
+				return w_value;
+			}: null);
 
 			return {
 				type: si_amino,
@@ -313,5 +370,5 @@ export function proto_to_amino<
 		}
 	}
 
-	throw new Error(`Unable to remap proto msg to amino`);
+	throw new Error(`Unable to remap proto msg "${si_proto}" to amino`);
 }

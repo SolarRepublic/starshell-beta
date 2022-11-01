@@ -1,18 +1,20 @@
-import type { Bip44Path } from '#/crypto/bip44';
-import type { Snip24Permission } from '#/schema/snip-24';
+import type {Nameable} from './able';
+import type {AppPath} from './app';
+import type {Bech32, ChainPath, ContractPath} from './chain';
+import type {Resource} from './resource';
 import type {Cast} from 'ts-toolbelt/out/Any/Cast';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import type {Nameable} from './able';
-import type { App, AppPath } from './app';
-import type { Bech32, ChainPath, ContractPath } from './chain';
-import type { IncidentPath } from './incident';
-import type {Resource} from './resource';
+
+import type {Snip24Permission} from '#/schema/snip-24-def';
+
+import type {Bip44Path} from '#/crypto/bip44';
+import type { AccountPath } from './account';
 
 type SecurityTypeRegistry = {
 	none: {};
 
 	phrase: {
-		interface: {
+		struct: {
 			algo: 'pbkdf2';
 			iterations: number;
 			salt: string;
@@ -22,13 +24,13 @@ type SecurityTypeRegistry = {
 	};
 
 	webauthn: {
-		interface: {
+		struct: {
 			data: string;
 		};
 	};
 
 	otp: {
-		interface: {
+		struct: {
 			data: string;
 		};
 	};
@@ -37,13 +39,13 @@ type SecurityTypeRegistry = {
 type SecurityType = keyof SecurityTypeRegistry;
 
 namespace Security {
-	export type Interface<
+	export type Struct<
 		si_type extends SecurityType=SecurityType,
 	> = {
 		[si_each in SecurityType]: Merge<{
 			type: si_each;
-		}, SecurityTypeRegistry[si_each] extends {interface: infer h_interface}
-			? Cast<h_interface, object>
+		}, SecurityTypeRegistry[si_each] extends {struct: infer h_struct}
+			? Cast<h_struct, object>
 			: {}
 		>
 	}[si_type];
@@ -52,55 +54,72 @@ namespace Security {
 
 type SecretTypeRegistry = {
 	mnemonic: {
-		interface: {
+		struct: {
 			hint: string;  // its presence indicates the user has set a password ontop of this mnemonic
 		};
 	};
 
 	bip32_node: {
-		interface: {
+		struct: {
 			mnemonic: `/secret.mnemonic/uuid.${string}`;
 			bip44: Bip44Path;
 		};
 	};
 
 	private_key: {
-		interface: {};
+		struct: {};
 	};
 
 	viewing_key: {
-		interface: {
-			contract: ContractPath;
+		struct: {
+			/**
+			 * The chain that this viewing key exists on
+			 */
+			chain: ChainPath;
+
+			/**
+			 * The account which the viewing key belongs to
+			 */
+			owner: Bech32;
+
+			/**
+			 * The contract the viewing key is for
+			 */
+			contract: Bech32;
+
+			/**
+			 * List of outlets that have access to the viewing key
+			 */
 			outlets: AppPath[];  // places that have a copy of the viewing key
 		};
 	};
 
 	query_permit: {
-		interface: {
-			/**
-			 * The app which initiated the query permit
-			 */
-			app: AppPath;
-
-			/**
-			 * List of outlets that have access to the permit
-			 */
-			outlets: AppPath[];
-
-			/**
-			 * The name of this permit, which identifies it to its involved contracts
-			 */
-			name: string;
-
+		struct: {
 			/**
 			 * The chain that this permit exists on
 			 */
 			chain: ChainPath;
 
 			/**
+			 * The account which the permit belongs to
+			 */
+			owner: Bech32;
+
+			/**
 			 * Contracts and their status (non-empty value indicates the tx hash of the permit being revoked)
 			 */
 			contracts: Record<Bech32, string>;
+
+			/**
+			 * List of outlets that have access to the permit (first app is the initiator)
+			 */
+			outlets: [AppPath, ...AppPath[]];
+
+			/**
+			 * The name of this permit, which identifies it to its involved contracts
+			 */
+			name: string;
 
 			/**
 			 * Canonicalized (sorted) list of permissions this permit contains
@@ -118,16 +137,16 @@ type SecretTypeRegistry = {
 export type SecretType = keyof SecretTypeRegistry;
 
 namespace Secret {
-	export type Interface<
+	export type Struct<
 		si_type extends SecretType=SecretType,
 		si_security extends SecurityType=SecurityType,
 	> = {
 		[si_each in SecretType]: Merge<{
 			type: si_each;
 			uuid: string;
-			security: Security.Interface<si_security>;
-		}, SecretTypeRegistry[si_each] extends {interface: infer h_interface}
-			? Cast<h_interface, object>
+			security: Security.Struct<si_security>;
+		}, SecretTypeRegistry[si_each] extends {struct: infer h_struct}
+			? Cast<h_struct, object>
 			: {}
 		>
 	}[si_type];
@@ -176,13 +195,13 @@ export type Secret<
 	si_type extends SecretType=SecretType,
 > = Resource.New<{
 	segments: [`secret.${si_type}`, `uuid.${string}`];
-	interface: [Secret.Interface<si_type>, Nameable];
+	struct: [Secret.Struct<si_type>, Nameable];
 }>;
 
 export type SecretPath<
 	si_type extends SecretType=SecretType,
 > = Resource.Path<Secret<si_type>>;
 
-export type SecretInterface<
+export type SecretStruct<
 	si_type extends SecretType=SecretType,
-> = Secret<si_type>['interface'];
+> = Secret<si_type>['struct'];

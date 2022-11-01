@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: var(--svg-color-fg,currentColor);">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="s2r-connect-svg" style="fill: var(--svg-color-fg,currentColor);">
 <style type="text/css">
-	* {
+	.s2r-connect-svg {
 		stroke: var(--svg-color-fg, currentColor);
 		stroke-width:1.5;
 		stroke-linecap:round;

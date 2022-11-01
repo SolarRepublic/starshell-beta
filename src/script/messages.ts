@@ -1,24 +1,32 @@
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {BlockInfoHeader} from './common';
+import type {PromptConfig} from './msg-flow';
+
+import type {AccountPath} from '#/meta/account';
+import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
+import type {App, AppChainConnection, AppStruct, AppPath} from '#/meta/app';
 import type {
 	JsonValue,
 	JsonObject,
 	Dict,
 	OmitUnknownKeys,
 } from '#/meta/belt';
-import type {BlockInfoHeader} from './common';
-import type {Vocab} from '#/meta/vocab';
-import type {ConnectionHandleConfig} from '#/provider/connection';
-import type {App, AppChainConnection, AppInterface, AppPath} from '#/meta/app';
-import type {Store, StoreKey} from '#/meta/store';
-import type {PromptConfig} from './msg-flow';
-import type {Bech32, Caip2, ChainInterface, ChainNamespaceKey, ChainPath} from '#/meta/chain';
-import type {ProviderPath} from '#/meta/provider';
+import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ChainPath} from '#/meta/chain';
 import type {IncidentPath, TxConfirmed, TxSynced} from '#/meta/incident';
-import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
-import type {AccountPath} from '#/meta/account';
-import type {AppProfile} from '#/store/apps';
+import type {ProviderPath} from '#/meta/provider';
+import type {Store, StoreKey} from '#/meta/store';
+import type {Vocab} from '#/meta/vocab';
+
 import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
+
 import type {SloppySignDoc} from '#/schema/protobuf';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
+import type {ConnectionHandleConfig} from '#/provider/connection';
+
+
+import type {AppProfile} from '#/store/apps';
+
+
 
 
 /**
@@ -146,15 +154,15 @@ export type SessionCommand = Vocab.New<{
 	};
 	set: {
 		value: JsonObject;
-		response: undefined;
+		response: void;
 	};
 	remove: {
 		value: string;
-		response: undefined;
+		response: void;
 	};
 	clear: {
 		value?: undefined;
-		response: undefined;
+		response: void;
 	};
 }>;
 
@@ -189,7 +197,7 @@ export namespace IcsToService {
 		requestConnection: {
 			value: {
 				profile?: AppProfile;
-				chains: Record<Caip2.String, ChainInterface>;
+				chains: Record<Caip2.String, ChainStruct>;
 				sessions: Dict<SessionRequest>;
 			};
 			response: {
@@ -521,6 +529,9 @@ export namespace IntraExt {
 		// wake message
 		wake: {};
 
+		// reload all UI
+		reload: {};
+
 		// store acquired
 		acquireStore: {
 			value: {
@@ -588,6 +599,12 @@ export namespace IntraExt {
 		debug: {
 			value: JsonValue;
 		};
+
+		// transaction error
+		txError: {};
+
+		// transaction success
+		txSuccess: {};
 	}>;
 
 
@@ -601,7 +618,7 @@ export namespace IntraExt {
 		// page is requesting advertisement
 		requestAdvertisement: {
 			value: {
-				app: AppInterface;
+				app: AppStruct;
 				page: PageInfo;
 				keplr: boolean;
 			};
@@ -610,8 +627,8 @@ export namespace IntraExt {
 		// page is requesting a connection
 		requestConnection: {
 			value: {
-				app: AppInterface;
-				chains: Record<Caip2.String, ChainInterface>;
+				app: AppStruct;
+				chains: Record<Caip2.String, ChainStruct>;
 				sessions: Dict<SessionRequest>;
 				profile?: AppProfile;
 			};
@@ -619,8 +636,8 @@ export namespace IntraExt {
 
 		illegalChains: {
 			value: {
-				app: AppInterface;
-				chains: Record<Caip2.String, ChainInterface>;
+				app: AppStruct;
+				chains: Record<Caip2.String, ChainStruct>;
 			};
 		};
 
@@ -656,6 +673,17 @@ export namespace IntraExt {
 			};
 		};
 
+		exposeViewingKeys: {
+			value: {
+				appPath: AppPath;
+				chainPath: ChainPath;
+				accountPath: AccountPath;
+				bech32s: Bech32[];
+			};
+
+			response: Bech32[];
+		};
+
 		// user clicked notification
 		inspectIncident: {
 			value: {
@@ -666,7 +694,7 @@ export namespace IntraExt {
 		// suggest to reload an app's tab
 		reloadAppTab: {
 			value: {
-				app: AppInterface;
+				app: AppStruct;
 				page: PageInfo;
 				preset: string;
 			};
@@ -776,7 +804,7 @@ export namespace IntraExt {
 			response: {
 				tab: chrome.tabs.Tab;
 				window: chrome.windows.Window;
-				app: AppInterface | null;
+				app: AppStruct | null;
 				registered: boolean;
 				authenticated: boolean;
 			} & JsonObject;

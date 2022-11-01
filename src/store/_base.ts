@@ -274,8 +274,13 @@ export function create_store_class<
 				w_return = await fk_use(ks_store);
 			}
 			finally {
-				// release the store
 				ks_store.release();
+
+				// // try to release the store if it was opened
+				// try {
+				// 	ks_store.release();
+				// }
+				// catch(e_release) {}
 			}
 
 			// return

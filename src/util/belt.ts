@@ -62,6 +62,79 @@ export function fold<w_out, w_value>(a_in: w_value[], f_fold: (z_value: w_value,
 }
 
 
+/**
+ * Creates a new array by inserting an item in between every existing item
+ */
+export function interjoin<
+	w_item extends any,
+	w_insert extends any,
+>(a_input: w_item[], w_insert: w_insert): Array<w_item | w_insert> {
+	const a_output: Array<w_item | w_insert> = [];
+
+	for(let i_each=0, nl_items=a_input.length; i_each<nl_items-1; i_each++) {
+		a_output.push(a_input[i_each]);
+		a_output.push(w_insert);
+	}
+
+	if(a_input.length) a_output.push(a_input.at(-1)!);
+
+	return a_output;
+}
+
+/**
+ * Removes duplicates from an array, keeping only the first occurrence.
+ * @param z_identify - if specified and a string, identifies the key of each item to use as an identifier
+ * if specified and a function, used as a callback to produce the comparison key
+ * if omitted, compares items using full equality `===`
+ */
+export function deduplicate<
+	z_item extends any,
+	s_key extends keyof z_item=keyof z_item,
+>(a_items: z_item[], z_identify?: s_key | ((z_item: z_item) => any)): typeof a_items {
+	// compare items exactly by default
+	let a_keys: any[] = a_items;
+
+	// identify argument
+	if(z_identify) {
+		// use object property
+		if('string' === typeof z_identify) {
+			a_keys = a_items.map(w => w[z_identify]);
+		}
+		// use identity function
+		else if('function' === typeof z_identify) {
+			a_keys = a_items.map(z_identify);
+		}
+		else {
+			throw new TypeError(`Invalid identifier argument value: ${String(z_identify)}`);
+		}
+	}
+
+	// each item in list
+	for(let i_item=0, nl_items=a_items.length; i_item<nl_items; i_item++) {
+		const si_item = a_keys[i_item];
+
+		// compare against all higher-indexed items
+		for(let i_test=i_item+1; i_test<nl_items; i_test++) {
+			// found duplicate
+			if(si_item === a_keys[i_test]) {
+				// remove duplicate
+				a_items.splice(i_test, 1);
+				a_keys.splice(i_test, 1);
+
+				// update length
+				nl_items -= 1;
+
+				// update test index
+				i_test -= 1;
+
+				// repeat
+				continue;
+			}
+		}
+	}
+
+	return a_items;
+}
 
 /**
  * Escape all special regex characters to turn a string into a verbatim match pattern
@@ -205,6 +278,12 @@ export function timeout_exec<
 	w_return extends any=any,
 >(xt_wait: number, f_attempt?: () => Promise<w_return>): Promise<[w_return | undefined, 0 | 1]> {
 	return new Promise((fk_resolve, fe_reject) => {
+		// infinite
+		if(!Number.isFinite(xt_wait)) {
+			void f_attempt?.().then(w => fk_resolve([w, 0]));
+			return;
+		}
+
 		let b_timed_out = false;
 
 		// attempt callback

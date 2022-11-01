@@ -77,3 +77,7 @@ export {
 export {
 	AppApiMode,
 } from '#/meta/app';
+
+export { Secrets } from '#/store/secrets';
+
+export { Snip2xToken } from '#/schema/snip-2x-const';

@@ -34,7 +34,7 @@ const G_APP_POLICY_RESULT_BLOCKED: AppPolicyResult = {
 };
 
 
-function policy_applies(g_policy: AppPolicy, g_app: AppInterface): boolean {
+function policy_applies(g_policy: AppPolicy, g_app: AppStruct): boolean {
 	// compile match pattern
 	let r_matches: RegExp;
 	try {
@@ -76,16 +76,16 @@ function policy_applies(g_policy: AppPolicy, g_app: AppInterface): boolean {
 export const Policies = create_store_class({
 	store: SI_STORE_APP_POLICIES,
 	class: class PoliciesI extends WritableStore<typeof SI_STORE_APP_POLICIES> {
-		static async forApp(g_app: AppInterface): Promise<AppPolicyResult> {
+		static async forApp(g_app: AppStruct): Promise<AppPolicyResult> {
 			return (await Policies.read()).forApp(g_app);
 		}
 
-		static blockApp(g_app: AppInterface, b_replace=false): Promise<void> {
+		static blockApp(g_app: AppStruct, b_replace=false): Promise<void> {
 			return Policies.open(ks_policies => ks_policies.blockApp(g_app, b_replace));
 		}
 
 		// eslint-disable-next-line @typescript-eslint/require-await
-		forApp(g_app: AppInterface): AppPolicyResult {
+		forApp(g_app: AppStruct): AppPolicyResult {
 			// prep trusted flag
 			let b_trusted = false;
 
@@ -170,7 +170,7 @@ export const Policies = create_store_class({
 		/**
 		 * Blocks an app
 		 */
-		blockApp(g_app: AppInterface, b_replace=false): Promise<void> {
+		blockApp(g_app: AppStruct, b_replace=false): Promise<void> {
 			// escape regex characters in host string to form pattern
 			const sx_regex_host = escape_regex(g_app.host);
 

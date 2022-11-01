@@ -1,7 +1,8 @@
-import type {Dict, JsonObject as JsonObjectRaw, JsonValue as JsonValue} from '#/meta/belt';
-import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
 import type {StringFormat} from './belt';
 import type {Resource} from './resource';
+import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
+
+import type {Dict, JsonObject as JsonObjectRaw, JsonValue as JsonValue} from '#/meta/belt';
 
 export namespace ResponseCache {
 	export type Text = {
@@ -43,7 +44,7 @@ export type WebApi<
 	s_hash extends string=string,
 > = Resource.New<{
 	segments: ['cache.web-api', `sha256.${s_hash}`];
-	interface: MergeAll<{
+	struct: MergeAll<{
 		path: p_path;
 		hash: s_hash;
 		response: g_response;

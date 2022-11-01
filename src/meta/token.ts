@@ -1,10 +1,11 @@
-import type {Dict, JsonObject} from '#/meta/belt';
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import type {Chain, Contract, KnownChain} from './chain';
+import type {Bech32, Chain, Contract, KnownChain} from './chain';
 import type {Cw} from './cosm-wasm';
 import type {Resource} from './resource';
-import type { SecretPath } from './secret';
+import type {SecretPath} from './secret';
+import type {L, N, U} from 'ts-toolbelt';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
+import type {Dict, JsonObject} from '#/meta/belt';
 
 
 export type TokenSpecRegistry = {
@@ -149,7 +150,7 @@ export namespace TokenSpec {
 // 		symbol: string;
 // 		name: string;
 // 		extra?: Dict;
-// 	}, Contract<g_chain, s_pubkey>['interface']>;
+// 	}, Contract<g_chain, s_pubkey>['struct']>;
 // }>;
 
 // export type TokenPath = Resource.Path<Token>;
@@ -165,20 +166,39 @@ export namespace TokenSpec {
 // type sho1 = Resource.Path<Token>;
 
 
-export type TokenInterfaceRegistry = {
+export type TokenStructRegistry = {
 	snip20: {
-		interface: {
+		struct: {
 			symbol: string;
-			viewingKey: SecretPath | '';
+			decimals: L.UnionOf<N.Range<0, 18>>;
+			extra?: {
+				coingecko_id: string;
+			} & Dict;
 		};
+	};
+
+	snip21: {
+		struct: {};
+	};
+
+	snip22: {
+		struct: {};
+	};
+
+	snip23: {
+		struct: {};
+	};
+
+	snip24: {
+		struct: {};
 	};
 };
 
-export type TokenInterfaceKey = keyof TokenInterfaceRegistry;
+export type TokenStructKey = keyof TokenStructRegistry;
 
-export type TokenInterfaceDescriptor<
-	si_key extends TokenInterfaceKey=TokenInterfaceKey,
+export type TokenStructDescriptor<
+	si_key extends TokenStructKey=TokenStructKey,
 > = Pick<{
-	[si_each in TokenInterfaceKey]: TokenInterfaceRegistry[si_each]['interface'];
+	[si_each in TokenStructKey]: TokenStructRegistry[si_each]['struct'];
 }, si_key>;
 

@@ -1,15 +1,23 @@
 <script lang="ts">
+	import type {Nameable, Pfpable} from '#/meta/able';
+	import type {ContractPath, EntityPath, HoldingPath} from '#/meta/chain';
+	import type {PfpTarget} from '#/meta/pfp';
+	
+	import type {Resource} from '#/meta/resource';
+	
+	import {load_pfps} from '../svelte';
+	
+	import {Contracts} from '#/store/contracts';
+	import {Entities} from '#/store/entities';
+	
+	import {ode} from '#/util/belt';
+	import {yw_chain, yw_chain_ref, yw_owner} from '##/mem';
+	
+	import Load from './Load.svelte';
 	import StarSelect, {type SelectOption} from './StarSelect.svelte';
 
-	import {ode} from '#/util/belt';
 
-	import {yw_chain, yw_owner} from '##/mem';
-	import {Entities} from '#/store/entities';
-	import type {EntityPath} from '#/meta/chain';
-	import type {PfpTarget} from '#/meta/pfp';
-	import {load_pfps} from '../svelte';
-
-	export let assetRef: EntityPath | '' = '';
+	export let assetPath: HoldingPath | ContractPath | '' = '';
 
 	const si_chain = $yw_chain?.reference || '*';
 
@@ -18,10 +26,11 @@
 	async function load_assets() {
 		const a_items: SelectOption[] = [];
 
-		h_asset_pfps = await load_pfps($yw_chain.coins, {
-			dim: 19,
-		});
+		const h_pfps: Record<Resource.Path, Nameable & Pfpable> = {
+			...$yw_chain.coins,
+		};
 
+		// load native coins
 		for(const [si_coin, g_coin] of ode($yw_chain.coins)) {
 			a_items.push({
 				value: Entities.holdingPathFor($yw_owner, si_coin),
@@ -32,12 +41,44 @@
 			});
 		}
 
+		// load tokens
+		if($yw_chain.features.secretwasm) {
+			// on secret-wasm; load snip-20s
+			for(const g_contract of await Contracts.filterTokens({
+				on: 1,
+				chain: $yw_chain_ref,
+				interfaces: {
+					snip20: {},
+				},
+			})) {
+				// ref snip-20 struct
+				const g_snip20 = g_contract.interfaces.snip20!;
+
+				// contract path
+				const p_contract = Contracts.pathFrom(g_contract);
+
+				h_pfps[p_contract] = g_contract;
+
+				a_items.push({
+					value: p_contract,
+					object: g_contract,
+					primary: g_snip20.symbol,
+					secondary: g_contract.name,
+					pfp: g_contract.pfp,
+				});
+			}
+		}
+
+		h_asset_pfps = await load_pfps(h_pfps, {
+			dim: 19,
+		});
+
 		return a_items;
 	}
 
 	// the current item selected by user
 	let g_item: SelectOption<EntityPath> = {
-		value: assetRef as EntityPath,
+		value: assetPath as EntityPath,
 		object: null!,
 		primary: '',
 		secondary: '',
@@ -45,7 +86,7 @@
 	};
 	$: {
 		// propagate change back to exported binding
-		assetRef = g_item?.value || '';
+		assetPath = g_item?.value || '';
 	}
 
 	// async function load_tokens() {
@@ -99,7 +140,7 @@
 
 <div class="asset">
 	{#await load_assets()}
-		Loading assets...
+		<Load forever />
 	{:then a_assets}
 		<StarSelect id="asset-select"
 			pfpMap={h_asset_pfps}

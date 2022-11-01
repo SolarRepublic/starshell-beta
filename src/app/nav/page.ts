@@ -33,6 +33,12 @@ export interface PageEventConfig {
 	 * Fired when a previously existing page is restored from history (e.g., via pop)
 	 */
 	restore?(): Promisable<void>;
+
+	/**
+	 * Fired when the system has handled a key binding or gesture to initiate a search
+	 * @param fk_captured - callback to execute if the search initiation was effective
+	 */
+	search?(fk_captured?: () => void): Promisable<void>;
 }
 
 type PageEventId = keyof PageEventConfig;
@@ -113,6 +119,10 @@ export class Page<
 		return this._kt_parent;
 	}
 
+	set thread(kt_parent: Thread) {
+		this._kt_parent = kt_parent;
+	}
+
 	get creator(): dc_creator {
 		return this._dc_creator;
 	}
@@ -159,10 +169,11 @@ export class Page<
 		}
 	}
 
-	async fire(si_event: PageEventId, a_args?: any[]): Promise<void> {
+	async fire(si_event: PageEventId, ...a_args: any[]): Promise<void> {
 		const a_listeners = this._h_events[si_event];
 
 		if(a_listeners) {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			await Promise.all(a_listeners.map(f => f(...a_args || [] as const)));
 		}
 	}

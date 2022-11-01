@@ -1,4 +1,4 @@
-import type {Chain, ChainInterface, CoinInfo} from '#/meta/chain';
+import type {Chain, ChainStruct, CoinInfo} from '#/meta/chain';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
 import BigNumber from 'bignumber.js';
@@ -75,7 +75,7 @@ export async function coin_formats(g_balance: Coin, g_coin: CoinInfo, si_versus=
 export class CoinParseError extends Error {}
 export class DenomNotFoundError extends Error {}
 
-export function parse_coin_amount(s_input: string, g_chain: ChainInterface): [bigint, string, CoinInfo] {
+export function parse_coin_amount(s_input: string, g_chain: ChainStruct): [bigint, string, CoinInfo] {
 	// attempt to parse amount
 	const m_amount = R_TRANSFER_AMOUNT.exec(s_input);
 	if(!m_amount) {
@@ -103,7 +103,7 @@ export function parse_coin_amount(s_input: string, g_chain: ChainInterface): [bi
 /**
  * Convenience function wraps getting info from Coin by asserting that the given Coin is defined in the chain
  */
-function coin_info(g_coin: Coin, g_chain: ChainInterface): [string, CoinInfo] {
+function coin_info(g_coin: Coin, g_chain: ChainStruct): [string, CoinInfo] {
 	// find coin's info
 	const a_info = Coins.infoFromDenom(g_coin.denom, g_chain);
 	if(!a_info) {
@@ -114,7 +114,7 @@ function coin_info(g_coin: Coin, g_chain: ChainInterface): [string, CoinInfo] {
 }
 
 export const Coins = {
-	infoFromDenom(si_denom: string, g_chain: ChainInterface): [string, CoinInfo] | null {
+	infoFromDenom(si_denom: string, g_chain: ChainStruct): [string, CoinInfo] | null {
 		for(const [si_coin, g_coin] of ode(g_chain.coins)) {
 			if(si_denom === g_coin.denom) {
 				return [si_coin, g_coin];
@@ -124,12 +124,12 @@ export const Coins = {
 		return null;
 	},
 
-	idFromDenom(si_denom: string, g_chain: ChainInterface): string | null {
+	idFromDenom(si_denom: string, g_chain: ChainStruct): string | null {
 		return Coins.infoFromDenom(si_denom, g_chain)?.[0] || null;
 	},
 
 
-	detail(g_coin: Coin, g_chain: ChainInterface): {
+	detail(g_coin: Coin, g_chain: ChainStruct): {
 		id: string;
 		info: CoinInfo;
 		balance: BigNumber;
@@ -145,14 +145,14 @@ export const Coins = {
 	/**
 	 * Extract the balance amount as a BigNumber for the given Coin
 	 */
-	balance(g_coin: Coin, g_chain: ChainInterface): BigNumber {
+	balance(g_coin: Coin, g_chain: ChainStruct): BigNumber {
 		return Coins.detail(g_coin, g_chain).balance;
 	},
 
 	/**
 	 * Create a human-readable amount summary for the given Coin
 	 */
-	summarizeAmount(g_coin: Coin, g_chain: ChainInterface, b_imprecise=false): string {
+	summarizeAmount(g_coin: Coin, g_chain: ChainStruct, b_imprecise=false): string {
 		// lookup coin's id
 		const si_coin = Coins.idFromDenom(g_coin.denom, g_chain);
 
@@ -163,7 +163,7 @@ export const Coins = {
 		return `${format_amount(x_amount, b_imprecise)} ${si_coin!}`;
 	},
 
-	async displayInfo(g_coin: Coin, g_chain: ChainInterface, si_versus='usd'): Promise<CoinFormats> {
+	async displayInfo(g_coin: Coin, g_chain: ChainStruct, si_versus='usd'): Promise<CoinFormats> {
 		const [, g_info] = coin_info(g_coin, g_chain);
 
 		// lookup price

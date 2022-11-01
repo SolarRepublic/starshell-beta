@@ -1,13 +1,13 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import type {AppInterface} from '#/meta/app';
+	import type {AppStruct} from '#/meta/app';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import AppBanner from '../ui/AppBanner.svelte';
-	import type {Caip2, ChainInterface} from '#/meta/chain';
+	import type {Caip2, ChainStruct} from '#/meta/chain';
 	import type {SessionRequest} from '#/meta/api';
 	import {Accounts} from '#/store/accounts';
-	import type {AccountInterface, AccountPath} from '#/meta/account';
+	import type {AccountStruct, AccountPath} from '#/meta/account';
 	import Row from '../ui/Row.svelte';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	import {fodemtv, F_NOOP, ode, oderac} from '#/util/belt';
@@ -15,6 +15,7 @@
 	import {yw_account_ref} from '../mem';
 	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
 	import {load_flow_context} from '../svelte';
+    import LoadingRows from '../ui/LoadingRows.svelte';
 
 
 	const {
@@ -22,9 +23,9 @@
 		k_page,
 	} = load_flow_context<undefined>();
 
-	export let app: AppInterface;
+	export let app: AppStruct;
 
-	export let chains: Record<Caip2.String, ChainInterface>;
+	export let chains: Record<Caip2.String, ChainStruct>;
 	const h_chains = chains;
 
 	const g_single_chain = 1 === Object.keys(h_chains).length? Object.values(h_chains)[0]: null;
@@ -35,7 +36,7 @@
 		completed(true);
 	}
 
-	type AccountMap = Record<AccountPath, AccountInterface>;
+	type AccountMap = Record<AccountPath, AccountStruct>;
 
 	let h_accounts: AccountMap;
 
@@ -80,7 +81,7 @@
 
 	<div class="rows no-margin">
 		{#await load_accounts()}
-			Loading accounts...
+			<LoadingRows count={3} />
 		{:then}
 			{#each ode(h_accounts) as [p_account, g_account]}
 				<Row

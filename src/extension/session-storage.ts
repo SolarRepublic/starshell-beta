@@ -1,17 +1,16 @@
 import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
 
 import type {ScreenInfo} from '#/extension/browser';
-import type {JsonObject} from '#/meta/belt';
+import type {Dict, Explode, JsonObject} from '#/meta/belt';
 import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_NATIVE_IOS, G_USERAGENT, N_BROWSER_VERSION_MAJOR} from '#/share/constants';
 import type {Vocab} from '#/meta/vocab';
 import type {IcsToService} from '#/script/messages';
 import {F_NOOP} from '#/util/belt';
+import type { NonNullableFlat } from 'ts-toolbelt/out/Object/NonNullable';
+import type { ContractStruct } from '#/meta/chain';
 
-type SetWrapped = Partial<SessionStorage.Struct<'wrapped'>>;
 
-
-
-export type SessionStorageRegistry = MergeAll<{
+export type SessionStorageRegistry = NonNullableFlat<MergeAll<{
 	/**
 	 * Root AES key for all encrypted vault items
 	 */
@@ -79,7 +78,11 @@ export type SessionStorageRegistry = MergeAll<{
 	// used to pass app profile data from a tab captured by a content script to the extension
 	{
 		[p_profile in `profile:${string}`]: {
-			wrapped: JsonObject;
+			wrapped: {
+				name?: string;
+				pfps?: Record<`pfp:${string}`, string>;
+				contracts?: Dict<ContractStruct>;
+			};
 		};
 	},
 
@@ -92,7 +95,7 @@ export type SessionStorageRegistry = MergeAll<{
 			};
 		};
 	},
-]>;
+]>>;
 
 export type SessionStorageKey = keyof SessionStorageRegistry;
 
@@ -113,6 +116,7 @@ export namespace SessionStorage {
 }
 
 
+type SetWrapped = Partial<SessionStorage.Struct<'wrapped'>> | Explode<SessionStorage.Struct<'wrapped'>>;
 
 interface SynchronousExtSessionStorage {
 	get(si_key: string): string | null;

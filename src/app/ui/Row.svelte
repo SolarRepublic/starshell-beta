@@ -1,15 +1,17 @@
 <script lang="ts">
-	import type { Pfp, PfpTarget } from '#/meta/pfp';
-
-	import type { Resource } from '#/meta/resource';
-
-	import PfpDisplay from './PfpDisplay.svelte';
-
-	import type { Nameable, Pfpable } from '#/meta/able';
-	import { yw_store_tags } from '../mem';
-	import type { Promisable } from '#/meta/belt';
-	import { onDestroy } from 'svelte';
+	import type {Nameable, Pfpable} from '#/meta/able';
+	import type {Dict, Promisable} from '#/meta/belt';
+	import type {PfpTarget} from '#/meta/pfp';
+	
+	import {onDestroy} from 'svelte';
+	
+	import {yw_store_tags} from '../mem';
+	
+	import {oderom} from '#/util/belt';
+	
+	import InlineTags from './InlineTags.svelte';
 	import Load from './Load.svelte';
+	import PfpDisplay from './PfpDisplay.svelte';
 	
 	
 	// import LockOutline from 'svelte-material-icons/LockOutline.svelte';
@@ -37,14 +39,15 @@
 	/**
 	 * Overrides name automatically extracted from resource
 	 */
-	export let name = g_resource?.name;
-	const s_name = name;
+	export let name: Promisable<string> = g_resource?.name;
 
 	/**
 	 * Adds ` ({VALUE})` after the name in a dimmer color
 	 */
 	export let postname = '';
 	const s_postname = postname;
+
+	export let postnameTags = false;
 
 	/**
 	 * Disables pfp
@@ -68,6 +71,14 @@
 	 */
 	export let appRelated = false;
 
+	/**
+	 * Optional dict to use to create data attributes on root element
+	 */
+	export let data: Dict = {};
+	
+	const h_data_attrs = oderom(data, (si_key, s_value) => ({
+		[`data-${si_key}`]: s_value,
+	}));
 
 	export let amount: Promisable<string> = '';
 	export let fiat: Promisable<string> = '';
@@ -80,6 +91,15 @@
 
 	// export let tagRefs: Tag.Ref[] | null = null;
 	export let rootStyle = '';
+
+	export let noHorizontalPad = false;
+	if(noHorizontalPad) {
+		rootStyle = `
+			padding-left: 0;
+			padding-right: 0;
+			${rootStyle}
+		`;
+	}
 
 	export let rootClasses = '';
 	const s_classes = rootClasses;
@@ -174,6 +194,8 @@
 		
 		.icon {
 			--icon-diameter: var(--icon-diameter, var(--app-icon-diameter));
+			// align-self: flex-start;
+			// margin-top: 2px;
 
 			flex: 0 0 var(--icon-diameter);
 			margin-right: var(--icon-margin);
@@ -222,6 +244,9 @@
 					overflow: hidden;
 
 					>.title {
+						display: flex;
+						gap: 16px;
+						align-items: center;
 						flex: 0;
 
 						>.name {
@@ -321,15 +346,16 @@
 	}
 </style>
 
-<div class="row {s_classes}" style={rootStyle} on:click>
+<div class="row {s_classes}" style={rootStyle} {...h_data_attrs} on:click>
 	<div class="banner">
 		{#if !noPfp}
 			<span class="icon {iconClass}">
 				<slot name="icon">
-				<!-- class:bordered={k_icon?.isHtml}> -->
-					<slot name="icon">
-						<PfpDisplay ref={p_pfp} name={s_name} dim={x_dim_pfp} {appRelated} />
-					</slot>
+					{#await name}
+						<PfpDisplay path={p_pfp} name={'?'} dim={x_dim_pfp} {appRelated} />
+					{:then s_name}
+						<PfpDisplay path={p_pfp} name={s_name} dim={x_dim_pfp} {appRelated} />
+					{/await}
 				</slot>
 			</span>
 		{/if}
@@ -337,8 +363,9 @@
 			<span class="main part">
 				<div class="title">
 					<span class="name">
+						<slot name="prename" />
 						<span class="text">
-							{s_name}
+							<Load input={name} />
 							{#if s_postname}
 								<span class="postname">
 									({s_postname})
@@ -346,6 +373,12 @@
 							{/if}
 						</span>
 					</span>
+
+					{#if postnameTags}
+						<InlineTags subtle rootStyle='margin: 0px;'
+							{resourcePath}
+						/>
+					{/if}
 					<!-- {#if symbol}
 						<span class="symbol">
 							{symbol}
@@ -416,6 +449,10 @@
 		{#if a_tags.length || $$slots.tags}
 			<slot name="tags">
 				<!-- <Tags tags={a_tags} collapsed /> -->
+				<!-- <InlineTags subtle rootStyle='margin: 0px;'
+					{resourcePath}
+				>
+				</InlineTags> -->
 			</slot>
 		{/if}
 

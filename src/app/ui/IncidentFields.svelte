@@ -1,10 +1,20 @@
 <script context="module" type="ts">
+	import type {Promisable} from '#/meta/belt';
+	import type {ChainStruct} from '#/meta/chain';
+	import type {PfpTarget} from '#/meta/pfp';
+
+	import type {Incident, TxSynced} from '#/meta/incident';
+	import type {ActiveNetwork} from '#/store/providers';
+	import type { CosmosNetwork } from '#/chain/cosmos-network';
+
 	import {forever} from '#/util/belt';
 	import {open_external_link} from '#/util/dom';
+
 	import Address from './Address.svelte';
 	import Field from './Field.svelte';
 	import Load from './Load.svelte';
 	import MemoReview from './MemoReview.svelte';
+	
 
 	export type SimpleField = {
 		type: 'key_value';
@@ -29,21 +39,17 @@
 
 
 <script type="ts">
-	import type {Incident, TxSynced} from '#/meta/incident';
-	import type {ChainInterface} from '#/meta/chain';
-	import type {ActiveNetwork} from '#/store/providers';
 	import {syserr} from '../common';
 	import {ecdhNonce, extractMemoCiphertext} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
 	import {buffer_to_text} from '#/util/data';
-	import { yw_chain } from '../mem';
-	import type { PfpTarget } from '#/meta/pfp';
+	import {yw_chain} from '../mem';
 	import PfpDisplay from './PfpDisplay.svelte';
 
 	export let fields: SimpleField[];
 	export let incident: Incident.Struct | null = null;
-	export let chain: ChainInterface | null = null;
-	export let network: ActiveNetwork | null = null;
+	export let chain: ChainStruct | null = null;
+	export let network: CosmosNetwork | null = null;
 	export let loaded: Promise<any> | null = null;
 
 	async function decrypt_memo(s_memo: string): Promise<string> {
@@ -117,7 +123,7 @@
 		>
 			<div style="display:flex;">
 				{#if g_field.pfp}
-					<PfpDisplay dim={32} ref={g_field.pfp} />
+					<PfpDisplay dim={32} path={g_field.pfp} />
 				{/if}
 
 				<div style="display:flex; flex-flow:column;">

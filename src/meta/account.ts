@@ -6,6 +6,7 @@ import type { Secret, SecretPath } from './secret';
 
 export interface UtilityKeyRegistry {
 	secretWasmTx: {};
+	snip20ViewingKey: {};
 	antiPhishingArt: {};
 }
 
@@ -20,7 +21,7 @@ export type Account<
 	s_pubkey extends string=string,
 > = Resource.New<{
 	segments: [ChainNamespace.Segment<si_family>, `account.${s_pubkey}`];
-	interface: [{
+	struct: [{
 		family: si_family;
 
 		/**
@@ -35,7 +36,7 @@ export type Account<
 }>;
 
 export type AccountPath = Resource.Path<Account>;
-export type AccountInterface = Account['interface'];
+export type AccountStruct = Account['struct'];
 
 
 // export type NamedThingsMap = DataMap<Account | Chain, string>;

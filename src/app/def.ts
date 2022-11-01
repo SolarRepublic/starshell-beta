@@ -41,3 +41,49 @@ export const H_THREADS = {
 	[ThreadId.APPS]: AppsHomeSvelte,
 	[ThreadId.SCRATCH]: BlankSvelte,
 } as const;
+
+
+export enum ClassType {
+	UNKNOWN = 'unknown',
+
+	// actions that can be initiated from search
+	ACTION = 'action',
+
+	// set of chains which share a common address space, such that user accounts are translatable across members
+	FAMILY = 'family',
+
+	// specific blockchain
+	CHAIN = 'chain',
+
+	// configuration for how to communicate with chain
+	PROVIDER = 'provider',
+
+	// 
+	ACCOUNT = 'account',
+
+	// pubkey associated with distinct family 'member'
+	CONTACT = 'contact',
+
+	// on-chain resource that only exists this chain
+	CONTRACT = 'contract',
+
+	// addressable asset associated with distinct chain
+	TOKEN = 'token',
+
+	// asset holdings
+	HOLDING = 'holding',
+
+	// app connection
+	APP = 'app',
+
+	// native coin
+	COIN = 'coin',
+
+	TAG = 'tag',
+	ICON = 'icon',
+
+	IBCT = 'ibct',
+	SNIP721 = 'snip721',
+	TXN = 'txn',
+	OTHER = 'other',
+}

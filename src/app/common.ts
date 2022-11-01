@@ -7,6 +7,7 @@ export interface ErrorReport {
 }
 
 export interface WarnReport {
+	title: string;
 	text: string;
 }
 

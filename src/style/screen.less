@@ -2,9 +2,11 @@
 
 section.screen,form.screen {
 	* {
-		:global(&) {
-			font-family: inherit;
-			user-select: none;
+		&:not([class^="font-variant"]) {
+			:global(&) {
+				font-family: inherit;
+				user-select: none;
+			}
 		}
 	}
 	

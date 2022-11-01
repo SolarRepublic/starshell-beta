@@ -4,7 +4,7 @@ import type {Resource} from './resource';
 
 export type Tag = Resource.New<{
 	segment: `tag.${number}`;
-	interface: [{
+	struct: [{
 		index: number;
 		color: string;
 		info: string;
@@ -12,4 +12,4 @@ export type Tag = Resource.New<{
 }>;
 
 export type TagPath = Resource.Path<Tag>;
-export type TagInterface = Tag['interface'];
+export type TagStruct = Tag['struct'];

@@ -1,6 +1,8 @@
-import type { JsonMsgSend, PendingSend } from '#/chain/cosmos-network';
-import type { Dict, JsonObject } from '#/meta/belt';
-import type { Snip24Permission } from '#/schema/snip-24';
+import type { JsonMsgSend, PendingSend, TypedEvent } from '#/chain/cosmos-network';
+import type { Dict, Explode, JsonObject } from '#/meta/belt';
+import type { GenericAminoMessage } from '#/schema/amino';
+import type { Snip24Permission } from '#/schema/snip-24-def';
+import type { AminoMsg } from '@cosmjs/amino';
 import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import type { Union } from 'ts-toolbelt';
 import type { Cast } from 'ts-toolbelt/out/Any/Cast';
@@ -16,27 +18,34 @@ import type { Secret, SecretPath } from './secret';
 
 
 export type MsgEventRegistry = {
-	coin_received: {
+	coin_received?: {
 		receiver: Cw.Bech32;
 		amount: Cw.Amount;
-	};
+	}[];
 
-	coin_spent: {
+	coin_spent?: {
 		spender: Cw.Bech32;
 		amount: Cw.Amount;
-	};
+	}[];
 
-	message: {
+	message?: {
 		action: Cw.String;
 		sender: Cw.Bech32;
 		module: Cw.String;
-	};
+		contract_address?: Cw.Bech32;
+	}[];
 
-	transfer: {
-		recipient: Cw.Bech32;
+	transfer?: {
 		sender: Cw.Bech32;
+		recipient: Cw.Bech32;
 		amount: Cw.Amount;
-	};
+	}[];
+
+	// custom
+	executions?: {
+		contract: Cw.Bech32;
+		msg: JsonObject;
+	}[];
 };
 
 export type MsgEventKey = keyof MsgEventRegistry;
@@ -72,6 +81,9 @@ export interface TxCore extends JsonObject {
 	// chain that this transaction belongs to
 	chain: ChainPath;
 
+	// the involved account
+	account: AccountPath;
+
 	// txResponse.code
 	code: number;
 
@@ -93,15 +105,26 @@ export interface TxCore extends JsonObject {
 	// txResponse.gasUsed
 	gas_used: Cw.Uint128;
 
+	msgs: {
+		typeUrl: string;
+		value: string;
+	}[];
+
 	// txResponse.logs[]
-	msgs: TxMsg[];
+	// events for this tx
+	events: Partial<MsgEventRegistry>;
 
 	// coin: string;
 	// msg: JsonMsgSend;
 	// raw: string;
 }
 
-export interface TxPending extends TxCore {
+export interface TxOutgoing {
+	// app that initiated the transaction
+	app: AppPath | null;
+}
+
+export interface TxPending extends TxCore, TxOutgoing {
 	// indicates a pending outgoing transaction
 	stage: 'pending';
 
@@ -121,7 +144,7 @@ export interface TxConfirmed extends TxPartial {
 	stage: 'confirmed';
 }
 
-export interface TxSynced extends TxPartial {
+export interface TxSynced extends TxPartial, TxOutgoing {
 	stage: 'synced';
 
 	// tx.authInfo.signerInfos
@@ -143,8 +166,8 @@ export interface TxSynced extends TxPartial {
 	fiats: Dict<number>;
 }
 
-export interface TxError extends TxCore {
-	stage: 'error';
+export interface TxError extends TxCore, TxOutgoing {
+	stage: 'synced';
 
 	codespace: string;
 
@@ -152,9 +175,17 @@ export interface TxError extends TxCore {
 }
 
 export interface SignedJsonEventRegistry {
-	query_permit: {
+	query_permits?: {
 		secret: SecretPath<'query_permit'>;
-	};
+		action: Explode<{
+			created: {
+				app: AppPath;
+			};
+			shared: {
+				app: AppPath;
+			};
+		}>;
+	}[];
 }
 
 type TxStageKey = (TxPending | TxConfirmed | TxSynced)['stage'];
@@ -166,9 +197,10 @@ export type IncidentRegistry = {
 	// 	synced: TxSynced;
 	// 	// [si_each in TxStageKey]: TxPending | TxConfirmed | TxSynced;
 	// }[TxStageKey];
-	tx_out: TxPending | TxConfirmed | TxSynced | TxError;
 
-	tx_in: TxConfirmed | TxSynced;
+	tx_out: TxPending | TxSynced | TxError;
+
+	tx_in: TxSynced;
 
 	account_created: {
 		account: AccountPath;
@@ -185,6 +217,8 @@ export type IncidentRegistry = {
 
 	signed_json: {
 		account: AccountPath;
+
+		app: AppPath;
 
 		events: Partial<SignedJsonEventRegistry>;
 	};
@@ -226,8 +260,13 @@ export type Incident<
 	si_id extends string=string,
 > = Resource.New<{
 	segments: [`incident.${si_type}`, `id.${si_id}`];
-	interface: Incident.Struct<si_type>;
+	struct: Incident.Struct<si_type>;
 }>;
 
-export type IncidentPath = Resource.Path<Incident>;
-export type IncidentInterface = Incident['interface'];
+export type IncidentPath<
+	si_type extends IncidentType=IncidentType,
+> = Resource.Path<Incident<si_type>>;
+
+export type IncidentStruct<
+	si_type extends IncidentType=IncidentType,
+> = Incident<si_type>['struct'];

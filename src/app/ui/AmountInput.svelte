@@ -1,24 +1,32 @@
 <script lang="ts">
+	import type {EntityPath, CoinInfo, ContractPath, HoldingPath} from '#/meta/chain';
+	
+	import {Snip2xToken} from '#/schema/snip-2x-const';
+	
 	import BigNumber from 'bignumber.js';
-
-	// import { yw_asset_send, yw_holding_send } from '##/mem';
-
+	
+	import {yw_account, yw_chain, yw_chain_ref, yw_network, yw_owner} from '../mem';
+	
+	import type {SecretNetwork} from '#/chain/secret-network';
+	import {XT_MINUTES} from '#/share/constants';
+	import {Contracts} from '#/store/contracts';
+	import {Entities} from '#/store/entities';
+	
+	import {QueryCache} from '#/store/query-cache';
+	import {CoinGecko} from '#/store/web-apis';
+	import {format_amount} from '#/util/format';
+	
 	import SX_ICON_INCREMENT from '#/icon/expand_less.svg?raw';
 	import SX_ICON_DECREMENT from '#/icon/expand_more.svg?raw';
-	import type { Entity, EntityPath, CoinInfo } from '#/meta/chain';
-	import { Entities } from '#/store/entities';
-	import { yw_account, yw_chain, yw_network, yw_owner } from '../mem';
-	import { XT_MINUTES } from '#/share/constants';
-	import { Chains } from '#/store/chains';
-	import { format_amount } from '#/util/format';
-	import { CoinGecko } from '#/store/web-apis';
 
 	export let value = '';
+
+	export let disabled = false;
 
 	const YG_ZERO = new BigNumber(0);
 	const YG_ONE = new BigNumber(1);
 
-	export let assetRef: EntityPath | '' = '';
+	export let assetPath: HoldingPath | ContractPath | '' = '';
 
 	/**
 	 * Leave a buffer for the maximum amount that can be used
@@ -32,7 +40,7 @@
 	let s_fiat_equivalent = '';
 
 	$: {
-		if(assetRef) {
+		if(assetPath) {
 			void reload_asset();
 		}
 		else {
@@ -61,13 +69,13 @@
 	async function reload_asset() {
 		s_fiat_equivalent = '[...]';
 
-		const g_entity = Entities.parseEntityPath(assetRef as EntityPath);
+		const g_entity = Entities.parseEntityPath(assetPath as EntityPath);
 		if('holding' === g_entity?.type) {
 			const si_coin = g_entity.coin;
 
 			g_asset = $yw_chain.coins[si_coin];
 
-			const g_cached = $yw_network.cachedBalance($yw_owner, si_coin);
+			const g_cached = $yw_network.cachedCoinBalance($yw_owner, si_coin);
 
 			if(g_cached && g_cached.timestamp > Date.now() - (5 * XT_MINUTES)) {
 				yg_max = new BigNumber(g_cached.data.amount).shiftedBy(-g_asset.decimals).minus(new BigNumber(bufferMax));
@@ -76,7 +84,7 @@
 			const g_bundle = await $yw_network.bankBalance($yw_owner, si_coin);
 
 			// still on same coin
-			if(assetRef === g_bundle.holding) {
+			if(assetPath === g_bundle.holding) {
 				const yg_amount = new BigNumber(g_bundle.balance.amount).shiftedBy(-g_asset.decimals).minus(new BigNumber(bufferMax));
 				if(!yg_amount.eq(yg_max)) {
 					yg_max = yg_amount;
@@ -87,8 +95,43 @@
 				si_coingecko = g_coin?.extra?.coingecko_id || '';
 			}
 		}
+		else if('contract' === g_entity?.type) {
+			const g_contract = await Contracts.at(assetPath as ContractPath);
+
+			if(g_contract && $yw_chain.features.secretwasm) {
+				const ks_cache = await QueryCache.read();
+
+				// start with the cached balance if it exists
+				const g_cached = ks_cache.get($yw_chain_ref, $yw_owner, g_contract.bech32);
+				if(g_cached && g_cached.timestamp > Date.now() - (5 * XT_MINUTES)) {
+					yg_max = new BigNumber(g_cached.data.amount as string);
+				}
+
+				// get the latest balance
+				const k_token = new Snip2xToken(g_contract, $yw_network as SecretNetwork, $yw_account);
+
+				const g_balance = await k_token.balance();
+				if(g_balance) {
+					yg_max = new BigNumber(g_balance.balance.amount);
+				}
+
+				const g_snip20 = g_contract.interfaces.snip20!;
+
+				si_coingecko = g_snip20.extra?.coingecko_id || '';
+
+				g_asset = {
+					decimals: g_snip20.decimals,
+					denom: '',
+					name: g_contract.name,
+					extra: {
+						coingecko_id: si_coingecko,
+					},
+					pfp: g_contract.pfp,
+				};
+			}
+		}
 		else if('token' === g_entity?.type) {
-			// const h_interfaces = Entities.infoForToken();
+		// const h_interfaces = Entities.infoForToken();
 			// ...
 			// TODO: implement
 			g_asset = null;
@@ -277,7 +320,7 @@
 
 <div class="amount-input">
 	<input
-		disabled={!assetRef}
+		disabled={!assetPath || disabled}
 		type="number"
 		min="0"
 		max={yg_max+'' || '0'}

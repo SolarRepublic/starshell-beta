@@ -1,6 +1,6 @@
 import type {Nameable, Pfpable} from '#/meta/able';
 import type {Dict, JsonValue, Promisable} from '#/meta/belt';
-import type {Bech32, ChainInterface} from '#/meta/chain';
+import type {Bech32, ChainStruct} from '#/meta/chain';
 import type { FieldConfig } from '#/meta/field';
 import {RT_UINT, RT_URI_LIKELY, R_BECH32} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
@@ -14,7 +14,7 @@ import Address from '../ui/Address.svelte';
 import PfpDisplay from '../ui/PfpDisplay.svelte';
 
 export interface PreviewerConfig {
-	chain?: ChainInterface;
+	chain?: ChainStruct;
 }
 
 export function classify(s_value: string, s_class: string): HTMLSpanElement {
@@ -36,7 +36,7 @@ export function classify(s_value: string, s_class: string): HTMLSpanElement {
 // 	]);
 // }
 
-// export async function load_inline_bech32(sa_find: Bech32, g_chain: ChainInterface): Promise<HTMLDivElement | null> {
+// export async function load_inline_bech32(sa_find: Bech32, g_chain: ChainStruct): Promise<HTMLDivElement | null> {
 // 	// chain path
 // 	const p_chain = Chains.pathFrom(g_chain);
 
@@ -76,7 +76,7 @@ export class JsonPreviewer {
 	static render(
 		z_value: JsonValue<Promise<JsonValue>>,
 		gc_previewer: PreviewerConfig={},
-		gc_field?: Dict
+		gc_field?: Dict<JsonValue>
 	): FieldConfig<'dom'> {
 		const k_previewer = new JsonPreviewer(gc_previewer || {});
 
@@ -91,8 +91,8 @@ export class JsonPreviewer {
 
 	constructor(protected _gc_previewer: PreviewerConfig) {}
 
-	render_string(s_value: string) {
-		return classify(JSON.stringify(s_value).replace(/^"|"$/, ''), 'json-string');
+	render_string(s_value: string): HTMLSpanElement {
+		return classify(JSON.stringify(s_value).replace(/^"|"$/g, ''), 'json-string');
 	}
 
 	render(z_value: RenderValue, a_terms: boolean[]=[]): HTMLElement {

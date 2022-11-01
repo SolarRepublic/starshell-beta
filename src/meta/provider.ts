@@ -5,7 +5,7 @@ import type {Resource} from './resource';
 
 export type Provider = Resource.New<{
 	segments: [`provider.${string}`];
-	interface: [{
+	struct: [{
 		chain: ChainPath;
 		grpcWebUrl: string;
 		rpcHost?: string;
@@ -13,4 +13,4 @@ export type Provider = Resource.New<{
 }>;
 
 export type ProviderPath = Resource.Path<Provider>;
-export type ProviderInterface = Provider['interface'];
+export type ProviderStruct = Provider['struct'];

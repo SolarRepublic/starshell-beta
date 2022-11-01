@@ -67,7 +67,9 @@
 	@import './_base.less';
 
 	.address {
-		width: calc(100% - 2.5ch);
+		// width: calc(100% - 2.5ch);
+		.fill-available();
+
 		align-items: baseline;
 
 		color: var(--theme-color-text-med);

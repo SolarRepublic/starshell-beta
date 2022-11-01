@@ -1,144 +1,54 @@
+
+import type {AppPath} from '#/meta/app';
+import type {Promisable} from '#/meta/belt';
+import type {Bech32, ChainPath, ContractPath} from '#/meta/chain';
+import type {Secret, SecretStruct, SecretPath, SecretType} from '#/meta/secret';
+import type {Snip24Permission} from '#/schema/snip-24-def';
+
 import {
 	fetch_cipher,
 } from './_base';
 
-import type {SecretInterface, SecretPath, SecretType} from '#/meta/secret';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
+import type {Bip44Path} from '#/crypto/bip44';
+
 import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
-import type {Promisable} from '#/meta/belt';
-import type {Bip44Path} from '#/crypto/bip44';
-import type {AppPath} from '#/meta/app';
-import type {Bech32, ChainPath} from '#/meta/chain';
-import type {Snip24Permission} from '#/schema/snip-24';
+
 import {storage_get_all} from '#/extension/public-storage';
 import {ode, oderac} from '#/util/belt';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
 
 type PathFrom<
-	g_secret extends SecretInterface,
+	g_secret extends Pick<SecretStruct, 'type' | 'uuid'>,
 > = `/secret.${g_secret['type']}/uuid.${g_secret['uuid']}`;
 
 interface SecretFilterConfig {
 	type?: SecretType;
-	name?: string;
-	bip44?: Bip44Path;
 	app?: AppPath;
 	chain?: ChainPath;
-	activeContracts?: Bech32[];
+	owner?: Bech32;
+	contract?: Bech32;
+	contracts?: Bech32[];
+	name?: string;
+	bip44?: Bip44Path;
 	permissions?: Snip24Permission[];
 	outlets?: AppPath[];
 }
 
-
-async function filter_secrets(gc_filter: SecretFilterConfig={}): Promise<SecretInterface[]> {
-	// TODO: replace with index store
-	// fetch secrets
-	const h_everything = await storage_get_all();
-
-	// fetch cipher key
-	const dk_cipher = await fetch_cipher();
-
-	// keep only secrets
-	const a_entries = await Promise.all(
-		oderac(h_everything, (si_key) => {
-			// only return a promise for interested items so that oderac filters out others
-			if(':' === si_key[0]) {
-				return (async() => {
-					// read vault entry
-					const k_entry = await Vault.readonly(si_key as `:${string}`);
-
-					// read entry's data
-					const atu8_secret = await k_entry.read(dk_cipher);
-
-					// parse secret data
-					const nb_data = new DataView(atu8_secret.buffer).getUint32(atu8_secret.byteOffset, false);
-
-					// rest is the complementary json
-					const g_secret = buffer_to_json(atu8_secret.subarray(4+nb_data)) as SecretInterface;
-
-					// zero out key material
-					zero_out(atu8_secret);
-
-					// return metadata
-					return g_secret;
-				})();
-			}
-		}) as Promise<SecretInterface>[]
-	);
-
-	// no filter; return everything
-	if(!Object.keys(gc_filter || {}).length) return a_entries;
-
-	// list of secrets matching given filter
-	const a_matches: SecretInterface[] = [];
-
-	// iterate through
-	FILTERING_SECRETS:
-	for(const g_secret of a_entries) {
-		// each criterion in filter
-		for(const [si_key, z_expect] of ode(gc_filter)) {
-			// cache value
-			const z_actual = g_secret[si_key];
-
-			// cache typeof
-			const si_typeof = typeof z_actual;
-
-			// not defined; disqualified
-			if('undefined' === si_typeof) {
-				continue FILTERING_SECRETS;
-			}
-			// comparable json primitive
-			else if(['boolean', 'number', 'string'].includes(si_typeof)) {
-				// filter doesn't match; skip
-				if(z_expect !== z_actual) continue FILTERING_SECRETS;
-			}
-			// actual item is array
-			else if(Array.isArray(z_actual)) {
-				// filter provided not array
-				if(!Array.isArray(z_expect)) throw new TypeError(`Improper non-array filter type for array`);
-
-				// ensure every item in expect is present in actual
-				for(const w_check of z_expect) {
-					if(!z_actual.includes(w_check)) continue FILTERING_SECRETS;
-				}
-			}
-			// actual item is null
-			else if(null === z_actual) {
-				// filter is not null
-				if(z_expect !== null) continue FILTERING_SECRETS;
-			}
-			// actual item is undefined; skip
-			else if('undefined' === typeof z_actual) {
-				// filter is not undefined
-				if('undefined' !== typeof z_expect) continue FILTERING_SECRETS;
-			}
-			// activeContracts
-			else if('activeContracts' === si_key && Array.isArray(z_expect)) {
-				// each expected contract
-				for(const sa_contract of z_expect) {
-					if('' !== z_actual[sa_contract]) continue FILTERING_SECRETS;
-				}
-			}
-			// anything else
-			else {
-				throw new Error(`Filter type mismatch on key ${si_key}`);
-			}
-		}
-
-		// passed filter
-		a_matches.push(g_secret);
-	}
-
-	// return matches
-	return a_matches;
-}
+type StructFromFilterConfig<
+	gc_filter extends SecretFilterConfig,
+> = SecretStruct<
+	gc_filter extends {type: SecretType}
+		? gc_filter['type']
+		: SecretType
+	>;
 
 export const Secrets = {
-	pathFrom(g_secret: SecretInterface): PathFrom<typeof g_secret> {
+	pathFrom(g_secret: Pick<SecretStruct, 'type' | 'uuid'>): PathFrom<typeof g_secret> {
 		return `/secret.${g_secret.type}/uuid.${g_secret.uuid}`;
 	},
 
-	pathAndKeyFrom(g_secret: SecretInterface): [PathFrom<typeof g_secret>, `:${string}`] {
+	pathAndKeyFrom(g_secret: SecretStruct): [PathFrom<typeof g_secret>, `:${string}`] {
 		const p_secret = Secrets.pathFrom(g_secret);
 		return [p_secret, Secrets.keyFromPath(p_secret)];
 	},
@@ -147,7 +57,7 @@ export const Secrets = {
 		return `:${buffer_to_base93(sha256_sync(text_to_buffer(p_secret)))}`;
 	},
 
-	async put<g_secret extends SecretInterface>(atu8_data: Uint8Array, g_secret: g_secret): Promise<PathFrom<typeof g_secret>> {
+	async put<g_secret extends SecretStruct>(atu8_data: Uint8Array, g_secret: g_secret): Promise<PathFrom<typeof g_secret>> {
 		// prepare path
 		const [p_res, si_secret] = Secrets.pathAndKeyFrom(g_secret);
 
@@ -176,7 +86,7 @@ export const Secrets = {
 		return p_res as PathFrom<typeof g_secret>;
 	},
 
-	async borrow<w_return extends any=any>(p_secret: SecretPath, fk_use: (kn_data: SensitiveBytes, g_secret: SecretInterface) => Promisable<w_return>): Promise<Awaited<w_return>> {
+	async borrow<w_return extends any=any>(p_secret: SecretPath, fk_use: (kn_data: SensitiveBytes, g_secret: SecretStruct) => Promisable<w_return>): Promise<Awaited<w_return>> {
 		// create key from path
 		const si_secret = Secrets.keyFromPath(p_secret);
 
@@ -189,12 +99,22 @@ export const Secrets = {
 		// read entry's data
 		const atu8_secret = await k_entry.read(dk_cipher);
 
-		// parse secret data
-		const nb_data = new DataView(atu8_secret.buffer).getUint32(atu8_secret.byteOffset, false);
+		// // parse secret data
+		// const nb_data = new DataView(atu8_secret.buffer).getUint32(atu8_secret.byteOffset, false);
+
+		let nb_data: number;
+		try {
+			nb_data = new DataView(atu8_secret.buffer).getUint32(atu8_secret.byteOffset, false);
+		}
+		catch(e_get) {
+			debugger;
+			throw e_get;
+		}
+
 		const atu8_data = atu8_secret.subarray(4, 4+nb_data);
 
 		// rest is the complementary json
-		const g_secret = buffer_to_json(atu8_secret.subarray(4+nb_data)) as SecretInterface;
+		const g_secret = buffer_to_json(atu8_secret.subarray(4+nb_data)) as SecretStruct;
 
 		// wrap data
 		const kn_data = new SensitiveBytes(atu8_data);
@@ -213,8 +133,8 @@ export const Secrets = {
 		return w_return;
 	},
 
-	async metadata(p_secret: SecretPath): Promise<SecretInterface> {
-		return await Secrets.borrow(p_secret, (kn, g) => g);
+	async metadata<si_type extends SecretType=SecretType>(p_secret: SecretPath<si_type>): Promise<SecretStruct<si_type>> {
+		return await Secrets.borrow(p_secret as SecretPath, (kn, g) => g) as SecretStruct<si_type>;
 	},
 
 	/**
@@ -222,7 +142,7 @@ export const Secrets = {
 	 * @param g_secret 
 	 * @returns 
 	 */
-	borrowPlaintext<w_return extends any=any>(p_secret: SecretPath, fk_use: (kn_data: SensitiveBytes, g_secret: SecretInterface) => Promisable<w_return>): Promise<Awaited<w_return>> {
+	borrowPlaintext<w_return extends any=any>(p_secret: SecretPath, fk_use: (kn_data: SensitiveBytes, g_secret: SecretStruct) => Promisable<w_return>): Promise<Awaited<w_return>> {
 		return Secrets.borrow(p_secret, (kn, g) => Secrets.plaintext(kn, g, fk_use));
 	},
 
@@ -231,7 +151,7 @@ export const Secrets = {
 	 * @param g_secret 
 	 * @returns 
 	 */
-	async plaintext<w_return extends any=any>(kn_ciphertext: SensitiveBytes, g_secret: SecretInterface, fk_use: (kn_data: SensitiveBytes, g_secret: SecretInterface) => Promisable<w_return>): Promise<Awaited<w_return>> {
+	async plaintext<w_return extends any=any>(kn_ciphertext: SensitiveBytes, g_secret: SecretStruct, fk_use: (kn_data: SensitiveBytes, g_secret: SecretStruct) => Promisable<w_return>): Promise<Awaited<w_return>> {
 		// ref security type
 		const si_security = g_secret.security.type;
 
@@ -261,13 +181,117 @@ export const Secrets = {
 		return w_return;
 	},
 
-	async filter(...a_filters: SecretFilterConfig[]): Promise<SecretInterface[]> {
-		if(a_filters.length <= 1) return filter_secrets(...a_filters);
+	async filter<gc_filter extends SecretFilterConfig>(gc_filter: gc_filter): Promise<StructFromFilterConfig<gc_filter>[]> {
+		// TODO: replace with index store
+		// fetch secrets
+		const h_everything = await storage_get_all();
 
-		const as_secrets = new Set<SecretInterface>();
+		// fetch cipher key
+		const dk_cipher = await fetch_cipher();
+
+		// keep only secrets
+		const a_entries = await Promise.all(
+			oderac(h_everything, (si_key) => {
+				// only return a promise for interested items so that oderac filters out others
+				if(':' === si_key[0]) {
+					return (async() => {
+						// read vault entry
+						const k_entry = await Vault.readonly(si_key as `:${string}`);
+
+						// read entry's data
+						const atu8_secret = await k_entry.read(dk_cipher);
+
+						// parse secret data
+						const nb_data = new DataView(atu8_secret.buffer).getUint32(atu8_secret.byteOffset, false);
+
+						// rest is the complementary json
+						const g_secret = buffer_to_json(atu8_secret.subarray(4+nb_data)) as SecretStruct;
+
+						// zero out key material
+						zero_out(atu8_secret);
+
+						// return metadata
+						return g_secret;
+					})();
+				}
+			}) as Promise<SecretStruct>[]
+		);
+
+		// no filter; return everything
+		if(!Object.keys(gc_filter || {}).length) return a_entries as StructFromFilterConfig<gc_filter>[];
+
+		// list of secrets matching given filter
+		const a_matches: SecretStruct[] = [];
+
+		// iterate through
+		FILTERING_SECRETS:
+		for(const g_secret of a_entries) {
+			// each criterion in filter
+			for(const [si_key, z_expect] of ode(gc_filter)) {
+				// cache value
+				const z_actual = g_secret[si_key];
+
+				// cache typeof
+				const si_typeof = typeof z_actual;
+
+				// not defined; disqualified
+				if('undefined' === si_typeof) {
+					continue FILTERING_SECRETS;
+				}
+				// comparable json primitive
+				else if(['boolean', 'number', 'string'].includes(si_typeof)) {
+					// filter doesn't match; skip
+					if(z_expect !== z_actual) continue FILTERING_SECRETS;
+				}
+				// actual item is array
+				else if(Array.isArray(z_actual)) {
+					// filter provided not array
+					if(!Array.isArray(z_expect)) throw new TypeError(`Improper non-array filter type for array`);
+
+					// ensure every item in expect is present in actual
+					for(const w_check of z_expect) {
+						if(!z_actual.includes(w_check)) continue FILTERING_SECRETS;
+					}
+				}
+				// actual item is null
+				else if(null === z_actual) {
+					// filter is not null
+					if(z_expect !== null) continue FILTERING_SECRETS;
+				}
+				// actual item is undefined; skip
+				else if('undefined' === typeof z_actual) {
+					// filter is not undefined
+					if('undefined' !== typeof z_expect) continue FILTERING_SECRETS;
+				}
+				// contracts
+				else if('contracts' === si_key && Array.isArray(z_expect)) {
+					// each expected contract
+					for(const sa_contract of z_expect) {
+						// non-empty string indicates the tx hash that the permit was revoked, undefined means no permit
+						if('' !== z_actual[sa_contract]) continue FILTERING_SECRETS;
+					}
+				}
+				// anything else
+				else {
+					throw new Error(`Filter type mismatch on key ${si_key}`);
+				}
+			}
+
+			// passed filter
+			a_matches.push(g_secret);
+		}
+
+		// return matches
+		return a_matches as StructFromFilterConfig<gc_filter>[];
+	},
+
+	async filterMany(...a_filters: SecretFilterConfig[]): Promise<SecretStruct[]> {
+		if(a_filters.length <= 1) return Secrets.filter(a_filters[0]);
+
+		const as_secrets = new Set<SecretStruct>();
 
 		for(const gc_filter of a_filters) {
-			for(const g_secret of await filter_secrets(gc_filter)) {
+			for(const g_secret of await Secrets.filter(gc_filter)) {
 				as_secrets.add(g_secret);
 			}
 		}
@@ -275,13 +299,19 @@ export const Secrets = {
 		return [...as_secrets];
 	},
 
-	async delete(g_secret: SecretInterface): Promise<void> {
+	async deleteByStruct(g_secret: SecretStruct): Promise<void> {
 		// prepare path
-		const [p_res, si_secret] = Secrets.pathAndKeyFrom(g_secret);
+		const [, si_secret] = Secrets.pathAndKeyFrom(g_secret);
 
-		// fetch cipher key
-		const dk_cipher = await fetch_cipher();
+		// delete
+		return await Secrets.deleteByKey(si_secret);
+	},
 
+	async deleteByPath(p_secret: SecretPath): Promise<void> {
+		return Secrets.deleteByKey(Secrets.keyFromPath(p_secret));
+	},
+
+	async deleteByKey(si_secret: `:${string}`): Promise<void> {
 		// acquire vault entry
 		const k_entry = await Vault.acquire(si_secret);
 
@@ -297,7 +327,7 @@ export const Secrets = {
 // 	store: SI_STORE_SECRETS,
 // 	extension: 'dict',
 // 	class: class SecretsI extends WritableStoreDict<typeof SI_STORE_SECRETS> {
-// 		static pathFrom(g_secret: SecretInterface): PathFrom<typeof g_secret> {
+// 		static pathFrom(g_secret: SecretStruct): PathFrom<typeof g_secret> {
 // 			return `/secret.${g_secret.type}/uuid.${g_secret.uuid}`;
 // 		}
 
@@ -310,7 +340,7 @@ export const Secrets = {
 // 		 * @param g_secret 
 // 		 * @returns 
 // 		 */
-// 		static async plaintext(g_secret: SecretInterface): Promise<SensitiveBytes> {
+// 		static async plaintext(g_secret: SecretStruct): Promise<SensitiveBytes> {
 // 			// ref data
 // 			const sx_data = g_secret.data;
 
@@ -336,7 +366,7 @@ export const Secrets = {
 // 			return kn_data;
 // 		}
 
-// 		async put(g_secret: SecretInterface): Promise<PathFrom<typeof g_secret>> {
+// 		async put(g_secret: SecretStruct): Promise<PathFrom<typeof g_secret>> {
 // 			// prepare path
 // 			const p_res = SecretsI.pathFrom(g_secret);
 

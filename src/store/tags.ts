@@ -1,21 +1,22 @@
+import type {Resource} from '#/meta/resource';
+import type {TagPath, TagStruct} from '#/meta/tag';
+
 import {
 	create_store_class,
 	WritableStore,
 } from './_base';
 
-import { SI_STORE_TAGS } from '#/share/constants';
-import type { Tag, TagPath } from '#/meta/tag';
-import type { Resource } from '#/meta/resource';
+import {SI_STORE_TAGS} from '#/share/constants';
 
 
 export const Tags = create_store_class({
 	store: SI_STORE_TAGS,
 	class: class TagsI extends WritableStore<typeof SI_STORE_TAGS> {
-		static tagPathFor(g_tag: TagInterface): TagPath {
+		static tagPathFor(g_tag: TagStruct): TagPath {
 			return `/tag.${g_tag.index}`;
 		}
 
-		getTag(i_tag: number): TagInterface | null {
+		getTag(i_tag: number): TagStruct | null {
 			return this._w_cache.registry[i_tag] ?? null;
 		}
 
@@ -23,7 +24,7 @@ export const Tags = create_store_class({
 			return this._w_cache.map[p_resource] ?? [];
 		}
 
-		getTagsFor(p_resource: Resource.Path): TagInterface[] {
+		getTagsFor(p_resource: Resource.Path): TagStruct[] {
 			return this.getIdsFor(p_resource).map(i_tag => this.getTag(i_tag)!).filter(g => !!g);
 		}
 
@@ -35,7 +36,7 @@ export const Tags = create_store_class({
 			return this.save();
 		}
 
-		setTagsFor(p_resource: Resource.Path, a_tags: TagInterface[]): Promise<void> {
+		setTagsFor(p_resource: Resource.Path, a_tags: TagStruct[]): Promise<void> {
 			return this.setIdsFor(p_resource, a_tags.map(g => g.index));
 		}
 	},

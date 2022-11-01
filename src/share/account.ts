@@ -1,27 +1,28 @@
-import type {AccountInterface, AccountPath, UtilityKeyType} from '#/meta/account';
+import type {AccountStruct, AccountPath, UtilityKeyType} from '#/meta/account';
 import type {PfpTarget} from '#/meta/pfp';
+import type {SecretPath} from '#/meta/secret';
+
+import {Bip32, bip32MasterKey} from '#/crypto/bip32';
+import {bip39EntropyToPaddedMnemonic, bip39MnemonicToSeed, trimPaddedMnemonic} from '#/crypto/bip39';
+import type {Bip44Path} from '#/crypto/bip44';
+import RuntimeKey from '#/crypto/runtime-key';
+import {Secp256k1Key} from '#/crypto/secp256k1';
+import SensitiveBytes from '#/crypto/sensitive-bytes';
+import {global_broadcast} from '#/script/msg-global';
+import {ATU8_SHA256_STARSHELL} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
+import {Chains} from '#/store/chains';
+import {Incidents} from '#/store/incidents';
 import {Secrets} from '#/store/secrets';
 import {buffer_to_base64, buffer_to_base93, buffer_to_text, serialize_private_key, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
-
-import {Secp256k1Key} from '#/crypto/secp256k1';
-import type {SecretPath} from '#/meta/secret';
-import {Incidents} from '#/store/incidents';
 import {uuid_v4} from '#/util/dom';
-import RuntimeKey from '#/crypto/runtime-key';
-import {bip39EntropyToPaddedMnemonic, bip39MnemonicToSeed, trimPaddedMnemonic} from '#/crypto/bip39';
-import {Bip32, bip32MasterKey} from '#/crypto/bip32';
-import type {Bip44Path} from '#/crypto/bip44';
-import SensitiveBytes from '#/crypto/sensitive-bytes';
-import {Chains} from '#/store/chains';
-import {ATU8_SHA256_STARSHELL} from '#/share/constants';
 
 
 export async function create_account(
 	p_secret: SecretPath<'bip32_node' | 'private_key'>,
 	sxb64_pubkey: string,
-	p_pfp: PfpTarget,
-): Promise<[AccountPath, AccountInterface]> {
+	p_pfp: PfpTarget
+): Promise<[AccountPath, AccountStruct]> {
 	// open accounts store and save new account
 	const p_account = await Accounts.open(ks_accounts => ks_accounts.put({
 		family: 'cosmos',
@@ -33,7 +34,7 @@ export async function create_account(
 	}));
 
 	// verify account was created
-	let g_account: AccountInterface;
+	let g_account: AccountStruct;
 	{
 		const ks_accounts = await Accounts.read();
 		const g_test = ks_accounts.at(p_account);
@@ -225,15 +226,21 @@ export async function create_mnemonic(): Promise<AccountPath> {
 
 	// initialize
 	await add_utility_key(g_account, 'transactionEncryptionKey', 'secretWasmTx');
+	await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
 	await add_utility_key(g_account, 'antiPhishingArt', 'antiPhishingArt');
+
+	// trigger login event globally to reload service tasks
+	global_broadcast({
+		type: 'login',
+	});
 
 	return p_account;
 }
 
 export async function add_utility_key(
-	g_account: AccountInterface,
+	g_account: AccountStruct,
 	si_use: string,
-	si_utility: UtilityKeyType,
+	si_utility: UtilityKeyType
 ): Promise<AccountPath> {
 	// intentionally not ADR-036 because apps should not be able to propose these messages
 	let atu8_ikm: Uint8Array;
@@ -295,7 +302,7 @@ export async function add_utility_key(
 }
 
 
-export async function import_private_key(kn_sk: SensitiveBytes, s_name: string): Promise<[AccountPath, AccountInterface]> {
+export async function import_private_key(kn_sk: SensitiveBytes, s_name: string): Promise<[AccountPath, AccountStruct]> {
 	const atu8_sk = kn_sk.data;
 
 	const p_secret = await Secrets.put(atu8_sk, {
@@ -322,7 +329,7 @@ export async function import_private_key(kn_sk: SensitiveBytes, s_name: string):
 	}));
 
 	// verify account was created
-	let g_account: AccountInterface;
+	let g_account: AccountStruct;
 	{
 		const ks_accounts = await Accounts.read();
 		const g_test = ks_accounts.at(p_account);

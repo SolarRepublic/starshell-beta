@@ -40,7 +40,7 @@ import type {IntraExt} from '#/script/messages';
 import {storage_clear} from '#/extension/public-storage';
 import type {Dict} from '#/meta/belt';
 import {Apps} from '#/store/apps';
-import {AppApiMode, AppInterface} from '#/meta/app';
+import {AppApiMode, AppStruct} from '#/meta/app';
 import {SessionStorage} from '#/extension/session-storage';
 
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
@@ -62,7 +62,7 @@ const dp_cause = (async() => {
 		const g_tab = a_tabs[0];
 
 		// prep app struct
-		let g_app: AppInterface | null = null;
+		let g_app: AppStruct | null = null;
 
 		// app registration state
 		let b_registered = false;
@@ -433,9 +433,15 @@ if(B_LOCALHOST) {
 		console.log('Autoskipping registration');
 
 		(async() => {
-			// localStorage.clear();
-			// await register('     ');
-			await login('     ');
+			try {
+				await login('     ');
+			}
+			catch(e_login) {
+				localStorage.clear();
+				await register('     ');
+				await login('     ');
+			}
+
 			void reload();
 		})();
 	}

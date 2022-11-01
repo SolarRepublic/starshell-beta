@@ -1,9 +1,9 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import type {AppInterface} from '#/meta/app';
+	import type {AppStruct} from '#/meta/app';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import type {Caip2, ChainInterface} from '#/meta/chain';
+	import type {Caip2, ChainStruct} from '#/meta/chain';
 	import {F_NOOP, ode} from '#/util/belt';
 	import AppBanner from '../ui/AppBanner.svelte';
 	import Row from '../ui/Row.svelte';
@@ -13,9 +13,9 @@
 		completed,
 	} = load_flow_context<undefined>();
 
-	export let app: AppInterface;
+	export let app: AppStruct;
 
-	export let chains: Record<Caip2.String, ChainInterface>;
+	export let chains: Record<Caip2.String, ChainStruct>;
 
 </script>
 

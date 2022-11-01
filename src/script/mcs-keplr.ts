@@ -1,5 +1,5 @@
 import type {
-	Keplr as KeplrInterface,
+	Keplr as KeplrStruct,
 } from '@keplr-wallet/types';
 
 import type {Dict} from '#/meta/belt';
@@ -18,7 +18,7 @@ import type {WitnessToKeplr} from './messages';
 	const debug = (s: string, ...a_args: any[]) => console.debug(`StarShell.mcs-keplr: ${s}`, ...a_args);
 	debug(`Launched on <${location.href}>`);
 
-	function proxy_def(y_keplr: KeplrInterface, h_defs: Dict<(f_original: Function, a_args: any[]) => any>) {
+	function proxy_def(y_keplr: KeplrStruct, h_defs: Dict<(f_original: Function, a_args: any[]) => any>) {
 		for(const [si_property, z_replace] of Object.entries(h_defs)) {
 			// ref original property value
 			const z_original = y_keplr[si_property];
@@ -43,7 +43,7 @@ import type {WitnessToKeplr} from './messages';
 	// });
 
 	// @ts-expect-error intentional undercall
-	const keplr = new dc_keplr('0.10.24', 'extension') as unknown as KeplrInterface;
+	const keplr = new dc_keplr('0.10.24', 'extension') as unknown as KeplrStruct;
 
 	if(!window.keplr) {
 		window.keplr = keplr;

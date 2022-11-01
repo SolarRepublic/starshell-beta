@@ -1,18 +1,23 @@
 <script lang="ts">
+	import {getContext} from 'svelte';
+	
+	import {Screen, SubHeader, type Page} from './_screens';
+	
 	import {Apps} from '#/store/apps';
 	import {open_external_link} from '#/util/dom';
-	import {getContext} from 'svelte';
-	import Header from '../ui/Header.svelte';
-	import Row from '../ui/Row.svelte';
+	
 	import AppView from './AppView.svelte';
-	import {Screen, SubHeader, type Page} from './_screens';
+	import Header from '../ui/Header.svelte';
+	import InlineTags from '../ui/InlineTags.svelte';
+	import LoadingRows from '../ui/LoadingRows.svelte';
+	import Row from '../ui/Row.svelte';
 
 	const k_page = getContext<Page>('page');
 
 	async function load_apps() {
 		const ks_apps = await Apps.read();
 
-		return ks_apps.entries();
+		return ks_apps.entries().reverse();
 	}
 </script>
 
@@ -29,7 +34,7 @@
 
 	<div class="rows no-margin">
 		{#await load_apps()}
-			Loading...
+			<LoadingRows count={3} />
 		{:then a_apps} 
 			{#each a_apps as [p_app, g_app]}
 				<Row
@@ -50,6 +55,10 @@
 						<button class="pill" on:click|stopPropagation={() => open_external_link(`${g_app.scheme}://${g_app.host}/`, {exitPwa:true})}>
 							Launch
 						</button>
+					</svelte:fragment>
+
+					<svelte:fragment slot="tags">
+						<InlineTags subtle resourcePath={p_app} />
 					</svelte:fragment>
 				</Row>
 			{/each}

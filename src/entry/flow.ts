@@ -28,16 +28,16 @@ import ScanQrSvelte from '#/app/screen/ScanQr.svelte';
 import ReloadPage from '#/app/screen/ReloadPage.svelte';
 import RequestConnection_AccountsSvelte from '#/app/screen/RequestConnection_Accounts.svelte';
 import NoticeIllegalChainsSvelte from '#/app/screen/NoticeIllegalChains.svelte';
-import RequestSignatureSvelte from '#/app/screen/RequestSignature.svelte';
+import RequestSignatureSvelte, { CompletedAminoSignature } from '#/app/screen/RequestSignature.svelte';
 import {SignDoc, TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 import {base93_to_buffer} from '#/util/data';
 import {RegisteredFlowError} from '#/script/msg-flow';
 import {Chains} from '#/store/chains';
 import {Accounts} from '#/store/accounts';
-import type {AccountInterface, AccountPath} from '#/meta/account';
-import type {ChainInterface, ChainPath} from '#/meta/chain';
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {ChainStruct, ChainPath} from '#/meta/chain';
 import {Apps} from '#/store/apps';
-import type {AppInterface, AppPath} from '#/meta/app';
+import type {AppStruct, AppPath} from '#/meta/app';
 import type {Nullable} from 'ts-toolbelt/out/Object/Nullable';
 import RequestSignature from '#/app/screen/RequestSignature.svelte';
 import _DebugSvelte from '#/app/screen/_Debug.svelte';
@@ -50,9 +50,9 @@ export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 export type WebPage = Union.Merge<NonNullable<Vocab.MessagePart<IntraExt.FlowVocab, 'page'>>>;
 
 interface AppHandlerContext {
-	app: AppInterface;
-	chain: ChainInterface;
-	account: AccountInterface;
+	app: AppStruct;
+	chain: ChainStruct;
+	account: AccountStruct;
 }
 
 type PartialContext = Partial<Nullable<AppHandlerContext>>;
@@ -277,11 +277,16 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		// verbose
 		domlog(`Handling 'signAmino' on ${JSON.stringify(g_value)}\n\nwith context ${JSON.stringify(g_context)}`);
 
-		return await completed_render<AdaptedAminoResponse>(RequestSignatureSvelte, g_value.props, {
+		const g_completed = await completed_render<CompletedAminoSignature>(RequestSignatureSvelte, g_value.props, {
 			app: g_context.app,
 			chain: g_context.chain,
 			accountPath: g_value.accountPath,
 		});
+
+		return {
+			...g_completed,
+			data: g_completed.data?.amino,
+		};
 	},
 
 	signTransaction(g_value, g_context) {
@@ -321,6 +326,10 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		return await completed_render(RequestSignature, {
 			si_preset: 'snip20ViewingKey',
 		});
+	},
+
+	async exposeViewingKeys(g_value) {
+		return await completed_render(RequestExposure, g_value);
 	},
 } as const;
 

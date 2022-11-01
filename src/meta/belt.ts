@@ -1,4 +1,4 @@
-import type {Union} from 'ts-toolbelt';
+import type {A, Union} from 'ts-toolbelt';
 import type {If} from 'ts-toolbelt/out/Any/If';
 import type {And, Or} from 'ts-toolbelt/out/Boolean/_api';
 import type {Tail} from 'ts-toolbelt/out/List/_api';
@@ -176,6 +176,16 @@ export type OmitUnknownKeys<
 }
 
 
+/**
+ * Converts an object into a union of objects for each entry
+ */
+export type Explode<h_object extends object> = {
+	[si_each in keyof h_object]: {
+		[si_key in si_each]: h_object[si_key];
+	}
+}[keyof h_object];
+
+
 export type Values<
 	w_thing extends any[] | object,
 > = w_thing extends Dict<infer w_value>
@@ -250,3 +260,8 @@ export type JsonValue<w_inject extends any=never> =
 	| JsonArray<w_inject>
 	| JsonObject<w_inject>
 	| undefined;
+
+/**
+ * Removes JSON interfaces from a type
+ */
+export type RemoveJsonInterfaces<w_type> = Exclude<A.Compute<Exclude<Extract<w_type, object>, JsonArray>>, JsonObject>;

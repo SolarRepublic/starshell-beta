@@ -5,7 +5,7 @@
 	--app-window-width: 360px;
 	--app-window-height: 600px;
 	--app-window-padding-bottom: 0px;
-	--app-icon-diameter: 46px;
+	--app-icon-diameter: 36px;
 	--app-tag-diameter: 10px;
 
 	--app-max-width: 700px;
@@ -157,6 +157,24 @@ body {
 	text-align: center;
 }
 
+.global_flex-auto {
+	display: flex;
+	align-items: center;
+
+	>* {
+		flex: auto;
+	}
+}
+
+.global_flex-1 {
+	display: flex;
+	align-items: center;
+
+	>* {
+		flex: 1;
+	}
+}
+
 
 .global_pfp {
 	display: inline-block;
@@ -209,6 +227,28 @@ body {
 			color: var(--theme-color-text-med);
 		}
 	}
+}
+
+.global_loading {
+	@keyframes loading {
+		0% {
+			opacity: 0.4;
+		}
+
+		50% {
+			opacity: 1.0;
+		}
+
+		100% {
+			opacity: 0.4;
+		}
+	}
+
+	display: inline-block;
+	color: transparent;
+	background-color: var(--theme-color-graydark);
+	border-radius: 4px;
+	animation: loading 1000ms var(--ease-in-out-circ) 0s infinite both;
 }
 
 .global_dom-field {
@@ -351,6 +391,7 @@ body {
 	.json-string {
 		color: var(--theme-color-green);
 		.high-contrast-selection(all);
+		white-space: pre;
 
 		&::before {
 			content: '"';
@@ -405,6 +446,9 @@ code {
 	border-radius: 0.25em;
 }
 
+mark {
+	background-color: var(--theme-color-text-med);
+}
 
 .text:not(button .text):not(.row .text):not(.link .text) {
 	user-select: text;
@@ -419,6 +463,10 @@ input,textarea {
 	}
 }
 
+b {
+	font-weight: 600;
+}
+
 .validation-message {
 	.font(tiny);
 	color: var(--theme-color-caution);
@@ -427,13 +475,17 @@ input,textarea {
 
 	padding-top: 3px;
 	display: inline-block;
+
+	&.warning {
+		color: #f89a31
+	}
 }
 
 .user-select_all {
 	user-select: all;
 }
 
-.actions-wall, .actions-line {
+.actions-wall, .actions-line, .actions-custom {
 	button {
 		min-height: var(--ui-row-height);
 		max-height: var(--ui-row-height);
@@ -488,6 +540,11 @@ button {
 			opacity: 0.4;
 		}
 	}
+
+	&.caution {
+		color: var(--theme-color-caution);
+		border-color: var(--theme-color-caution);
+	}
 }
 
 h3 {
@@ -526,6 +583,8 @@ strong {
 
 	&:focus {
 		outline: 1px solid var(--theme-color-primary);
+		border-radius: 8px;
+		outline-offset: 0px;
 	}
 }
 
@@ -599,6 +658,15 @@ input {
 	&:hover {
 		text-decoration: underline;
 	}
+}
+
+.selected {
+	// background-color: var(--theme-color-primary);
+	// --theme-color-bg: var(--theme-color-primary);
+	// --theme-color-text-med: var(--theme-color-graydark);
+	// --theme-color-text-light: var(--theme-color-black);
+	outline: 2px solid var(--theme-color-primary);
+	background-color: var(--theme-color-black);
 }
 
 .svelte-tabs {

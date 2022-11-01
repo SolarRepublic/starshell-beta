@@ -1,36 +1,42 @@
+import type {Union} from 'ts-toolbelt';
+
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {Values} from '#/meta/belt';
+import type {Bech32, Chain, ChainStruct, ChainNamespaceKey, ChainPath, Entity, EntityPath, EntityStruct, HoldingPath} from '#/meta/chain';
 import type {Resource} from '#/meta/resource';
+
+import type {Store} from '#/meta/store';
+import type {TokenSpecKey} from '#/meta/token';
+
+
+
+import {TokenRegistry} from '#/schema/token-registry';
 
 import {
 	create_store_class,
 	WritableStoreDict,
 } from './_base';
-
-import {SI_STORE_ENTITIES} from '#/share/constants';
-
-import type {Store} from '#/meta/store';
-import type {Token, TokenPath, TokenSpecKey} from '#/meta/token';
-import type {Bech32, Chain, ChainInterface, ChainNamespaceKey, ChainPath, Entity, EntityPath, EntityInterface, HoldingPath} from '#/meta/chain';
 import {Chains} from './chains';
-import type {Values} from '#/meta/belt';
-import {fold} from '#/util/belt';
-import type {Union} from 'ts-toolbelt';
-import {TokenRegistry} from '#/schema/token-registry';
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+
 import {yw_chain, yw_chain_ref} from '#/app/mem';
+import {SI_STORE_ENTITIES} from '#/share/constants';
+import {fold} from '#/util/belt';
 
 type EntityTree = NonNullable<Values<Store['entities']>>;
 
 type ContractSubtree = NonNullable<Union.Merge<NonNullable<EntityTree>>['as.contract']>;
 
-type TokenInterfaceMap = Record<TokenSpecKey, {}>;
+type TokenStructMap = Record<TokenSpecKey, {}>;
 
-export type TokenDict = Record<TokenPath, Token['interface']>;
+export type TokenDict = Record<TokenPath, Token['struct']>;
 
 type EntityType = 'contract' | 'token' | 'holding';
 
 export type EntityInfo = Merge<{
 	chainRef: ChainPath;
-	entityRef: EntityPath;
+	entityPath: EntityPath;
 	bech32: Bech32;
 }, {
 	type: Extract<EntityType, 'contract' | 'token'>;
@@ -43,7 +49,7 @@ export const Entities = create_store_class({
 	store: SI_STORE_ENTITIES,
 	extension: 'dict',
 	class: class EntitiesI extends WritableStoreDict<typeof SI_STORE_ENTITIES> {
-		static pathFrom(g_entity: Entity['interface'], g_chain=yw_chain.get()) {
+		static pathFrom(g_entity: Entity['struct'], g_chain=yw_chain.get()) {
 			return `${Chains.pathFrom(g_chain)}/bech32.${g_entity.bech32}`;
 		}
 
@@ -90,7 +96,7 @@ export const Entities = create_store_class({
 			return {
 				chainRef: p_chain,
 
-				entityRef: `${p_chain}/${a_paths[3]}`,
+				entityPath: `${p_chain}/${a_paths[3]}`,
 
 				// parse address
 				bech32: a_paths[2].slice(a_paths[2].indexOf('.')+1),
@@ -107,7 +113,7 @@ export const Entities = create_store_class({
 			return `${p_chain}/bech32.${sa_owner}/holding.${si_coin}`;
 		}
 
-		static async readTokens(g_chain: ChainInterface, h_interfaces: TokenInterfaceMap|null=null) {
+		static async readTokens(g_chain: ChainStruct, h_interfaces: TokenStructMap|null=null) {
 			// read store
 			const ks_res = await Entities.read();
 
@@ -115,7 +121,7 @@ export const Entities = create_store_class({
 			return ks_res.tokens(Chains.pathFrom(g_chain), h_interfaces);
 		}
 
-		static async readFungibleTokens(g_chain: ChainInterface) {
+		static async readFungibleTokens(g_chain: ChainStruct) {
 			// read store
 			const ks_res = await Entities.read();
 
@@ -123,21 +129,21 @@ export const Entities = create_store_class({
 			const h_interfaces = fold(
 				g_chain.tokenInterfaces,
 				si_key => TokenRegistry[si_key].attributes.fungible? {[si_key]:{}}: {}
-			) as TokenInterfaceMap;
+			) as TokenStructMap;
 
 			// apply filter
 			return ks_res.tokens(Chains.pathFrom(g_chain), h_interfaces);
 		}
 
-		static fungibleInterfacesFor(g_chain: ChainInterface) {
+		static fungibleInterfacesFor(g_chain: ChainStruct) {
 			// all fungible tokens from chain
 			return fold(
 				g_chain.tokenInterfaces,
 				si_key => TokenRegistry[si_key].attributes.fungible? {[si_key]:{}}: {}
-			) as TokenInterfaceMap;
+			) as TokenStructMap;
 		}
 
-		static async infoForToken(g_token: Token['interface']): TokenBasicInfo {
+		static async infoForToken(g_token: Token['struct']): TokenBasicInfo {
 
 		}
 
@@ -151,15 +157,15 @@ export const Entities = create_store_class({
 
 		// static pathFrom<
 		// 	g_res extends Tag,
-		// >(g_res: TagInterface): Resource.Path<g_res> {
+		// >(g_res: TagStruct): Resource.Path<g_res> {
 		// 	return EntitiesI.pathFor(g_res.host, g_res.scheme);
 		// }
 
-		// static get(s_host: string, s_scheme: TagSchemeKey): Promise<null | TagInterface> {
+		// static get(s_host: string, s_scheme: TagSchemeKey): Promise<null | TagStruct> {
 		// 	return Entities.open(ks_ress => ks_ress.get(s_host, s_scheme));
 		// }
 
-		// get(s_host: string, s_scheme: TagSchemeKey): TagInterface | null {
+		// get(s_host: string, s_scheme: TagSchemeKey): TagStruct | null {
 		// 	// prepare res path
 		// 	const p_res = EntitiesI.pathFor(s_host, s_scheme);
 
@@ -168,7 +174,7 @@ export const Entities = create_store_class({
 		// }
 
 
-		// async put(g_res: TagInterface): Promise<void> {
+		// async put(g_res: TagStruct): Promise<void> {
 		// 	// prepare res path
 		// 	const p_res = EntitiesI.pathFor(g_res.host, g_res.scheme);
 
@@ -219,7 +225,7 @@ export const Entities = create_store_class({
 			return true;
 		}
 
-		tokens(p_prefix: ChainPath, h_interfaces: TokenInterfaceMap|null=null): Record<TokenSpecKey, TokenDict> {
+		tokens(p_prefix: ChainPath, h_interfaces: TokenStructMap|null=null): Record<TokenSpecKey, TokenDict> {
 			// output
 			const h_outs = {} as Record<TokenSpecKey, TokenDict>;
 

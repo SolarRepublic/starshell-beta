@@ -1,19 +1,20 @@
 <script lang="ts">
 	import {yw_account_ref} from '##/mem';
-	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
+	import type {Account, AccountStruct, AccountPath} from '#/meta/account';
 	import {Accounts} from '#/store/accounts';
 	import {oderac} from '#/util/belt';
 	import { createEventDispatcher } from 'svelte';
+    import Load from './Load.svelte';
 
 	const dispatch = createEventDispatcher();
 
 	import StarSelect, {type SelectOption} from './StarSelect.svelte';
 
-	export let accountRef: AccountPath = $yw_account_ref;
-	// const p_account = accountRef;
+	export let accountPath: AccountPath = $yw_account_ref;
+	// const p_account = accountPath;
 
 
-	const mk_account = (p_acc: AccountPath, g_acc: AccountInterface) => ({
+	const mk_account = (p_acc: AccountPath, g_acc: AccountStruct) => ({
 		value: p_acc,
 		primary: g_acc.name,
 		secondary: g_acc.extra?.total_fiat_cache || '(?)',
@@ -26,14 +27,14 @@
 
 	// reactively update the exported account ref binding
 	$: if(g_selected) {
-		accountRef = g_selected.value;
+		accountPath = g_selected.value;
 	}
 
 	async function load_accounts() {
 		const ks_accounts = await Accounts.read();
 
 		a_options = oderac(ks_accounts.raw, mk_account);
-		g_selected = a_options.find(g => accountRef === g.value)!;
+		g_selected = a_options.find(g => accountPath === g.value)!;
 
 		setTimeout(() => {
 			dispatch('load');
@@ -51,7 +52,7 @@
 
 <div class="sender">
 	{#await load_accounts()}
-		Loading accounts...
+		<Load forever />
 	{:then a_options}
 		<StarSelect id="sender-select"
 			placeholder="Select account"

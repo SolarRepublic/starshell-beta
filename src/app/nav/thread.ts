@@ -43,6 +43,24 @@ export class Thread {
 		return this._a_history;
 	}
 
+	// allow for history transfers
+	set history(a_pages: Page[]) {
+		// clear thread dom
+		this.dom.innerHTML = '';
+
+		// each page in new history
+		for(const g_page of a_pages.reverse()) {
+			// move page dom over to thread
+			this.dom.append(g_page.dom);
+
+			// overwrite page's parent
+			g_page.thread = this;
+		}
+
+		// set history
+		this._a_history = a_pages;
+	}
+
 	get page(): Page {
 		return this._a_history[0];
 	}

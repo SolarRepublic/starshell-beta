@@ -41,6 +41,18 @@
 	export let collapsed = false;
 	const b_collapsed = collapsed;
 
+	/**
+	 * If `true`, displays tag color as a dot with adjacent text
+	 */
+	export let subtle = false;
+	const b_subtle = subtle;
+
+	/**
+	 * If `true`, does not display empty cluster
+	 */
+	export let hideIfEmpty = false;
+	const b_hide_empty = hideIfEmpty;
+
 	export let prefixClass = '';
 	export let suffixClass = '';
 
@@ -58,7 +70,7 @@
 
 	// cache the list of tags for this resource
 	$: a_tags = $yw_store_tags!.getTagsFor(p_resource);
-	// let a_tags: TagInterface[];
+	// let a_tags: TagStruct[];
 
 	// // fetch tags for the given resource
 	// async function resource_tags() {
@@ -97,7 +109,7 @@
 
 	let dm_cluster: HTMLElement;
 
-	async function remove_tag(g_tag: TagInterface) {
+	async function remove_tag(g_tag: TagStruct) {
 		// find tag by id
 		const i_tag = a_tags.findIndex(g => g.index === g_tag.index);
 
@@ -174,6 +186,14 @@
 			 margin-bottom:5px;
 		}
 
+		&.subtle {
+			>.tag {
+				>.label {
+					color: var(--theme-color-text-med);
+				}
+			}
+		}
+
 		>.tag {
 			--tag-width: auto;
 			--tag-height: 22px;
@@ -185,8 +205,21 @@
 			padding: 0 1ch;
 			font-size: 13px;
 
+			>.dot {
+				display: flex;
+				align-items: center;
+				margin-right: 6px;
+
+				>* {
+					height: 8px;
+					width: 8px;
+					border-radius: 5px;
+				}
+			}
+
 			>.label {
-				margin-top: 1px;
+				font-size: 12px;
+				margin-top: 2px;
 				text-shadow: -1px 1px 1.3px rgb(0 0 0 / 40%);
 			}
 
@@ -256,42 +289,70 @@
 	}
 </style>
 
-<span class="cluster" class:editable={b_editable} class:collapsed={b_collapsed} bind:this={dm_cluster} style={rootStyle}>
-	{#if $$slots.prefix}
-		<span class="prefix {prefixClass}">
-			<slot name="prefix"></slot>
-		</span>
-	{/if}
-
-	{#key c_reload_tags}
-		{#each a_tags as g_tag, i_tag}
-			<span class="tag" style="background-color:{g_tag.color};" class:collapsed={b_collapsed} out:sslide={{duration:b_editable? 300: 0}}>
-				{#if !b_collapsed}
-					<span class="label">
-						{g_tag.name}
-					</span>
-				{/if}
-
-				{#if b_editable}
-					<span class="delete icon" on:click={() => remove_tag(g_tag)}>
-						{@html SX_ICON_ADD}
-					</span>
-				{/if}
+{#if a_tags.length || !b_hide_empty}
+	<span class="cluster"
+		class:editable={b_editable}
+		class:collapsed={b_collapsed}
+		class:subtle={b_subtle}
+		bind:this={dm_cluster}
+		style={rootStyle}
+	>
+		{#if $$slots.prefix}
+			<span class="prefix {prefixClass}">
+				<slot name="prefix"></slot>
 			</span>
-		{/each}
-	{/key}
+		{/if}
 
-	{#if b_editable}
-		<span class="edit" on:click={() => show_tag_selector()}>
-			<span class="icon">
-				{@html SX_ICON_EDIT}
+		{#key c_reload_tags}
+			{#each a_tags as g_tag, i_tag}
+				<span class="tag"
+					class:collapsed={b_collapsed}
+					out:sslide={{duration:b_editable? 300: 0}}
+					style={`
+						${b_subtle
+							? `
+								border: 1px solid var(--theme-color-border);
+							`
+							: `
+								background-color: ${g_tag.color};
+							`}
+					`}
+				>
+					{#if b_subtle}
+						<span class="dot">
+							<span style="background-color:{g_tag.color};">
+								&nbsp;
+							</span>
+						</span>
+					{/if}
+
+					{#if !b_collapsed}
+						<span class="label">
+							{g_tag.name}
+						</span>
+					{/if}
+
+					{#if b_editable}
+						<span class="delete icon" on:click={() => remove_tag(g_tag)}>
+							{@html SX_ICON_ADD}
+						</span>
+					{/if}
+				</span>
+			{/each}
+		{/key}
+
+		{#if b_editable}
+			<span class="edit" on:click={() => show_tag_selector()}>
+				<span class="icon">
+					{@html SX_ICON_EDIT}
+				</span>
 			</span>
-		</span>
-	{/if}
+		{/if}
 
-	{#if $$slots.suffix}
-		<span class="suffix {suffixClass}">
-			<slot name="suffix"></slot>
-		</span>
-	{/if}
-</span>
+		{#if $$slots.suffix}
+			<span class="suffix {suffixClass}">
+				<slot name="suffix"></slot>
+			</span>
+		{/if}
+	</span>
+{/if}

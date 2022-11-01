@@ -1,17 +1,19 @@
-import type {JsonObject} from '#/meta/belt';
+import type {Auto} from './belt';
 import type {Append} from 'ts-toolbelt/out/List/Append';
+
 import type {Concat} from 'ts-toolbelt/out/List/Concat';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
 import type {Join} from 'ts-toolbelt/out/String/Join';
-import type {Auto} from './belt';
+
+import type {JsonObject} from '#/meta/belt';
 
 // root data type for all individuals
 export type Resource<
-	g_interface extends JsonObject=JsonObject,
+	g_struct extends JsonObject=JsonObject,
 	a_segments extends string[]=string[],
 > = {
-	interface: g_interface;
+	struct: g_struct;
 	segments: a_segments;
 };
 
@@ -23,7 +25,7 @@ export namespace Resource {
 		extends?: Resource;
 		segment?: string;
 		segments?: string[];
-		interface: JsonObject | JsonObject[];
+		struct: JsonObject | JsonObject[];
 	};
 
 	export type New<
@@ -31,11 +33,11 @@ export namespace Resource {
 	> = Auto<gc_resource['extends'], Resource, Base> extends Resource<infer g_iface_parent, infer a_segs_parent>
 		? Resource<
 			Merge<
-				gc_resource['interface'] extends JsonObject[]
-					? MergeAll<{}, gc_resource['interface']>
-					: gc_resource['interface'] extends any[]
+				gc_resource['struct'] extends JsonObject[]
+					? MergeAll<{}, gc_resource['struct']>
+					: gc_resource['struct'] extends any[]
 						? never
-						: gc_resource['interface'],
+						: gc_resource['struct'],
 				g_iface_parent
 			>,
 			gc_resource['segment'] extends `${infer s_segment}`

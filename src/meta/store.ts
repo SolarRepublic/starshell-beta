@@ -1,25 +1,24 @@
-import type {String, Union} from 'ts-toolbelt';
-import type {Compute} from 'ts-toolbelt/out/Any/Compute';
-import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
-import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
-import type {Account, AccountPath} from './account';
+import type {Account} from './account';
 import type {App} from './app';
-import type {StringFormat} from './belt';
-import type {Agent, Bech32, Chain, ChainPath, Contract, Entity, Holding, HoldingPath} from './chain';
-import type {Resource} from './resource';
-import type {Token, TokenPath, TokenSpec, TokenSpecKey} from './token';
-
-import type {SettingsRegistry} from '#/store/settings';
-import type {AppPolicy} from '#/store/policies';
-import type {Cast} from 'ts-toolbelt/out/Any/Cast';
+import type {Agent, Chain, ChainPath, Contract, Entity, Holding, HoldingPath} from './chain';
+import type {Incident, IncidentPath} from './incident';
 import type {Media} from './media';
 import type {Pfp} from './pfp';
-import type {Tag} from './tag';
 import type {Provider} from './provider';
+import type {Resource} from './resource';
 import type {Secret} from './secret';
 import type {ResponseCache, WebApi} from './web-api';
+import type {String, Union} from 'ts-toolbelt';
+import type {Cast} from 'ts-toolbelt/out/Any/Cast';
+import type {Compute} from 'ts-toolbelt/out/Any/Compute';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import type {Incident, IncidentPath} from './incident';
+import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
+
+import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
+
+import type {AppPolicy} from '#/store/policies';
+import type {SettingsRegistry} from '#/store/settings';
+
 
 // associates a resource to arbitrary data in some typed category
 export type DataMap<
@@ -59,7 +58,7 @@ export type LinkMap1toMany<
 
 export type RootDoc<
 	g_resource extends Resource,
-> = DataMap<g_resource, g_resource['interface']>;
+> = DataMap<g_resource, g_resource['struct']>;
 
 
 export type Relative<
@@ -151,7 +150,7 @@ export type Store = Merge<{
 
 	// tags only exist as mapped references to simplify forwards-compatiblity, schema, and indexing
 	tags: {
-		registry: TagInterface[];
+		registry: TagStruct[];
 		map: DataMap<Resource, number[]>;
 	};
 
@@ -186,9 +185,7 @@ export type Store = Merge<{
 		]],
 		[Holding],
 	]>;
-}, {
-	[si: `:${string}`]: string;
-}>;
+}, Record<`:${string}`, string>>;
 
 export namespace Store {
 	export type Key<si_store extends StoreKey> = keyof Store[si_store];

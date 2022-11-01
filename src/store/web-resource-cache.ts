@@ -5,6 +5,9 @@ import SX_SUFFIXES_BUNDLED from '#/../submodules/publicsuffix-list/public_suffix
 import {
 	P_PUBLIC_SUFFIX_LIST,
 	P_STARSHELL_DECREES,
+	XT_DAYS,
+	XT_HOURS,
+	XT_MINUTES,
 } from '#/share/constants';
 import {storage_get, storage_set} from '#/extension/public-storage';
 
@@ -13,6 +16,8 @@ const $_EXISTING = Symbol('use-existing-cache');
 type $_EXISTING = typeof $_EXISTING;
 
 interface GenericEntry {
+	format: string;
+	lifespan: number;
 	query?: () => Dict;
 }
 
@@ -41,6 +46,7 @@ export interface Decree extends JsonObject {
 const H_REGISTRY = {
 	[P_PUBLIC_SUFFIX_LIST]: {
 		format: 'text',
+		lifespan: 1*XT_HOURS,
 		parse(sx_data): $_EXISTING | string[] {
 			// failed for some reason; not critical
 			if(!sx_data) return $_EXISTING;
@@ -59,6 +65,7 @@ const H_REGISTRY = {
 
 	[P_STARSHELL_DECREES]: {
 		format: 'json',
+		lifespan: 10*XT_MINUTES,
 		filter(z_data: JsonValue): JsonValue {
 			return (z_data as Decree[]).filter(g_decree => true) as JsonValue;
 		},
@@ -70,6 +77,7 @@ type CacheKey = keyof typeof H_REGISTRY;
 
 interface Cache extends JsonObject {
 	etag: string;
+	time: number;
 	data: JsonValue;
 }
 
@@ -87,6 +95,12 @@ export class WebResourceCache {
 	static async updateAll() {
 		for(const p_res in H_REGISTRY) {
 			const g_entry = H_REGISTRY[p_res as CacheKey];
+
+			// previous cache still good; skip
+			const g_cached = await cache_get(p_res as CacheKey);
+			if(g_cached) {
+				if(g_cached.time + g_entry.lifespan > Date.now()) continue;
+			}
 
 			// // build query
 			// if('query' in g_entry) {
@@ -114,6 +128,7 @@ export class WebResourceCache {
 					// set/overwrite
 					await cache_put(p_res as CacheKey, {
 						etag: d_res.headers.get('etag') ?? '',
+						time: Date.now(),
 						data: s_data,
 					});
 					break;
@@ -131,6 +146,7 @@ export class WebResourceCache {
 					// set/overwrite
 					await cache_put(p_res as CacheKey, {
 						etag: d_res.headers.get('etag') ?? '',
+						time: Date.now(),
 						data: w_data,
 					});
 					break;

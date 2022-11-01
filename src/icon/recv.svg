@@ -1,9 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none">
-	<style>
-		.s2r-action-recv-fg-stroke {
-			stroke: var(--svg-color-fg, currentColor);
-		}
-	</style>
-	<path style="fill:var(--svg-color-fg, currentColor)" d="M3 14h12v2H3z"/>
-	<path class="s2r-action-recv-fg-stroke" d="M9 12V1M4.5 7.5 9 12l4.5-4.5" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill:var(--svg-color-fg, currentColor)">
+	<path d="M4,19.3h16V22H4V19.3z"/>
+	<polygon points="13,10.7 13,2 11,2 11,10.7 6,10.7 12,16.7 18,10.7 "/>
 </svg>

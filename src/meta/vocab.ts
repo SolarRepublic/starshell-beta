@@ -1,12 +1,12 @@
+import type {Coalesce, OmitUnknownKeys} from './belt';
 import type {Union} from 'ts-toolbelt';
 import type {At, Compute} from 'ts-toolbelt/out/Any/_api';
-import type {Merge, MergeAll} from 'ts-toolbelt/out/Object/_api';
 import type {Append} from 'ts-toolbelt/out/List/_api';
+import type {Merge, MergeAll} from 'ts-toolbelt/out/Object/_api';
 
 import type {JsonObject, JsonValue} from '#/meta/belt';
 
 import type {TypedMessage} from '#/script/messages';
-import type {Coalesce, OmitUnknownKeys} from './belt';
 
 
 /**
@@ -33,7 +33,7 @@ export namespace Vocab {
 	 */
 	type Source = Record<string, {
 		value?: JsonValue;
-		response?: JsonValue;
+		response?: JsonValue<void>;
 	}>;
 
 

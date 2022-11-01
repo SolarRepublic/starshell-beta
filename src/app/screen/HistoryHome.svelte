@@ -1,17 +1,17 @@
 <script lang="ts">
-	import { global_receive } from '#/script/msg-global';
-
-	import {Incidents} from '#/store/incidents';
-	import { onDestroy } from 'svelte';
-	import { yw_account, yw_network, yw_owner } from '../mem';
-	import TxnList from '../ui/TxnList.svelte';
-
+	import {onDestroy} from 'svelte';
+	
 	import {
 		Screen,
 		Header,
 		SubHeader,
-		type Page,
 	} from './_screens';
+	
+	import {global_receive} from '#/script/msg-global';
+	import {Incidents} from '#/store/incidents';
+	
+	import IncidentsList from '../ui/IncidentsList.svelte';
+	
 
 	let c_reloads = 1;
 	const f_unsubscribe = global_receive({
@@ -52,17 +52,11 @@
 		bare
 	></SubHeader>
 
-	<!-- 
-	<p style='font-size:12px'>
-		<span style='color:var(--theme-color-caution);'>Disclaimer: </span>
-		This temporary history interface does not represent the look and function of the actual history interface currently under development for beta.
-	</p> -->
-
 	{#key c_reloads}
 		{#await load_incidents()}
 			Loading history...
 		{:then a_incidents}
-			<TxnList
+			<IncidentsList
 				incidents={a_incidents}
 			/>
 		{/await}

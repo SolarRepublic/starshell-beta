@@ -1,4 +1,4 @@
-import type {Bech32, ChainInterface} from '#/meta/chain';
+import type {Bech32, ChainStruct} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
 import type {Coin} from '@cosmjs/amino';
 import type {MessageDict} from './_types';
@@ -75,7 +75,7 @@ export const H_PROPOSAL_STATUSES: Record<ProposalStatus, string> = {
 	[ProposalStatus.UNRECOGNIZED]: '(unrecognized option)',
 };
 
-function embed_proposal(g_proposal: ProposalTuple, g_chain: ChainInterface, a_fields: FieldConfig[]=[]) {
+function embed_proposal(g_proposal: ProposalTuple, g_chain: ChainStruct, a_fields: FieldConfig[]=[]) {
 	// proposal type
 	a_fields.push(kv('Type', g_proposal.type.replace(/^[^/]+\/|Proposal$/g, '')));
 
@@ -213,7 +213,7 @@ function embed_proposal(g_proposal: ProposalTuple, g_chain: ChainInterface, a_fi
 	}
 }
 
-function add_weighted_votes(a_options: WeightedVoteOption[], g_chain: ChainInterface, a_fields: FieldConfig[]=[]) {
+function add_weighted_votes(a_options: WeightedVoteOption[], g_chain: ChainStruct, a_fields: FieldConfig[]=[]) {
 	for(let i_option=0, nl_options=a_options.length; i_option<nl_options; i_option++) {
 		const {
 			option: xc_vote,
@@ -274,20 +274,24 @@ export const GovMessages: MessageDict = {
 			content: ProposalTuple;
 		};
 
-		const a_fields: FieldConfig[] = [];
-
-		embed_proposal(g_proposal, g_chain, a_fields);
-
-		add_coins({
-			g_chain,
-			coins: a_coins,
-			label: 'Initial Deposit',
-		}, a_fields);
-
 		return {
-			title: 'Submit Governance Proposal',
-			tooltip: `Puts a new proposal on chain so that the community can vote on it. The initial deposit will only be returned if the proposal passes.`,
-			fields: a_fields,
+			describe() {
+				const a_fields: FieldConfig[] = [];
+
+				embed_proposal(g_proposal, g_chain, a_fields);
+
+				add_coins({
+					g_chain,
+					coins: a_coins,
+					label: 'Initial Deposit',
+				}, a_fields);
+
+				return {
+					title: 'Submit Governance Proposal',
+					tooltip: `Puts a new proposal on chain so that the community can vote on it. The initial deposit will only be returned if the proposal passes.`,
+					fields: a_fields,
+				};
+			},
 		};
 	},
 
@@ -304,46 +308,50 @@ export const GovMessages: MessageDict = {
 			options?: WeightedVoteOption[];
 		};
 
-		const a_fields: FieldConfig[] = [
-			kv('Proposal ID', `#${si_proposal}`),
-		];
-
-		if('number' === typeof xc_vote && VoteOption.VOTE_OPTION_UNSPECIFIED !== xc_vote) {
-			a_fields.push(kv('Vote', H_VOTE_OPTIONS[xc_vote]));
-		}
-		else {
-			add_weighted_votes(a_options || [], g_chain, a_fields);
-		}
-
-		a_fields.push((async() => {
-			const k_network = yw_network.get();
-
-			const g_proposal = await k_network.proposal(si_proposal);
-
-			let a_subfields: FieldConfig[] = [];
-			if(g_proposal) {
-				const g_content_proto = g_proposal.content!;
-
-				const g_content = proto_to_amino<ProposalTuple>(g_content_proto);
-
-				a_subfields = [
-					kv('Status', H_PROPOSAL_STATUSES[g_proposal.status]),
+		return {
+			describe() {
+				const a_fields: FieldConfig[] = [
+					kv('Proposal ID', `#${si_proposal}`),
 				];
 
-				embed_proposal(g_content, g_chain, a_subfields);
-			}
+				if('number' === typeof xc_vote && VoteOption.VOTE_OPTION_UNSPECIFIED !== xc_vote) {
+					a_fields.push(kv('Vote', H_VOTE_OPTIONS[xc_vote]));
+				}
+				else {
+					add_weighted_votes(a_options || [], g_chain, a_fields);
+				}
 
-			return {
-				type: 'group',
-				fields: a_subfields,
-				expanded: true,
-			};
-		})());
+				a_fields.push((async() => {
+					const k_network = yw_network.get();
 
-		return {
-			title: 'Vote on Proposal',
-			tooltip: 'Casts your vote on the specified proposal.',
-			fields: a_fields,
+					const g_proposal = await k_network.proposal(si_proposal);
+
+					let a_subfields: FieldConfig[] = [];
+					if(g_proposal) {
+						const g_content_proto = g_proposal.content!;
+
+						const g_content = proto_to_amino<ProposalTuple>(g_content_proto, g_chain.bech32s.acc);
+
+						a_subfields = [
+							kv('Status', H_PROPOSAL_STATUSES[g_proposal.status]),
+						];
+
+						embed_proposal(g_content, g_chain, a_subfields);
+					}
+
+					return {
+						type: 'group',
+						fields: a_subfields,
+						expanded: true,
+					};
+				})());
+
+				return {
+					title: 'Vote on Proposal',
+					tooltip: 'Casts your vote on the specified proposal.',
+					fields: a_fields,
+				};
+			},
 		};
 	},
 
@@ -358,16 +366,20 @@ export const GovMessages: MessageDict = {
 			options: WeightedVoteOption[];
 		};
 
-		const a_fields: FieldConfig[] = [
-			kv('Proposal ID', `#${si_proposal}`),
-		];
-
-		add_weighted_votes(a_options, g_chain, a_fields);
-
 		return {
-			title: 'Weighted Vote',
-			tooltip: 'Votes on the given proposal by spreading your total voting power among multiple options.',
-			fields: a_fields,
+			describe() {
+				const a_fields: FieldConfig[] = [
+					kv('Proposal ID', `#${si_proposal}`),
+				];
+
+				add_weighted_votes(a_options, g_chain, a_fields);
+
+				return {
+					title: 'Weighted Vote',
+					tooltip: 'Votes on the given proposal by spreading your total voting power among multiple options.',
+					fields: a_fields,
+				};
+			},
 		};
 	},
 
@@ -382,19 +394,23 @@ export const GovMessages: MessageDict = {
 			amount: Coin[];
 		};
 
-		const a_fields: FieldConfig[] = [
-			kv('Proposal ID', `#${si_proposal}`),
-		];
-
-		add_coins({
-			g_chain,
-			coins: a_coins,
-		}, a_fields);
-
 		return {
-			title: 'Deposit to Proposal',
-			tooltip: 'Deposits funds to an existing proposal.',
-			fields: a_fields,
+			describe() {
+				const a_fields: FieldConfig[] = [
+					kv('Proposal ID', `#${si_proposal}`),
+				];
+
+				add_coins({
+					g_chain,
+					coins: a_coins,
+				}, a_fields);
+
+				return {
+					title: 'Deposit to Proposal',
+					tooltip: 'Deposits funds to an existing proposal.',
+					fields: a_fields,
+				};
+			},
 		};
 	},
 

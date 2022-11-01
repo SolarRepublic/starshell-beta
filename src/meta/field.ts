@@ -1,8 +1,28 @@
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import type { AppInterface } from './app';
+import type { AccountPath, AccountStruct } from './account';
+import type { AppPath, AppStruct } from './app';
 import type {Promisable} from './belt';
-import type { Bech32, ChainInterface } from './chain';
+import type { Bech32, ChainPath, ChainStruct } from './chain';
 import type {PfpTarget} from './pfp';
+
+export type ResourceFieldRegistry = {
+	app: {
+		path: AppPath;
+		struct: AppStruct;
+	};
+
+	chain: {
+		path: ChainPath;
+		struct: ChainStruct;
+	};
+
+	account: {
+		path: AccountPath;
+		struct: AccountStruct;
+	};
+};
+
+export type ResourceFieldKey = keyof ResourceFieldRegistry;
 
 export type FieldConfigRegistry = {
 	key_value: {
@@ -11,12 +31,18 @@ export type FieldConfigRegistry = {
 		value: Promisable<string | HTMLElement>;
 		after?: HTMLElement[];
 		subvalue?: Promisable<string>;
-		render?: 'address';
+		render?: 'address' | 'mono';
 		pfp?: PfpTarget;
 	};
 
 	memo: {
 		text: string;
+	};
+
+	transaction: {
+		hash: string;
+		chain: ChainStruct;
+		label?: string;
 	};
 
 	links: {
@@ -27,22 +53,40 @@ export type FieldConfigRegistry = {
 		}[]>;
 	};
 
+	password: {
+		value: string;
+		label?: string;
+	};
+
+	resource: Merge<{
+		label?: string;
+	}, {
+		[si_each in ResourceFieldKey]: Merge<{
+			resourceType: si_each;
+		}, {
+			path: ResourceFieldRegistry[si_each]['path'];
+		} | {
+			struct: ResourceFieldRegistry[si_each]['struct'];
+		}>;
+	}[ResourceFieldKey]>;
+
 	contacts: {
 		label?: string;
 		bech32s: Bech32[];
-		g_chain: ChainInterface;
+		g_chain: ChainStruct;
 	};
 
 	contracts: {
 		label?: string;
 		bech32s: Bech32[];
-		g_app: AppInterface;
-		g_chain: ChainInterface;
+		g_app: AppStruct;
+		g_chain: ChainStruct;
 	};
 
 	dom: {
 		dom: HTMLElement;
 		title?: string;
+		unlabeled?: boolean;
 	};
 
 	slot: {
@@ -54,6 +98,7 @@ export type FieldConfigRegistry = {
 
 	group: {
 		fields: FieldConfig[];
+		flex?: boolean;
 		expanded?: boolean;
 	};
 };

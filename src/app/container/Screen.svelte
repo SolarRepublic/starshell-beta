@@ -54,25 +54,72 @@
 
 		dispatch('dom', dm_screen);
 
-		// // scrolling
-		// dm_screen.addEventListener('wheel', (de_wheel) => {
-		// 	// overscroll
-		// 	if(0 === dm_screen.scrollTop) {
-		// 		if(de_wheel.DOM_DELTA_PIXEL === de_wheel.deltaMode) {
-		// 			// const x_delta_y = de_wheel.deltaY;
-		// 			// const x_pct = Math.min(Math.abs(x_delta_y), 50) / 50;
-		// 			// $yw_overscroll_pct = x_pct;
-		// 			// console.log((x_pct * 100).toFixed(2));
+		// weighted moving average
+		const a_times_wheel: number[] = [Date.now()];
+		const a_deltas_wheel: number[] = [0];
 
-		// 			// console.log({
-		// 			// 	deltaY: de_wheel.deltaY,
-		// 			// 	// wheelDeltaY: de_wheel.wheelDeltaY,
-		// 			// 	screenY: de_wheel.screenY,
-		// 			// 	mode: de_wheel.deltaMode,
-		// 			// });
-		// 		}
-		// 	}
-		// });
+		const XT_OVERSCROLL_WINDOW = 200;
+		const XL_OVERSCROLL_HEIGHT = 40;
+
+		// TODO: work on making these physics better
+		// scrolling
+		dm_screen.addEventListener('wheel', (de_wheel) => {
+			// overscroll
+			if(0 === dm_screen.scrollTop) {
+				if(de_wheel.DOM_DELTA_PIXEL === de_wheel.deltaMode && de_wheel.deltaY < 0) {
+					const xl_dy = Math.min(Math.abs(de_wheel.deltaY), XL_OVERSCROLL_HEIGHT);
+
+					const xt_now = Date.now();
+
+					// find the oldest event from the back
+					for(let i_event=a_times_wheel.length-1; i_event>=0; i_event--) {
+						const xt_age = xt_now - a_times_wheel[i_event];
+
+						if(xt_age > XT_OVERSCROLL_WINDOW) {
+							a_times_wheel.pop();
+							a_deltas_wheel.pop();
+						}
+					}
+
+					a_times_wheel.unshift(xt_now);
+					a_deltas_wheel.unshift(xl_dy);
+
+					let xl_sum = 0;
+
+					for(let i_event=0, nl_events=a_times_wheel.length; i_event<nl_events; i_event++) {
+						const xt_event = a_times_wheel[i_event];
+						const xt_age = xt_now - xt_event;
+
+						const xs_age = (1 - (xt_age / XT_OVERSCROLL_WINDOW)) / nl_events;
+						// const xs_index = 1 - ((i_event+1) / nl_events);
+
+						const xl_dy_event = a_deltas_wheel[i_event];
+
+						const xl_weighted = xl_dy_event * xs_age;
+
+						xl_sum += xl_weighted;
+					}
+
+					const x_result = xl_sum;
+					$yw_overscroll_pct = x_result / 20;
+
+					setTimeout(() => {
+						if(Date.now() - a_times_wheel[0] > XT_OVERSCROLL_WINDOW) {
+							$yw_overscroll_pct = 0;
+						}
+					}, XT_OVERSCROLL_WINDOW);
+
+					// console.log({
+					// 	deltaY: de_wheel.deltaY,
+					// 	// wheelDeltaY: de_wheel.wheelDeltaY,
+					// 	screenY: de_wheel.screenY,
+					// 	mode: de_wheel.deltaMode,
+					// });
+
+					// console.log(x_result);
+				}
+			}
+		});
 
 		// arrival(dm_screen, () => {
 		// 	console.log('arrived to screen');
@@ -361,9 +408,11 @@
 			Copied from screen.less
 		*/
 		* {
-			:global(&) {
-				font-family: inherit;
-				user-select: none;
+			&:not([class^="font-variant"]) {
+				:global(&) {
+					font-family: inherit;
+					user-select: none;
+				}
 			}
 		}
 

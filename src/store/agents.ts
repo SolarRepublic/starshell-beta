@@ -4,8 +4,8 @@ import {
 } from './_base';
 
 import {R_BECH32, SI_STORE_AGENTS} from '#/share/constants';
-import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
-import type {AgentIntergace, AgentPath, Bech32, ChainInterface, ChainNamespaceKey} from '#/meta/chain';
+import type {Contact, ContactStruct, ContactPath} from '#/meta/contact';
+import type {AgentStruct, AgentPath, Bech32, ChainStruct, ChainNamespaceKey} from '#/meta/chain';
 import {yw_chain_namespace} from '#/app/mem';
 import { toBech32 } from '@cosmjs/encoding';
 import { hex_to_buffer } from '#/util/data';
@@ -37,25 +37,25 @@ export const Agents = create_store_class({
 			return `${AgentsI.pathForAgentFromAddress(sa_addr, si_family)}/as.contact`;
 		}
 
-		static pathFromContact(g_contact: ContactInterface): ContactPath {
+		static pathFromContact(g_contact: ContactStruct): ContactPath {
 			return AgentsI.pathForContactFromData(g_contact.addressData, g_contact.namespace);
 		}
 
 		/**
 		 * Loads agents store and finds the contact by its path
 		 */
-		static async getContact(p_contact: ContactPath): Promise<ContactInterface | null> {
+		static async getContact(p_contact: ContactPath): Promise<ContactStruct | null> {
 			// read agents store
 			const ks_agents = await Agents.read();
 
 			// find contact
-			return ks_agents.at(p_contact) as ContactInterface;
+			return ks_agents.at(p_contact) as ContactStruct;
 		}
 
 		/**
-		 * Produces the compplete bech32 address for the given agent on the given chain (otherwise defaults to src address)
+		 * Produces the complete bech32 address for the given agent on the given chain (otherwise defaults to src address)
 		 */
-		static addressFor(g_agent: AgentIntergace | ContactInterface, g_chain_dst: ChainInterface): Bech32 {
+		static addressFor(g_agent: AgentStruct | ContactStruct, g_chain_dst: ChainStruct): Bech32 {
 			// decode bech32 address data (without checksum) into words
 			const a_words = decodeBech32(g_agent.addressData);
 
@@ -74,7 +74,7 @@ export const Agents = create_store_class({
 			return sa_contact as Bech32;
 		}
 
-		* contacts(si_family: ChainNamespaceKey=yw_chain_namespace.get()): IterableIterator<[ContactPath, ContactInterface]> {
+		* contacts(si_family: ChainNamespaceKey=yw_chain_namespace.get()): IterableIterator<[ContactPath, ContactStruct]> {
 			// ref cache
 			const h_cache = this._w_cache;
 
@@ -94,7 +94,7 @@ export const Agents = create_store_class({
 			}
 		}
 
-		async putContact(g_res: ContactInterface): Promise<ContactPath> {
+		async putContact(g_res: ContactStruct): Promise<ContactPath> {
 			// prepare contact path
 			const p_res = AgentsI.pathFromContact(g_res);
 

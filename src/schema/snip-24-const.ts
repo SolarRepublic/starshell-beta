@@ -1,4 +1,4 @@
-import type {Snip24PermitMsg, Snip24Permission, Snip24Tx} from './snip-24';
+import type {Snip24PermitMsg, Snip24Permission, Snip24Tx} from './snip-24-def';
 
 const A_SNIP_24_PERMISSIONS: Snip24Permission[] = [
 	'allowance',

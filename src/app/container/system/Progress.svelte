@@ -61,6 +61,6 @@
 	<div class="bar" style="width: {x_width_pct_bar}%;"></div>
 </div>
 
-<div class="step" class:visible={$yw_progress[0] > 0}>
+<div class="step" class:visible={$yw_progress[0] > 0 && 100 !== $yw_progress[1]}>
 	Step {$yw_progress[0] || $yw_progress[1]} of {$yw_progress[1]}
 </div>

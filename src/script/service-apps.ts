@@ -1,6 +1,6 @@
 import {Vault} from '#/crypto/vault';
 import type {PositionConfig} from '#/extension/browser';
-import {AppApiMode, AppInterface} from '#/meta/app';
+import {AppApiMode, AppStruct} from '#/meta/app';
 import {B_MOBILE, R_DOMAIN_LOCALHOST} from '#/share/constants';
 import {AppProfile, Apps} from '#/store/apps';
 import {AppPolicyResult, Policies} from '#/store/policies';
@@ -174,7 +174,7 @@ export async function app_blocked(s_scheme: string, s_host: string, g_sender: Me
 
 
 interface AppStatus {
-	g_app: AppInterface;
+	g_app: AppStruct;
 	b_registered: boolean;
 	g_policy: AppPolicyResult;
 	g_page: PageInfo;
@@ -220,7 +220,7 @@ export async function check_app_permissions(
 	if(await app_blocked(s_scheme, s_host, g_sender)) return;
 
 	// prep app struct
-	let g_app: AppInterface | null = null;
+	let g_app: AppStruct | null = null;
 
 	// lookup app in store
 	g_app = await Apps.get(s_host, s_scheme);

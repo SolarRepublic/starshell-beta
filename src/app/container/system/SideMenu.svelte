@@ -1,23 +1,25 @@
-<script lang="ts">
-	import {F_NOOP, microtask, timeout, timeout_exec} from '#/util/belt';
-
+<script lang="ts">	
+	import {ThreadId} from '#/app/def';
 	import {
 		yw_menu_expanded, yw_navigator,
 	} from '#/app/mem';
-
-	import SX_ICON_CONTACTS from '#/icon/supervisor_account.svg?raw';
-	import SX_ICON_CHAINS from '#/icon/mediation.svg?raw';
+	
+	import {open_window, P_POPUP} from '#/extension/browser';
+	import {launch_qr_scanner} from '#/extension/sensors';
+	import {logout} from '#/share/auth';
+	import {B_WITHIN_WEBEXT_POPOVER} from '#/share/constants';
+	
 	import SX_ICON_ACCOUNTS from '#/icon/account_circle.svg?raw';
-	import SX_ICON_TAGS from '#/icon/bookmarks.svg?raw';
 	import SX_ICON_CONNECTIONS from '#/icon/account_tree.svg?raw';
-	import SX_ICON_SETTINGS from '#/icon/settings.svg?raw';
+	import SX_ICON_TAGS from '#/icon/bookmarks.svg?raw';
+	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import SX_ICON_CUBES from '#/icon/cubes.svg?raw';
-	import SX_ICON_LOGOUT from '#/icon/sensor_door.svg?raw';
+	import SX_ICON_CHAINS from '#/icon/mediation.svg?raw';
 	import SX_ICON_POPOUT from '#/icon/pop-out.svg?raw';
 	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
-	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
-	import {ThreadId} from '#/app/def';
-	import {logout} from '#/share/auth';
+	import SX_ICON_LOGOUT from '#/icon/sensor_door.svg?raw';
+	import SX_ICON_SETTINGS from '#/icon/settings.svg?raw';
+	import SX_ICON_CONTACTS from '#/icon/supervisor_account.svg?raw';
 
 	interface Item {
 		click: VoidFunction;
@@ -94,48 +96,13 @@
 		// },
 	];
 
-	import {open_window, P_POPUP} from '#/extension/browser';
-	import {open_flow} from '#/script/msg-flow';
-	import {B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER} from '#/share/constants';
-	import ScanQr from '#/app/screen/ScanQr.svelte';
 
 	const A_UTILITY_ITEMS = [
 		{
 			label: 'Scan QR',
 			icon: SX_ICON_SCAN,
 			async click() {
-				if(B_WITHIN_PWA) {
-					// activate scratch thread
-					await $yw_navigator.activateThread(ThreadId.SCRATCH);
-
-					// reset the thread in case something else was using the scratch space
-					$yw_navigator.activeThread.reset();
-
-					await microtask();
-
-					// push qr code scanner
-					$yw_navigator.activePage.push({
-						creator: ScanQr,
-						props: {
-							exittable: true,
-						},
-					});
-				}
-				else {
-					// open qr code scanner
-					await timeout_exec(4e3, () => open_flow({
-						flow: {
-							type: 'scanQr',
-							value: {
-								id: 'side_menu',
-							},
-							page: null,
-						},
-						open: {
-							popout: true,
-						},
-					}));
-				}
+				await launch_qr_scanner();
 
 				// collapse side menu
 				$yw_menu_expanded = false;

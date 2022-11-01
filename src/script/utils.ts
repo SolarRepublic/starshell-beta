@@ -45,27 +45,91 @@ export function locate_script(s_pattern: string): null | string {
 const XT_TIMEOUT_LOAD_ICON = 4e3;
 
 // reusable canvas 2d context
-let dm_canvas: HTMLCanvasElement | null = null;
-let d_2d: CanvasRenderingContext2D | null = null;
+let dm_canvas_shared: HTMLCanvasElement | null = null;
+let d_2d_shared: CanvasRenderingContext2D | null = null;
 
-export async function load_icon_data(p_image: string, n_px_dim=256): Promise<string | undefined> {
+function prepare_canvas(): boolean {
 	// already attempted to load 2d context and failed
-	if(dm_canvas && !d_2d) return;
+	if(dm_canvas_shared && !d_2d_shared) return false;
 
 	// haven't tried creating 2d context yet; prep canvas and 2d context
-	if(!dm_canvas) {
-		dm_canvas = document.createElement('canvas');
-		d_2d = dm_canvas.getContext('2d');
+	if(!dm_canvas_shared) {
+		dm_canvas_shared = document.createElement('canvas');
+		d_2d_shared = dm_canvas_shared.getContext('2d');
 	}
 
-	// 2d context is not available; skip load icon
-	if(!d_2d) return;
+	// 2d context is not available; skip render icon
+	if(!d_2d_shared) return false;
+
+	// success
+	return true;
+}
+
+/**
+ * Renders the given image element into a data URL
+ */
+export function render_icon_data(
+	d_img: HTMLImageElement,
+	npx_dim_dst=256,
+	fk_init?: (d_2d: CanvasRenderingContext2D, dm_canvas: HTMLCanvasElement) => void,
+	sx_media_type: string | null=null
+): string | undefined {
+	// canvas or rendering unavailable
+	if(!prepare_canvas()) return;
+
+	// ref objects
+	const dm_canvas = dm_canvas_shared!;
+	const d_2d = d_2d_shared!;
 
 	// resize canvas
-	dm_canvas.width = dm_canvas.height = n_px_dim;
+	dm_canvas.width = dm_canvas.height = npx_dim_dst;
+
+	// clear background
+	d_2d.clearRect(0, 0, dm_canvas.width, dm_canvas.height);
+
+	// init callback
+	fk_init?.(d_2d, dm_canvas);
+
+	// image is svg; work around annoying intrinsic size canvas interaction
+	if(sx_media_type?.startsWith('image/svg')) {
+		d_2d.drawImage(d_img, 0, 0, npx_dim_dst, npx_dim_dst);
+	}
+	// draw image to canvas, centered along both axes
+	else {
+		const npx_src_w = d_img.naturalWidth;
+		const npx_src_h = d_img.naturalHeight;
+
+		const npx_src_dim = Math.min(npx_src_w, npx_src_h);
+		const npx_src_semidim = npx_src_dim / 2;
+
+		const npx_src_x = (npx_src_w / 2) - npx_src_semidim;
+		const npx_src_y = (npx_src_h / 2) - npx_src_semidim;
+
+		d_2d.drawImage(d_img, npx_src_x, npx_src_y, npx_src_dim, npx_src_dim, 0, 0, npx_dim_dst, npx_dim_dst);
+	}
+
+	// render data url
+	const sx_data = B_FIREFOX_ANDROID? dm_canvas.toDataURL('image/png', 1): dm_canvas.toDataURL('image/webp', 1);
+
+	// data URL is invalid or too large; don't use it
+	if(!R_DATA_IMAGE_URL_WEB.test(sx_data) || sx_data.length > NL_DATA_ICON_MAX) {
+		console.warn(`StarShell is rejecting data URL since it does not meet requirements`);
+		return;
+	}
+
+	return sx_data;
+}
+
+
+/**
+ * Loads the given image URL and generates a data URL
+ */
+export async function load_icon_data(p_image: string, n_px_dim=256): Promise<string | undefined> {
+	// canvas or rendering unavailable
+	if(!prepare_canvas()) return;
 
 	// prep image element
-	const d_img = new Image(n_px_dim, n_px_dim);
+	const d_img = new Image();
 	d_img.crossOrigin = '';
 
 	// wait for it to load
@@ -107,21 +171,21 @@ export async function load_icon_data(p_image: string, n_px_dim=256): Promise<str
 		return;
 	}
 
-	// fill canvas with destination background color
-	d_2d.fillStyle = '#000000';
-	d_2d.fillRect(0, 0, n_px_dim, n_px_dim);
-
-	// draw to canvas
-	d_2d.drawImage(d_img, 0, 0, n_px_dim, n_px_dim);
-
-	// render data url
-	const sx_data = B_FIREFOX_ANDROID? dm_canvas.toDataURL('image/png', 1): dm_canvas.toDataURL('image/webp', 1);
-
-	// data URL is invalid or too large; don't use it
-	if(!R_DATA_IMAGE_URL_WEB.test(sx_data) || sx_data.length > NL_DATA_ICON_MAX) {
-		console.warn(`StarShell is rejecting data URL since it does not meet requirements`);
-		return;
+	// attempt to get media type
+	let sx_media_type: string | null = null;
+	try {
+		sx_media_type = (await fetch(d_img.src, {
+			method: 'HEAD',
+			// cache: 'only-if-cached',
+		})).headers.get('Content-Type');
+	}
+	catch(e_fetch) {
+		console.warn(e_fetch);
 	}
 
-	return sx_data;
+	return render_icon_data(d_img, n_px_dim, (d_2d) => {
+		// fill canvas with destination background color
+		d_2d.fillStyle = '#000000';
+		d_2d.fillRect(0, 0, n_px_dim, n_px_dim);
+	}, sx_media_type);
 }

@@ -1,14 +1,15 @@
 <script lang="ts">
+	import type {Resource} from '#/meta/resource';
+	import type {TagStruct} from '#/meta/tag';
+	
 	import {yw_popup, yw_context_popup, yw_store_tags} from '##/mem';
-	import type { Resource } from '#/meta/resource';
-	import type { Tag, TagInterface } from '#/meta/tag';
 
 	import ActionsLine from './ActionsLine.svelte';
 	import CheckboxField from './CheckboxField.svelte';
-	import InlineTags from './InlineTags.svelte';
 
 	import Row from './Row.svelte';
 	import SubHeader from './SubHeader.svelte';
+    import { Tags } from '#/store/tags';
 
 	// fetch the resource path from popup context store
 	const p_resource = ($yw_context_popup as {
@@ -16,11 +17,11 @@
 	})['resource'];
 
 	interface TagOption {
-		tag: TagInterface;
+		tag: TagStruct;
 		selected: boolean;
 	}
 
-	const f_sort_tags = (g_a: TagInterface, g_b: TagInterface) => g_a.index - g_b.index;
+	const f_sort_tags = (g_a: TagStruct, g_b: TagStruct) => g_a.index - g_b.index;
 
 	// cache the tags for the resource
 	const as_preapplied = new Set($yw_store_tags!.getIdsFor(p_resource));
@@ -56,7 +57,7 @@
 
 	async function apply_tags() {
 		// update store
-		await $yw_store_tags!.setTagsFor(p_resource, a_tags);
+		await Tags.open(ks => ks.setTagsFor(p_resource, a_tag_options.filter(g => g.selected).map(g => g.tag)));
 
 		// dismiss popup
 		$yw_popup = null;
@@ -100,6 +101,17 @@
 				on:click={() => toggle_tag(g_tag.index)}
 			>
 				<!-- <InlineTags collapsed={b_collapsed} slot="icon" /> -->
+
+				<span slot="icon">
+					<div style={`
+						width: 12px;
+						height: 12px;
+						border-radius: 6px;
+						background-color:${g_tag.color};
+					`}>
+						&nbsp;
+					</div>
+				</span>
 
 				<svelte:fragment slot="right">
 					<CheckboxField id="tag-${g_tag.index}" bind:checked={b_selected} disableHandler />

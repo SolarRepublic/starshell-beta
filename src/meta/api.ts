@@ -1,6 +1,6 @@
 import type {Dict, JsonObject} from '#/meta/belt';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import type {Bech32, Caip2, ChainInterface, ChainNamespaceKey} from './chain';
+import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey} from './chain';
 
 export type Truthy = 1 | true | {};
 
@@ -27,9 +27,9 @@ export interface ConnectionManifest extends JsonObject {
 // }
 
 
-export type AugmentedChainInterface = Merge<{
+export type AugmentedChainStruct = Merge<{
 	pfp: undefined | '' | `data:image/png;base64,${string}`;
-}, ChainInterface>;
+}, ChainStruct>;
 
 
 /**
@@ -44,7 +44,7 @@ export interface ConnectionManifestV1 extends ConnectionManifest {
 	/**
 	 * Dict of all chains involved in request, keyed by their CAIP-2 identifier. Unused chains will be ignored
 	 */
-	chains: Record<Caip2.String, AugmentedChainInterface>;
+	chains: Record<Caip2.String, AugmentedChainStruct>;
 
 	/**
 	 * Dict of all sessions to request, keyed by arbitrary ids supplied by application

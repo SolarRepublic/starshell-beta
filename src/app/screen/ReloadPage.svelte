@@ -5,7 +5,7 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import type {App, AppInterface} from '#/meta/app';
+	import type {App, AppStruct} from '#/meta/app';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	import AppBanner from '../ui/AppBanner.svelte';
 	import type {PageInfo} from '#/script/messages';
@@ -21,7 +21,7 @@
 	/**
 	 * The app in question
 	 */
-	export let app: AppInterface;
+	export let app: AppStruct;
 
 	/**
 	 * Struct with info about requesting web page tab

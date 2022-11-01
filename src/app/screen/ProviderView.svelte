@@ -1,48 +1,39 @@
 <script lang="ts">
-	import {Chains} from '#/store/chains';
+	import type {ChainStruct, ChainPath} from '#/meta/chain';
+	import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 	
 	import {Header, Screen} from './_screens';
-	import Portrait from '##/ui/Portrait.svelte';
-	import type {ProviderInterface, ProviderPath} from '#/meta/provider';
+	
+	import {Chains} from '#/store/chains';
 	import {Providers} from '#/store/providers';
-	import type {ChainInterface, ChainPath} from '#/meta/chain';
+	import Portrait from '##/ui/Portrait.svelte';
+	
 	import Field from '../ui/Field.svelte';
-	import Info from '../ui/Info.svelte';
 	import Gap from '../ui/Gap.svelte';
+	import Info from '../ui/Info.svelte';
 
 
 	export let providerPath: ProviderPath;
 	const p_provider = providerPath;
 
-	let g_provider: ProviderInterface;
+	let g_provider: ProviderStruct;
 	void Providers.at(p_provider).then(g => g_provider = g!);
 
 	$: p_chain = g_provider?.chain;
 
-	let g_chain: ChainInterface;
+	let g_chain: ChainStruct;
 	$: if(p_chain) {
 		void Chains.at(p_chain as ChainPath).then(g => g_chain = g!);
 	}
 
 	const gc_actions = {
-		// send: {
-		// 	label: 'Send',
-		// 	trigger() {
-		// 		k_page.push({
-		// 			creator: Send,
-		// 			props: {
-		// 				to: Chains.bech32(g_provider.address),
-		// 			},
-		// 		});
-		// 	},
-		// },
 		// edit: {
 		// 	label: 'Edit',
 		// 	trigger() {
 		// 		k_page.push({
 		// 			creator: ContactEdit,
 		// 			props: {
-		// 				contactRef: p_provider,
+		// 				contactPath: p_provider,
 		// 			},
 		// 		});
 		// 	},
@@ -80,8 +71,12 @@
 <Screen nav slides>
 	<Header pops search network account />
 
+	<!-- still loading -->
 	{#if !g_chain}
-		Loading provider...
+		<Portrait loading
+			resourcePath={p_provider}
+			actions={gc_actions}
+		/>
 	{:else}
 		<Portrait
 			resource={g_provider}
@@ -115,7 +110,5 @@
 			</Field>
 		{/if}
 	{/if}
-
-	<Gap />
 
 </Screen>

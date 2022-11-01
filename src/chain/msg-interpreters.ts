@@ -1,8 +1,9 @@
+import type {MessageDict} from './messages/_types';
+
 import {BankMessages} from './messages/bank';
 import {ComputeMessages} from './messages/compute';
 import {DistributionMessages} from './messages/distribution';
-import { GovMessages } from './messages/gov';
-import type {MessageDict} from './messages/_types';
+import {GovMessages} from './messages/gov';
 
 export const H_INTERPRETTERS: MessageDict = {
 	...BankMessages,

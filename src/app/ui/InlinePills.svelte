@@ -242,7 +242,7 @@
 		{#each items as g_item, i_item}
 			<span class="item" style="background-color:{g_item.color || 'transparent'};" class:collapsed={b_collapsed} out:sslide={{duration:b_editable? 300: 0}}>
 				{#if g_item.pfpPath}
-					<PfpDisplay dim={16} circular={true} name={g_item.name} ref={g_item.pfpPath} />
+					<PfpDisplay dim={16} circular={true} name={g_item.name} path={g_item.pfpPath} />
 				{/if}
 
 				{#if !b_collapsed}

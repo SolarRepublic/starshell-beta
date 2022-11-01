@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { H_THREADS, ThreadId } from '##/def';
+	import type {ParametricSvelteConstructor} from '#/meta/svelte';
+
+	import {ode, oderac, oderom} from '#/util/belt';
+	import {H_THREADS, ThreadId} from '##/def';
 	import {
 		yw_pattern,
 		yw_nav_collapsed,
@@ -14,19 +17,16 @@
 		yw_page,
 		yw_thread,
 	} from '##/mem';
-
-	import { ode, oderac, oderom } from '#/util/belt';
-
-	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
-	import SX_ICON_TOKENS from '#/icon/tokens.svg?raw';
+	
+	
 	import SX_ICON_CONTACTS from '#/icon/account_box.svg?raw';
+	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
 	import SX_ICON_HISTORY from '#/icon/history.svg?raw';
-	import SX_ICON_NFT from '#/icon/nfts.svg?raw';
 	import SX_ICON_MENU from '#/icon/menu.svg?raw';
-	import { getContext } from 'svelte';
-	import type { Page } from '#/app/nav/page';
-	import HoldingsHome from '#/app/screen/HoldingsHome.svelte';
-	import type { ParametricSvelteConstructor } from '#/meta/svelte';
+	import SX_ICON_NFT from '#/icon/nfts.svg?raw';
+	import SX_ICON_TOKENS from '#/icon/tokens.svg?raw';
+	
+	
 
 	// nav bar definition
 	const H_BUTTONS = {
@@ -37,7 +37,6 @@
 		[ThreadId.CONTACTS]: {
 			svg: SX_ICON_CONTACTS,
 			label: 'Contacts',
-			disabled: true,
 		},
 		// [ThreadId.NFTS]: {
 		// 	svg: SX_ICON_NFT,

@@ -1,9 +1,19 @@
-import {B_CHROMIUM_ANDROID, B_FIREFOX_ANDROID, B_WITHIN_PWA, G_USERAGENT, N_BROWSER_VERSION_MAJOR, N_FIREFOX_ANDROID_BETA_VERSION, N_FIREFOX_ANDROID_NIGHTLY_ABOVE} from '#/share/constants';
 import type {Dict, JsonValue} from '#/meta/belt';
+import type {ImageDataUrl} from '#/meta/media';
+import type {Vocab} from '#/meta/vocab';
+
 import {ode, timeout} from './belt';
-import type { ImageDataUrl } from '#/meta/media';
-import type { Vocab } from '#/meta/vocab';
-import type { Pwa } from '#/script/messages';
+
+import type {Pwa} from '#/script/messages';
+import {
+	B_FIREFOX_ANDROID,
+	B_WITHIN_PWA,
+	N_BROWSER_VERSION_MAJOR,
+	N_FIREFOX_ANDROID_BETA_VERSION,
+	N_FIREFOX_ANDROID_NIGHTLY_ABOVE,
+} from '#/share/constants';
+
+export {parse_params} from '#/share/constants';
 
 // const B_WITHIN_PWA = '?pwa' === globalThis.location?.search && window.top !== window;
 
@@ -78,14 +88,14 @@ export const qs = <
 	sq_selector extends string,
 >(
 	dm_node: ParentNode | HTMLElement,
-	sq_selector: sq_selector,
+	sq_selector: sq_selector
 ): null | QueryResult<sq_selector> => dm_node.querySelector(sq_selector);
 
 export const qsa = <
 	sq_selector extends string,
 >(
 	dm_node: ParentNode | HTMLElement,
-	sq_selector: sq_selector,
+	sq_selector: sq_selector
 ): QueryResult<sq_selector>[] => Array.prototype.slice.call(dm_node.querySelectorAll(sq_selector), 0) as QueryResult<sq_selector>[];
 
 export function dd<
@@ -93,7 +103,7 @@ export function dd<
 >(
 	s_tag: si_tag,
 	h_attrs: Record<string, string | number | boolean> = {},
-	a_children: (Element | string)[] = [],
+	a_children: (Element | string)[] = []
 ): HTMLElementTagNameMap[si_tag] {
 	const dm_node = document.createElement(s_tag);
 
@@ -373,27 +383,6 @@ export async function render_svg_squarely<
 
 	// return set of renders
 	return h_renders;
-}
-
-export function parse_params<w_values extends string|string[]=string|string[]>(sx_params=location.search.slice(1)): Dict<w_values> {
-	const h_params = {};
-
-	// firefox-android gets polyfilled with a broken entries iterator for some reason...
-	new URLSearchParams(sx_params.replace(/^[?#]?/, '')).forEach((s_value, si_param) => {
-		if(si_param in h_params) {
-			if(Array.isArray(h_params[si_param])) {
-				h_params[si_param].push(s_value);
-			}
-			else {
-				h_params[si_param] = [h_params[si_param], s_value];
-			}
-		}
-		else {
-			h_params[si_param] = s_value;
-		}
-	});
-
-	return h_params;
 }
 
 export function stringify_params(h_params: Dict<string | string[]>): string {

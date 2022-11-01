@@ -1,5 +1,6 @@
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import type { ImageMedia, ImageMediaTarget } from './media';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {ImageMediaTarget} from './media';
 import type {Resource} from './resource';
 
 
@@ -17,19 +18,19 @@ export type ImageSet = {
 
 export interface PfpTypeRegistry {
 	plain: {
-		interface: {
+		struct: {
 			image: ImageSet;
 		};
 	};
 
 	pair: {
-		interface: {
+		struct: {
 			images: [ImageSet, ImageSet];
 		};
 	};
 
 	composite: {
-		interface: {
+		struct: {
 			bg: ImageSet;
 			fg: ImageSet;
 		};
@@ -43,7 +44,7 @@ export type PfpType<
 > = {
 	[si_each in PfpTypeKey]: Merge<{
 		type: si_each;
-	}, PfpTypeRegistry[si_each]['interface']>;
+	}, PfpTypeRegistry[si_each]['struct']>;
 }[si_type];
 
 
@@ -51,15 +52,15 @@ export type Pfp<
 	si_type extends PfpTypeKey=PfpTypeKey,
 > = Resource.New<{
 	segments: ['template.pfp', `uuid.${string}`];
-	interface: PfpType<si_type>;
+	struct: PfpType<si_type>;
 }>;
 
 export type PfpPath<
 	si_type extends PfpTypeKey=PfpTypeKey,
 > = Resource.Path<Pfp<si_type>>;
 
-export type PfpTarget = PfpPath | `pfp:${string}` | '';
+export type PfpTarget = PfpPath | `pfp:${string}` | `svg:${string}` | '';
 
-export type PfpInterface<
+export type PfpStruct<
 	si_type extends PfpTypeKey=PfpTypeKey,
-> = Pfp<si_type>['interface'];
+> = Pfp<si_type>['struct'];

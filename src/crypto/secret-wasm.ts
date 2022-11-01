@@ -21,12 +21,19 @@ import {
 // }
 
 import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, concat, hex_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
-import type {JsonValue} from '#/meta/belt';
-import type {AccountInterface, AccountPath} from '#/meta/account';
-import type {ChainInterface} from '#/meta/chain';
+import type {JsonObject, JsonValue} from '#/meta/belt';
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {ChainStruct} from '#/meta/chain';
 import {Accounts} from '#/store/accounts';
 import {Secrets} from '#/store/secrets';
 import {SessionStorage} from '#/extension/session-storage';
+
+export interface DecryptedMessage {
+	code_hash: string;
+	message: string;
+	nonce: Uint8Array;
+	consensus_pk: Uint8Array;
+}
 
 const y_provider = new WebCryptoProvider(globalThis.crypto);
 
@@ -131,7 +138,7 @@ export class SecretWasm {
 	// 	};
 	// }
 
-	static async decodeSecretWasmAmino(p_account: AccountPath, g_chain: ChainInterface, sxb64_msg: string) {
+	static async decodeSecretWasmAmino(p_account: AccountPath, g_chain: ChainStruct, sxb64_msg: string) {
 		// decode consensus io pk from chain
 		const atu8_consensus_io_pk = base93_to_buffer(g_chain.features.secretwasm!.consensusIoPubkey);
 
@@ -146,8 +153,13 @@ export class SecretWasm {
 		// fetch account
 		const g_account = await Accounts.at(p_account);
 
+		if(!g_account) {
+			debugger;
+			throw new Error(`Account not found: ${p_account}`);
+		}
+
 		// borrow tx encryption key and instantiate secretwasm
-		const k_wasm = await Secrets.borrowPlaintext(g_account!.utilityKeys.secretWasmTx!,
+		const k_wasm = await Secrets.borrowPlaintext(g_account.utilityKeys.secretWasmTx!,
 			kn_seed => new SecretWasm(atu8_consensus_io_pk, kn_seed.data));
 
 		// decrypt the ciphertex
@@ -172,8 +184,8 @@ export class SecretWasm {
 	}
 
 	static async decryptBuffer(
-		g_account: AccountInterface,
-		g_chain: ChainInterface,
+		g_account: AccountStruct,
+		g_chain: ChainStruct,
 		atu8_ciphertext: Uint8Array,
 		atu8_nonce: Uint8Array
 	): Promise<Uint8Array> {
@@ -194,7 +206,7 @@ export class SecretWasm {
 		return atu8_plaintext;
 	}
 
-	static async decryptMsg(g_account: AccountInterface, g_chain: ChainInterface, atu8_msg: Uint8Array) {
+	static async decryptMsg(g_account: AccountStruct, g_chain: ChainStruct, atu8_msg: Uint8Array): Promise<DecryptedMessage> {
 		// destructore [nonce, pk, ciphertext]
 		const atu8_nonce = atu8_msg.subarray(0, 32);
 		const atu8_pk = atu8_msg.subarray(32, 64);
@@ -213,9 +225,10 @@ export class SecretWasm {
 		const sx_json = sx_exec.slice(64);
 
 		return {
-			codeHash: sxb64_code_hash,
-			message: JSON.parse(sx_json),
+			code_hash: sxb64_code_hash,
+			message: sx_json,
 			nonce: atu8_nonce,
+			consensus_pk: atu8_pk,
 		};
 	}
 
@@ -318,19 +331,19 @@ export class SecretWasm {
 		// get public key
 		const {atu8_pk} = hm_privates.get(this)!;
 
-		// save nonce used for ciphertext
-		console.debug({
-			nonce: buffer_to_base64(atu8_nonce),
-			ciphertext: buffer_to_base64(atu8_ciphertext),
+		// // save nonce used for ciphertext
+		// console.debug({
+		// 	nonce: buffer_to_base64(atu8_nonce),
+		// 	ciphertext: buffer_to_base64(atu8_ciphertext),
 
-		});
-		const sx93_ciphertext_hash = buffer_to_base93(sha256_sync(atu8_ciphertext));
-		await SessionStorage.set({
-			[`nonce:${sx93_ciphertext_hash}` as const]: {
-				nonce: buffer_to_base93(atu8_nonce),
-				time: Date.now(),
-			},
-		});
+		// });
+		// const sx93_ciphertext_hash = buffer_to_base93(sha256_sync(atu8_ciphertext));
+		// await SessionStorage.set({
+		// 	[`nonce:${sx93_ciphertext_hash}` as const]: {
+		// 		nonce: buffer_to_base93(atu8_nonce),
+		// 		time: Date.now(),
+		// 	},
+		// });
 
 		// construct final message
 		return concat([atu8_nonce, atu8_pk, atu8_ciphertext]);

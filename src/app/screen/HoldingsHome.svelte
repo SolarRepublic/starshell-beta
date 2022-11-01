@@ -1,33 +1,43 @@
 <script lang="ts">
-	import type {TokenSpecKey} from '#/meta/token';
-
-	import {Entities, type TokenDict} from '#/store/entities';
-	import {forever, ode, oderom} from '#/util/belt';
-	import {getContext, onDestroy} from 'svelte';
-	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility} from '../mem';
-	import Portrait from '../ui/Portrait.svelte';
-	import Send from './Send.svelte';
-	import Row from '../ui/Row.svelte';
-	import {Header, Screen, type Page} from './_screens';
-	import {format_fiat} from '#/util/format';
 	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-	import type {ContractInterface, CoinInfo} from '#/meta/chain';
-	import type {Dict, Promisable} from '#/meta/belt';
+
+	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
+	import type {ContractStruct, CoinInfo, FeeConfig} from '#/meta/chain';
+	import type {Cw} from '#/meta/cosm-wasm';
+	import type {TxPending} from '#/meta/incident';
+	import type {Snip20} from '#/schema/snip-20-def';
+	
 	import BigNumber from 'bignumber.js';
-	import Address from '../ui/Address.svelte';
-	import {abort_signal_timeout, open_external_link} from '#/util/dom';
-	import {as_amount, to_fiat} from '#/chain/coin';
-	import HoldingView from './HoldingView.svelte';
-	import type {BalanceBundle} from '#/store/providers';
+	import {getContext, onDestroy} from 'svelte';
+	
+	import {Header, Screen, type Page} from './_screens';
 	import {syserr} from '../common';
-	import {Accounts} from '#/store/accounts';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility} from '../mem';
+	
+	import {as_amount, to_fiat} from '#/chain/coin';
+	import {amino_to_base} from '#/chain/cosmos-msgs';
+	import {token_balance} from '#/chain/token';
 	import {global_receive} from '#/script/msg-global';
+	import {Accounts} from '#/store/accounts';
+	import {G_APP_STARSHELL} from '#/store/apps';
 	import {Contracts} from '#/store/contracts';
-	import {Secrets} from '#/store/secrets';
+	import {Entities} from '#/store/entities';
+	import {Incidents} from '#/store/incidents';
+	import type {BalanceBundle} from '#/store/providers';
+	import {forever, ode} from '#/util/belt';
+	import {abort_signal_timeout, open_external_link} from '#/util/dom';
+	import {format_fiat} from '#/util/format';
+	
+	import HoldingView from './HoldingView.svelte';
+	import RequestSignature from './RequestSignature.svelte';
+	import Send from './Send.svelte';
+	import TokensAdd from './TokensAdd.svelte';
+	import Address from '../ui/Address.svelte';
+	import Portrait from '../ui/Portrait.svelte';
+	import Row from '../ui/Row.svelte';
+	import TokenRow from '../ui/TokenRow.svelte';
+    import { Snip20MessageConstructor, Snip20Util, Snip2xToken, ViewingKeyError } from '#/schema/snip-2x-const';
 
-	// $: sa_owner = Chains.addressFor($yw_account.pubkey, $yw_chain);
-
-	const merge_fungible_tokens = (h_fungibles: Record<TokenSpecKey, TokenDict>) => oderom(h_fungibles, (_, h) => h);
 
 	// get page from context
 	const k_page = getContext<Page>('page');
@@ -44,11 +54,17 @@
 
 		},
 
-		updateStore({key:si_key}) {
-			if('' === si_key) {
+		updateStore({key:si_store}) {
+			if(['chains', 'contracts', 'incidents'].includes(si_store)) {
 				c_updates += 1;
 			}
 		},
+
+		// updateStore({key:si_key}) {
+		// 	if('' === si_key) {
+		// 		c_updates += 1;
+		// 	}
+		// },
 	});
 
 	yw_doc_visibility.subscribe((s_state) => {
@@ -152,6 +168,9 @@
 
 		const a_outs: [string, CoinInfo, Coin, Submitter][] = [];
 
+		// reset
+		a_no_gas.length = 0;
+
 		for(const [si_coin, g_coin] of ode($yw_chain.coins)) {
 			const g_bundle = h_balances[si_coin];
 
@@ -186,6 +205,41 @@
 		return a_outs;
 	}
 
+	let h_pending_txs: Dict<JsonObject> = {};
+
+	async function load_tokens() {
+		const a_tokens = await Contracts.filterTokens({
+			on: 1,
+			chain: $yw_chain_ref,
+			interfaces: {
+				snip20: {},
+			},
+		});
+
+		h_pending_txs = {};
+
+		// load incidents
+		const a_pending = await Incidents.filter({
+			type: 'tx_out',
+			stage: 'pending',
+		});
+
+		for(const g_pending of a_pending) {
+			const h_events = (g_pending.data as TxPending).events;
+
+			for(const g_exec of h_events.executions || []) {
+				h_pending_txs[g_exec.contract] = g_exec.msg;
+			}
+		}
+
+		// update pending txs
+		h_pending_txs = h_pending_txs;
+
+		// reset zero balance tokens
+		a_zero_balance_tokens = [];
+
+		return a_tokens;
+	}
 
 	const H_FAUCETS: Dict<string[]> = {
 		'theta-testnet-001': [
@@ -204,6 +258,25 @@
 
 		// ping each faucet to find best one
 		try {
+			// bias StarShell since it gives 100 SCRT and no IP limiting
+			try {
+				const d_res_0 = await fetch(a_faucets[0], {
+					headers: {
+						accept: 'text/html',
+					},
+					method: 'HEAD',
+					credentials: 'omit',
+					cache: 'no-store',
+					referrer: '',
+					mode: 'no-cors',
+					redirect: 'error',
+					signal: abort_signal_timeout(2e3).signal,
+				});
+
+				return d_res_0.url;
+			}
+			catch(e_req) {}
+
 			// send preflight requests
 			const d_res = await Promise.any(a_faucets.map(async p => fetch(p, {
 				headers: {
@@ -230,13 +303,63 @@
 		return a_faucets[0];
 	}
 
-	function authorize_token(g_token: ContractInterface) {
-		// k_page.push({
-		// 	type: TokensAuthority,
-		// 	props: {
+	let a_zero_balance_tokens: ContractStruct[] = [];
 
-		// 	},
-		// });
+	async function load_token_balance(g_contract: ContractStruct) {
+		const g_balance = await token_balance(g_contract, $yw_account, $yw_network);
+
+		if(g_balance) {
+			if(g_balance.yg_amount.eq(0)) {
+				a_zero_balance_tokens = a_zero_balance_tokens.concat([g_contract]);
+			}
+
+			return g_balance;
+		}
+
+		return null;
+	}
+
+	async function mint_tokens() {
+		if($yw_chain.features.secretwasm) {
+			// ref chain
+			const g_chain = $yw_chain;
+
+			// mint message
+			const a_msgs_proto = await Promise.all(a_zero_balance_tokens.map(async(g_contract) => {
+				const g_msg: Snip20.MintableMessageParameters<'mint'> = {
+					mint: {
+						amount: BigNumber(1000).shiftedBy(g_contract.interfaces.snip20.decimals).toString() as Cw.Uint128,
+						recipient: $yw_owner,
+					},
+				};
+
+				// prep snip-20 exec
+				const g_exec = await $yw_network.encodeExecuteContract($yw_account, g_contract.bech32, g_msg, g_contract.hash);
+
+				// convert to proto message for signing
+				return amino_to_base(g_exec.amino).encode();
+			}));
+
+			// prep proto fee
+			const gc_fee: FeeConfig = {
+				limit: BigInt($yw_chain.features.secretwasm!.snip20GasLimits.mint) * BigInt(a_msgs_proto.length),
+			};
+
+			k_page.push({
+				creator: RequestSignature,
+				props: {
+					protoMsgs: a_msgs_proto,
+					fee: gc_fee,
+					broadcast: {},
+					local: true,
+				},
+				context: {
+					chain: g_chain,
+					accountPath: $yw_account_ref,
+					app: G_APP_STARSHELL,
+				},
+			});
+		}
 	}
 </script>
 
@@ -272,7 +395,7 @@
 
 <Screen debug='HoldingsHome' nav root keyed>
 
-	<Header search network account >
+	<Header search network account on:update={() => c_updates++}>
 		<svelte:fragment slot="title">
 
 		</svelte:fragment>
@@ -311,14 +434,14 @@
 						popup_receive($yw_account_ref);
 					},
 				},
-				// add: {
-				// 	label: 'Add Token',
-				// 	trigger() {
-				// 		k_page.push({
-				// 			creator: TokensAdd,
-				// 		});
-				// 	},
-				// },
+				add: {
+					label: 'Add Token',
+					trigger() {
+						k_page.push({
+							creator: TokensAdd,
+						});
+					},
+				},
 			}}
 		/>
 
@@ -339,6 +462,18 @@
 						{:else}
 							<button class="pill">Buy {a_no_gas.join(' or ')}</button>
 						{/if}
+					</div>
+				</div>
+			{:else if a_zero_balance_tokens.length > 1}
+				<div class="zero-balance-tokens text-align_center subinfo">
+					<div class="message">
+						Want to mint all of your testnet tokens?
+					</div>
+
+					<div class="buttons">
+						<button class="pill" on:click={() => mint_tokens()}>
+							Mint {a_zero_balance_tokens.length} tokens.
+						</button>
 					</div>
 				</div>
 			{/if}
@@ -375,7 +510,7 @@
 								k_page.push({
 									creator: HoldingView,
 									props: {
-										entityRef: p_entity,
+										holdingPath: p_entity,
 									},
 								});
 							}}
@@ -390,6 +525,7 @@
 						}}
 						{@const dp_worth = f_submit(to_fiat(g_balance, g_coin))}
 						<Row lockIcon detail='Native Coin'
+							postnameTags
 							resourcePath={p_entity}
 							resource={g_resource}
 							amount={as_amount(g_balance, g_coin)}
@@ -398,42 +534,50 @@
 								k_page.push({
 									creator: HoldingView,
 									props: {
-										entityRef: p_entity,
+										holdingPath: p_entity,
 									},
 								});
 							}}
-						/>
+						>
+						</Row>
 					{/each}
 				{/await}
 
-				{#await Contracts.filterTokens({chain:$yw_chain_ref, interfaces:{snip20:{}}})}
-					Loading tokens...
+				{#await load_tokens()}
+					<Row
+						name={forever('')}
+						amount={forever('')}
+					/>
 				{:then a_tokens}
 					{#each a_tokens as g_token}
-						<Row
-							name={g_token.interfaces.snip20.symbol}
-							detail={g_token.name}
-							pfp={g_token.pfp}
-						>
-							<svelte:fragment slot="right">
-								{#if g_token.interfaces.snip20.viewingKey}
-									Viewing Key balance...
+						{#await load_token_balance(g_token)}
+							<TokenRow contract={g_token} />
+						{:then g_balance}
+							{#if h_pending_txs[g_token.bech32]}
+								<TokenRow contract={g_token} pending />
+							{:else if g_balance}
+								{#if '0' !== g_balance.s_amount}
+									<TokenRow contract={g_token} balance={g_balance} />
 								{:else}
-									{#await Secrets.filter({type:'query_permit', permissions:['balance', 'history'], activeContracts:[g_token.bech32]})}
-										...
-									{:then a_permits}
-										<!-- use query permit to display balance -->
-										{#if a_permits.length}
-											Query Permit balance...
-										{:else}
-											<button class="pill" on:click={() => authorize_token(g_token)}>
-												Authorize
-											</button>
-										{/if}
-									{/await}
+									<TokenRow contract={g_token} balance={g_balance} mintable />
 								{/if}
-							</svelte:fragment>
-						</Row>
+							{:else}
+								<TokenRow contract={g_token} unauthorized />
+							{/if}
+						{:catch e_load}
+							{#if e_load instanceof ViewingKeyError}
+								<TokenRow contract={g_token} error={'Viewing Key Error'} on:click_error={() => {
+									k_page.push({
+										creator: TokensAdd,
+										props: {
+											suggested: [g_token],
+										},
+									});
+								}} />
+							{:else}
+								<TokenRow contract={g_token} error={'Error'} />
+							{/if}
+						{/await}
 					{/each}
 				{/await}
 

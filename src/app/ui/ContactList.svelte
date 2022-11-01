@@ -1,58 +1,81 @@
 <script lang="ts">
+	import type {Page} from '../screen/_screens';
+	
+	import type {Dict, JsonPrimitive} from '#/meta/belt';
+	import type {ContactStruct, ContactPath, ContactAgentType} from '#/meta/contact';
+	
+	import {getContext} from 'svelte';
 	import {quintOut} from 'svelte/easing';
+	import {slide} from 'svelte/transition';
+	
+	import {Agents} from '#/store/agents';
 	import {yw_chain, yw_chain_namespace} from '##/mem';
-
-	import SX_ICON_DOTS from '#/icon/more-vert.svg?raw';
-	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
-	import SX_ICON_SEND from '#/icon/upload.svg?raw';
-	import SX_ICON_DELETE from '#/icon/delete.svg?raw';
-
+	
+	import ContactEdit from '##/screen/ContactEdit.svelte';
+	
+	import ContactView from '##/screen/ContactView.svelte';
+	import DeadEnd from '##/screen/DeadEnd.svelte';
+	import Send from '##/screen/Send.svelte';
+	
+	import Address from './Address.svelte';
+	
+	import InlineTags from './InlineTags.svelte';
+	import LoadingRows from './LoadingRows.svelte';
+	import Row from './Row.svelte';
+	
 	import SX_ICON_PERSONAL from '#/icon/account_box.svg?raw';
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
-
-	import {slide} from 'svelte/transition';
-	import Address from './Address.svelte';
-	import Row from './Row.svelte';
-	import type {Dict, JsonPrimitive} from '#/meta/belt';
-
-	import InlineTags from './InlineTags.svelte';
-
-	import ContactEdit from '##/screen/ContactEdit.svelte';
-	import Send from '##/screen/Send.svelte';
-	import DeadEnd from '##/screen/DeadEnd.svelte';
-	import ContactView from '##/screen/ContactView.svelte';
-
-	import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
-	import {Agents} from '#/store/agents';
-	import {Chains} from '#/store/chains';
-
-	import type {Page} from '../screen/_screens';
-	import {getContext} from 'svelte';
+	import SX_ICON_DELETE from '#/icon/delete.svg?raw';
+	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
+	import SX_ICON_DOTS from '#/icon/more-vert.svg?raw';
+	import SX_ICON_ROBOT from '#/icon/robot-toy.svg?raw';
+	import SX_ICON_SEND from '#/icon/upload.svg?raw';
+	
+	const H_AGENT_TYPE_ICONS: Record<ContactAgentType, string> = {
+		person: SX_ICON_PERSONAL,
+		contract: SX_ICON_CONTRACT,
+		robot: SX_ICON_ROBOT,
+	};
 
 	// get page from context
 	const k_page = getContext<Page>('page');
 
 
-	export let filter: (g_contact: ContactInterface) => boolean = g => true;
+	export let filter: (g_contact: ContactStruct) => boolean = g => true;
 
-	export let sort: (g_a: ContactInterface, g_b: ContactInterface) => number = (g_a, g_b) => g_a.name < g_b.name? -1: 1;
+	const H_AGENT_WEIGHTS = {
+		person: 0,
+		contract: 1,
+		robot: 2,
+	};
 
-	export let append: ContactInterface[] = [];
+	export let sort: (g_a: ContactStruct, g_b: ContactStruct) => number = (g_a, g_b) => {
+		if(g_a.agentType !== g_b.agentType) {
+			return H_AGENT_WEIGHTS[g_a.agentType] - H_AGENT_WEIGHTS[g_b.agentType];
+		}
+
+		return g_a.name < g_b.name? -1: 1;
+	};
+
+	export let append: ContactStruct[] = [];
 
 
 	// load all contacts for the current chain's family as a list
-	async function load_contacts(): Promise<[ContactPath, ContactInterface][]> {
+	async function load_contacts(): Promise<[ContactPath, ContactStruct][]> {
 		// read from agents store
 		const ks_agents = await Agents.read();
 
-		// spread iterator into array
-		return [...ks_agents.contacts($yw_chain_namespace)];
+		// spread iterator into array and filter
+		const a_filtered = [...ks_agents.contacts($yw_chain_namespace)].filter(([, g_contact]) => filter(g_contact));
+
+		// apply sort
+		return a_filtered.sort(([, g_contact_a], [, g_contact_b]) => sort(g_contact_a, g_contact_b));
 	}
 
 	const hm_events = new WeakMap<Event, Dict<JsonPrimitive>>();
 
 	let si_overlay = '';
-	function activate_overlay(p_contact: string, g_contact: ContactInterface): (d: MouseEvent) => void {
+	function activate_overlay(p_contact: string, g_contact: ContactStruct): (d: MouseEvent) => void {
 		return (d_event: MouseEvent) => {
 			// prevent event from bubbling
 			d_event.stopImmediatePropagation();
@@ -85,12 +108,12 @@
 	const a_overlay_actions: {
 		label: string;
 		icon: string;
-		click(g_contact: ContactInterface): void;
+		click(g_contact: ContactStruct): void;
 	}[] = [
 		{
 			label: 'Edit',
 			icon: SX_ICON_EDIT,
-			click(g_contact: ContactInterface) {
+			click(g_contact: ContactStruct) {
 				k_page.push({
 					creator: ContactEdit,
 					props: {
@@ -102,11 +125,11 @@
 		{
 			label: 'Send',
 			icon: SX_ICON_SEND,
-			click(g_contact: ContactInterface) {
+			click(g_contact: ContactStruct) {
 				k_page.push({
 					creator: Send,
 					props: {
-						recipient: Chains.transformBech32(g_contact.address, $yw_chain),
+						recipient: Agents.addressFor(g_contact, $yw_chain),
 					},
 				});
 			},
@@ -114,7 +137,7 @@
 		{
 			label: 'Delete',
 			icon: SX_ICON_DELETE,
-			click(g_contact: ContactInterface) {
+			click(g_contact: ContactStruct) {
 				// TODO:
 				k_page.push({
 					creator: DeadEnd,
@@ -213,66 +236,83 @@
 
 <div class="rows">
 	{#await load_contacts()}
-		Loading contacts...
+		<LoadingRows count={3} />
 	{:then a_list}
-		{#each a_list as [p_contact, g_contact]}
-			<Row
-				resource={g_contact}
-				resourcePath={p_contact}
-				on:click={(d_event) => {
-					if(!hm_events.get(d_event)?.cancelMenu) {
-						k_page.push({
-							creator: ContactView,
-							props: {
-								contact: g_contact,
-							},
-						});
-					}
-				}}
-			>
-				<svelte:fragment slot="detail">
-					<Address address={Agents.addressFor(g_contact, $yw_chain)} />
-				</svelte:fragment>
-
-				<svelte:fragment slot="tags">
-					<InlineTags collapsed rootStyle='margin: 0px;'
-						resourcePath={p_contact}
-					>
-						<span class="icon contact-type" slot="prefix">
-							{@html SX_ICON_PERSONAL}
-						</span>
-					</InlineTags>
-				</svelte:fragment>
-
-				<svelte:fragment slot="status">
-					<span
-						class="icon more-menu"
-						class:active={si_overlay === p_contact}
-						on:click={activate_overlay(p_contact, g_contact)}
-					>
-						{@html SX_ICON_DOTS}
+		{#if !a_list.length}
+			<!-- TODO: empty state -->
+			<div style={`
+				display: flex;
+				justify-content: center;
+				margin: 1em;
+			`}>
+				No contacts of this type yet
+			</div>
+		{:else}
+			{#each a_list as [p_contact, g_contact]}
+				<Row
+					--app-icon-diameter='36px'
+					resource={g_contact}
+					resourcePath={p_contact}
+					on:click={(d_event) => {
+						if(!hm_events.get(d_event)?.cancelMenu) {
+							k_page.push({
+								creator: ContactView,
+								props: {
+									contactPath: p_contact,
+								},
+							});
+						}
+					}}
+				>
+					<span class="global_svg-icon icon-diameter_18px" slot="prename" style={`
+						margin-right: 5px;
+						color: var(--theme-color-graymed);
+						vertical-align: text-bottom;
+					`}>
+						{@html H_AGENT_TYPE_ICONS[g_contact.agentType] }
 					</span>
 
-					{#if si_overlay === p_contact}
-						<span class="overlay" transition:slide={{duration:300, easing:quintOut}}>
-							{#each a_overlay_actions as g_action}
-								<div class="action" on:click={(d_event) => {
-									d_event.stopPropagation();
-									g_action.click(g_contact);
-								}}>
-									<span class="icon">
-										{@html g_action.icon}
-									</span>
+					<svelte:fragment slot="detail">
+						<Address address={Agents.addressFor(g_contact, $yw_chain)} />
+					</svelte:fragment>
 
-									<span class="text">
-										{g_action.label}
-									</span>
-								</div>
-							{/each}
+					<svelte:fragment slot="tags">
+						<InlineTags subtle rootStyle='margin: 0px;'
+							resourcePath={p_contact}
+						>
+						</InlineTags>
+					</svelte:fragment>
+
+					<svelte:fragment slot="status">
+						<span
+							class="icon more-menu"
+							class:active={si_overlay === p_contact}
+							on:click={activate_overlay(p_contact, g_contact)}
+						>
+							{@html SX_ICON_DOTS}
 						</span>
-					{/if}
-				</svelte:fragment>
-			</Row>
-		{/each}
+
+						{#if si_overlay === p_contact}
+							<span class="overlay" transition:slide={{duration:300, easing:quintOut}}>
+								{#each a_overlay_actions as g_action}
+									<div class="action" on:click={(d_event) => {
+										d_event.stopPropagation();
+										g_action.click(g_contact);
+									}}>
+										<span class="icon">
+											{@html g_action.icon}
+										</span>
+
+										<span class="text">
+											{g_action.label}
+										</span>
+									</div>
+								{/each}
+							</span>
+						{/if}
+					</svelte:fragment>
+				</Row>
+			{/each}
+		{/if}
 	{/await}
 </div>

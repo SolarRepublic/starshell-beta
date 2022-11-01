@@ -1,10 +1,34 @@
-import type {AccountInterface, AccountPath} from '#/meta/account';
-import type {Bech32, ChainPath, ChainNamespaceKey, ChainInterface, ContractInterface} from '#/meta/chain';
-import type {Provider, ProviderInterface, ProviderPath} from '#/meta/provider';
+import type {ThreadId} from './def';
+
+import type {Navigator} from './nav/navigator';
+
+import type {Page} from './nav/page';
+
+import type {Thread} from './nav/thread';
+
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {Dict} from '#/meta/belt';
+import type {Bech32, ChainPath, ChainNamespaceKey, ChainStruct, ContractStruct} from '#/meta/chain';
+import type {Provider, ProviderStruct, ProviderPath} from '#/meta/provider';
 import type {StoreKey} from '#/meta/store';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
+
+import type {Vocab} from '#/meta/vocab';
+
+import {
+	derived,
+	writable,
+	type Readable,
+	type Writable,
+} from 'svelte/store';
+
+import {once_store_updates} from './svelte';
+
+import type {CosmosNetwork} from '#/chain/cosmos-network';
+import type {Pwa} from '#/script/messages';
 import {global_receive} from '#/script/msg-global';
-import {B_FIREFOX_ANDROID, B_MOBILE, B_NATIVE_IOS, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
+import {B_FIREFOX_ANDROID, B_MOBILE, B_NATIVE_IOS, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, G_USERAGENT, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
+import type {StoreRegistry} from '#/store/_registry';
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Medias} from '#/store/medias';
@@ -13,24 +37,11 @@ import {
 	Providers,
 } from '#/store/providers';
 import {Tags} from '#/store/tags';
-import type {StoreRegistry} from '#/store/_registry';
 import {F_NOOP, microtask, timeout} from '#/util/belt';
-import type {Dict} from '#/meta/belt';
-import {
-	derived,
-	writable,
-	type Readable,
-	type Writable,
-} from 'svelte/store';
-import type {ThreadId} from './def';
-import type {Navigator} from './nav/navigator';
-import type {Page} from './nav/page';
-import type {Thread} from './nav/thread';
-import {once_store_updates} from './svelte';
+
+
 import PopupReceive from './ui/PopupReceive.svelte';
-import type { Vocab } from '#/meta/vocab';
-import type { Pwa } from '#/script/messages';
-import type { CosmosNetwork } from '#/chain/cosmos-network';
+
 
 
 /**
@@ -154,7 +165,7 @@ export const yw_navigator = writableSync<Navigator>(null! as Navigator);
  * Selects the active chain
  */
 export const yw_chain_ref = writableSync<ChainPath>('' as ChainPath);
-export const yw_chain = derivedSync<ChainInterface>(yw_chain_ref, (p_chain, fk_set) => {
+export const yw_chain = derivedSync<ChainStruct>(yw_chain_ref, (p_chain, fk_set) => {
 	void Chains.read().then(ks => fk_set(ks.at(p_chain as ChainPath)!))
 		.catch((e_auth) => {
 			fk_set(null);
@@ -178,10 +189,10 @@ export const yw_chain = derivedSync<ChainInterface>(yw_chain_ref, (p_chain, fk_s
  * Selects the active provider
  */
 export const yw_provider_ref = writableSync<ProviderPath>('' as ProviderPath);
-export const yw_provider = writableSync<ProviderInterface>(null! as ProviderInterface);
+export const yw_provider = writableSync<ProviderStruct>(null! as ProviderStruct);
 export const yw_network = derivedSync<CosmosNetwork>(yw_provider_ref, (p_provider, fk_set) => {
 	if(!p_provider) {
-		yw_provider.set(null as unknown as ProviderInterface);
+		yw_provider.set(null as unknown as ProviderStruct);
 		fk_set(null as unknown as CosmosNetwork);
 	}
 	else {
@@ -203,7 +214,7 @@ export const yw_network = derivedSync<CosmosNetwork>(yw_provider_ref, (p_provide
 	}
 });
 
-// export const yw_chain = writableSync<ChainInterface>(null! as ChainInterface);
+// export const yw_chain = writableSync<ChainStruct>(null! as ChainStruct);
 // yw_chain_ref.subscribe(async(p_chain) => {
 // 	const ks_chains = await Chains.read();
 // 	yw_chain.set(ks_chains.at(p_chain)!);
@@ -220,7 +231,7 @@ yw_chain.subscribe(g_chain => yw_chain_namespace.set(g_chain?.namespace || ''));
  * Selects the active account
  */
 export const yw_account_ref = writableSync<AccountPath>('' as AccountPath);
-export const yw_account = derivedSync<AccountInterface>(yw_account_ref, (p_account, fk_set) => {
+export const yw_account = derivedSync<AccountStruct>(yw_account_ref, (p_account, fk_set) => {
 	void Accounts.read().then(ks => fk_set(ks.at(p_account as AccountPath)!))
 		.catch((e_auth) => {
 			fk_set(null);
@@ -262,26 +273,29 @@ const store_cache = <
 	si_store extends StoreKey,
 >(si_store: si_store) => writableSync<InstanceType<StoreRegistry<si_store>> | null>(null);
 
+const H_STORES_CACHED = {
+	async [SI_STORE_MEDIA]() {
+		const ks_medias = await Medias.read();
+
+		yw_store_medias.update(() => ks_medias);
+	},
+
+	async [SI_STORE_TAGS]() {
+		const ks_tags = await Tags.read();
+
+		yw_store_tags.update(() => ks_tags);
+	},
+};
+
 // reload a given store
-async function reload(si_store: StoreKey): Promise<void> {
-	switch(si_store) {
-		case SI_STORE_MEDIA: {
-			const ks_medias = await Medias.read();
-
-			yw_store_medias.update(() => ks_medias);
-			break;
+async function reload_store(si_store?: StoreKey): Promise<void> {
+	if(si_store) {
+		if(si_store in H_STORES_CACHED) {
+			await H_STORES_CACHED[si_store]();
 		}
-
-		case SI_STORE_TAGS: {
-			const ks_tags = await Tags.read();
-
-			yw_store_tags.update(() => ks_tags);
-			break;
-		}
-
-		default: {
-			// ignore
-		}
+	}
+	else {
+		await Promise.all(Object.values(H_STORES_CACHED).map(f => f()));
 	}
 }
 
@@ -293,14 +307,22 @@ export const yw_store_tags = store_cache(SI_STORE_TAGS);
 // register for updates
 global_receive({
 	async 'updateStore'({key:si_store}) {
-		await reload(si_store);
+		await reload_store(si_store);
+	},
+
+	async reload() {
+		// reload all stores
+		await reload_store();
+
+		// trigger updates on pages
+		yw_update.update(c_updates => c_updates + 1);
 	},
 });
 
 export async function initialize_caches(): Promise<void> {
 	await Promise.all([
-		reload(SI_STORE_MEDIA),
-		reload(SI_STORE_TAGS),
+		reload_store(SI_STORE_MEDIA),
+		reload_store(SI_STORE_TAGS),
 	]);
 }
 
@@ -336,7 +358,7 @@ export const yw_cancel_search = writableSync<VoidFunction>(F_NOOP);
 
 // export const yw_fuse = writable<Fuse<SearchItem>>();
 
-export const yw_send_asset = writableSync<ContractInterface | null>(null);
+export const yw_send_asset = writableSync<ContractStruct | null>(null);
 
 
 // export const yw_params = writableSync({
@@ -382,6 +404,10 @@ export function popup_receive(p_account: AccountPath): void {
  */
 export const yw_curtain = writableSync<boolean>(false);
 
+/**
+ * Incrementing declares all UI state as dirty as triggers reload on pages that support it 
+ */
+export const yw_update = writableSync(0);
 
 // export const yw_popup_receive = writableSync<Account | null>(null);
 
@@ -705,6 +731,14 @@ if('undefined' !== typeof document) {
 				d_style_root.width = d_style_root.height = '100%';
 
 				continually_adjust_height();
+			}
+			// popover
+			else if(B_WITHIN_WEBEXT_POPOVER) {
+				// firefox
+				if('Firefox' === G_USERAGENT.browser.name) {
+					document.body.style.width = 'var(--app-window-width)';
+					document.body.style.height = 'var(--app-window-height)';
+				}
 			}
 		}
 

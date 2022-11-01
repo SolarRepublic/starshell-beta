@@ -168,7 +168,7 @@ export const WebApis = create_store_class({
 	store: SI_STORE_WEB_APIS,
 	extension: 'map',
 	class: class WebApisI extends WritableStoreMap<typeof SI_STORE_WEB_APIS> {
-		static pathFor(si_method: WebApi['interface']['method'], p_api: string): WebApiPath {
+		static pathFor(si_method: WebApi['struct']['method'], p_api: string): WebApiPath {
 			// generate hash
 			const s_hash = buffer_to_base64(sha256_sync(text_to_buffer(si_method+' '+p_api)));
 
@@ -176,7 +176,7 @@ export const WebApis = create_store_class({
 			return `/cache.web-api/sha256.${s_hash}`;
 		}
 
-		static pathFrom(g_api: WebApi['interface']): WebApiPath {
+		static pathFrom(g_api: WebApi['struct']): WebApiPath {
 			return WebApisI.pathFor(g_api.method, g_api.path);
 		}
 	},

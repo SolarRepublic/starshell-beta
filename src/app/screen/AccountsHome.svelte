@@ -1,30 +1,32 @@
 <script lang="ts">
-	import type { Account, AccountInterface, AccountPath } from '#/meta/account';
-	import type { SecretInterface } from '#/meta/secret';
-	import { Accounts } from '#/store/accounts';
-	import { Chains } from '#/store/chains';
-	import { Secrets } from '#/store/secrets';
-
-	import { yw_chain } from '../mem';
-	import { load_page_context } from '../svelte';
-	import Address from '../ui/Address.svelte';
-	import Row from '../ui/Row.svelte';
-	import AccountCreate from './AccountCreate.svelte';
-	import AccountView from './AccountView.svelte';
-
+	import type {AccountStruct, AccountPath} from '#/meta/account';
+	import type {SecretStruct} from '#/meta/secret';
+	
 	import {
 		Screen,
 		Header,
 		SubHeader,
 	} from './_screens';
+	import {yw_chain} from '../mem';
+	import {load_page_context} from '../svelte';
+	
+	import {Accounts} from '#/store/accounts';
+	import {Chains} from '#/store/chains';
+	import {Secrets} from '#/store/secrets';
+	
+	import AccountView from './AccountView.svelte';
+	import Address from '../ui/Address.svelte';
+	import Row from '../ui/Row.svelte';
+    import LoadingRows from '../ui/LoadingRows.svelte';
+	
 
 	const {
 		k_page,
 	} = load_page_context();
 
-	const hm_secrets = new Map<AccountInterface, SecretInterface>();
+	const hm_secrets = new Map<AccountStruct, SecretStruct>();
 
-	let a_accounts: [AccountPath, AccountInterface][];
+	let a_accounts: [AccountPath, AccountStruct][];
 	async function load_accounts(): Promise<typeof a_accounts> {
 		const ks_accounts = await Accounts.read();
 
@@ -63,7 +65,7 @@
 
 	<div class="rows no-margin">
 		{#await load_accounts()}
-			Loading...
+			<LoadingRows count={3} />
 		{:then}
 			{#key $yw_chain}
 				{#each a_accounts as [p_account, g_account]}

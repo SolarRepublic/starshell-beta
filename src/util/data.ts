@@ -1,10 +1,14 @@
+import type {Ripemd160, Sha256} from '@solar-republic/wasm-secp256k1';
+
+import type {SerializeToJson, JsonValue} from '#/meta/belt';
+
+import {instantiateRipemd160, instantiateSha256} from '@solar-republic/wasm-secp256k1';
+import {createHash} from 'sha256-uint8array';
+
+import {is_dict} from './belt';
+
 import {Ripemd160 as Ripemd160Js} from '#/crypto/ripemd160';
 import SensitiveBytes from '#/crypto/sensitive-bytes';
-import type {SerializeToJson} from '#/meta/belt';
-import type {JsonValue} from '#/meta/belt';
-import {instantiateRipemd160, instantiateSha256, Ripemd160, Sha256} from '@solar-republic/wasm-secp256k1';
-import {createHash} from 'sha256-uint8array';
-import {is_dict} from './belt';
 
 /**
  * Performs SHA-256 hash on the given data.
@@ -223,6 +227,31 @@ export function buffer_to_json(atu8_json: Uint8Array): JsonValue {
 	return JSON.parse(buffer_to_text(atu8_json));
 }
 
+
+/**
+ * Encodes the given 32-bit integer in big-endian format to a new buffer.
+ * @param n_uint 
+ * @returns 
+ */
+export function uint32_to_buffer_be(n_uint: number | bigint): Uint8Array {
+	// prep array buffer
+	const ab_buffer = new Uint32Array(1).buffer;
+
+	// write to buffer
+	new DataView(ab_buffer).setUint32(0, Number(n_uint), false);
+
+	// wrap as uint8array
+	return new Uint8Array(ab_buffer);
+}
+
+/**
+ * Decodes a 32-bit integer in big-endian format from a buffer (optionally at the given position).
+ * @param n_uint 
+ * @returns 
+ */
+export function buffer_to_uint32_be(atu8_buffer: Uint8Array, ib_offset=0): number {
+	return new DataView(atu8_buffer.buffer).getUint32(atu8_buffer.byteOffset + ib_offset, false);
+}
 
 /**
  * Converts a JSON object into its canonical form.
@@ -448,6 +477,77 @@ export function base93_to_buffer(sx_buffer: string): Uint8Array {
 	return Uint8Array.from(a_out.slice(0, Math.ceil(sx_buffer.length * 7 / 8)));
 }
 
+
+// inspired by <https://github.com/pur3miish/base58-js>
+const SX_CHARS_BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const A_CHARS_BASE58 = (() => {
+	const a_out: number[] = Array(256).fill(-1);
+	for(let i_char=0; i_char<SX_CHARS_BASE58.length; i_char++) {
+		a_out[SX_CHARS_BASE58.charCodeAt(i_char)] = i_char;
+	}
+
+	return a_out;
+})();
+
+export function buffer_to_base58(atu8_buffer: Uint8Array): string {
+	const a_out: number[] = [];
+
+	for(const xb_char of atu8_buffer) {
+		let xb_carry = xb_char;
+		for(let ib_sweep = 0; ib_sweep<a_out.length; ++ib_sweep) {
+			const x = (A_CHARS_BASE58[a_out[ib_sweep]] << 8) + xb_carry;
+			a_out[ib_sweep] = SX_CHARS_BASE58.charCodeAt(x % 58);
+			xb_carry = (x / 58) | 0;
+		}
+
+		while(xb_carry) {
+			a_out.push(SX_CHARS_BASE58.charCodeAt(xb_carry % 58));
+			xb_carry = (xb_carry / 58) | 0;
+		}
+	}
+
+	for(const xb_char of atu8_buffer) {
+		if(xb_char) {
+			break;
+		}
+		else {
+			a_out.push('1'.charCodeAt(0));
+		}
+	}
+
+	a_out.reverse();
+
+	return String.fromCharCode(...a_out);
+}
+
+export function base58_to_buffer(sxb58_buffer: string): Uint8Array {
+	if(!sxb58_buffer || 'string' !== typeof sxb58_buffer) {
+		throw new Error(`Expected base58 string but got “${sxb58_buffer}”`);
+	}
+
+	const m_invalid = sxb58_buffer.match(/[IOl0]/gmu);
+	if(m_invalid) {
+		throw new Error(`Invalid base58 character “${String(m_invalid)}”`);
+	}
+
+	const m_lz = sxb58_buffer.match(/^1+/gmu);
+	const nl_psz = m_lz ? m_lz[0].length : 0;
+	const nb_out = (((sxb58_buffer.length - nl_psz) * (Math.log(58) / Math.log(256))) + 1) >>> 0;
+
+	return new Uint8Array([
+		...new Uint8Array(nl_psz),
+		...sxb58_buffer
+			.match(/.{1}/gmu)!
+			.map(sxb58 => SX_CHARS_BASE58.indexOf(sxb58))
+			.reduce((atu8_out, ib_pos) => atu8_out.map((xb_char) => {
+				const x = (xb_char * 58) + ib_pos;
+				ib_pos = x >> 8;
+				return x;
+			}), new Uint8Array(nb_out))
+			.reverse()
+			.filter((b_last => xb_each => (b_last = b_last || !!xb_each))(false)),
+	]);
+}
 
 
 interface SerializableObject {

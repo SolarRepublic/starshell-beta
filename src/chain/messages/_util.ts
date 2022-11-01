@@ -1,6 +1,9 @@
 import type { JsonValue } from '#/meta/belt';
+import type { Bech32, ChainStruct } from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
-import {format_fiat} from '#/util/format';
+import { Accounts } from '#/store/accounts';
+import { Agents } from '#/store/agents';
+import {abbreviate_addr, format_fiat} from '#/util/format';
 import {Coins} from '../coin';
 import type {AddCoinsConfig} from './_types';
 
@@ -46,3 +49,23 @@ export class MalforedMessageError extends Error {
 		super(`${s_info}: \`${JSON.stringify(z_item)}\``);
 	}
 }
+
+export async function address_to_name(sa_recipient: Bech32, g_chain: ChainStruct): Promise<string> {
+	// construct contact path
+	const p_contact = Agents.pathForContactFromAddress(sa_recipient, g_chain.namespace);
+
+	// lookup contact
+	const g_contact = await Agents.getContact(p_contact);
+	if(g_contact) return g_contact.name;
+
+	// lookup account
+	try {
+		const [, g_account] = await Accounts.find(sa_recipient, g_chain);
+		if(g_account) return `${g_account.name}'s account`;
+	}
+	catch(e_account) {}
+
+	// use abbreviated address as fallback
+	return abbreviate_addr(sa_recipient);
+}
+

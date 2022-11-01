@@ -1,13 +1,20 @@
 <script lang="ts">
-	import type { AppInterface } from '#/meta/app';
-	import {Apps} from '#/store/apps';
+	import type {AppStruct} from '#/meta/app';
+	
+	import {Screen} from './_screens';
 	import {load_page_context} from '../svelte';
+	
+	import {Apps} from '#/store/apps';
+	
 	import Header from '../ui/Header.svelte';
 	import Portrait, {type Actions} from '../ui/Portrait.svelte';
-	import {Screen} from './_screens';
+	import IncidentsList from '../ui/IncidentsList.svelte';
+	
 
-	export let app: AppInterface;
+	export let app: AppStruct;
 	const g_app = app;
+
+	const p_app = Apps.pathFrom(g_app);
 
 	const {
 		k_page,
@@ -93,4 +100,6 @@
 	>
 
 	</Portrait>
+
+	<IncidentsList filterConfig={{app:p_app}} />
 </Screen>

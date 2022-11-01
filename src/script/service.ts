@@ -1,79 +1,71 @@
 import type Browser from 'webextension-polyfill';
 
-import {B_IPHONE_IOS, B_NATIVE_IOS, G_USERAGENT, H_PARAMS, R_SCRT_COMPUTE_ERROR, R_TRANSFER_AMOUNT, XT_MINUTES} from '#/share/constants';
+import {B_IPHONE_IOS, B_NATIVE_IOS, G_USERAGENT, R_CAIP_2} from '#/share/constants';
+
 import {do_webkit_polyfill} from './webkit-polyfill';
+
 if(B_NATIVE_IOS) {
 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.background: ${s}`, ...a_args));
 }
-
-import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
-import {F_NOOP, ode, timeout} from '#/util/belt';
 
 import type {
 	ExtToNative,
 	IcsToService,
 	IntraExt,
 	ServiceToIcs,
+	SessionCommand,
 } from './messages';
+
+
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import {AppApiMode, type AppStruct} from '#/meta/app';
+import type {JsonObject, JsonValue} from '#/meta/belt';
+import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
+import type {IncidentPath} from '#/meta/incident';
+import type {SecretStruct} from '#/meta/secret';
+import type {Vocab} from '#/meta/vocab';
+
+import {fromBech32, toBech32} from '@cosmjs/encoding';
+import {decodeTxRaw} from '@cosmjs/proto-signing';
+import {BroadcastMode} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
+import {MsgExecuteContract} from '@solar-republic/cosmos-grpc/dist/cosmwasm/wasm/v1/tx';
+import {MsgExecuteContract as SecretMsgExecuteContract} from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/msg';
 
 import IcsHost from './ics-host';
 import McsRatifier from './mcs-ratifier';
-
-import {
-	set_keplr_compatibility_mode,
-} from './scripts';
-
-import type {Vocab} from '#/meta/vocab';
-import {Vault} from '#/crypto/vault';
-import {Apps} from '#/store/apps';
 import {open_flow} from './msg-flow';
-import {Chains} from '#/store/chains';
-import {ActiveNetwork, Providers} from '#/store/providers';
-import {fold_attrs, TypedEvent} from '#/chain/cosmos-network';
-import {Accounts} from '#/store/accounts';
-import BigNumber from 'bignumber.js';
-import {abbreviate_addr, format_amount} from '#/util/format';
-import type {Bech32, Caip2, ChainInterface, ChainPath, CoinInfo} from '#/meta/chain';
-import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import {global_broadcast, global_receive} from './msg-global';
-import type {Provider, ProviderInterface} from '#/meta/provider';
-import {syserr, syswarn} from '#/app/common';
-import {Agents} from '#/store/agents';
-import type {BlockInfoHeader} from './common';
-import type {Account, AccountInterface, AccountPath} from '#/meta/account';
-import {Incidents} from '#/store/incidents';
-import {WebResourceCache} from '#/store/web-resource-cache';
-import {BroadcastMode} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
-import type {Incident, IncidentPath, IncidentType, MsgEventRegistry, TxConfirmed} from '#/meta/incident';
-import {to_fiat} from '#/chain/coin';
-import type {Cw} from '#/meta/cosm-wasm';
-import {stringify_params, uuid_v4} from '#/util/dom';
-import {PublicStorage, storage_clear} from '#/extension/public-storage';
-import type {InternalConnectionsResponse} from '#/provider/connection';
+import {set_keplr_compatibility_mode} from './scripts';
 import {app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, RetryCode, unlock_to_continue} from './service-apps';
-import {process_permissions_request} from '#/extension/permissions';
-import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, sha256_sync, text_to_base64, text_to_buffer} from '#/util/data';
-import {AppApiMode, type AppInterface} from '#/meta/app';
-import {Secrets} from '#/store/secrets';
-import {SecretWasm} from '#/crypto/secret-wasm';
-import {decodeTxRaw} from '@cosmjs/proto-signing';
-import {MsgExecuteContract as SecretMsgExecuteContract} from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/msg';
-import {bech32_to_pubkey, pubkey_to_bech32} from '#/crypto/bech32';
-import {fromBech32, toBech32} from '@cosmjs/encoding';
-import {Contracts} from '#/store/contracts';
-import {H_HANDLERS_ICS_APP} from './service-handlers-ics-app';
-import {SessionStorage} from '#/extension/session-storage';
-import SensitiveBytes from '#/crypto/sensitive-bytes';
-import {import_private_key} from '#/share/account';
-import type { SecretInterface } from '#/meta/secret';
 
-type ServiceMessageHandler = (message: any, sender: MessageSender, sendResponse: (response?: any) => void) => void;
+import {NetworkFeed} from './service-feed';
+import {H_HANDLERS_ICS_APP} from './service-handlers-ics-app';
+
+import {amino_to_base, encode_proto, proto_to_amino} from '#/chain/cosmos-msgs';
+import {pubkey_to_bech32} from '#/crypto/bech32';
+import SensitiveBytes from '#/crypto/sensitive-bytes';
+import {Vault} from '#/crypto/vault';
+import type {NotificationConfig} from '#/extension/notifications';
+import {process_permissions_request} from '#/extension/permissions';
+import {PublicStorage, storage_clear, storage_remove} from '#/extension/public-storage';
+import {SessionStorage} from '#/extension/session-storage';
+import type {InternalConnectionsResponse} from '#/provider/connection';
+import {add_utility_key, import_private_key} from '#/share/account';
+import {Accounts} from '#/store/accounts';
+import {Apps} from '#/store/apps';
+import {Chains} from '#/store/chains';
+import {Contracts} from '#/store/contracts';
+import {Histories, Incidents} from '#/store/incidents';
+import {NetworkTimeoutError, Providers} from '#/store/providers';
+import {Secrets} from '#/store/secrets';
+import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
+import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, sha256_sync, text_to_base64, text_to_buffer} from '#/util/data';
+import {stringify_params, uuid_v4} from '#/util/dom';
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
 
 const f_scripting = () => chrome.scripting as Browser.Scripting.Static;
-
 
 
 
@@ -99,7 +91,7 @@ function generate_key(nb_size=64): string {
 }
 
 
-const H_SESSION_STORAGE_POLYFILL: Vocab.Handlers<IcsToService.SessionCommand> = 'function' === typeof chrome.storage?.session?.get
+const H_SESSION_STORAGE_POLYFILL: Vocab.Handlers<SessionCommand> = 'function' === typeof chrome.storage?.session?.get
 	? {
 		async get(si_key: string): Promise<JsonValue> {
 			return (await chrome.storage.session.get([si_key]))[si_key];
@@ -217,7 +209,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 		// cache existing chains
 		const ks_chains = await Chains.read();
 
-		const h_chains_banned: Record<Caip2.String, ChainInterface> = {};
+		const h_chains_banned: Record<Caip2.String, ChainStruct> = {};
 
 		// review requested chains
 		const h_chains_manifest = g_msg.chains;
@@ -455,11 +447,12 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 
 	async sessionStorage(g_msg, g_sender, fk_respond) {
 		const si_type = g_msg.type;
-		// @ts-expect-error vocab handler types
 		const w_response = await H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
 		fk_respond(w_response);
 	},
 };
+
+const a_feeds: NetworkFeed[] = [];
 
 /**
  * message handlers for service instructions from popup
@@ -467,16 +460,44 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction> = {
 	async sessionStorage(g_msg, g_sender, fk_respond) {
 		const si_type = g_msg.type;
-		// @ts-expect-error vocab handler types
 		const w_response = await H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
 		fk_respond(w_response);
 	},
 
-	wake(_ignore, g_sender, fk_respond) {
+	async wake(_ignore, g_sender, fk_respond) {
 		// ack
 		fk_respond(true);
 
-		void periodic_check();
+		// 
+		for(const k_feed of a_feeds) {
+			// whether to recreate the feed
+			let b_recreate = true;
+
+			// 30 seconds of tolerance, wait for up to 5 seconds per socket, for a total of up to 30 seconds
+			try {
+				const [, xc_timeout] = await timeout_exec(30e3, () => k_feed.wake(30e3, 5e3));
+
+				// feed is OK
+				if(!xc_timeout) {
+					b_recreate = false;
+				}
+			}
+			catch(e_exec) {}
+
+			// recreate feed
+			if(b_recreate) {
+				console.warn(`Recreating delinquent network feed for ${k_feed.provider.rpcHost}`);
+
+				// destroy existing feed
+				k_feed.destroy();
+
+				// remove from list
+				a_feeds.splice(a_feeds.indexOf(k_feed), 1);
+
+				// replace with new feed
+				a_feeds.push(await k_feed.recreate());
+			}
+		}
 	},
 
 	async whoisit(w_ignore, g_sender, fk_respond) {
@@ -490,7 +511,7 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 			const g_tab = a_tabs[0];
 
 			// prep app struct
-			let g_app: AppInterface | null = null;
+			let g_app: AppStruct | null = null;
 
 			// app registration state
 			let b_registered = false;
@@ -848,6 +869,17 @@ chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 		await storage_clear();
 		await SessionStorage.clear();
 	}
+	// selective wipe
+	else if(await PublicStorage.isUpgrading('0.5.0')) {
+		await storage_remove('apps');
+		await storage_remove('pfps');
+		await storage_remove('media');
+		await storage_remove('chains');
+		await storage_remove('contracts');
+		for(const [, g_account] of (await Accounts.read()).entries()) {
+			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
+		}
+	}
 
 	// fresh install
 	if(b_install) {
@@ -928,14 +960,6 @@ chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 	// }
 });
 
-type Notification = {
-	type: 'balance';
-	chain: ChainInterface;
-	coin: string;
-	cached: Coin | null;
-	balance: Coin;
-};
-
 chrome.alarms?.clearAll(() => {
 	console.warn('clear all');
 
@@ -946,7 +970,7 @@ chrome.alarms?.clearAll(() => {
 	chrome.alarms.onAlarm.addListener((g_alarm) => {
 		switch(g_alarm.name) {
 			case 'periodicChainQueries': {
-				void periodic_check();
+				// void periodic_check();
 				break;
 			}
 
@@ -955,51 +979,42 @@ chrome.alarms?.clearAll(() => {
 			}
 		}
 	});
-
-	void periodic_check();
 });
 
-let b_alive = false;
-const h_sockets: Dict<VoidFunction> = {};
-
-const auto_heal = () => setTimeout(() => {
-	b_alive = false;
-	void periodic_check();
-}, 2*XT_MINUTES);
-
-const i_auto_heal = auto_heal();
-
-interface NotifyConfig {
-	title: string;
-	message: string;
-}
-
-interface MetaNotifyConfig {
-	incident?: IncidentPath;
-}
-
-interface MetaHandler {
-	click?: VoidFunction;
-}
-
-const h_meta_notifications = {};
+const R_NOTIFICATION_ID = /^@([a-z]+):(.*)+/;
 
 chrome.notifications?.onClicked?.addListener((si_notif) => {
-	const g_meta = h_meta_notifications[si_notif];
+	// dismiss notification
+	chrome.notifications.clear(si_notif);
 
-	if(g_meta?.click) {
-		g_meta.click();
+	// parse notification id
+	const m_routable = R_NOTIFICATION_ID.exec(si_notif);
+
+	console.log(`${si_notif} :: %o`, m_routable);
+
+	if(m_routable) {
+		const [, si_category, s_data] = m_routable;
+
+		if('incident' === si_category) {
+			void open_flow({
+				flow: {
+					type: 'inspectIncident',
+					page: null,
+					value: {
+						incident: s_data as IncidentPath,
+					},
+				},
+			});
+		}
 	}
 });
 
-const notify = B_IPHONE_IOS
-	? function notify(si_notif: string, gc_notify: NotifyConfig) {
+
+const notify_user = B_IPHONE_IOS
+	? function notify_user(gc_notification: NotificationConfig) {
 		const g_message = {
-			type: 'notify',
-			value: {
-				...gc_notify,
-				id: si_notif,
-			},
+			type: 'notification',
+			value: gc_notification,
 		} as const;
 
 		console.log(g_message);
@@ -1009,603 +1024,27 @@ const notify = B_IPHONE_IOS
 		});
 	}
 	: chrome.notifications
-		? function notify(si_notif: string, gc_notify: NotifyConfig) {
-			chrome.notifications?.create(si_notif, {
+		? function notify_user(gc_notification: NotificationConfig) {
+			chrome.notifications?.create(gc_notification.id || '', {
 				type: 'basic',
 				priority: 1,
 				iconUrl: '/media/vendor/logo-192px.png',
-				isClickable: true,
 				eventTime: Date.now(),
-				...gc_notify,
+				title: gc_notification.item.title || '1 New Notification',
+				message: gc_notification.item.message || ' ',
+			}, (si_notifcation) => {
+				// clear after some timeout
+				const xt_timeout = gc_notification.timeout;
+				if(Number.isFinite(xt_timeout)) {
+					setTimeout(() => {
+						chrome.notifications?.clear(si_notifcation);
+					}, xt_timeout! > 0? xt_timeout: 5e3);
+				}
 			});
 		}
 		: F_NOOP;
 
-function notify_incident_tx(si_notif: string, gc_notify: NotifyConfig, gc_meta: MetaNotifyConfig={}) {
-	if(gc_meta) {
-		const g_meta: MetaHandler = {};
 
-		if(gc_meta.incident) {
-			g_meta.click = () => {
-				void open_flow({
-					flow: {
-						type: 'inspectIncident',
-						page: null,
-						value: {
-							incident: gc_meta.incident!,
-						},
-					},
-				});
-			};
-		}
-
-		h_meta_notifications[si_notif] = g_meta;
-	}
-
-	return notify(si_notif, gc_notify);
-}
-
-async function transfer_notification(
-	si_category: IncidentType,
-	si_txn: string,
-	g_transfer: MsgEventRegistry['transfer'],
-	g_chain: ChainInterface,
-	g_account: AccountInterface,
-	k_network: ActiveNetwork
-) {
-	// default receive string
-	let s_payload = g_transfer.amount;
-
-	// attempt to parse amount
-	let si_coin = '';
-	let g_coin: CoinInfo;
-	let g_amount: Coin;
-	const m_amount = R_TRANSFER_AMOUNT.exec(g_transfer.amount);
-	if(!m_amount) {
-		syswarn({
-			text: `Failed to parse transfer amount "${g_transfer.amount}"`,
-		});
-	}
-	else {
-		// destructure into amount and denom
-		const [, s_amount, si_denom] = m_amount;
-		g_amount = {
-			denom: si_denom,
-			amount: s_amount,
-		};
-
-		// locate coin
-		for(const [si_coin_test, g_coin_test] of ode(g_chain.coins)) {
-			if(si_denom === g_coin_test.denom) {
-				const x_amount = new BigNumber(s_amount).shiftedBy(-g_coin_test.decimals).toNumber();
-				s_payload = `${format_amount(x_amount, true)} ${si_coin_test}` as Cw.Amount;
-				si_coin = si_coin_test;
-				g_coin = g_coin_test;
-				break;
-			}
-		}
-	}
-
-	let s_other: string = g_transfer.sender;
-	const p_contact = Agents.pathForContactFromAddress(g_transfer.sender as Bech32, g_chain.namespace);
-	const g_contact = await Agents.getContact(p_contact);
-	if(g_contact) {
-		s_other = g_contact.name;
-	}
-	else {
-		s_other = abbreviate_addr(s_other);
-	}
-
-	const si_notif = `${si_category}:${si_txn}`;
-
-	// notify
-	if('tx_in' === si_category) {
-		notify_incident_tx(si_notif, {
-			title: `💸 Received ${s_payload} on ${g_chain.name}`,
-			message: `${s_other} sent ${s_payload} to your ${g_account.name} account`,
-		}, {
-			incident: Incidents.pathFor('tx_in', si_txn),
-		});
-	}
-	else if('tx_out' === si_category) {
-		notify_incident_tx(si_notif, {
-			title: `✅ Sent ${s_payload} on ${g_chain.name}`,
-			message: `${s_payload} sent to ${s_other} from ${g_account.name} account`,
-		}, {
-			incident: Incidents.pathFor('tx_out', si_txn),
-		});
-	}
-
-
-	// download receive txn
-	const g_download = await k_network.downloadTxn(si_txn);
-
-	// record incident
-	const p_incident = await Incidents.record({
-		id: si_txn,
-		type: si_category,
-		time: new Date(g_download.timestamp).getTime(),
-		data: g_download,
-	});
-
-	global_broadcast({
-		type: `transfer${'tx_out' === si_category? 'Send': 'Receive'}`,
-		value: g_download,
-	});
-
-	// attempt to update fiat values
-	try {
-		const yg_fiat = await to_fiat(g_amount!, g_coin!, 'usd');
-
-		await Incidents.mutateData(p_incident, {
-			fiats: {
-				usd: yg_fiat.toNumber(),
-			},
-		});
-	}
-	catch(e_fiat) {}
-}
-
-async function await_transfer(
-	si_socket_group: string,
-	k_network: ActiveNetwork,
-	g_chain: ChainInterface,
-	g_account: AccountInterface,
-	sa_owner: Bech32,
-	si_type: 'Receive' | 'Send'
-): Promise<VoidFunction> {
-	const si_socket = si_socket_group+':'+si_type;
-
-	// socket already exists, attempt to close it
-	if(h_sockets[si_socket]) {
-		try {
-			h_sockets[si_socket]();
-		}
-		catch(e_close) {}
-	}
-
-	// eslint-disable-next-line @typescript-eslint/no-loop-func
-	return h_sockets[si_socket] = await k_network[`on${si_type}`](sa_owner, async(d_kill, g_tx) => {
-		if(d_kill) {
-			delete h_sockets[si_socket];
-			console.error(d_kill);
-			// syserr({
-			// 	text: d_kill.,
-			// });
-		}
-		else if(g_tx) {
-			// ref transaction id
-			const si_txn = g_tx.hash;
-
-			// ref result
-			const g_result = g_tx.result;
-
-			// not ok tx
-			if(g_result?.code) {
-				let b_notified = false;
-
-				const g_decoded_tx = decodeTxRaw(base64_to_buffer(g_tx.tx));
-
-				const g_msg0 = g_decoded_tx.body.messages[0];
-
-				if('/secret.compute.v1beta1.MsgExecuteContract' === g_msg0.typeUrl) {
-					// decode msg
-					const g_decoded_msg = SecretMsgExecuteContract.decode(g_msg0.value);
-
-					// lookup contract name
-					const sa_contract = toBech32(g_chain.bech32s.acc, g_decoded_msg.contract) as Bech32;
-					const p_contract = Contracts.pathFor(Chains.pathFrom(g_chain), sa_contract);
-					const g_contract = await Contracts.at(p_contract);
-
-					// decrypt msg
-					const g_decrypted = await SecretWasm.decryptMsg(g_account, g_chain, g_decoded_msg.msg);
-
-					const m_error = R_SCRT_COMPUTE_ERROR.exec(g_result.log)!;
-					if(m_error) {
-						const [, , sxb64_error_ciphertext] = m_error;
-
-						const atu8_ciphertext = base64_to_buffer(sxb64_error_ciphertext);
-
-						// use nonce to decrypt
-						const atu8_plaintext = await SecretWasm.decryptBuffer(g_account, g_chain, atu8_ciphertext, g_decrypted.nonce);
-
-						// utf-8 decode
-						const sx_plaintext = buffer_to_text(atu8_plaintext);
-
-						// parse json
-						try {
-							const g_error = JSON.parse(sx_plaintext);
-
-							const w_msg = g_error.generic_err?.msg || sx_plaintext;
-							b_notified = true;
-
-							// ⛔ 📩 ❌ 🚫 🪃 ⚠️
-							notify_incident_tx(si_txn, {
-								// title: '⚠️ Contract Execution Failed',
-								title: '⚠️ Contract Denied Request',
-								message: `${g_contract?.name || 'Unknown contract'}: ${w_msg}`,
-							});
-						}
-						catch(e) {}
-					}
-				}
-
-				// if('compute' === g_result.codespace) {
-				// 	if(g_chain.features.secretwasm) {
-				// 		// execute contract failed
-				// 		if(3 === g_result.code) {
-				// 			// TODO decode wasm tx data
-				// 			console.debug(`recording failed execute contract %o`, g_tx);
-				// 			debugger;
-
-				// 			// log it
-				// 			await Incidents.record({
-				// 				type: 'tx_out',
-				// 				data: {
-				// 					stage: 'error',
-				// 					chain: Chains.pathFrom(g_chain),
-				// 					height: g_tx.height as Cw.Uint128,
-				// 					code: g_result.code,
-				// 					codespace: g_result.codespace,
-				// 					hash: g_tx.hash,
-				// 					gas_limit: '' as Cw.Uint128,
-				// 					gas_wanted: g_result.gas_wanted as Cw.Uint128,
-				// 					gas_used: g_result.gas_used as Cw.Uint128,
-				// 					raw_log: '',
-				// 					log: g_tx.result.log,
-				// 					data: g_tx.tx,
-				// 					msgs: [],
-				// 				} as TxError,
-				// 			});
-
-				// 			// ⛔ 📩 ❌ 🚫 🪃 ⚠️
-				// 			notify_incident_tx(si_txn, {
-				// 				title: '⚠️ Contract Execution Failed',
-				// 				message: '',
-				// 			});
-
-				// 			// global_broadcast({
-				// 			// 	type: 'txFailure'
-				// 			// });
-
-				// 			return;
-				// 		}
-				// 		// insufficient gas
-				// 		else if(7 === g_result.code) {
-				// 			// 
-				// 		}
-				// 	}
-				// }
-
-				if(!b_notified) {
-					throw syserr({
-						title: `Tx error in ${g_result.codespace || 'unknown'} module`,
-						text: g_result.log,
-					});
-				}
-			}
-			else {
-				// ref logs
-				const a_logs = JSON.parse(g_tx.result?.log || '[]');
-				if(a_logs?.length) {
-					// each event
-					for(const g_event of a_logs[0].events) {
-						// transfer
-						if('transfer' === g_event.type) {
-							const g_transfer = fold_attrs<MsgEventRegistry['transfer']>(g_event as TypedEvent);
-
-							await transfer_notification('Receive' === si_type? 'tx_in': 'tx_out', si_txn, g_transfer, g_chain, g_account, k_network);
-						}
-					}
-				}
-			}
-		}
-	});
-}
-
-const XT_INTERVAL_HEARTBEAT = 1e3;
-let i_heartbeat = 0;
-let xt_last_hearbeat = 0;
-function heartbeat() {
-	// interval is dead
-	if(Date.now() - xt_last_hearbeat > XT_INTERVAL_HEARTBEAT * 1.5) {
-		// clear previous interval (if any)
-		globalThis.clearInterval(i_heartbeat);
-
-		// recreate interval
-		i_heartbeat = (globalThis as typeof window).setInterval(() => {
-			// broadcast service heartbeat
-			global_broadcast({
-				type: 'heartbeat',
-			});
-
-			// update last heartbeat marker
-			xt_last_hearbeat = Date.now();
-		}, XT_INTERVAL_HEARTBEAT);
-	}
-}
-
-
-
-async function periodic_check(b_init=false) {
-	// ensure heartbeat is alive
-	heartbeat();
-
-	// fetch latest decrees
-	await WebResourceCache.updateAll();
-
-	// not signed in; exit
-	if(!await Vault.isUnlocked()) return;
-
-	// service is already alive; exit
-	if(b_alive) return;
-
-	// service is now alive
-	b_alive = true;
-
-	// reset auto heal timeout
-	clearTimeout(i_auto_heal);
-
-	// read from stores
-	const [
-		ks_accounts,
-		ks_chains,
-		ks_providers,
-	] = await Promise.all([
-		Accounts.read(),
-		Chains.read(),
-		Providers.read(),
-	]);
-
-	// prep network => chain map
-	const h_providers: Record<ChainPath, ProviderInterface> = {};
-	for(const [p_provider, g_provider] of ks_providers.entries()) {
-		h_providers[g_provider.chain] = h_providers[g_provider.chain] || g_provider;
-	}
-
-
-	// each chain w/ its default provider
-	for(const [p_chain, g_provider] of ode(h_providers)) {
-		// skip broken cosmos
-		if('/family.cosmos/chain.theta-testnet-001' === p_chain) continue;
-
-		// already listening
-		if(h_sockets[p_chain]) continue;
-
-		// ref chain
-		const g_chain = ks_chains.at(p_chain)!;
-
-		// create network
-		const p_provider = Providers.pathFrom(g_provider);
-		const k_network = Providers.activate(g_provider, g_chain);
-
-		// listen for new blocks
-		const a_recents: number[] = [];
-		try {
-			h_sockets[p_chain] = await k_network.listen([
-				`tm.event='NewBlock'`,
-			], (d_kill, g_value) => {
-				if(d_kill) {
-					delete h_sockets[p_chain];
-				}
-				else if(g_value) {
-					a_recents.push(Date.now());
-
-					const g_block = g_value.block as {
-						header: BlockInfoHeader;
-						data: {
-							txs: [];
-						};
-					};
-
-					while(a_recents.length > 16) {
-						a_recents.shift();
-					}
-
-					global_broadcast({
-						type: 'blockInfo',
-						value: {
-							header: g_block.header,
-							chain: p_chain,
-							provider: p_provider,
-							recents: a_recents,
-							txCount: g_block.data.txs.length,
-						},
-					});
-				}
-			});
-
-			console.info({
-				h_sockets,
-			});
-		}
-		catch(e_listen) {
-			syserr({
-				title: 'Websocket Error',
-				error: e_listen,
-			});
-		}
-
-		// each account
-		for(const [p_account, g_account] of ks_accounts.entries()) {
-			const sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
-
-			// chain is secretwasm
-			const g_secretwasm = g_chain.features.secretwasm;
-			if(g_secretwasm) {
-				// missing consensus key
-				if(!g_secretwasm.consensusIoPubkey) {
-					// fetch
-					const atu8_consensus_pk = await k_network.secretConsensusIoPubkey();
-
-					// save to cached object
-					g_secretwasm.consensusIoPubkey = buffer_to_base93(atu8_consensus_pk);
-
-					// update chain
-					await Chains.open(ks => ks.put(g_chain));
-				}
-			}
-
-			if(k_network.hasRpc) {
-				const si_socket_group = p_chain+'\n'+g_provider.rpcHost!+'\n';
-
-				// subscribe to websocket events
-				const f_close = h_sockets[si_socket_group];
-				if(!f_close) {
-					try {
-						await Promise.all([
-							await_transfer(si_socket_group, k_network, g_chain, g_account, sa_owner, 'Receive'),
-							await_transfer(si_socket_group, k_network, g_chain, g_account, sa_owner, 'Send'),
-						]);
-					}
-					catch(e_receive) {
-						syserr({
-							title: 'Provider Error',
-							error: e_receive,
-						});
-					}
-				}
-
-				const a_incoming: Incident.Struct<'tx_in'>[] = [];
-				const a_outgoing: Incident.Struct<'tx_out'>[] = [];
-
-				// conduct account sync
-				for await(const g_incident of k_network.synchronizeAll(sa_owner)) {
-					if('tx_in' === g_incident.type) {
-						a_incoming.push(g_incident);
-						global_broadcast({
-							type: 'transferReceive',
-							value: g_incident.data as TxConfirmed,
-						});
-					}
-					else if('tx_out' === g_incident.type) {
-						a_outgoing.push(g_incident);
-						global_broadcast({
-							type: 'transferSend',
-							value: g_incident.data as TxConfirmed,
-						});
-					}
-				}
-
-
-				const nl_outgoing = a_outgoing.length;
-				const nl_incoming = a_incoming.length;
-
-				// outgoing txs synced
-				if(nl_outgoing >= 1) {
-					// only a few incidents
-					if(nl_outgoing <= 3) {
-						// ref incident
-						for(const g_incident of a_outgoing) {
-							const si_txn = g_incident.id;
-
-							// single message
-							const g_data = g_incident.data;
-							const a_msgs = g_data.msgs;
-
-							if(1 === a_msgs.length) {
-								const h_events = a_msgs[0].events;
-
-								if(h_events.transfer) {
-									await transfer_notification('tx_in', si_txn, h_events.transfer, g_chain, g_account, k_network);
-								}
-							}
-						}
-					}
-					// many incidents
-					else {
-						notify(uuid_v4(), {
-							title: `✅ Sent ${1 === nl_outgoing? 'a transfer': `${nl_incoming} transfers`}`,
-							message: 'While you were away...',
-						});
-					}
-				}
-
-				// incoming txs synced
-				if(nl_incoming >= 1) {
-					// only a few incidents
-					if(nl_incoming <= 3) {
-						// ref incident
-						for(const g_incident of a_incoming) {
-							const si_txn = g_incident.id;
-
-							// single message
-							const g_data = g_incident.data;
-							const a_msgs = g_data.msgs;
-
-							if(1 === a_msgs.length) {
-								const h_events = a_msgs[0].events;
-
-								if(h_events.transfer) {
-									await transfer_notification('tx_in', si_txn, h_events.transfer, g_chain, g_account, k_network);
-								}
-							}
-						}
-					}
-					// many incidents
-					else {
-						notify(uuid_v4(), {
-							title: `💸 Received ${1 === nl_incoming? 'a transfer': `${nl_incoming} transfers`}`,
-							message: 'While you were away...',
-							// message: `${s_other} sent ${s_payload} to your ${g_account.name} account`,
-						});
-					}
-				}
-			}
-
-			// // query all balances
-			// void k_network.bankBalances(sa_owner).then((h_balances) => {  // eslint-disable-line @typescript-eslint/no-loop-func
-			// 	// query succeeded
-			// 	for(const [si_coin, g_bundle] of ode(h_balances)) {
-			// 		const {
-			// 			balance: g_balance,
-			// 			cached: g_cached,
-			// 		} = g_bundle;
-
-			// 		// amount differs from cached
-			// 		if(g_balance.amount !== g_cached?.amount) {
-			// 			// notify
-			// 			a_notifications.push({
-			// 				type: 'balance',
-			// 				chain: g_chain,
-			// 				coin: si_coin,
-			// 				cached: g_cached,
-			// 				balance: g_balance,
-			// 			});
-
-			// 			let s_message = '';
-			// 			let s_context = '';
-			// 			if(1 === a_notifications.length) {
-			// 				if(g_cached) {
-			// 					const yg_change = new BigNumber(g_balance.amount).minus(g_cached.amount)
-			// 						.shiftedBy(-g_chain.coins[si_coin].decimals);
-
-			// 					// received coins
-			// 					if(yg_change.gt(0)) {
-			// 						s_message = `Balance increased +${format_amount(yg_change.toNumber(), true)} ${si_coin}`;
-			// 						// s_context = `from `
-			// 					}
-			// 				}
-
-			// 				chrome.notifications.create('bankBalanceChange', {
-			// 					type: 'basic',
-			// 					title: 'Balance Increased',
-			// 					message: s_message,
-			// 					contextMessage: s_context,
-			// 					priority: 1,
-			// 					iconUrl: '',
-			// 					// eventTime: 
-			// 				});
-			// 			}
-			// 		}
-			// 	}
-			// });
-		}
-	}
-
-	// start countdown to un-alive the service flag
-	auto_heal();
-}
 
 // global message handler
 global_receive({
@@ -1614,13 +1053,23 @@ global_receive({
 		// update compatibility mode based on apps and current settings
 		await set_keplr_compatibility_mode();
 
-		// load apps
-
-
-		// begin periodic checks
-		void periodic_check(true);
+		// start feeds
+		a_feeds.push(...await NetworkFeed.createAll({
+			// notification event
+			notify(gc_notify, k_feed) {
+				// create notification
+				notify_user(gc_notify);
+			},
+		}));
 	},
 
+	// user has logged out
+	logout() {
+		// destroy all feeds
+		for(const k_feed of a_feeds) {
+			k_feed.destroy();
+		}
+	},
 
 	debug(w_msg: JsonValue) {
 		console.debug(`Service witnessed global debug message: %o`, w_msg);
@@ -1662,10 +1111,15 @@ Object.assign(globalThis, {
 	Secrets,
 	Accounts,
 	Apps,
+	Chains,
 	Contracts,
+	Histories,
+	Incidents,
 
 	base93_to_buffer,
+	base58_to_buffer,
 	buffer_to_base93,
+	buffer_to_base58,
 	base64_to_buffer,
 	buffer_to_base64,
 	sha256_sync,
@@ -1677,12 +1131,61 @@ Object.assign(globalThis, {
 	pubkey_to_bech32,
 	fromBech32,
 	toBech32,
-	bech32_to_pubkey,
 	SessionStorage,
 	G_USERAGENT,
 
+	add_utility_key,
 	decodeTxRaw,
 	set_keplr_compatibility_mode,
+	SecretMsgExecuteContract,
+	MsgExecuteContract,
+
+	amino_to_base,
+	proto_to_amino,
+	encode_proto,
+
+	global_broadcast,
+	global_receive,
+
+	async factory_reset() {
+		await SessionStorage.clear();
+		await chrome.storage.local.clear();
+	},
+
+	deep_seal(w_thing) {
+		// blocking
+		if(Object.isSealed(w_thing)) return w_thing;
+
+		// anything else
+		if('function' !== typeof w_thing && 'object' !== typeof w_thing) return;
+
+		// seal this thing
+		try {
+			Object.seal(w_thing);
+		}
+		catch(e_seal) {
+			console.log(`Cannot seal ${w_thing}`);
+		}
+
+		// each own property
+		for(const [, g_descriptor] of Object.entries(Object.getOwnPropertyDescriptors(w_thing))) {
+			// data descriptor
+			if(g_descriptor.value) {
+				deep_seal(g_descriptor.value);
+			}
+			// getter
+			else if(g_descriptor.get) {
+				const w_value = g_descriptor.get();
+
+				if(w_value) {
+					deep_seal(w_value);
+				}
+			}
+		}
+
+		// recurse on prototype
+		deep_seal(Reflect.getPrototypeOf(w_thing));
+	},
 
 	async import_sk(sxb64_sk: string, s_name='Citizen '+uuid_v4().slice(0, 4)) {
 		const atu8_sk = base64_to_buffer(sxb64_sk);
@@ -1692,15 +1195,23 @@ Object.assign(globalThis, {
 		return await import_private_key(kn_sk, s_name);
 	},
 
-	async import_account(g_account: AccountInterface): Promise<AccountPath> {
+	async import_account(g_account: AccountStruct): Promise<AccountPath> {
 		return await Accounts.open(ks_accounts => ks_accounts.put(g_account));
 	},
 
-	async import_secrets(a_data: Array<number[]>, a_secrets: SecretInterface[]) {
+	async import_secrets(a_data: Array<number[]>, a_secrets: SecretStruct[]) {
 		for(let i_secret=0; i_secret<a_secrets.length; i_secret++) {
 			await Secrets.put(Uint8Array.from(a_data[i_secret]), a_secrets[i_secret]);
 		}
 	},
+
+	async inspect_tx(si_tx: string, si_caip2: Caip2.String) {
+		const [, si_namespace, si_reference] = R_CAIP_2.exec(si_caip2)!;
+		const p_chain = Chains.pathFor(si_namespace as 'cosmos', si_reference);
+		const g_chain = (await Chains.at(p_chain))!;
+		const k_network = await Providers.activateDefaultFor(g_chain);
+		return await k_network.inspectTx(si_tx);
+	}
 });
 
 

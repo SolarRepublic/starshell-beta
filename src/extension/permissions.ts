@@ -1,11 +1,11 @@
 import type {SessionRequest} from '#/meta/api';
 import type {Dict} from '#/meta/belt';
 import {ode} from '#/util/belt';
-import type {Caip2, ChainInterface, ChainPath} from '#/meta/chain';
+import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 import {Chains} from '#/store/chains';
 import {Accounts} from '#/store/accounts';
 import type { AppChainConnection } from '#/meta/app';
-import type { AccountInterface, AccountPath } from '#/meta/account';
+import type { AccountStruct, AccountPath } from '#/meta/account';
 
 export interface PermissionsRegistry {
 	doxx_name: true;
@@ -17,7 +17,7 @@ export interface PermissionsRegistry {
 
 export interface PermissionsRequestBlock {
 	a_account_paths: AccountPath[];
-	h_chains: Record<Caip2.String, ChainInterface>;
+	h_chains: Record<Caip2.String, ChainStruct>;
 	h_sessions: Dict<SessionRequest>;
 	h_flattened?: Partial<PermissionsRegistry>;
 	h_connections?: Record<ChainPath, AppChainConnection>;

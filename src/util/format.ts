@@ -215,6 +215,18 @@ export function format_time(xt_timestamp: number): string {
 	return `${s_out} at ${g_then.hour}:${g_then.minute} ${g_then.dayPeriod}`;
 }
 
+export function format_date_long(xt_timestamp: number): string {
+	return new Intl.DateTimeFormat('en-US', {
+		year: 'numeric',
+		month: 'numeric',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: 'numeric',
+		second: 'numeric',
+		hour12: false,
+		timeZone: 'America/Los_Angeles',
+	}).format(new Date(xt_timestamp));
+}
 
 export function snake_to_camel(s_snake: string): string {
 	const a_words = s_snake.split('_');

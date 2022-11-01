@@ -4,15 +4,15 @@
 	import {Screen} from './_screens';
 
 	import type {Completed} from '#/entry/flow';
-	import type {AppChainConnection, AppInterface} from '#/meta/app';
+	import type {AppChainConnection, AppStruct} from '#/meta/app';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import {getContext} from 'svelte';
 	import AppBanner from '../ui/AppBanner.svelte';
-	import type {Caip2, ChainInterface, ChainPath} from '#/meta/chain';
+	import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 	import {fodemtv, ode, ofe} from '#/util/belt';
 	import type {Dict} from '#/meta/belt';
 	import type {SessionRequest} from '#/meta/api';
-	import type {AccountInterface} from '#/meta/account';
+	import type {AccountStruct} from '#/meta/account';
 	import {Chains} from '#/store/chains';
 	import {yw_chain, yw_provider} from '../mem';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
@@ -52,8 +52,8 @@
 	import {Accounts} from '#/store/accounts';
 	import {Incidents} from '#/store/incidents';
 	import {Contracts} from '#/store/contracts';
-	import type {PfpTarget} from '#/meta/pfp';
-	import type {TokenInterfaceDescriptor} from '#/meta/token';
+	import type {PfpPath, PfpTarget} from '#/meta/pfp';
+	import type {TokenStructDescriptor} from '#/meta/token';
 	import {Pfps} from '#/store/pfps';
 	import {SessionStorage} from '#/extension/session-storage';
 
@@ -125,15 +125,15 @@
 		completed,
 	} = load_flow_context<undefined>();
 
-	export let app: AppInterface;
+	export let app: AppStruct;
 
-	export let chains: Record<Caip2.String, ChainInterface>;
+	export let chains: Record<Caip2.String, ChainStruct>;
 	const h_chains = chains;
 
 	export let sessions: Dict<SessionRequest>;
 	const h_sessions = sessions;
 
-	export let accounts: AccountInterface[];
+	export let accounts: AccountStruct[];
 	const a_accounts = accounts;
 
 	const h_connections: Record<ChainPath, AppChainConnection> = {};
@@ -220,26 +220,49 @@
 			connections: h_connections,
 		};
 
-		// replace app definition
-		await Apps.put(g_app_new);
-
+		// construct site URL
 		const p_site = `${g_app_new.scheme}://${g_app_new.host}`;
+
+		// update app
+		{
+			// prep saved pfp path
+			let p_saved: PfpPath;
+
+			// pfp exists in session storage
+			const p_data = await SessionStorage.get(`pfp:${p_site}`);
+			if(p_data) {
+				// save pfp from session storage to persistent storage
+				[p_saved] = await Pfps.addData(p_data);
+
+				// update app definition
+				g_app_new.pfp = p_saved;
+			}
+
+			// replace app definition
+			await Apps.put(g_app_new);
+		}
 
 		// save contract definitions from app profile
 		const g_profile = await SessionStorage.get(`profile:${p_site}`);
 		if(g_profile) {
+			// open the contracts store for writing
 			await Contracts.open(async(ks_contracts) => {
-				for(const [, g_contract] of ode(g_profile.contracts)) {
-					const p_chain = g_contract.chain as ChainPath;
+				// each contract def in app profile
+				for(const [, g_contract] of ode(g_profile.contracts || {})) {
+					// ref contract's chain
+					const p_chain = g_contract.chain;
 
+					// parse chain path
 					const [si_family, si_chain] = Chains.parsePath(p_chain);
 
-					const h_interfaces = (g_contract.interfaces || {}) as TokenInterfaceDescriptor;
+					// prep token interfaces
+					const h_interfaces = (g_contract.interfaces || {}) as TokenStructDescriptor;
 
+					// construct path to contract pfp in session storage
 					let p_pfp = `pfp:${p_site}/${si_family}:${si_chain}`;
-					const si_interface_0 = Object.keys(h_interfaces)[0];
 
 					// caip-19 asset
+					const si_interface_0 = Object.keys(h_interfaces)[0];
 					if(si_interface_0) {
 						p_pfp += `/${si_interface_0}:${g_contract.bech32}`;
 					}
@@ -257,7 +280,9 @@
 						[p_saved] = await Pfps.addData(p_data);
 					}
 
+					// save contract to store
 					await ks_contracts.merge({
+						on: 1,
 						bech32: g_contract.bech32,
 						chain: g_contract.chain,
 						name: g_contract.name || 'Unlabeled',

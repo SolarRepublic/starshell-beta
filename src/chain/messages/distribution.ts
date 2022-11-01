@@ -15,17 +15,21 @@ export const DistributionMessages: MessageDict = {
 			amount: Coin[];
 		};
 
-		const a_fields: FieldConfig[] = [];
-
-		add_coins({
-			g_chain,
-			coins: a_coins,
-		}, a_fields);
-
 		return {
-			title: 'Fund Community Pool',
-			value: `Sends coins into the community pool. The community pool can be used to fund individuals or projects upon governance proposals being passed.`,
-			fields: a_fields,
+			describe() {
+				const a_fields: FieldConfig[] = [];
+
+				add_coins({
+					g_chain,
+					coins: a_coins,
+				}, a_fields);
+
+				return {
+					title: 'Fund Community Pool',
+					value: `Sends coins into the community pool. The community pool can be used to fund individuals or projects upon governance proposals being passed.`,
+					fields: a_fields,
+				};
+			},
 		};
 	},
 };

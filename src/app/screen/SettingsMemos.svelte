@@ -8,7 +8,7 @@
 	import Row from '../ui/Row.svelte';
 	import Toggle from '@solar-republic/svelte-toggle';
 	import {Screen, type Page} from './_screens';
-	import type {ChainInterface, ChainPath} from '#/meta/chain';
+	import type {ChainStruct, ChainPath} from '#/meta/chain';
 	import {Settings, type SettingsRegistry} from '#/store/settings';
 	import {yw_account, yw_owner} from '../mem';
 	import {syserr} from '../common';
@@ -30,7 +30,7 @@
 		h_settings = await Settings.get('e2e_encrypted_memos') || {};
 	})();
 
-	async function toggle_chain(p_chain: ChainPath, g_chain: ChainInterface, b_state: boolean) {
+	async function toggle_chain(p_chain: ChainPath, g_chain: ChainStruct, b_state: boolean) {
 		// do not apply if busy
 		if(b_busy) return;
 

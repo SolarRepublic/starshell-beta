@@ -1,12 +1,12 @@
-import {Vault} from '#/crypto/vault';
-
-import {F_NOOP, timeout} from '#/util/belt';
-import {text_to_buffer} from '#/util/data';
-import {global_broadcast} from '#/script/msg-global';
-import {PublicStorage} from '#/extension/public-storage';
 import {NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM, XG_64_BIT_MAX} from './constants';
 import {AlreadyRegisteredError, CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from './errors';
+
+import {Vault} from '#/crypto/vault';
+import {PublicStorage} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
+import {global_broadcast} from '#/script/msg-global';
+import {F_NOOP, timeout} from '#/util/belt';
+import {text_to_buffer} from '#/util/data';
 
 
 /**

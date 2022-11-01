@@ -1,137 +1,157 @@
-<script lang="ts">	
+<script lang="ts">
+	import type {AccountStruct, AccountPath} from '#/meta/account';
+	import type {Dict} from '#/meta/belt';
+	import type {ContactPath} from '#/meta/contact';
+	import type {ProviderPath} from '#/meta/provider';
+	
+	import type {ExpoundedRow, SearchItem} from '#/meta/search';
+	
+	import {ClassType} from '../def';
+	
+	import {load_page_context} from '../svelte';
+	
+	import AccountView from '##/screen/AccountView.svelte';
+	// import ChainView from '##/screen/ChainView.svelte';
+	// import ContractView from '##/screen/ContractView.svelte';
+	import ContactView from '##/screen/ContactView.svelte';
+	import HoldingView from '##/screen/HoldingView.svelte';
+	import ProviderView from '##/screen/ProviderView.svelte';
+	
+	
+	import Put from './Put.svelte';
 	import Row from './Row.svelte';
 
-	import {Icon} from '#/objects/icon';
-	import type {Hash} from '#/meta/types';
-	import Pfp from './Pfp.svelte';
-	import {push_ref, push_screen, yw_cancel_search, yw_search} from '#/app';
-	import AccountView from '#/screen/AccountView.svelte';
-	import type {Account} from '#/objects/account';
-	import ChainView from '#/screen/ChainView.svelte';
-	import ContactView from '#/screen/ContactView.svelte';
-	import type {Chain} from '#/objects/chain';
-	import ProviderEdit from '#/screen/ProviderEdit.svelte';
-	import NftView from '#/screen/NftView.svelte';
-	import TokenHoldingView from '#/screen/TokenHoldingView.svelte';
-	import type {Holding} from '#/objects/holding';
-	import {ode} from '#/util/belt';
-	import type {WisprUri} from '#/state/path';
-
+	const {
+		k_page,
+	} = load_page_context();
 
 	export let item: SearchItem;
 
-	const p_item = item.iri;
-	const si_class = item.class;
+	export let detail: HTMLElement | null | undefined = null;
 
-	let k_thing: Definable<SearchItem>;
+	const {
+		class: si_class,
+		resource: g_resource,
+		resourcePath: p_resource,
+	} = item;
 
 	const H_CLASS_MAP = {
 		[ClassType.ACCOUNT]: {
-			things: H_ACCOUNTS,
+			// things: H_ACCOUNTS,
 			open() {
-				push_screen(AccountView, {
-					account: k_thing as Account,
+				k_page.push({
+					creator: AccountView,
+					props: {
+						accountPath: p_resource as AccountPath,
+					},
 				});
 			},
 		},
 		[ClassType.CHAIN]: {
-			things: H_CHAINS,
+			// things: H_CHAINS,
 			open() {
-				push_screen(ChainView, {
-					chain: k_thing as Chain,
-				});
+				// k_page.push({
+				// 	creator: ChainView,
+				// 	props: {
+				// 		chain: k_thing as ChainStruct,
+				// 	},
+				// });
 			},
 		},
 		[ClassType.CONTACT]: {
-			things: H_CONTACTS,
+			// things: H_CONTACTS,
 			open() {
-				push_screen(ContactView, {
-					contact: k_thing as Contact,
+				k_page.push({
+					creator: ContactView,
+					props: {
+						contact: p_resource as ContactPath,
+					},
 				});
 			},
 		},
 		[ClassType.CONTRACT]: {
-			things: H_CONTRACTS,
+			// things: H_CONTRACTS,
 			open() {
-				// push_screen(Contract, {
+					// push_screen(Contract, {
 
-				// });
+					// });
 			},
 		},
 		[ClassType.PROVIDER]: {
-			things: H_PROVIDERS,
+			// things: H_PROVIDERS,
 			open() {
-				push_screen(ProviderEdit, {
-					provider: k_thing as Provider,
+				k_page.push({
+					creator: ProviderView,
+					props: {
+						provider: p_resource as ProviderPath,
+					},
 				});
 			},
 		},
-		[ClassType.SNIP721]: {
-			things: H_NFTS,
+		// [ClassType.SNIP721]: {
+		// 	things: H_NFTS,
+		// 	open() {
+		// 		k_page.push({
+		// 			creator: NftView,
+		// 			props: {
+		// 				nft: k_thing as NftInt,
+		// 			},
+		// 		});
+		// 	},
+		// },
+		[ClassType.APP]: {
+			// things: H_SITES,
 			open() {
-				push_screen(NftView, {
-					nft: k_thing as Nft,
-				});
-			},
-		},
-		[ClassType.SITE]: {
-			things: H_SITES,
-			open() {
-				// push_screen(Site, {
+					// push_screen(Site, {
 
-				// });
+					// });
 			},
 		},
 		[ClassType.TOKEN]: {
-			things: H_TOKENS,
+			// things: H_TOKENS,
 			open() {
-				const k_holding = Object.values(H_HOLDINGS).find(k_holding => p_item === k_holding.def.tokenRef);
+				const k_holding = Object.values(H_HOLDINGS).find(k_holding => p_resource === k_holding.def.tokenRef);
 
 				if(k_holding) {
-					push_screen(TokenHoldingView, {
-						holding: k_holding,
+					k_page.push({
+						creator: HoldingView,
+						props: {
+							holding: k_holding,
+						},
 					});
 				}
-				// else {
+					// else {
 
-				// }
+					// }
 			},
 		},
-	} as unknown as Hash<{
-		things: Record<WisprUri, Definable<SearchItem>>;
+	} as unknown as Dict<{
 		open: VoidFunction;
 	}>;
 
 
 
-	let gd_thing = null;
 	const g_class = H_CLASS_MAP[si_class];
-	const h_things = g_class.things;
 
-	k_thing = h_things[p_item];
-	if(h_things && k_thing) {
-		gd_thing = k_thing.def;
-	}
+	// const p_icon = gd_thing?.iconRef || '';
+	// const a_tags = gd_thing?.tagRefs || [];
 
-	const p_icon = gd_thing?.iconRef || '';
-	const a_tags = gd_thing?.tagRefs || [];
+	// let s_name = item.label;
+	// switch(si_class) {
+	// 	case ClassType.SNIP721: {
+	// 		if(!s_name && gd_thing) {
+	// 			s_name = gd_thing.id;
+	// 		}
 
-	let s_name = item.label;
-	switch(si_class) {
-		case ClassType.SNIP721: {
-			if(!s_name && gd_thing) {
-				s_name = gd_thing.id;
-			}
-	
-			break;
-		}
-	}
+	// 		break;
+	// 	}
+	// }
 
-	function open() {
-		$yw_search = '';
-		$yw_cancel_search();
-		g_class.open();
-	}
+	// function open() {
+	// 	$yw_search = '';
+	// 	$yw_cancel_search();
+	// 	g_class.open();
+	// }
 
 </script>
 
@@ -139,10 +159,21 @@
 
 </style>
 
-<Row name={s_name} detail={item.detail} iconRef={p_icon} tagRefs={a_tags}
-	on:click={() => open()}
+<Row name={item.name} resource={g_resource} resourcePath={p_resource}
+	data={{
+		path: p_resource,
+		class: item.class,
+	}}
 >
-	<svelte:fragment slot="icon">
+<!-- detail={item.detail} iconRef={p_icon} tagRefs={a_tags} -->
+	<!-- <svelte:fragment slot="icon">
 		<Pfp name={item.label} iconRef={p_icon} circular={![ClassType.ACCOUNT, ClassType.CONTACT, ClassType.SITE, ClassType.SNIP721].includes(si_class)} />
-	</svelte:fragment>
+	</svelte:fragment> -->
+	<!-- {#if expounded?.detail} -->
+		<span class="expounded" slot="detail">
+			{#if detail}
+				<Put element={detail} />
+			{/if}
+		</span>
+	<!-- {/if} -->
 </Row>

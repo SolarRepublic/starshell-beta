@@ -1,18 +1,20 @@
+import type {Dict} from '#/meta/belt';
+import type {ImageMedia, ImageMediaTarget} from '#/meta/media';
+import type {ImageSet, Pfp, PfpStruct, PfpPath, PfpTarget} from '#/meta/pfp';
 import type {Resource} from '#/meta/resource';
-import type {ImageSet, Pfp, PfpInterface, PfpPath, PfpTarget} from '#/meta/pfp';
 
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
 
-import {R_DATA_IMAGE_URL_ANY, SI_STORE_PFPS} from '#/share/constants';
-import {dd, uuid_v4} from '#/util/dom';
 import {Medias} from './medias';
-import type {Dict} from '#/meta/belt';
-import type {ImageMedia, ImageMediaTarget} from '#/meta/media';
-import {text_to_base64} from '#/util/data';
+
 import {SessionStorage} from '#/extension/session-storage';
+import {R_DATA_IMAGE_URL_ANY, SI_STORE_PFPS} from '#/share/constants';
+import {text_to_base64} from '#/util/data';
+import {dd, uuid_v4} from '#/util/dom';
+
 
 export type RenderConfig = {
 	alt?: string;
@@ -146,13 +148,13 @@ function picture(h_image: ImageSet, gc_render: RenderConfig, h_attrs: Dict={}): 
 	]);
 }
 
-type SavedPfpEntry = [PfpPath<'plain'>, PfpInterface<'plain'>];
+type SavedPfpEntry = [PfpPath<'plain'>, PfpStruct<'plain'>];
 
 export const Pfps = create_store_class({
 	store: SI_STORE_PFPS,
 	extension: 'map',
 	class: class PfpI extends WritableStoreMap<typeof SI_STORE_PFPS> {
-		// static pathFrom(g_pfp: PfpInterface): PfpPath {
+		// static pathFrom(g_pfp: PfpStruct): PfpPath {
 		// 	return `/template.pfp/id.${hash_json(g_pfp)}`;
 		// }
 
@@ -173,6 +175,16 @@ export const Pfps = create_store_class({
 					},
 				}, gc_render);
 			}
+			// direct svg
+			else if(p_pfp.startsWith('svg:')) {
+				// render data URL
+				return Pfps.render({
+					type: 'plain',
+					image: {
+						default: p_pfp.slice('svg:'.length),
+					},
+				}, gc_render);
+			}
 			// store ref
 			else {
 				const g_pfp = await Pfps.at(p_pfp as Resource.Path<Pfp>);
@@ -183,7 +195,7 @@ export const Pfps = create_store_class({
 			}
 		}
 
-		static render(g_pfp: PfpInterface, gc_render: RenderConfig): HTMLElement {
+		static render(g_pfp: PfpStruct, gc_render: RenderConfig): HTMLElement {
 			// dimension styling
 			const sx_style_picture = `width:${gc_render.dim}px; height:${gc_render.dim}px;`;
 
@@ -229,7 +241,7 @@ export const Pfps = create_store_class({
 			const p_media = await Medias.put('image', sx_data);
 
 			// prep struct
-			const g_pfp: PfpInterface<'plain'> = {
+			const g_pfp: PfpStruct<'plain'> = {
 				type: 'plain',
 				image: {
 					default: p_media,
@@ -243,7 +255,11 @@ export const Pfps = create_store_class({
 			return [p_pfp, g_pfp];
 		}
 
-		async add(g_pfp: PfpInterface): Promise<PfpPath> {
+		static add(g_pfp: PfpStruct): Promise<PfpPath> {
+			return Pfps.open(ks => ks.add(g_pfp));
+		}
+
+		async add(g_pfp: PfpStruct): Promise<PfpPath> {
 			// generate pfp path
 			const p_pfp: PfpPath = `/template.pfp/uuid.${uuid_v4()}`;
 
@@ -257,7 +273,7 @@ export const Pfps = create_store_class({
 			return p_pfp;
 		}
 
-		async update(p_pfp: PfpPath, g_pfp: PfpInterface): Promise<void> {
+		async update(p_pfp: PfpPath, g_pfp: PfpStruct): Promise<void> {
 			// item does not exist
 			if(!this._w_cache[p_pfp]) {
 				throw new Error(`Attempted to update a PFP item that does not exist: <${p_pfp}>`);

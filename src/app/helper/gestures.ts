@@ -1,28 +1,32 @@
-import type { Dict, Promisable } from "#/meta/belt";
-import { F_NOOP } from "#/util/belt";
+import type {Promisable} from '#/meta/belt';
+import {F_NOOP} from '#/util/belt';
 
-export interface SwipeRightGestureConfig<
+export interface GenericGestureConfig<
 	g_context extends object=object,
 > {
 	context?: g_context | undefined;
 	init(): g_context | undefined;
-	move(xl_dx: number, g_context: g_context): Promisable<void>;
+	move(xl_axis: number, g_context: g_context): Promisable<void>;
 	release(g_context: g_context, x_velocity: number): Promisable<void>;
 	cancel(g_context: g_context): Promisable<void>;
 }
-
 
 const a_touches_start: Touch[] = [];
 
 let b_gesture_init_edge_left = false;
 let b_gesture_active_swipe_right = false;
+let b_gesture_active_overscroll = false;
 
-let gc_swipe_right = {
+const init_config = () => ({
 	init: F_NOOP,
 	move: F_NOOP,
 	release: F_NOOP,
 	cancel: F_NOOP,
-} as SwipeRightGestureConfig;
+} as GenericGestureConfig);
+
+let gc_swipe_right = init_config();
+
+let gc_overscroll = init_config();
 
 function along_left_edge(d_touch: Touch) {
 	const xl_width = visualViewport?.width || window.innerWidth;
@@ -45,6 +49,7 @@ function touches_to_array(d_event: TouchEvent, a_touches: Touch[]=[]) {
 
 	return a_touches;
 }
+
 
 addEventListener('touchstart', (d_event) => {
 	touches_to_array(d_event, a_touches_start);
@@ -72,6 +77,7 @@ addEventListener('touchstart', (d_event) => {
 			// cancel all single-touch gestures
 			b_gesture_init_edge_left = false;
 			b_gesture_active_swipe_right = false;
+			b_gesture_active_overscroll = false;
 		}
 	}
 });
@@ -96,6 +102,11 @@ addEventListener('touchmove', (d_event) => {
 			// active gesture
 			if(b_gesture_active_swipe_right) {
 				void gc_swipe_right.move(xl_dx, gc_swipe_right.context!);
+				return;
+			}
+			else if(b_gesture_active_overscroll) {
+				void gc_overscroll.move(xl_dy, gc_overscroll.context!);
+				return;
 			}
 			// movement from left edge
 			else if(b_gesture_init_edge_left) {
@@ -107,7 +118,15 @@ addEventListener('touchmove', (d_event) => {
 
 						// call move
 						void gc_swipe_right.move(xl_dx, gc_swipe_right.context);
+						return;
 					}
+				}
+			}
+
+			// scrolling up
+			if(Math.abs(xl_dx) < 10 && xl_dy >= 10) {
+				if((gc_overscroll.context = gc_overscroll.init())) {
+					b_gesture_active_overscroll = true;
 				}
 			}
 		}
@@ -118,6 +137,7 @@ addEventListener('touchmove', (d_event) => {
 function reset_gestures() {
 	b_gesture_init_edge_left = false;
 	b_gesture_active_swipe_right = false;
+	b_gesture_active_overscroll = false;
 }
 
 addEventListener('touchcancel', () => {
@@ -128,15 +148,20 @@ addEventListener('touchend', () => {
 	if(b_gesture_active_swipe_right) {
 		void gc_swipe_right.release?.(gc_swipe_right.context!, 0);
 	}
+	else if(b_gesture_active_overscroll) {
+		void gc_overscroll.release?.(gc_overscroll.context!, 0);
+	}
 
 	reset_gestures();
 });
 
 
 export const Gestures = {
-	swipe_right<
-		g_context extends object=object,
-	>(_gc_swipe_right: SwipeRightGestureConfig<g_context>) {
-		gc_swipe_right = _gc_swipe_right;
+	swipe_right<g_context extends object=object>(gc_gesture: GenericGestureConfig<g_context>): void {
+		gc_swipe_right = gc_gesture;
+	},
+
+	overscroll<g_context extends object=object>(gc_gesture: GenericGestureConfig<g_context>): void {
+		gc_overscroll = gc_gesture;
 	},
 };

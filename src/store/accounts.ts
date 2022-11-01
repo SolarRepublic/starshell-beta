@@ -1,5 +1,5 @@
-import type {AccountInterface, AccountPath} from '#/meta/account';
-import type {Bech32, ChainInterface, ChainNamespaceKey} from '#/meta/chain';
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {Bech32, ChainStruct, ChainNamespaceKey} from '#/meta/chain';
 
 import {
 	create_store_class,
@@ -21,7 +21,7 @@ type PathFor<
 > = `/family.${si_family}/account.${Replace<s_pubkey, ':', '+'>}`;
 
 type PathFromAccount<
-	g_account extends AccountInterface,
+	g_account extends AccountStruct,
 > = PathFor<g_account['family'], g_account['pubkey']>;
 
 export class NoAccountOwner extends Error {}
@@ -37,19 +37,19 @@ export const Accounts = create_store_class({
 			return `/family.${si_family}/account.${s_pubkey.replace(/:/g, '+')}` as PathFor<si_family, s_pubkey>;
 		}
 
-		static pathFrom(g_account: AccountInterface): PathFromAccount<typeof g_account> {
+		static pathFrom(g_account: AccountStruct): PathFromAccount<typeof g_account> {
 			return AccountsI.pathFor(g_account.family, g_account.pubkey);
 		}
 
-		static async get(si_family: ChainNamespaceKey, s_pubkey: string): Promise<null | AccountInterface> {
+		static async get(si_family: ChainNamespaceKey, s_pubkey: string): Promise<null | AccountStruct> {
 			return (await Accounts.read()).get(si_family, s_pubkey);
 		}
 
-		static async find(sa_owner: Bech32, g_chain: ChainInterface): Promise<[AccountPath, AccountInterface]> {
+		static async find(sa_owner: Bech32, g_chain: ChainStruct): Promise<[AccountPath, AccountStruct]> {
 			return (await Accounts.read()).find(sa_owner, g_chain);
 		}
 
-		static async getSigningKey(g_account: AccountInterface): Promise<Secp256k1Key> {
+		static async getSigningKey(g_account: AccountStruct): Promise<Secp256k1Key> {
 			// ref account secret path
 			const p_secret = g_account.secret;
 
@@ -90,7 +90,7 @@ export const Accounts = create_store_class({
 			});
 		}
 
-		get(si_family: ChainNamespaceKey, s_pubkey: string): AccountInterface | null {
+		get(si_family: ChainNamespaceKey, s_pubkey: string): AccountStruct | null {
 			// prepare path
 			const p_res = AccountsI.pathFor(si_family, s_pubkey);
 
@@ -98,7 +98,7 @@ export const Accounts = create_store_class({
 			return this._w_cache[p_res] ?? null;
 		}
 
-		async put(g_account: AccountInterface): Promise<PathFromAccount<typeof g_account>> {
+		async put(g_account: AccountStruct): Promise<PathFromAccount<typeof g_account>> {
 			// prepare path
 			const p_res = AccountsI.pathFrom(g_account);
 
@@ -112,7 +112,7 @@ export const Accounts = create_store_class({
 			return p_res;
 		}
 
-		find(sa_owner: Bech32, g_chain: ChainInterface): [AccountPath, AccountInterface] {
+		find(sa_owner: Bech32, g_chain: ChainStruct): [AccountPath, AccountStruct] {
 			for(const [p_account, g_account] of ode(this._w_cache)) {
 				const sa_test = Chains.addressFor(g_account.pubkey, g_chain);
 				if(sa_test === sa_owner) {

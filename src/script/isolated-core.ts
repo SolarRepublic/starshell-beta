@@ -3,7 +3,7 @@ import {ode, timeout} from '#/util/belt';
 import {is_dict} from '#/util/belt';
 
 import type {ConnectionManifestV1, ContractDescriptor, SessionRequest} from '#/meta/api';
-import type {Bech32, Caip2, ChainInterface, ChainNamespaceKey, ContractInterface} from '#/meta/chain';
+import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ContractStruct} from '#/meta/chain';
 
 import {A_CHAIN_NAMESPACES, B_SAFARI_MOBILE, G_USERAGENT, N_PX_DIM_ICON, RT_CAIP_2_NAMESPACE, RT_CAIP_2_REFERENCE, R_BECH32, R_CAIP_10, R_CAIP_19, R_CAIP_2, R_CHAIN_ID_VERSION, R_CHAIN_NAME, R_CONTRACT_NAME, R_DATA_IMAGE_URL_WEB, R_TOKEN_SYMBOL} from '#/share/constants';
 import type {Vocab} from '#/meta/vocab';
@@ -34,7 +34,7 @@ const f_runtime = () => chrome.runtime as Vocab.TypedRuntime<IcsToService.Public
 export const ServiceRouter = {
 	async connect(g_manifest: ConnectionManifestV1): Promise<{}> {
 		debug(`Evaluating connection manifest: %o`, g_manifest);
-debugger;
+
 		// invalid structure
 		if(!is_dict(g_manifest) || 'string' !== typeof g_manifest.schema) {
 			throw new Error('Invalid manifest structure');
@@ -57,7 +57,7 @@ debugger;
 		} = g_manifest;
 
 		// valid chains
-		const h_chains_valid: Record<Caip2.String, ChainInterface> = {};
+		const h_chains_valid: Record<Caip2.String, ChainStruct> = {};
 
 		// chain errors
 		const h_chains_error: Dict<{
@@ -478,7 +478,7 @@ export async function load_app_pfp(): Promise<void> {
 			// save pfp data URL to session storage
 			const p_pfp = `pfp:${location.origin}` as const;
 
-			// @ts-expect-error TypeScript doesn't understand
+			// set pfp
 			await SessionStorage.set({
 				[p_pfp]: p_data,
 			});
@@ -512,7 +512,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 			// save pfp data URL to session storage
 			const p_pfp = `pfp:${location.origin}/${si_caip2}` as const;
 
-			// @ts-expect-error TypeScript doesn't understand
+			// save to session
 			await SessionStorage.set({
 				[p_pfp]: sx_data,
 			});
@@ -535,7 +535,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 			// save pfp data URL to session storage
 			const p_pfp = `pfp:${location.origin}/${si_caip10}` as const;
 
-			// @ts-expect-error TypeScript doesn't understand
+			// save to session
 			await SessionStorage.set({
 				[p_pfp]: sx_data,
 			});
@@ -558,7 +558,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 			// save pfp data URL to session storage
 			const p_pfp = `pfp:${location.origin}/${si_caip19}` as const;
 
-			// @ts-expect-error TypeScript doesn't understand
+			// save to session
 			await SessionStorage.set({
 				[p_pfp]: sx_data,
 			});
@@ -571,7 +571,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 	debug(`App profiler finished scanning links in head`);
 
 	// prep sanitized contract def dict
-	const h_contract_defs: Dict<ContractInterface> = {};
+	const h_contract_defs: Dict<ContractStruct> = {};
 
 	// each valid whip-003 script
 	for(const dm_script of qsa(document.head, ['toml', 'json'].map(s => `script[type^="application/${s}"][data-whip-003]`).join(',')) as HTMLScriptElement[]) {
@@ -632,7 +632,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 				}
 
 				// prep sanitized form
-				const g_sanitized = {} as ChainInterface;
+				const g_sanitized = {} as ChainStruct;
 
 				// .namespace property
 				{
@@ -694,7 +694,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 					// valid shape
 					if(is_dict(g_contract)) {
 						// prep sanitized form
-						const g_sanitized = {} as ContractInterface;
+						const g_sanitized = {} as ContractStruct;
 
 						// missing .chain property
 						if(!('chain' in g_contract)) {
@@ -743,7 +743,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 						}
 
 						// set address property
-						g_sanitized.bech32 = g_contract.address;
+						g_sanitized.bech32 = g_contract.address as Bech32;
 
 						// copy interfaces
 						if('interfaces' in g_contract) {
@@ -800,7 +800,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 							// need to generate one instead
 							else {
 								error(`Contract symbol "${si_contract}" does not match the acceptable pattern /${R_TOKEN_SYMBOL.source}/u\nA generated symbol will be used instead`);
-								si_symbol = await generate_token_symbol(g_sanitized.bech32 as Bech32);
+								si_symbol = await generate_token_symbol(g_sanitized.bech32);
 								debug(`Using generated "${si_symbol}" symbol instead of provided "${si_contract}"`);
 							}
 						}

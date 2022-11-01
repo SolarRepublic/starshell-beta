@@ -8,7 +8,11 @@ import type { MergeAll } from 'ts-toolbelt/out/Object/MergeAll';
 import type { Nameable, Pfpable } from './able';
 import type { PfpTarget } from './pfp';
 import type { Resource } from './resource';
-import type { TokenInterfaceDescriptor, TokenInterfaceKey, TokenSpecKey } from './token';
+import type { TokenStructDescriptor, TokenStructKey, TokenSpecKey } from './token';
+import type { Snip20 } from '#/schema/snip-20-def';
+import type { Coin } from '@cosmjs/amino';
+import type { O } from 'ts-toolbelt';
+import type { ProviderPath } from './provider';
 
 /**
  * Represents an address space for a certain type of accounts (e.g., a bech32 extension)
@@ -128,7 +132,7 @@ export namespace Slip44 {
 }
 
 
-export type CoinInfo = {
+export interface CoinInfo extends JsonObject {
 	decimals: number;
 	denom: string;
 	name: string;
@@ -136,7 +140,25 @@ export type CoinInfo = {
 	extra?: {
 		coingecko_id: string;
 	} & Dict;
-};
+}
+
+export interface FeeConfigPriced {
+	limit: bigint | string;
+	price: number | string;
+}
+
+export interface FeeConfigAmount {
+	limit: bigint | string;
+	amount: Coin[];
+}
+
+export type FeeConfig = O.Merge<
+	Pick<FeeConfigPriced, 'limit'>,
+	Partial<Omit<FeeConfigPriced, 'limit'>>
+> | O.Merge<
+	Pick<FeeConfigAmount, 'limit'>,
+	Partial<Omit<FeeConfigAmount, 'limit'>>
+>;
 
 export interface BlockExplorerConfig extends JsonObject {
 	base: string;
@@ -147,11 +169,13 @@ export interface BlockExplorerConfig extends JsonObject {
 	transaction: string;
 }
 
-
 export interface ChainFeatureRegistry {
 	secretwasm: {
-		interface: {
+		struct: {
 			consensusIoPubkey: string;
+			snip20GasLimits: {
+				[si_key in Snip20.AnyMessageKey]: `${bigint}`;
+			};
 		};
 	};
 	'ibc-go': {};
@@ -161,8 +185,8 @@ export interface ChainFeatureRegistry {
 export type ChainFeatureKey = keyof ChainFeatureRegistry;
 
 export type ChainFeaturesConfig = {
-	[si_key in ChainFeatureKey]?: ChainFeatureRegistry[si_key] extends {interface: JsonObject}
-		? ChainFeatureRegistry[si_key]['interface']
+	[si_key in ChainFeatureKey]?: ChainFeatureRegistry[si_key] extends {struct: JsonObject}
+		? ChainFeatureRegistry[si_key]['struct']
 		: {};
 };
 
@@ -173,7 +197,7 @@ export type Chain<
 	a_slip44s extends Slip44[]=Slip44[],
 > = Resource.New<{
 	segments: [ChainNamespace.Segment<si_namespace>, Chain.Segment<si_reference>];
-	interface: [{
+	struct: [{
 		/**
 		 * The chain's CAIP-2 namespace identifier <https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md>
 		 */
@@ -209,6 +233,12 @@ export type Chain<
 		 */
 		stakeCoinIds?: string[];
 
+		/**
+		 * Specifies an order to provider preferences
+		 */
+		providers: `/provider.${string}`[];
+
+
 		gasPrices: {
 			default: number;
 			steps: number[];
@@ -232,7 +262,7 @@ export type ChainPath = Resource.Path<Chain>;
 /**
  * Interface struct for a StarShell Chain
  */
-export type ChainInterface = Chain['interface'];
+export type ChainStruct = Chain['struct'];
 
 export namespace Chain {
 	export type Config = {
@@ -283,7 +313,7 @@ export namespace Chain {
 	>;
 
 	export type Bech32String<
-		h_bech32s extends ChainInterface['bech32s']=ChainInterface['bech32s'],
+		h_bech32s extends ChainStruct['bech32s']=ChainStruct['bech32s'],
 		as_keys extends keyof h_bech32s=keyof h_bech32s,
 		s_data extends string=string,
 	> = Compute<{
@@ -297,7 +327,7 @@ export namespace Chain {
 	> = `chain.${si_chain}`;
 
 		// : [z_chain] extends [ChainLike]
-		// 	? Segment<z_chain['interface']['id']>
+		// 	? Segment<z_chain['struct']['id']>
 		// 	: never;
 }
 
@@ -312,7 +342,7 @@ export namespace KnownChain {
 		];
 	}>;
 
-	export type SecretNetworkInterface = SecretNetwork['interface'];
+	export type SecretNetworkStruct = SecretNetwork['struct'];
 }
 
 
@@ -340,7 +370,7 @@ export type Agent<
 	si_addr_space extends keyof ChainNamespace.Bech32s<si_namespace>=keyof ChainNamespace.Bech32s<si_namespace>,
 > = Resource.New<{
 	segments: [ChainNamespace.Segment<si_namespace>, `agent.${si_agent}`];
-	interface: {
+	struct: {
 		/**
 		 * the chain namespace within which this agent operates
 		 */
@@ -369,13 +399,13 @@ export type Agent<
 }>;
 
 export type AgentPath = Resource.Path<Agent>;
-export type AgentInterface = Agent['interface'];
+export type AgentStruct = Agent['struct'];
 
 export namespace Agent {
 	export type ProxyFromEntity = Resource.New<{
 		extends: Entity;
 		segment: 'as.agent';
-		interface: {};
+		struct: {};
 	}>;
 }
 
@@ -386,7 +416,7 @@ export namespace Agent {
  * ```ts
  * Entity<
  * 	chain?: Chain,
- * 	spaces?: keyof chain['interfaces']['bech32s'],
+ * 	spaces?: keyof chain['struct']['bech32s'],
  * 	pubkey?: string,
  * >
  * ```
@@ -395,14 +425,14 @@ export namespace Agent {
  */
 export type Entity<
 	g_chain extends Chain=Chain,
-	as_spaces extends keyof g_chain['interface']['bech32s']=keyof g_chain['interface']['bech32s'],
+	as_spaces extends keyof g_chain['struct']['bech32s']=keyof g_chain['struct']['bech32s'],
 	s_pubkey extends string=string,
-> = Chain.Bech32String<g_chain['interface']['bech32s'], as_spaces, s_pubkey> extends infer sa_entity
-	? sa_entity extends Chain.Bech32String<g_chain['interface']['bech32s'], as_spaces, s_pubkey>
+> = Chain.Bech32String<g_chain['struct']['bech32s'], as_spaces, s_pubkey> extends infer sa_entity
+	? sa_entity extends Chain.Bech32String<g_chain['struct']['bech32s'], as_spaces, s_pubkey>
 		? Resource.New<{
 			segments: Concat<Tail<g_chain['segments']>, [`bech32.${sa_entity}`]>;
-			interface: {
-				bech32: sa_entity;
+			struct: {
+				bech32: sa_entity & Bech32;
 
 				// where the entity came from
 				origin: AgentOrEntityOrigin;
@@ -412,7 +442,7 @@ export type Entity<
 	: never;
 
 export type EntityPath = Resource.Path<Entity>;
-export type EntityInterface = Entity['interface'];
+export type EntityStruct = Entity['struct'];
 
 
 export type Holding<
@@ -424,7 +454,7 @@ export type Holding<
 
 	segments: [`holding.${si_coin}`];
 
-	interface: {
+	struct: {
 		chain: Resource.Path<g_chain>;
 		balance: BalanceBundle;
 	};
@@ -436,13 +466,16 @@ export type HoldingPath = Resource.Path<Holding>;
 export type Contract<
 	g_chain extends Chain=Chain,
 	s_pubkey extends string=string,
-	as_tokens extends TokenInterfaceKey=TokenInterfaceKey,
+	as_tokens extends TokenStructKey=TokenStructKey,
 > = Resource.New<{
 	extends: Entity<g_chain, 'acc', s_pubkey>;
 
 	segments: ['as.contract'];
 
-	interface: [{
+	struct: [{
+		// whether or not the contract is enabled
+		on: 0 | 1;
+
 		// which chain the contract exists on
 		chain: Resource.Path<g_chain>;
 
@@ -450,7 +483,7 @@ export type Contract<
 		hash: string;
 
 		// interfaces the contract implements
-		interfaces: TokenInterfaceDescriptor<as_tokens>;
+		interfaces: Partial<TokenStructDescriptor<as_tokens>>;
 
 		// log events associate this contract with sites that have used it
 		// ...
@@ -459,4 +492,4 @@ export type Contract<
 
 
 export type ContractPath = Resource.Path<Contract>;
-export type ContractInterface = ContractInterface;
+export type ContractStruct = Contract['struct'];

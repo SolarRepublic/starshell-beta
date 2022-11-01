@@ -1,7 +1,11 @@
-import {App, AppApiMode, AppInterface, AppPath} from '#/meta/app';
-import {Contact, ContactAgentType, ContactInterface, ContactPath} from '#/meta/contact';
-import type {Provider, ProviderPath} from '#/meta/provider';
-import type {Pfp, PfpTarget} from '#/meta/pfp';
+import type {AppStruct, AppPath} from '#/meta/app';
+import {AppApiMode} from '#/meta/app';
+import type {Dict} from '#/meta/belt';
+import type {ContractStruct} from '#/meta/chain';
+import type {ContactStruct, ContactPath} from '#/meta/contact';
+import {ContactAgentType} from '#/meta/contact';
+import type {PfpStruct, PfpTarget} from '#/meta/pfp';
+import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 import type {Store, StoreKey} from '#/meta/store';
 
 import {
@@ -25,10 +29,9 @@ import {
 	SI_STORE_WEB_RESOURCES,
 	SI_STORE_CONTRACTS,
 } from '#/share/constants';
-import type {Dict} from '#/meta/belt';
-import {fold, ode, oderac, oderom} from '#/util/belt';
+
+import {fodemtv, fold, ode, oderac, oderom} from '#/util/belt';
 import {buffer_to_base64, sha256_sync_insecure, text_to_buffer} from '#/util/data';
-import type { ContractInterface, EntityInterface } from '#/meta/chain';
 
 
 const type_check = <si_store extends StoreKey>(h_input: Store.Cache<si_store>): typeof h_input => h_input;
@@ -47,7 +50,7 @@ const cosmos_bech32s = <s_prefix extends string=string>(s_prefix: s_prefix) => (
 	valconspub: `${s_prefix}valconspub`,
 }) as const;
 
-export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(fold<PfpInterface, PfpInterface>([
+export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(fold<PfpStruct, PfpStruct>([
 	{
 		type: 'plain',
 		image: {
@@ -102,6 +105,42 @@ export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(fold<PfpInterf
 			default: H_MEDIA_LOOKUP['/media/token/secret-doge-bsc.svg'],
 		},
 	},
+	{
+		type: 'plain',
+		image: {
+			default: H_MEDIA_LOOKUP['/media/token/dai.svg'],
+		},
+	},
+	{
+		type: 'plain',
+		image: {
+			default: H_MEDIA_LOOKUP['/media/token/secret-bnb-bsc.svg'],
+		},
+	},
+	{
+		type: 'plain',
+		image: {
+			default: H_MEDIA_LOOKUP['/media/token/usdt.svg'],
+		},
+	},
+	{
+		type: 'plain',
+		image: {
+			default: H_MEDIA_LOOKUP['/media/token/wbtc.svg'],
+		},
+	},
+	{
+		type: 'plain',
+		image: {
+			default: H_MEDIA_LOOKUP['/media/chain/monero.svg'],
+		},
+	},
+	{
+		type: 'plain',
+		image: {
+			default: H_MEDIA_LOOKUP['/media/token/busd.svg'],
+		},
+	},
 ], (g_pfp, i_pfp) => ({
 	[`/template.pfp/uuid.${i_pfp}`]: g_pfp,
 })));
@@ -113,6 +152,9 @@ for(const [p_pfp, g_pfp] of ode(H_STORE_INIT_PFPS)) {
 		H_LOOKUP_PFP[g_media.data] = p_pfp;
 	}
 }
+
+const S_SNIP20_GAS_LIMIT_LOW = `${150_000n}` as const;
+const S_SNIP20_GAS_LIMIT_MORE = `${175_000n}` as const;
 
 export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 	'/family.cosmos/chain.pulsar-2': {
@@ -151,6 +193,26 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 		features: {
 			'secretwasm': {
 				consensusIoPubkey: '|dB)LVfX1mgQ<eeI6X*Uxq]/H-KwnPj1dPZ30;iB',
+				// gasLimits: fodemtv({
+				// 	'cosmos-sdk/MsgSend': 13_000n,
+				// }, xg => xg+''),
+				snip20GasLimits: {
+					transfer: `${180_000n}`,
+					send: S_SNIP20_GAS_LIMIT_MORE,
+					register_receive: S_SNIP20_GAS_LIMIT_LOW,
+					create_viewing_key: S_SNIP20_GAS_LIMIT_MORE,  // 175k
+					set_viewing_key: S_SNIP20_GAS_LIMIT_MORE,  // 175k
+					increase_allowance: S_SNIP20_GAS_LIMIT_LOW,
+					decrease_allowance: S_SNIP20_GAS_LIMIT_LOW,
+					transfer_from: S_SNIP20_GAS_LIMIT_LOW,
+					send_from: S_SNIP20_GAS_LIMIT_MORE,
+					mint: S_SNIP20_GAS_LIMIT_LOW,
+					set_minters: S_SNIP20_GAS_LIMIT_LOW,
+					burn: S_SNIP20_GAS_LIMIT_LOW,
+					burn_from: S_SNIP20_GAS_LIMIT_LOW,
+					deposit: S_SNIP20_GAS_LIMIT_LOW,  // 150k
+					redeem: S_SNIP20_GAS_LIMIT_LOW,
+				},
 			},
 			'ibc-go': {},
 			'ibc-transfer': {},
@@ -165,6 +227,7 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			transaction: '/transactions/{hash}#overview',
 		},
 		testnet: true,
+		providers: [],
 	},
 	'/family.cosmos/chain.theta-testnet-001': {
 		name: 'Cosmos Hub Theta',
@@ -208,49 +271,141 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			transaction: '/transactions/{hash}',
 		},
 		testnet: true,
+		providers: [],
 	},
 });
 
 export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold([
 	...[
 		{
-			name: 'Pulsar USDC',
+			name: 'Pulsar USD Coin',
 			bech32: 'secret1rzz7q3us7zksy3la7hjup33gvtqxyfljpaya2r',
 			pfp: H_LOOKUP_PFP['/media/token/secret-usdc-eth.svg'],
 			snip20: {
 				symbol: 'pUSDC',
+				extra: {
+					coingecko_id: 'usd-coin',
+				},
 			},
 		},
 		{
-			name: 'Pulsar ETH',
+			name: 'Pulsar Ethereum',
 			bech32: 'secret1zkqumk5l9efwlfprxl0zw8fqwxz0d0pvd020pr',
 			pfp: H_LOOKUP_PFP['/media/token/secret-eth-eth.svg'],
 			snip20: {
 				symbol: 'pETH',
+				extra: {
+					coingecko_id: 'ethereum',
+				},
 			},
 		},
 		{
-			name: 'Pulsar DOGE',
+			name: 'Pulsar Tether',
+			bech32: 'secret1na2lzyu27zwdkkd5xcdcgnrxawj5pzvm07fa0p',
+			pfp: H_LOOKUP_PFP['/media/token/usdt.svg'],
+			snip20: {
+				symbol: 'pUSDT',
+				extra: {
+					coingecko_id: 'tether',
+				},
+			},
+		},
+		{
+			name: 'Pulsar Binance',
+			bech32: 'secret1cf8pvts87kp424larws7vqfgd3kpd8vm84e3v4',
+			pfp: H_LOOKUP_PFP['/media/token/secret-bnb-bsc.svg'],
+			snip20: {
+				symbol: 'pBNB',
+				extra: {
+					coingecko_id: 'binancecoin',
+				},
+			},
+		},
+		{
+			name: 'Pulsar Binance USD',
+			bech32: 'secret18kfwq9d2k9xa7f6e40wutd6a85sjuecwk78hv8',
+			pfp: H_LOOKUP_PFP['/media/token/busd.svg'],
+			snip20: {
+				symbol: 'pBUSD',
+				extra: {
+					coingecko_id: 'binance-usd',
+				},
+			},
+		},
+		{
+			name: 'Pulsar Cosmos Hub',
+			bech32: 'secret1phueq2prrrc6l0q5ye55csqr7zzrl99dvxqx7a',
+			pfp: H_LOOKUP_PFP['/media/chain/cosmos-hub.svg'],
+			snip20: {
+				symbol: 'pATOM',
+				extra: {
+					coingecko_id: 'cosmos',
+				},
+			},
+		},
+		{
+			name: 'Pulsar Dogecoin',
 			bech32: 'secret1wsldxtnsrptfj447p0l32eepvdhap4wl6uh6hq',
 			pfp: H_LOOKUP_PFP['/media/token/secret-doge-bsc.svg'],
 			snip20: {
 				symbol: 'pDOGE',
+				extra: {
+					coingecko_id: 'dogecoin',
+				},
+			},
+		},
+		{
+			name: 'Pulsar DAI',
+			bech32: 'secret1gc9wg4xz97muz6clxflgt69js94g26wqm8eqqh',
+			pfp: H_LOOKUP_PFP['/media/token/dai.svg'],
+			snip20: {
+				symbol: 'pDAI',
+				extra: {
+					coingecko_id: 'dai',
+				},
+			},
+		},
+		{
+			name: 'Pulsar Wrapped Bitcoin',
+			bech32: 'secret1h0ehf7py5r0ejatvnrpwlnykl5qe9q997u5p4t',
+			pfp: H_LOOKUP_PFP['/media/token/wbtc.svg'],
+			snip20: {
+				symbol: 'pWBTC',
+				extra: {
+					coingecko_id: 'bitcoin',
+				},
+			},
+		},
+		{
+			name: 'Pulsar Monero',
+			bech32: 'secret1um29h7me55nmwxswkp7p55rzm56vjkzsvrdlg7',
+			pfp: H_LOOKUP_PFP['/media/chain/monero.svg'],
+			snip20: {
+				symbol: 'pXMR',
+				extra: {
+					coingecko_id: 'monero',
+				},
 			},
 		},
 	].map(g => ({
 		name: g.name,
 		bech32: g.bech32,
+		on: 0,
 		pfp: g.pfp,
 		chain: '/family.cosmos/chain.pulsar-2',
 		origin: 'built-in',
 		interfaces: {
 			snip20: {
-				viewingKey: '',
+				decimals: 6,
 				...g.snip20,
 			},
+			snip21: {},
+			snip22: {},
+			snip23: {},
+			snip24: {},
 		},
 		hash: '43eda3a25dfab766c6ad622828b4b780d5d31a77a344163358fffceaa136cfca',
-	}) as ContractInterface),
+	}) as ContractStruct),
 ], g_each => ({
 	[`${g_each.chain}/bech32.${g_each.bech32}/as.contract`]: g_each,
 })));
@@ -272,8 +427,8 @@ export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold
 	},
 ], g_each => ({
 	[`/provider.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: g_each,
-	// [Provider.pathFrom(g_each as ProviderInterface)]: g_each,
-})) as Record<ProviderPath, ProviderInterface>);
+	// [Provider.pathFrom(g_each as ProviderStruct)]: g_each,
+})) as Record<ProviderPath, ProviderStruct>);
 
 
 export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
@@ -287,13 +442,18 @@ export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
 	{
 		host: 'faucet.starshell.net',
 		name: 'StarShell Pulsar-2 Faucet',
-	},
-	{
-		host: 'faucet.secrettestnet.io',
-		name: 'Pulsar-2 Faucet',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 	},
 	{
 		host: 'faucet.pulsar.scrttestnet.com',
+		name: 'Pulsar-2 Faucet',
+	},
+	{
+		host: 'pulsar.faucet.trivium.network',
+		name: 'Trivium Pulsar-2 Faucet',
+	},
+	{
+		host: 'faucet.secrettestnet.io',
 		name: 'Pulsar-2 Faucet Alternative',
 	},
 ], g_each => ({
@@ -305,7 +465,7 @@ export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
 		api: AppApiMode.UNKNOWN,
 		...g_each,
 	},
-})) as Record<AppPath, AppInterface>);
+})) as Record<AppPath, AppStruct>);
 
 
 export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
@@ -319,7 +479,7 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		name: 'supdoggie',
 		pfp: H_LOOKUP_PFP['/media/other/supdoggie.png'],
 		notes: '',
-	} as ContactInterface,
+	} as ContactStruct,
 	{
 		namespace: 'cosmos',
 		chains: ['/family.cosmos/chain.pulsar-2'],
@@ -330,7 +490,7 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		name: 'faucet.starshell.net',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 		notes: '',
-	} as ContactInterface,
+	} as ContactStruct,
 	{
 		namespace: 'cosmos',
 		chains: ['/family.cosmos/chain.pulsar-2'],
@@ -341,7 +501,7 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		name: 'faucet.secrettestnet.io',
 		pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
 		notes: '',
-	} as ContactInterface,
+	} as ContactStruct,
 	{
 		namespace: 'cosmos',
 		chains: ['/family.cosmos/chain.pulsar-2'],
@@ -352,10 +512,10 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		name: 'faucet.pulsar.scrttestnet.com',
 		pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
 		notes: '',
-	} as ContactInterface,
+	} as ContactStruct,
 ], g_contact => ({
 	[`/family.${g_contact.namespace}/agent.${g_contact.addressData}/as.contact`]: g_contact,
-})) as Record<ContactPath, ContactInterface>);
+})) as Record<ContactPath, ContactStruct>);
 
 // export const H_STORE_INIT_ENTITIES = type_check<typeof SI_STORE_ENTITIES>(fold([]));
 
@@ -398,9 +558,11 @@ export const H_STORE_INITS: {
 			autum: '#7E9E24',
 			grass: '#3A6F16',
 			teal: '#009688',
-			sky: '#1976D2',
+			// sky: '#1976D2',,
+			faucet: '#1976D2',
 			violet: '#6200EA',
-			gray: '#607D8B',
+			// gray: '#607D8B',
+			stablecoin: '#607D8B',
 			brown: '#795548',
 			bright: '#ffffff',
 		}, (si_key, s_value, i_entry) => ({
@@ -409,7 +571,31 @@ export const H_STORE_INITS: {
 			name: si_key,
 			info: '',
 		})),
-		map: {},
+		map: {
+			// faucet accounts
+			...oderom(H_STORE_INIT_AGENTS, (p_agent, g_agent) => {
+				const g_contact = g_agent as ContactStruct;
+				if('robot' === g_contact.agentType) {
+					return {
+						[p_agent]: [8],
+					};
+				}
+			}),
+
+			// faucet apps
+			...oderom(H_STORE_INIT_APPS, p_app => ({
+				[p_app]: [8],
+			})),
+
+			// stablecoins
+			...oderom(H_STORE_INIT_CONTRACTS, (p_contract, g_contract) => {
+				if(['pUSDC', 'pUSDT', 'pBUSD', 'pDAI'].includes(g_contract.interfaces.snip20?.symbol)) {
+					return {
+						[p_contract]: [10],
+					};
+				}
+			}),
+		},
 	},
 	[SI_STORE_QUERY_CACHE]: {},
 	[SI_STORE_WEB_RESOURCES]: {},

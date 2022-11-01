@@ -42,7 +42,7 @@ import ActionsWall from '../ui/ActionsWall.svelte';
 		<button class="primary" on:click={() => k_page.push({
 			creator: AccountEdit,
 		})}>
-			Create new StarSehll account
+			Create new StarShell account
 		</button>
 
 		<button on:click={() => k_page.push({

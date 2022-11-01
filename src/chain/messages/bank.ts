@@ -1,11 +1,34 @@
-import type {Bech32} from '#/meta/chain';
+import type {Bech32, ChainStruct, CoinInfo} from '#/meta/chain';
+import type { Cw } from '#/meta/cosm-wasm';
 import type {FieldConfig} from '#/meta/field';
+import { Accounts } from '#/store/accounts';
+import { Agents } from '#/store/agents';
+import { Chains } from '#/store/chains';
+import { ode } from '#/util/belt';
+import { abbreviate_addr, format_amount } from '#/util/format';
 import type {Coin} from '@cosmjs/amino';
-import type {MessageDict} from './_types';
-import {add_coins} from './_util';
+import BigNumber from 'bignumber.js';
+import { to_fiat } from '../coin';
+import type {MessageDict, ReviewedMessage} from './_types';
+import {address_to_name, add_coins} from './_util';
+
+function coin_to_payload(g_amount: Coin, g_chain: ChainStruct): Cw.Amount {
+	// locate coin
+	for(const [si_coin_test, g_coin_test] of ode(g_chain.coins)) {
+		// found definition in chain
+		if(g_amount.denom === g_coin_test.denom) {
+			const x_amount = new BigNumber(g_amount.amount).shiftedBy(-g_coin_test.decimals).toNumber();
+			return `${format_amount(x_amount, true)} ${si_coin_test}` as Cw.Amount;
+		}
+	}
+
+	// unknown coin
+	return `${g_amount.amount} ${g_amount.denom}` as Cw.Amount;
+}
+
 
 export const BankMessages: MessageDict = {
-	'cosmos-sdk/MsgSend'(g_msg, {g_chain}) {
+	'cosmos-sdk/MsgSend'(g_msg, {g_chain, g_account, sa_owner}) {
 		const {
 			from_address: sa_sender,
 			to_address: sa_recipient,
@@ -16,28 +39,100 @@ export const BankMessages: MessageDict = {
 			amount: Coin[];
 		};
 
-		const a_fields: FieldConfig[] = [
-			{
-				type: 'contacts',
-				label: 'Recipient',
-				bech32s: [sa_recipient],
-				g_chain,
-			},
-		];
+		const a_payloads = a_coins.map(g => coin_to_payload(g, g_chain));
 
-		const as_coins = new Set<string>();
+		let s_payload = 'nothing';
 
-		add_coins({
-			g_chain,
-			coins: a_coins,
-			set: as_coins,
-		}, a_fields);
+		if(1 === a_payloads.length) {
+			s_payload = a_payloads[0];
+		}
+		else if(2 === a_payloads.length) {
+			s_payload = a_payloads.join(' + ');
+		}
+		else if(a_payloads.length > 2) {
+			s_payload = `${a_payloads.length} various amounts`;
+		}
 
-		const s_coins = [...as_coins].join(', ');
 		return {
-			title: `Send ${s_coins}`,
-			tooltip: `Sends coins from your account to the designated recipient.`,
-			fields: a_fields,
+			describe() {
+				const a_fields: FieldConfig[] = [
+					{
+						type: 'contacts',
+						label: 'Recipient',
+						bech32s: [sa_recipient],
+						g_chain,
+					},
+				];
+
+				const as_coins = new Set<string>();
+
+				add_coins({
+					g_chain,
+					coins: a_coins,
+					set: as_coins,
+				}, a_fields);
+
+				const s_coins = [...as_coins].join(', ');
+
+				return {
+					title: `Send ${s_coins}`,
+					tooltip: `Sends coins from your account to the designated recipient.`,
+					fields: a_fields,
+				};
+			},
+
+			async apply() {
+				return {
+					group: nl => `Payment${1 === nl? '': 's'} Sent`,
+					title: `✅ Sent ${s_payload} on ${g_chain.name}`,
+					message: `${s_payload} sent to ${await address_to_name(sa_recipient, g_chain)} from ${g_account.name} account`,
+				};
+			},
+
+			affects: () => sa_recipient === sa_owner,
+
+			review(b_pending, b_incoming) {
+				return {
+					title: b_incoming
+						? `Received ${s_payload}`
+						: `Sen${b_pending? 'ding': 't'} ${s_payload}`,
+					infos: [`on ${g_chain.name}`],
+					fields: [
+						b_incoming
+							? {
+								type: 'contacts',
+								bech32s: [sa_sender],
+								label: 'Sender',
+							}
+							: {
+								type: 'contacts',
+								bech32s: [sa_recipient],
+								label: 'Recipient',
+							},
+						{
+							type: 'key_value',
+							key: 'Amount',
+							value: s_payload,
+							// subvalue: to_fiat
+						},
+					],
+					resource: {
+						name: Object.values(g_chain.coins)[0].name,
+						pfp: g_chain.pfp,
+					},
+				} as ReviewedMessage;
+			},
+
+			async receive() {
+				return {
+					group: nl => `Payment${1 === nl? '': 's'} Received`,
+					// 💵💸
+					title: `💵 Received ${s_payload} on ${g_chain.name}`,
+					message: `${await address_to_name(sa_sender, g_chain)} sent ${s_payload} to your ${g_account.name} account`,
+				};
+			},
+
+			test: () => sa_recipient === Chains.addressFor(g_account.pubkey, g_chain),
 		};
 	},
 
@@ -56,92 +151,96 @@ export const BankMessages: MessageDict = {
 			}[];
 		};
 
-		const a_fields: FieldConfig[] = [];
-
-		const as_coins = new Set<string>();
-
-		// there are other inputs
-		if(a_inputs.length > 1) {
-			// each input
-			for(let i_input=0, nl_inputs=a_inputs.length; i_input<nl_inputs; i_input++) {
-				const {
-					address: sa_sender,
-					coins: a_coins,
-				} = a_inputs[i_input];
-
-				// create subfields
-				const a_subfields: FieldConfig[] = [];
-
-				// add contact
-				a_subfields.push({
-					type: 'contacts',
-					label: `Sender #${i_input+1}`,
-					bech32s: [sa_sender],
-					g_chain,
-				});
-
-				add_coins({
-					g_chain,
-					coins: a_coins,
-					label_prefix: '└─ ',
-					set: as_coins,
-				}, a_subfields);
-
-				// push group
-				a_fields.push({
-					type: 'group',
-					fields: a_subfields,
-				});
-			}
-		}
-
-		// insert gap to break between senders and receivers
-		a_fields.push({
-			type: 'gap',
-		});
-
-		// each output
-		for(let i_output=0, nl_outputs=a_outputs.length; i_output<nl_outputs; i_output++) {
-			const {
-				address: sa_recipient,
-				coins: a_coins,
-			} = a_outputs[i_output];
-
-			// create subfields
-			const a_subfields: FieldConfig[] = [];
-
-			// add contact
-			a_subfields.push({
-				type: 'contacts',
-				label: `Recipient #${i_output+1}`,
-				bech32s: [sa_recipient],
-				g_chain,
-			});
-
-			add_coins({
-				g_chain,
-				coins: a_coins,
-				label_prefix: '└─ ',
-				set: as_coins,
-			}, a_subfields);
-
-			// push group
-			a_fields.push({
-				type: 'group',
-				fields: a_subfields,
-			});
-		}
-
-		// insert gap to break end of receivers
-		a_fields.push({
-			type: 'gap',
-		});
-
-		const s_coins = [...as_coins].join(', ');
 		return {
-			title: `Multi-Send ${s_coins}`,
-			tooltip: `Sends coins from the given inputs (which include your account) to the designated recipients.`,
-			fields: a_fields,
+			describe() {
+				const a_fields: FieldConfig[] = [];
+
+				const as_coins = new Set<string>();
+
+				// there are other inputs
+				if(a_inputs.length > 1) {
+					// each input
+					for(let i_input=0, nl_inputs=a_inputs.length; i_input<nl_inputs; i_input++) {
+						const {
+							address: sa_sender,
+							coins: a_coins,
+						} = a_inputs[i_input];
+
+						// create subfields
+						const a_subfields: FieldConfig[] = [];
+
+						// add contact
+						a_subfields.push({
+							type: 'contacts',
+							label: `Sender #${i_input+1}`,
+							bech32s: [sa_sender],
+							g_chain,
+						});
+
+						add_coins({
+							g_chain,
+							coins: a_coins,
+							label_prefix: '└─ ',
+							set: as_coins,
+						}, a_subfields);
+
+						// push group
+						a_fields.push({
+							type: 'group',
+							fields: a_subfields,
+						});
+					}
+				}
+
+				// insert gap to break between senders and receivers
+				a_fields.push({
+					type: 'gap',
+				});
+
+				// each output
+				for(let i_output=0, nl_outputs=a_outputs.length; i_output<nl_outputs; i_output++) {
+					const {
+						address: sa_recipient,
+						coins: a_coins,
+					} = a_outputs[i_output];
+
+					// create subfields
+					const a_subfields: FieldConfig[] = [];
+
+					// add contact
+					a_subfields.push({
+						type: 'contacts',
+						label: `Recipient #${i_output+1}`,
+						bech32s: [sa_recipient],
+						g_chain,
+					});
+
+					add_coins({
+						g_chain,
+						coins: a_coins,
+						label_prefix: '└─ ',
+						set: as_coins,
+					}, a_subfields);
+
+					// push group
+					a_fields.push({
+						type: 'group',
+						fields: a_subfields,
+					});
+				}
+
+				// insert gap to break end of receivers
+				a_fields.push({
+					type: 'gap',
+				});
+
+				const s_coins = [...as_coins].join(', ');
+				return {
+					title: `Multi-Send ${s_coins}`,
+					tooltip: `Sends coins from the given inputs (which include your account) to the designated recipients.`,
+					fields: a_fields,
+				};
+			},
 		};
 	},
 };

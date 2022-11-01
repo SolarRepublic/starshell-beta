@@ -30,7 +30,7 @@
 
 <script lang="ts">
 	import type {Promisable} from '#/meta/belt';
-	import {ode} from '#/util/belt';
+	import {forever, F_NOOP, ode} from '#/util/belt';
 	
 	import SX_ICON_SEND from '#/icon/send.svg?raw';
 	import SX_ICON_RECV from '#/icon/recv.svg?raw';
@@ -97,6 +97,11 @@
 	};
 
 	/**
+	 * Set to true to display a loading portrait
+	 */
+	export let loading = false;
+
+	/**
 	 * Extract pfp and name from a resource
 	 */
 	export let resource: (Pfpable & Nameable) | null = null;
@@ -131,9 +136,10 @@
 	export let rootClasses = '';
 	const s_classes = rootClasses;
 
-	export let title: Promisable<string> = resource?.name || '';
+	export let title: Promisable<string> = resource?.name || (loading? forever(''):'');
+	export let postTitle: Promisable<string> = '';
 
-	export let subtitle = '';
+	export let subtitle: Promisable<string> = loading? forever(''): '';
 
 	/**
 	 * Configure which actions are available to this resource
@@ -185,6 +191,10 @@
 			white-space: nowrap;
 			overflow: scroll;
 			.hide-scrollbar();
+
+			.post-title {
+				color: var(--theme-color-text-med);
+			}
 
 			>.info {
 				fill: var(--theme-color-primary);
@@ -259,12 +269,15 @@
 					</slot>
 				</span>
 			{:else}
-				<PfpDisplay ref={pfp} resource={resource} dim={64} circular={b_circular} />
+				<PfpDisplay path={pfp} resource={resource} dim={64} circular={b_circular} />
 			{/if}
 		</div>
 	{/if}
 	<div class="title">
 		<Load input={title} classes="text" />
+		{#if postTitle}
+			<Load input={postTitle} classes="post-title" />
+		{/if}
 		{#if info}
 			<span class="info">
 				{@html SX_ICON_INFO}
@@ -275,19 +288,19 @@
 		<div class="subtitle">
 			<span class="text">
 				<slot name="subtitle">
-					{subtitle}
+					<Load input={subtitle} />
 				</slot>
 			</span>
 		</div>
 	{/if}
 
-	<InlineTags resourcePath={p_resource} rootStyle='margin: var(--ui-padding) 0 0 0;' />
+	<InlineTags hideIfEmpty resourcePath={p_resource} rootStyle='margin: var(--ui-padding) 0 0 0;' />
 
-	{#if h_actions}
+	{#if Object.keys(h_actions || {}).length}
 		<div class="actions">
 			{#each ode(h_actions) as [si_action, gc_action]}
-				<span class="action action-{si_action}" on:click={() => gc_action.trigger()}>
-					<span class="icon">
+				<span class="action action-{si_action}" on:click={loading? F_NOOP: () => gc_action.trigger()}>
+					<span class="global_svg-icon icon-diameter_20px icon">
 						{@html H_ACTIONS[si_action].icon}
 					</span>
 					<span class="label">

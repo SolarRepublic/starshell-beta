@@ -2,7 +2,7 @@ import {SignDoc} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 
 import {encodeSecp256k1Signature, serializeSignDoc, StdSignature} from '@cosmjs/amino';
 
-import type {AccountInterface} from '#/meta/account';
+import type {AccountStruct} from '#/meta/account';
 import type {AdaptedStdSignature, AdaptedStdSignDoc} from '#/schema/amino';
 import {Accounts} from '#/store/accounts';
 
@@ -13,7 +13,7 @@ export interface SignedDoc {
 }
 
 export async function signDirectDoc(
-	g_account: AccountInterface,
+	g_account: AccountStruct,
 	xg_account_number: bigint,
 	atu8_auth: Uint8Array,
 	atu8_body: Uint8Array,
@@ -40,7 +40,7 @@ export async function signDirectDoc(
 }
 
 export async function signAmino(
-	g_account: AccountInterface,
+	g_account: AccountStruct,
 	g_amino: AdaptedStdSignDoc,
 ): Promise<AdaptedStdSignature> {
 	// get account's signing key
@@ -51,7 +51,7 @@ export async function signAmino(
 
 	// sign doc as buffer
 	const atu8_signature = await k_key.sign(atu8_amino);
-debugger;
+
 	// produce signed doc bytes
 	return encodeSecp256k1Signature(k_key.exportPublicKey(), atu8_signature) as AdaptedStdSignature;
 }

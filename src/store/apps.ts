@@ -1,6 +1,7 @@
 import type {Replace} from 'ts-toolbelt/out/String/Replace';
-import type {App, AppInterface, AppPath, AppSchemeKey} from '#/meta/app';
 import type {Resource} from '#/meta/resource';
+import type {App, AppStruct, AppPath, AppSchemeKey} from '#/meta/app';
+import {AppApiMode} from '#/meta/app';
 
 import {
 	create_store_class,
@@ -10,15 +11,63 @@ import {
 import {SI_STORE_APPS} from '#/share/constants';
 import type {Dict, JsonObject} from '#/meta/belt';
 import {ode} from '#/util/belt';
-import type {ContractInterface} from '#/meta/chain';
+import type {ContractStruct} from '#/meta/chain';
+import { H_LOOKUP_PFP } from './_init';
 
-export interface AppFilterConfig extends Partial<AppInterface> {}
+export interface AppFilterConfig extends Partial<AppStruct> {}
 
 export interface AppProfile extends JsonObject {
 	name?: string | null | undefined;
 	pfps?: Dict;
-	contracts?: Dict<ContractInterface>;
+	contracts?: Dict<ContractStruct>;
 }
+
+
+export const G_APP_STARSHELL: AppStruct = {
+	scheme: 'wallet',
+	on: 1,
+	host: 'StarShell',
+	api: AppApiMode.STARSHELL,
+	connections: {},
+	name: 'StarShell',
+	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+};
+
+export const G_APP_EXTERNAL: AppStruct = {
+	scheme: 'wallet',
+	on: 0,
+	host: 'External',
+	api: AppApiMode.UNKNOWN,
+	connections: {},
+	name: 'Some External Source',
+	pfp: '',
+};
+
+export const G_APP_NULL: AppStruct = {
+	scheme: 'wallet',
+	on: 0,
+	host: 'null',
+	api: AppApiMode.UNKNOWN,
+	connections: {},
+	name: 'null',
+	pfp: '',
+};
+
+export const G_APP_NOT_FOUND: AppStruct = {
+	scheme: 'wallet',
+	on: 0,
+	host: 'not-found',
+	api: AppApiMode.UNKNOWN,
+	connections: {},
+	name: 'App not found',
+	pfp: '',
+};
+
+export const H_WALLET_APPS = {
+	[G_APP_STARSHELL.host]: G_APP_STARSHELL,
+	[G_APP_EXTERNAL.host]: G_APP_EXTERNAL,
+};
+
 
 export const Apps = create_store_class({
 	store: SI_STORE_APPS,
@@ -34,22 +83,22 @@ export const Apps = create_store_class({
 
 		static pathFrom<
 			g_app extends App,
-		>(g_app: AppInterface): Resource.Path<g_app> {
+		>(g_app: AppStruct): Resource.Path<g_app> {
 			return AppsI.pathFor(g_app.host, g_app.scheme);
 		}
 
 		static parsePath(p_app: AppPath): [AppSchemeKey, string] {
-			const [, s_scheme, s_host] = /^scheme\.([^/]+)\/host\.(.+)$/.exec(p_app)!;
+			const [, s_scheme, s_host] = /^\/scheme\.([^/]+)\/host\.(.+)$/.exec(p_app)!;
 			return [s_scheme as AppSchemeKey, s_host];
 		}
 
 		static scriptMatchPatternFrom<
 			g_app extends App,
-		>(g_app: AppInterface): `${g_app['interface']['scheme']}://${g_app['interface']['host']}/*` {
-			return `${g_app.scheme}://${g_app.host}/*` as `${g_app['interface']['scheme']}://${g_app['interface']['host']}/*`;
+		>(g_app: AppStruct): `${g_app['struct']['scheme']}://${g_app['struct']['host']}/*` {
+			return `${g_app.scheme}://${g_app.host}/*` as `${g_app['struct']['scheme']}://${g_app['struct']['host']}/*`;
 		}
 
-		static async get(s_host: string, s_scheme: AppSchemeKey | `${AppSchemeKey}:`): Promise<null | AppInterface> {
+		static async get(s_host: string, s_scheme: AppSchemeKey | `${AppSchemeKey}:`): Promise<null | AppStruct> {
 			return (await Apps.read()).get(s_host, s_scheme.replace(/:$/, '') as AppSchemeKey);
 		}
 
@@ -60,20 +109,30 @@ export const Apps = create_store_class({
 		/**
 		 * Adds a new app only if it does not yet exist
 		 */
-		static async add(g_app: AppInterface): Promise<void> {
+		static async add(g_app: AppStruct): Promise<void> {
 			// derive app path
 			const p_app = Apps.pathFrom(g_app);
 
 			// save app def to storage
-			return await Apps.open(ks => ks.put(ks.at(p_app) || g_app));
+			await Apps.open(ks => ks._w_cache[p_app]? void 0: ks.put(g_app));
 		}
 
-		static async put(g_app: AppInterface): Promise<void> {
+		static async put(g_app: AppStruct): Promise<void> {
 			// save app def to storage
 			return await Apps.open(ks => ks.put(g_app));
 		}
 
-		get(s_host: string, s_scheme: AppSchemeKey): AppInterface | null {
+		override at(p_app: AppPath): AppStruct {
+			const [s_scheme, s_host] = Apps.parsePath(p_app);
+
+			if('wallet' === s_scheme) {
+				return H_WALLET_APPS[s_host] || G_APP_NULL;
+			}
+
+			return this._w_cache[p_app] || G_APP_NOT_FOUND;
+		}
+
+		get(s_host: string, s_scheme: AppSchemeKey): AppStruct | null {
 			// prepare app path
 			const p_app = AppsI.pathFor(s_host, s_scheme);
 
@@ -81,7 +140,7 @@ export const Apps = create_store_class({
 			return this._w_cache[p_app] ?? null;
 		}
 
-		async put(g_app: AppInterface): Promise<void> {
+		async put(g_app: AppStruct): Promise<void> {
 			// prepare app path
 			const p_app = AppsI.pathFor(g_app.host, g_app.scheme);
 
@@ -92,12 +151,12 @@ export const Apps = create_store_class({
 			await this.save();
 		}
 
-		filter(gc_filter: AppFilterConfig): AppInterface[] {
+		filter(gc_filter: AppFilterConfig): AppStruct[] {
 			// no filter; return values list
 			if(!Object.keys(gc_filter).length) return Object.values(this._w_cache);
 
 			// list of apps matching given filter
-			const a_apps: AppInterface[] = [];
+			const a_apps: AppStruct[] = [];
 
 			// each app in store
 			FILTERING_APPS:

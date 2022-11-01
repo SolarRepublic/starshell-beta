@@ -10,10 +10,11 @@
 	import {onMount} from 'svelte';
 	import {dd, qs} from '#/util/dom';
 	import type {AgentPath, Chain} from '#/meta/chain';
-	import type { Contact, ContactInterface } from '#/meta/contact';
+	import type { Contact, ContactStruct } from '#/meta/contact';
 	import { Agents } from '#/store/agents';
 	import { Chains } from '#/store/chains';
 	import type { ContactOption } from './InlineContactSelection.svelte';
+    import Load from './Load.svelte';
 
 	export let address: Chain.Bech32String = '';
 	const sa_input = address;
@@ -23,9 +24,9 @@
 	let s_manual_input: string;
 	let g_item_select: ContactOption;
 
-	let a_contacts: [AgentPath, ContactInterface][];
+	let a_contacts: [AgentPath, ContactStruct][];
 
-	const contact_to_option = (g: ContactInterface): ContactOption => ({
+	const contact_to_option = (g: ContactStruct): ContactOption => ({
 		value: Agents.addressFor(g, $yw_chain),
 		label: g.name,
 		contact: g,
@@ -202,7 +203,7 @@
 
 <div class="sender" bind:this={dm_sender} class:hide-cursor={b_hide_cursor}>
 	{#await load_contacts()}
-		Loading contacts...
+		<Load forever />
 	{:then a_contacts}
 		<Select id="recipient-select"
 			placeholder="Address or contact"

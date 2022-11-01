@@ -1,45 +1,67 @@
 <script type="ts">
+	import type {Nameable, Pfpable} from '#/meta/able';
+	import type {AccountPath, AccountStruct} from '#/meta/account';
+	import type {AppPath, AppStruct} from '#/meta/app';
+	import type {Bech32, ChainStruct, ChainPath, ContractStruct} from '#/meta/chain';
+	import type {ContactStruct} from '#/meta/contact';
+	import type {FieldConfig} from '#/meta/field';
 	import type {Incident, TxSynced} from '#/meta/incident';
-	import type {Bech32, ChainInterface, ChainPath, ContractInterface} from '#/meta/chain';
-	import type {ActiveNetwork} from '#/store/providers';
+	import type {PfpTarget} from '#/meta/pfp';
+	
 	import {syserr} from '../common';
+	import {classify} from '../helper/json-previewer';
+	import {yw_chain} from '../mem';
+	
+	import {load_app_profile, svelte_to_dom} from '../svelte';
+	
+	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import {ecdhNonce, extractMemoCiphertext} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
+	import {Agents} from '#/store/agents';
+	import {Apps} from '#/store/apps';
+	import type {AppProfile} from '#/store/apps';
+	import {Chains} from '#/store/chains';
+	import {Contracts} from '#/store/contracts';
+	
+	import AsyncLockPool from '#/util/async-lock-pool';
+	import {forever, ode, proper} from '#/util/belt';
 	import {buffer_to_text} from '#/util/data';
-	import {yw_chain} from '../mem';
+	import {dd, open_external_link, qsa} from '#/util/dom';
+	import {phrase_to_hyphenated} from '#/util/format';
+	
+	import Address from './Address.svelte';
+	import Copyable from './Copyable.svelte';
+	import Field from './Field.svelte';
+	import Gap from './Gap.svelte';
+	import Load from './Load.svelte';
+	import LoadingRows from './LoadingRows.svelte';
+	import MemoReview from './MemoReview.svelte';
+	import PasswordField from './PasswordField.svelte';
 	import PfpDisplay from './PfpDisplay.svelte';
 	import Put from './Put.svelte';
-	import type {FieldConfig} from '#/meta/field';
-	import Field from './Field.svelte';
-	import Load from './Load.svelte';
-	import Address from './Address.svelte';
-	import MemoReview from './MemoReview.svelte';
-	import {forever, ode} from '#/util/belt';
-	import {dd, open_external_link, qsa} from '#/util/dom';
-	import Copyable from './Copyable.svelte';
 	import Row from './Row.svelte';
-	import {Contracts} from '#/store/contracts';
-	import {Chains} from '#/store/chains';
-	import type {AppInterface} from '#/meta/app';
-	import AsyncLockPool from '#/util/async-lock-pool';
-	import type {AppProfile} from '#/store/apps';
-	import {load_app_profile, svelte_to_dom} from '../svelte';
-	import type {PfpTarget} from '#/meta/pfp';
-	import type {Nameable, Pfpable} from '#/meta/able';
-	import {classify} from '../helper/json-previewer';
-	import {Agents} from '#/store/agents';
-	import {phrase_to_hyphenated} from '#/util/format';
-	import type {ContactInterface} from '#/meta/contact';
-	import type {AccountInterface} from '#/meta/account';
-	import Gap from './Gap.svelte';
+	
+	import TransactionHashField from './TransactionHashField.svelte';
+	
+	import SX_ICON_COPY from '#/icon/copy.svg?raw';
+	import SX_ICON_EYE from '#/icon/visibility.svg?raw';
+
 
 	export let configs: FieldConfig[];
+
+	/**
+	 * If true, enables flex row display for fields
+	 */
+	export let flex = false;
+
 	export let noHrs = false;
 
 	export let incident: Incident.Struct | null = null;
-	export let chain: ChainInterface | null = null;
-	export let network: ActiveNetwork | null = null;
+	export let chain: ChainStruct | null = null;
+	export let network: CosmosNetwork | null = null;
 	export let loaded: Promise<any> | null = null;
+
+	const b_password_revealed = false;
 
 	async function decrypt_memo(s_memo: string): Promise<string> {
 		const {
@@ -61,7 +83,7 @@
 		const {
 			recipient: sa_recipient,
 			sender: sa_sender,
-		} = g_transfer!;
+		} = g_transfer;
 
 
 		const b_outgoing = 'tx_out' === incident.type;
@@ -100,11 +122,10 @@
 	}
 
 
-	const kl_profile = new AsyncLockPool(1);
 	let b_profile_load_attempted = false;
 	let g_profile: AppProfile | undefined;
 
-	async function load_contract(sa_contract: Bech32, g_chain: ChainInterface, g_app: AppInterface): Promise<ContractInterface> {
+	async function load_contract(sa_contract: Bech32, g_chain: ChainStruct, g_app: AppStruct): Promise<ContractStruct> {
 		// create contract path
 		const p_contract = Contracts.pathFor(Chains.pathFrom(g_chain), sa_contract);
 
@@ -116,24 +137,15 @@
 			// no app profile loaded
 			if(!b_profile_load_attempted) {
 				// acquire lock on profile
-				const f_release = await kl_profile.acquire();
+				await navigator.locks.request('ui:fields:profile', async() => {
+					if(!b_profile_load_attempted) {
+						b_profile_load_attempted = true;
 
-				// still not attempted
-				if(!b_profile_load_attempted) {
-					// make attempt
-					b_profile_load_attempted = true;
-
-					// save profile
-					g_profile = await load_app_profile(g_app);
-				}
-
-				// release lock
-				f_release();
+						// save profile
+						g_profile = await load_app_profile(g_app);
+					}
+				});
 			}
-
-			console.log({
-				g_profile,
-			});
 
 			// find contract def in app profile
 			const h_contracts = g_profile?.contracts;
@@ -146,10 +158,11 @@
 			}
 
 			return {
+				on: 1,
 				chain: Chains.pathFrom(g_chain),
 				hash: g_contract?.hash || '',
 				bech32: sa_contract,
-				interfaces: g_contract?.interfaces || [],
+				interfaces: g_contract?.interfaces || {},
 				name: g_contract?.name || `Unknown Contract from ${g_app.host}`,
 				origin: 'domain',
 				pfp: '' as PfpTarget,
@@ -159,7 +172,38 @@
 		return g_contract;
 	}
 
-	async function load_contact(sa_contact: Bech32, g_chain: ChainInterface): Promise<ContactInterface | AccountInterface | null> {
+
+	async function load_resource(gc_field: Awaited<FieldConfig<'resource'>>): Promise<[{
+		app: AppStruct;
+		chain: ChainStruct;
+		account: AccountStruct;
+	}[typeof gc_field['resourceType']] | null, string]> {
+		// struct given; return as-is
+		const g_struct = gc_field['struct'] || await (async() => {
+			// ref resource path
+			const p_resource = gc_field['path'];
+
+			// depending on resource type
+			switch(gc_field.resourceType) {
+				case 'app': return await Apps.at(p_resource as AppPath);
+				case 'chain': return await Chains.at(p_resource as ChainPath);
+				case 'account': return await Accounts.at(p_resource as AccountPath);
+				default: return null;
+			}
+		})();
+
+		// depending on resource type
+		return [g_struct, (() => {
+			switch(gc_field.resourceType) {
+				case 'app': return (g_struct as AppStruct).host;
+				case 'chain': return (g_struct as ChainStruct).reference;
+				case 'account': return (g_struct as AccountStruct).family;
+				default: return '';
+			}
+		})()];
+	}
+
+	async function load_contact(sa_contact: Bech32, g_chain: ChainStruct): Promise<ContactStruct | AccountStruct | null> {
 		// create contact path
 		const p_contact = Agents.pathForContactFromAddress(sa_contact);
 
@@ -196,7 +240,7 @@
 	}
 
 	async function load_dynamic_content(dm_dom: HTMLElement) {
-		const g_cache_chains: Record<ChainPath, ChainInterface> = {};
+		const g_cache_chains: Record<ChainPath, ChainStruct> = {};
 
 		for(const dm_deferred of qsa(dm_dom, 'span.dynamic-deferred-content')) {
 			const d_observer = new MutationObserver((a_mutations: MutationRecord[]) => {
@@ -286,13 +330,21 @@
 	}
 
 	.fields {
+		&.flex {
+			display: flex;
 
+			>* {
+				:global(&) {
+					flex: 1;
+				}
+			}
+		}
 	}
 </style>
 
-<div class="fields">
+<div class="fields" class:flex={flex}>
 	{#each configs as z_field, i_field}
-		{#if i_field}
+		{#if i_field && !flex}
 			<hr class:minimal={noHrs}>
 		{/if}
 
@@ -304,10 +356,11 @@
 					short={!gc_field.long && !gc_field.pfp}
 					key={gc_field.key.toLowerCase()}
 					name={gc_field.key}
+					simple={'mono' === gc_field.render}
 				>
 					<div style="display:flex;">
 						{#if gc_field.pfp}
-							<PfpDisplay dim={32} ref={gc_field.pfp} />
+							<PfpDisplay dim={32} path={gc_field.pfp} />
 						{/if}
 
 						<div style="display:flex; flex-flow:column; max-width:100%">
@@ -317,6 +370,10 @@
 								{#if 'string' === typeof z_value}
 									{#if 'address' === gc_field.render}
 										<Address address={z_value} copyable />
+									{:else if 'mono' === gc_field.render}
+										<span class="font-variant_mono">
+											{z_value}
+										</span>
 									{:else}
 										{z_value}
 									{/if}
@@ -360,6 +417,8 @@
 						memoPlaintext={gc_field.value || ''}
 					/>
 				{/if}
+			{:else if 'transaction' === gc_field.type}
+				<TransactionHashField hash={gc_field.hash} chainStruct={gc_field.chain} label={gc_field.label} />
 			{:else if 'links' === gc_field.type}
 				<div class="links">
 					{#await gc_field.value}
@@ -379,10 +438,33 @@
 						{/each}
 					{/await}
 				</div>
+			{:else if 'resource' === gc_field.type}
+				{@const si_res_type = gc_field.resourceType}
+				<Field key={`resource-${si_res_type}`} name={gc_field.label || proper(si_res_type)}>
+					{#await load_resource(gc_field)}
+						<Load forever />
+					{:then [g_resource, s_detail]}
+						{#if g_resource}
+							<Row
+								rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
+								resource={g_resource}
+								detail={s_detail}
+							/>
+						{:else}	
+							<Row
+								rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
+								name={`Unknown ${proper(si_res_type)}`}
+								detail={gc_field.path || '(null)'}
+							/>
+						{/if}
+					{/await}
+				</Field>
+			{:else if 'password' === gc_field.type}
+				<PasswordField password={gc_field.value} label={gc_field.label} />
 			{:else if 'contacts' === gc_field.type}
 				<Field key={phrase_to_hyphenated(gc_field.label || 'affiliated-addresses')} name={gc_field.label || 'Affiliated address'}>
 					{#each gc_field.bech32s as sa_agent}
-						{#await load_contact(sa_agent, gc_field.g_chain)}
+						{#await load_contact(sa_agent)}
 							<Load forever />
 						{:then g_contact} 
 							<Copyable confirmation="Address copied!" let:copy>
@@ -410,7 +492,7 @@
 					{@const {g_chain, g_app} = gc_field}
 					{#each gc_field.bech32s as sa_contract}
 						{#await load_contract(sa_contract, g_chain, g_app)}
-							Loading contract...
+							<LoadingRows />
 						{:then g_contract} 
 							<Copyable confirmation="Address copied!" let:copy>
 								<Row
@@ -430,6 +512,7 @@
 					<Field
 						key={gc_field.title.toLowerCase()}
 						name={gc_field.title}
+						unlabeled={!!gc_field.unlabeled}
 					>
 						<div class="global_dom-field">
 							<Put element={gc_field.dom} on:mount={d_event => load_dynamic_content(d_event.detail)} />
@@ -451,7 +534,7 @@
 			{:else if 'gap' === gc_field.type}
 				<Gap plain />
 			{:else if 'group' === gc_field.type}
-				<svelte:self noHrs={!gc_field.expanded} configs={gc_field.fields} />
+				<svelte:self noHrs={!gc_field.expanded} flex={!!gc_field.flex} configs={gc_field.fields} />
 			{/if}
 		{/await}
 	{/each}

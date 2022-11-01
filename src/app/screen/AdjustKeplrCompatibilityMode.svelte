@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type {App, AppInterface} from '#/meta/app';
+	import type {App, AppStruct} from '#/meta/app';
 	import type {PageConfig} from '../nav/page';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	import AppBanner from '../ui/AppBanner.svelte';
@@ -16,7 +16,7 @@
 
 	export let push: PageConfig | null;
 
-	export let app: AppInterface;
+	export let app: AppStruct;
 
 	export let enable: boolean;
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type {Provider, ProviderInterface} from '#/meta/provider';
+	import type {Provider, ProviderStruct} from '#/meta/provider';
 import { Chains } from '#/store/chains';
 
 	import Portrait from '../ui/Portrait.svelte';
@@ -10,7 +10,7 @@ import { Chains } from '#/store/chains';
 	} from './_screens';
 
 
-	export let provider: ProviderInterface;
+	export let provider: ProviderStruct;
 	const g_provider = provider;
 
 	// Address,

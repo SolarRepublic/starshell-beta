@@ -1,9 +1,9 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import type {AppInterface} from '#/meta/app';
+	import type {AppStruct} from '#/meta/app';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import type {Caip2, ChainInterface} from '#/meta/chain';
+	import type {Caip2, ChainStruct} from '#/meta/chain';
 	import type {SessionRequest} from '#/meta/api';
 	import {fodemtv, F_NOOP, ode, oderom} from '#/util/belt';
 	import type {Dict} from '#/meta/belt';
@@ -17,9 +17,9 @@
 		completed,
 	} = load_flow_context<undefined>();
 
-	export let app: AppInterface;
+	export let app: AppStruct;
 
-	export let chains: Record<Caip2.String, ChainInterface>;
+	export let chains: Record<Caip2.String, ChainStruct>;
 	const h_chains = chains;
 
 	export let sessions: Dict<SessionRequest>;

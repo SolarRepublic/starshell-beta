@@ -1,50 +1,72 @@
 <script lang="ts">
-	import {getContext, SvelteComponent} from 'svelte';
-	import {microtask, ode, ofe, proper} from '#/util/belt';
-
-	import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
-	import {ContactAgentType} from '#/meta/contact';
-	import {Agents} from '#/store/agents';
 	import type {Page} from '../nav/page';
-	import {yw_chain, yw_chain_namespace} from '../mem';
-	import {Chains} from '#/store/chains';
-	import {R_BECH32} from '#/share/constants';
-	import {Tags} from '#/store/tags';
+	import type {SvelteComponent} from 'svelte';
+	
+	import type {ChainStruct, ChainPath} from '#/meta/chain';
+	import type { ContactPath, ContactStruct} from '#/meta/contact';
+	import {ContactAgentType} from '#/meta/contact';
+	
+	import {getContext} from 'svelte';
+	
 	import {Header, Screen} from './_screens';
+	import {yw_chain, yw_chain_namespace} from '../mem';
+	
+	import {R_BECH32} from '#/share/constants';
+	import {Agents} from '#/store/agents';
+	
+	import {Chains} from '#/store/chains';
+	import {ode, ofe, proper} from '#/util/belt';
+	
 	import ContactView from './ContactView.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Field from '../ui/Field.svelte';
-	import Info from '../ui/Info.svelte';
-	import type {Chain, ChainInterface, ChainPath} from '#/meta/chain';
-	import InlineTags from '../ui/InlineTags.svelte';
 	import IconEditor from '../ui/IconEditor.svelte';
+	import Info from '../ui/Info.svelte';
+	
+	
+	import InlineTags from '../ui/InlineTags.svelte';
 
 	const k_page = getContext<Page>('page');
 
 	/**
 	 * Contact resource path
 	 */
-	export let contactRef: ContactPath | '' = '';
-	const p_contact = contactRef || '';
+	export let contactPath: ContactPath | '' = '';
+	const p_contact = contactPath || '';
 
 	// prep object placeholder
-	let g_contact: ContactInterface;
+	let g_contact: ContactStruct;
 
-	// path was given; load contact
-	if(p_contact) void Agents.getContact(p_contact).then(g => g_contact = g!);
+	// fields
+	let s_name = '';
+	let sa_bech32 = '';
+	let s_notes = '';
+	let si_agent_type = ContactAgentType.PERSON;
+	let a_chains: ChainPath[] = [];
+
+	// path was given
+	if(p_contact) {
+		// load contact from store
+		void Agents.getContact(p_contact).then((_g_contact) => {
+			// update contact struct
+			g_contact = _g_contact!;
+
+			// set fields
+			s_name = g_contact.name;
+			sa_bech32 = Agents.addressFor(g_contact, $yw_chain);
+			s_notes = g_contact.notes;
+			si_agent_type = g_contact.agentType;
+			a_chains = g_contact.chains;
+		});
+	}
 
 	// load all chains
-	let h_chains: Record<ChainPath, ChainInterface> = {};
+	let h_chains: Record<ChainPath, ChainStruct> = {};
 	(async function load_chains() {
 		h_chains = ofe((await Chains.read()).entries());
 	})();
 
 	// TODO: fix all bech32 address stuff here
-
-	// reactively destructure contact's properties
-	$: s_name = g_contact?.name || '';
-	$: sa_bech32 = g_contact? Agents.addressFor(g_contact, $yw_chain): '';
-	$: s_notes = g_contact?.notes || '';
-	$: si_agent_type = g_contact?.agentType || ContactAgentType.PERSON;
 
 	let s_err_name = '';
 	let s_err_address = '';
@@ -66,7 +88,7 @@
 		const ks_chains = await Chains.read();
 
 		// attempt to locate compatible chains using bech32 hrp
-		let a_chains_match: ChainInterface[] = [];
+		const a_chains_match: ChainStruct[] = [];
 		for(const [, g_chain] of ks_chains.entries()) {
 			if(g_chain.bech32s.acc === si_hrp) {
 				a_chains_match.push(g_chain);
@@ -81,6 +103,9 @@
 				s_err_address = '';
 			}
 		}
+
+		// update chains
+		a_chains = a_chains_match.map(g => Chains.pathFrom(g));
 
 		return sa_bech32 = sa_address;
 	}
@@ -108,8 +133,8 @@
 			Object.assign(g_contact, {
 				name: s_name,
 				addressSpace: 'acc',
-				addressData: R_BECH32.exec(sa_bech32 as string)![3],
-				chains: a_chains_,
+				addressData: R_BECH32.exec(sa_bech32)![3],
+				chains: a_chains,
 				pfp: g_contact.pfp,
 				agentType: si_agent_type,
 				notes: s_notes,
@@ -132,13 +157,13 @@
 			g_contact = {
 				name: s_name,
 				namespace: $yw_chain_namespace,
-				address: s_addr,
+				addressSpace: 'acc',
+				addressData: R_BECH32.exec(sa_bech32)![3],
 				pfp: g_contact.pfp,
 				agentType: si_agent_type,
 				notes: s_notes,
-				space: 'acc',
 				origin: 'user',
-				chains: {},
+				chains: a_chains as [ChainPath, ...ChainPath[]],
 			};
 		}
 
@@ -155,7 +180,7 @@
 			k_page.push({
 				creator: ContactView,
 				props: {
-					contactRef: p_contact,
+					contactPath: p_contact,
 				},
 			});
 		}
@@ -193,7 +218,7 @@
 		key="contact-pfp"
 		name="Profile Icon"
 	>
-		<IconEditor intent='person' pfpRef={g_contact?.pfp} bind:name={s_name} />
+		<IconEditor intent='person' pfpPath={g_contact?.pfp} name={s_name} />
 	</Field>
 
 	<Field
@@ -248,6 +273,7 @@
 			class:invalid={s_err_address}
 			spellcheck="false"
 			placeholder="{$yw_chain.bech32s.acc}1..."
+			disabled={!!p_contact}
 			bind:value={sa_bech32}
 		>
 
@@ -273,13 +299,5 @@
 
 	<InlineTags editable resourcePath={p_contact} />
 
-	<div class="action-line">
-		<button on:click={() => k_page.pop()}>
-			Back
-		</button>
-
-		<button class="primary" on:click={() => save()} readonly={!b_form_valid}>
-			{p_contact? 'Save': 'Add'}
-		</button>
-	</div>
+	<ActionsLine back confirm={[p_contact? 'Save': 'Add', save, !b_form_valid]} />
 </Screen>

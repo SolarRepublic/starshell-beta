@@ -177,6 +177,28 @@ import type * as ImportHelper from './ics-spotter-imports';
 
 		const b_multiaccount = a_accounts.length > 1;
 
+		let sx_position = ['absolute', 'fixed', 'static'].includes(g_computed.position)
+			? `margin-top: -${xl_height_input - 1}px;`
+			: '';
+
+		// attempt to compute relative offset wrt positioned ancestor
+		{
+			let dm_node: HTMLElement | null = dm_input;
+			while(dm_node && !['absolute', 'relative'].includes(getComputedStyle(dm_node).position)) {
+				dm_node = dm_node.parentElement;
+			}
+
+			if(dm_node) {
+				const g_bounds_ancestor = dm_node.getBoundingClientRect();
+				const g_bounds_input = dm_input.getBoundingClientRect();
+
+				sx_position = `
+					top: calc(${(g_bounds_input.top - g_bounds_ancestor.top)}px + ${g_computed.borderTopWidth});
+					right: calc(${g_bounds_ancestor.right - g_bounds_input.right}px + ${g_computed.borderRightWidth});
+				`;
+			}
+		}
+
 		const dm_overlay = dd('div', {
 			style: `
 				position: absolute;
@@ -192,7 +214,7 @@ import type * as ImportHelper from './ics-spotter-imports';
 				justify-content: center;
 				color: #f7f7f7;
 
-				${['absolute', 'fixed', 'static'].includes(g_computed.position)? `margin-top: -${xl_height_input - 1}px;`: ''}
+				${sx_position}
 
 				border-radius: 2em ${s_border_tr} ${s_border_br} 2em;
 			`,
@@ -282,8 +304,8 @@ import type * as ImportHelper from './ics-spotter-imports';
 	async function dom_ready() {
 		debug('dom_ready triggered');
 
-		// // load the app's pfp
-		// void load_app_pfp();
+		// load the app's pfp
+		void load_app_pfp();
 
 		// logged in
 		if(await Vault.isUnlocked()) {

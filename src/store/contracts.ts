@@ -1,15 +1,24 @@
+import type {O} from 'ts-toolbelt';
+
+import type {AgentOrEntityOrigin, Bech32, ChainNamespaceKey, ChainPath, ContractStruct, ContractPath} from '#/meta/chain';
+
+import type {PfpPath} from '#/meta/pfp';
+import type {TokenStructDescriptor, TokenStructKey} from '#/meta/token';
+
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
 
+import {Chains} from './chains';
+
+import {Pfps} from './pfps';
+
 import {SI_STORE_CONTRACTS} from '#/share/constants';
-import type {AgentOrEntityOrigin, Bech32, ChainNamespaceKey, ChainPath, ContractInterface, ContractPath} from '#/meta/chain';
-import type { TokenInterfaceDescriptor, TokenInterfaceKey } from '#/meta/token';
-import { is_dict, ode } from '#/util/belt';
-import { Chains } from './chains';
-import { Pfps } from './pfps';
-import type { PfpPath } from '#/meta/pfp';
+
+import {is_dict, ode} from '#/util/belt';
+
+
 
 export interface ContractFilterConfig {
 	chain?: ChainPath;
@@ -17,12 +26,11 @@ export interface ContractFilterConfig {
 	hash?: string;
 	bech32?: string;
 	origin?: AgentOrEntityOrigin;
+	on?: 0 | 1;
 }
 
 export interface TokenFilterConfig extends ContractFilterConfig {
-	interfaces?: {
-		[si_each in TokenInterfaceKey]?: Partial<TokenInterfaceDescriptor<si_each>>;
-	};
+	interfaces?: O.Partial<TokenStructDescriptor, 'deep'>;
 }
 
 export const Contracts = create_store_class({
@@ -37,19 +45,23 @@ export const Contracts = create_store_class({
 			return ContractsI.pathFor(Chains.pathFor(si_family, si_chain), sa_contract);
 		}
 
-		static pathFrom(g_contract: ContractInterface): ContractPath {
-			return ContractsI.pathFor(g_contract.chain, g_contract.bech32 as Bech32);
+		static pathFrom(g_contract: ContractStruct): ContractPath {
+			return ContractsI.pathFor(g_contract.chain, g_contract.bech32);
 		}
 
-		static async filterTokens(gc_filter: TokenFilterConfig): Promise<ContractInterface[]> {
+		static async filterTokens(gc_filter: TokenFilterConfig): Promise<ContractStruct[]> {
 			return (await Contracts.read()).filterTokens(gc_filter);
 		}
 
-		filterTokens(gc_filter: TokenFilterConfig): ContractInterface[] {
+		static merge(g_contract: ContractStruct): Promise<[ContractPath, ContractStruct]> {
+			return Contracts.open(ks => ks.merge(g_contract));
+		}
+
+		filterTokens(gc_filter: TokenFilterConfig): ContractStruct[] {
 			// empty filter
 			if(!Object.keys(gc_filter)) return Object.values(this._w_cache);
 
-			const a_tokens: ContractInterface[] = [];
+			const a_tokens: ContractStruct[] = [];
 
 			FILTERING_TOKENS:
 			for(const [, g_token] of ode(this._w_cache)) {
@@ -58,8 +70,8 @@ export const Contracts = create_store_class({
 					// ref actual value
 					const z_actual = g_token[si_key];
 
-					// simple string
-					if('string' === typeof z_actual) {
+					// primitive
+					if(['string', 'number', 'boolean'].includes(typeof z_actual)) {
 						// one of the filters doesn't match; skip it
 						if(g_token[si_key] !== z_expected) continue FILTERING_TOKENS;
 					}
@@ -89,7 +101,7 @@ export const Contracts = create_store_class({
 			return a_tokens;
 		}
 
-		async merge(g_contract: ContractInterface): Promise<[ContractPath, ContractInterface]> {
+		async merge(g_contract: ContractStruct): Promise<[ContractPath, ContractStruct]> {
 			const p_contract = ContractsI.pathFrom(g_contract);
 
 			const g_existing = this._w_cache[p_contract];
@@ -117,5 +129,15 @@ export const Contracts = create_store_class({
 
 			return true;
 		}
+
+		// async put(g_contract: ContractStruct): Promise<ContractPath> {
+		// 	const p_contract = Contracts.pathFrom(g_contract);
+
+		// 	this._w_cache[p_contract] = g_contract;
+
+		// 	await this.save();
+
+		// 	return p_contract;
+		// }
 	},
 });

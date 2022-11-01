@@ -3,6 +3,8 @@
 
 	export let confirmation = 'Copied!';
 
+	export let output = '';
+
 	let b_copy_confirm = false;
 	async function copy(s_text: string) {
 		console.log(`copied to clipboard: "${s_text}"`);
@@ -33,12 +35,21 @@
 		}, 800);
 	}
 
+	async function click() {
+		if(output) {
+			await copy(output);
+		}
+	}
 </script>
 
 <style lang="less">
+	@import './_base.less';
+
 	.copyable {
 		display: inline-block;
 		position: relative;
+		.fill-available();
+		cursor: copy;
 	}
 
 	.container {
@@ -71,7 +82,7 @@
 	}
 </style>
 
-<span class="copyable">
+<span class="copyable" on:click={() => click()}>
 	<slot copy={copy} />
 
 	<div class="container">

@@ -1,26 +1,37 @@
 <script lang="ts">
-	import {yw_account, yw_chain} from '##/mem';
-	import type { Contact, ContactInterface, ContactPath } from '#/meta/contact';
-	import { Agents } from '#/store/agents';
-	import { Chains } from '#/store/chains';
-	import { getContext } from 'svelte';
+	import type {ContactStruct, ContactPath} from '#/meta/contact';
 	
-	import { Header, type Page, Screen } from '../screen/_screens';
+	import type {Incident, TxPending} from '#/meta/incident';
+	
+	import {getContext} from 'svelte';
+	
+	import {Header, type Page, Screen} from '../screen/_screens';
+	
+	import {Agents} from '#/store/agents';
+	
+	import {Chains} from '#/store/chains';
+	import {Incidents} from '#/store/incidents';
+	import {yw_chain} from '##/mem';
+	
+	import Send from '##/screen/Send.svelte';
 	import Address from '##/ui/Address.svelte';
 	import Portrait from '##/ui/Portrait.svelte';
-	import Send from '##/screen/Send.svelte';
-	// import TxnList, { TxnContext } from '##/ui/TxnList.svelte';
+	
 	import ContactEdit from './ContactEdit.svelte';
 	import DeadEnd from './DeadEnd.svelte';
+	import IncidentsList from '../ui/IncidentsList.svelte';
+    import { proto_to_amino } from '#/chain/cosmos-msgs';
+    import type { TypedEvent } from '#/chain/cosmos-network';
+	
 
+	export let contactPath: ContactPath;
+	const p_contact = contactPath;
 
-	export let contactRef: ContactPath;
-	const p_contact = contactRef;
+	let g_contact: ContactStruct;
 
-	let g_contact: ContactInterface;
-	void Agents.getContact(p_contact).then(g => g_contact = g!);
+	const dp_contact = Agents.getContact(p_contact).then(g => g_contact = g!);
 
-	$: sa_contact = g_contact? Chains.transformBech32(g_contact.address, $yw_chain): '';
+	$: sa_contact = g_contact? Agents.addressFor(g_contact, $yw_chain): '';
 
 	const k_page = getContext<Page>('page');
 
@@ -31,7 +42,7 @@
 				k_page.push({
 					creator: Send,
 					props: {
-						to: Chains.transformBech32(g_contact.address, $yw_chain),
+						recipient: Agents.addressFor(g_contact, $yw_chain),
 					},
 				});
 			},
@@ -42,7 +53,7 @@
 				k_page.push({
 					creator: ContactEdit,
 					props: {
-						contactRef: p_contact,
+						contactPath: p_contact,
 					},
 				});
 			},
@@ -70,6 +81,40 @@
 	// 	return false;
 	// });
 
+	// load incidents
+	async function load_incidents() {
+		const ks_incidents = await Incidents.read();
+
+		await dp_contact;
+
+		const a_incidents: Incident.Struct[] = [];
+
+		// each incident in store
+		FILTERING_INCIDENTS:
+		for(const [, g_incident] of ks_incidents.entries()) {
+			// only interested in transactions
+			if(!['tx_in', 'tx_out'].includes(g_incident.type)) continue;
+
+			// destructure incident
+			const {
+				data: g_data,
+			} = g_incident as Incident.Struct<'tx_in' | 'tx_out'>;
+
+			const g_chain = (await Chains.at(g_data.chain))!;
+
+			const sa_agent = Agents.addressFor(g_contact, g_chain);
+
+			for(const g_event of g_data.events.transfer || []) {
+				if(sa_agent === g_event.sender || sa_agent === g_event.recipient) {
+					a_incidents.push(g_incident);
+					continue FILTERING_INCIDENTS;
+				}
+			}
+		}
+
+		return a_incidents.reverse().sort((g_a, g_b) => g_b.time - g_a.time);
+	}
+
 </script>
 
 <style lang="less">
@@ -91,20 +136,26 @@
 
 
 <Screen nav slides>
-	<Header pops search network account />
+	<Header title='Contact' pops search network account />
 
-	{#if !g_contact}
-		Loading contact...
-	{:else}
+	{#await dp_contact}
+		<Portrait loading
+			resourcePath={p_contact}
+			actions={gc_actions}
+		/>
+	{:then}
 		<Portrait
 			resource={g_contact}
 			resourcePath={p_contact}
+			title={g_contact.name}
 			actions={gc_actions}
 		>
 			<svelte:fragment slot="subtitle">
-				<Address copyable address={Chains.transformBech32(g_contact.address, $yw_chain)} />
+				<Address copyable address={Agents.addressFor(g_contact, $yw_chain)} />
 			</svelte:fragment>address
 		</Portrait>
+
+
 <!-- 
 		<TxnList
 			context={TxnContext.CONTACT}
@@ -139,6 +190,9 @@
 				{/if}
 			{/each}
 		</div> -->
-	{/if}
+	{/await}
+	
+
+	<IncidentsList incidents={load_incidents()} />
 
 </Screen>

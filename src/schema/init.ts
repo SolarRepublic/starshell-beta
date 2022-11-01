@@ -26,13 +26,13 @@ import type {Join} from 'ts-toolbelt/out/String/Join';
 namespace Segment {
 	export type Bech32<
 		g_chain extends Chain=Chain,
-		as_spaces extends keyof g_chain['interface']['bech32s']=keyof g_chain['interface']['bech32s'],
+		as_spaces extends keyof g_chain['struct']['bech32s']=keyof g_chain['struct']['bech32s'],
 	> = `bech32.${Chain.Bech32String<g_chain, as_spaces>}`;
 }
 
 
 
-type ss = Chain.Bech32String<Chain, keyof ChainInterface['bech32s']> extends infer s_yes? s_yes extends string? s_yes: never: never;
+type ss = Chain.Bech32String<Chain, keyof ChainStruct['bech32s']> extends infer s_yes? s_yes extends string? s_yes: never: never;
 type wtt = Entity<SecretNetwork, 'acc', string>;
 type show1 = Contract;
 

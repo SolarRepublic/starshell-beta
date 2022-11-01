@@ -139,6 +139,7 @@ module.exports = {
 		'@typescript-eslint',
 		'typescript-sort-keys',
 		'modules-newline',
+		'i',
 	],
 
 	// file-specific overrides
@@ -153,6 +154,18 @@ module.exports = {
 		// typescript lib
 		'svelte3/typescript': () => require('typescript'),
 		'svelte3/ignore-styles': () => true,
+
+		'i/parsers': {
+			'@typescript-eslint/parser': ['.ts', '.svelte'],
+		},
+
+		'i/resolver': {
+			typescript: {
+				alwaysTryTypes: true,
+
+				extensions: ['.ts', '.d.ts', '.svelte'],
+			},
+		},
 	},
 
 	rules: {
@@ -171,6 +184,65 @@ module.exports = {
 			// 	'import-declaration-newline': ['warn'],
 			// 	'export-declaration-newline': ['warn'],
 			// },
+
+			'i/': {
+				...warn([
+					'no-duplicates',
+					'no-self-import',
+					// 'first',
+				]),
+
+				...under({
+					'no-': {
+						cycle: ['warn', {
+							ignoreExternal: true,
+						}],
+					},
+				}),
+
+				'order': ['warn', {
+					groups: [
+						'type',
+						'builtin',
+						'external',
+						['sibling', 'parent'],
+						'index',
+						'object',
+					],
+
+					alphabetize: {
+						order: 'asc',
+						caseInsensitive: true,
+					},
+
+					pathGroups: [
+						{
+							pattern: 'ts-toolbelt/**',
+							group: 'type',
+						},
+						{
+							pattern: '#/{meta,schema}/**',
+							group: 'type',
+							position: 'after',
+						},
+						{
+							pattern: '#/icon/**',
+							group: 'object',
+						},
+						{
+							pattern: '{#,##}/**',
+							group: 'index',
+							position: 'before',
+						},
+						{
+							pattern: '{.,..}/**/*.svelte',
+							group: 'index',
+						},
+					],
+
+					'newlines-between': 'always-and-inside-groups',
+				}],
+			},
 
 			'typescript-sort-keys/': {
 				'interface': 'off',
@@ -197,6 +269,7 @@ module.exports = {
 					'unified-signatures',
 					'comma-spacing',
 					'func-call-spacing',
+					'consistent-type-imports',
 				]),
 
 				...error([
@@ -642,10 +715,10 @@ module.exports = {
 			// 		multiline: true,
 			// 		minProperties: 2,
 			// 	},
-			// 	ImportDeclaration: {
-			// 		multiline: true,
-			// 		minProperties: 2,
-			// 	},
+				// ImportDeclaration: {
+				// 	multiline: true,
+				// 	minProperties: 3,
+				// },
 			// 	ExportDeclaration: {
 			// 		multiline: true,
 			// 		minProperties: 2,

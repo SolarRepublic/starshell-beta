@@ -20,7 +20,7 @@ export type Contact<
 > = Resource.New<{
 	extends: Agent<si_family, sa_contact, si_space>;
 	segment: 'as.contact';
-	interface: [{
+	struct: [{
 		/**
 		 * distinguishes contact types for intent
 		 */
@@ -35,4 +35,4 @@ export type Contact<
 }>;
 
 export type ContactPath = Resource.Path<Contact>;
-export type ContactInterface = Contact['interface'];
+export type ContactStruct = Contact['struct'];

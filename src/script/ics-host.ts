@@ -31,7 +31,7 @@ import {
 	locate_script,
 } from './utils';
 import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
-import type {ChainInterface} from '#/meta/chain';
+import type {ChainStruct} from '#/meta/chain';
 import { HostConnection } from '#/provider/host-connection';
 
 /**
@@ -190,7 +190,7 @@ export default function({
 			// }
 
 			// 
-			const a_chain_requests: ChainInterface[] = [];
+			const a_chain_requests: ChainStruct[] = [];
 
 			// chain answers
 			const a_answers: Vocab.MessageValue<HostToRelay.AuthedVocab, 'respondConnect'>['answer'][] = [];

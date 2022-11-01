@@ -1,3 +1,12 @@
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {AccountPath} from '#/meta/account';
+
+import type {JsonObject} from '#/meta/belt';
+import type {Bech32, ChainPath} from '#/meta/chain';
+
+import type {Incident, IncidentType, IncidentPath, TxPending} from '#/meta/incident';
+
 import {
 	create_store_class,
 	WritableStore,
@@ -5,18 +14,18 @@ import {
 } from './_base';
 
 import {SI_STORE_INCIDENTS, SI_STORE_HISTORIES} from '#/share/constants';
-import type {AccountPath} from '#/meta/account';
-import type {Bech32, ChainPath} from '#/meta/chain';
-import type {Incident, IncidentType, IncidentPath} from '#/meta/incident';
-import {buffer_to_base64, buffer_to_base93, buffer_to_text, sha256_sync, text_to_buffer} from '#/util/data';
-import type {JsonObject} from '#/meta/belt';
+
 import {ode} from '#/util/belt';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
+import {buffer_to_base64, buffer_to_base93, buffer_to_text, sha256_sync, text_to_buffer} from '#/util/data';
+import type { AppPath } from '#/meta/app';
+
 
 export interface IncidentFilterConfig {
 	type?: IncidentType;
 	account?: AccountPath;
 	owner?: Bech32;
+	stage?: IncidentDescriptor<'tx_in' | 'tx_out'>['data']['stage'];
+	app?: AppPath;
 }
 
 type IncidentDict = Record<IncidentPath, Incident.Struct>;
@@ -131,7 +140,7 @@ class HistoriesI extends WritableStore<typeof SI_STORE_HISTORIES> {
 	}
 
 	incidents(): IncidentPath[] {
-		return this._w_cache.order;
+		return this._w_cache.order || [];
 	}
 }
 
@@ -155,11 +164,11 @@ export const Incidents = create_store_class({
 	store: SI_STORE_INCIDENTS,
 	extension: 'map',
 	class: class IncidentsI extends WritableStoreMap<typeof SI_STORE_INCIDENTS> {
-		static pathFor(si_category: IncidentType, si_id: string): IncidentPath {
-			return `/incident.${si_category}/id.${si_id}`;
+		static pathFor<si_type extends IncidentType>(si_category: si_type, si_id: string): IncidentPath<si_type> {
+			return `/incident.${si_category}/id.${si_id}` as IncidentPath<si_type>;
 		}
 
-		static pathFrom(g_incident: Incident['interface']) {
+		static pathFrom(g_incident: Incident['struct']) {
 			return IncidentsI.pathFor(g_incident.type, g_incident.id || g_incident.data?.['hash'] as string || 'unknown');
 		}
 
@@ -175,7 +184,7 @@ export const Incidents = create_store_class({
 			return ks_incidents.filter(a_incidents, gc_filter);
 		}
 
-		static record(g_incident: IncidentDescriptor): Promise<IncidentPath> {
+		static record(g_incident: IncidentDescriptor, ks_histories?: HistoriesI): Promise<IncidentPath> {
 			if(!g_incident.id) {
 				delete g_incident.id;
 				const atu8_hash = sha256_sync(text_to_buffer(JSON.stringify(g_incident)));
@@ -184,7 +193,7 @@ export const Incidents = create_store_class({
 
 			if(!g_incident.time) g_incident.time = Date.now();
 
-			return Incidents.open(ks => ks.record(g_incident as Incident.Struct));
+			return Incidents.open(ks => ks.record(g_incident as Incident.Struct, ks_histories));
 		}
 
 		static async mutateData(p_incident: IncidentPath, g_mutate: JsonObject): Promise<void> {
@@ -233,6 +242,8 @@ export const Incidents = create_store_class({
 				if(gc_filter.type && gc_filter.type !== g_incident.type) continue;
 				if(gc_filter.account && gc_filter.account !== g_incident.data['account']) continue;
 				if(gc_filter.owner && gc_filter.owner !== g_incident.data['owner']) continue;
+				if(gc_filter.stage && gc_filter.stage !== g_incident.data['stage']) continue;
+				if(gc_filter.app && gc_filter.app !== g_incident.data['app']) continue;
 
 				yield g_incident;
 			}

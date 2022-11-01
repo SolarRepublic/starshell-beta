@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
+	import type {Account, AccountStruct, AccountPath} from '#/meta/account';
 	import type {Bech32} from '#/meta/chain';
-	import type {Contact, ContactInterface} from '#/meta/contact';
+	import type {Contact, ContactStruct} from '#/meta/contact';
 	import {NB_MAX_MEMO} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
@@ -36,8 +36,8 @@
 
 	const g_coin = $yw_chain.coins[si_coin];
 
-	export let accountRef: AccountPath;
-	let g_account: AccountInterface;
+	export let accountPath: AccountPath;
+	let g_account: AccountStruct;
 	let sa_sender: Bech32;
 
 	export let amount: string;
@@ -54,7 +54,7 @@
 
 	let s_recipient_title = '';
 
-	let g_contact: ContactInterface | null;
+	let g_contact: ContactStruct | null;
 
 	export let fee: string;
 	const s_fee = fee;
@@ -80,7 +80,7 @@
 	(async() => {
 		const ks_accounts = await Accounts.read();
 
-		g_account = ks_accounts.at(accountRef)!;
+		g_account = ks_accounts.at(accountPath)!;
 		sa_sender = Chains.addressFor(g_account.pubkey, $yw_chain);
 
 		const p_contact = Agents.pathForContactFromAddress(sa_recipient);
@@ -218,7 +218,7 @@
 	<Header pops exits
 		on:close={() => k_page.reset()}
 		title='Sending'
-		symbol={si_coin}
+		postTitle={si_coin}
 		subtitle={$yw_chain.name}
 	/>
 

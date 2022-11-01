@@ -3,6 +3,7 @@
 	import {Providers} from '#/store/providers';
 	import {getContext} from 'svelte';
 	import Header from '../ui/Header.svelte';
+    import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
 	import ProviderView from './ProviderView.svelte';
 	import {Screen, SubHeader, type Page} from './_screens';
@@ -44,7 +45,7 @@
 
 	<div class="rows no-margin">
 		{#await load_providers()}
-			Loading...
+			<LoadingRows count={3} />
 		{:then a_providers} 
 			{#each a_providers as [p_provider, g_provider]}
 				{@const g_chain = ks_chains.at(g_provider.chain)}
@@ -57,7 +58,7 @@
 						k_page.push({
 							creator: ProviderView,
 							props: {
-								networkRef: p_provider,
+								providerPath: p_provider,
 							},
 						});
 					}}

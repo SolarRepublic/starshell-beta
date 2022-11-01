@@ -10,7 +10,7 @@
 	import StarSelect, {type SelectOption} from './StarSelect.svelte';
 	import {Chains} from '#/store/chains';
 	import {ode, oderac, ofe} from '#/util/belt';
-	import type {ChainInterface, ChainPath} from '#/meta/chain';
+	import type {ChainStruct, ChainPath} from '#/meta/chain';
 	import {Accounts} from '#/store/accounts';
 	import type {Account, AccountPath} from '#/meta/account';
 	import type {PfpTarget} from '#/meta/pfp';
@@ -18,13 +18,14 @@
 	import {dd} from '#/util/dom';
 	import type {Resource} from '#/meta/resource';
 	import type {Nameable, Pfpable} from '#/meta/able';
+    import Load from './Load.svelte';
 
 	// selected account
 	let g_option_selected_account: Pick<SelectOption<AccountPath>, 'value'> = {value:$yw_account_ref};
 	$: p_account_selected = g_option_selected_account.value;
 
 	// reactively update account
-	let g_account_selected: AccountInterface;
+	let g_account_selected: AccountStruct;
 	$: {
 		if(p_account_selected) {
 			void Accounts.read().then((ks_accounts) => {
@@ -34,7 +35,7 @@
 	}
 
 	// convert an account path+interface to a select option
-	const account_to_option = (p_account: AccountPath, g_account: AccountInterface): SelectOption<AccountPath> => ({
+	const account_to_option = (p_account: AccountPath, g_account: AccountStruct): SelectOption<AccountPath> => ({
 		object: g_account,
 		value: p_account,
 		primary: g_account.name,
@@ -81,7 +82,7 @@
 	$: p_chain_selected = g_option_selected_chain.value;
 
 	// reactively update selected chain
-	let g_chain_selected: ChainInterface;
+	let g_chain_selected: ChainStruct;
 	$: {
 		if(p_chain_selected) {
 			void Chains.read().then((ks_chains) => {
@@ -91,7 +92,7 @@
 	}
 
 	// convert a chain path+interface to a select option
-	const chain_to_option = (p_chain: ChainPath, g_chain: ChainInterface) => ({
+	const chain_to_option = (p_chain: ChainPath, g_chain: ChainStruct) => ({
 		object: g_chain,
 		value: p_chain,
 		primary: g_chain.name,
@@ -199,7 +200,7 @@
 	name="Chain"
 >
 	{#await load_chain_options()}
-		Loading chains...
+		<Load forever />
 	{:then a_chains_select}
 		<StarSelect id="chain-select"
 			pfpMap={h_pfps_chain}
@@ -215,7 +216,7 @@
 	name="Account"
 >
 	{#await load_account_options()}
-		Loading Accounts...
+		<Load forever />
 	{:then a_accounts_select}
 		<StarSelect id="account-select"
 			pfpMap={h_pfps_account}

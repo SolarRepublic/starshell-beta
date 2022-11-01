@@ -1,14 +1,39 @@
-import UAParser from 'ua-parser-js';
+import type {BrowserAction} from 'webextension-polyfill';
+
+import type {Dict} from '#/meta/belt';
 import type {StoreKey} from '#/meta/store';
+
+import UAParser from 'ua-parser-js';
+
 import {sha256_sync_insecure, text_to_buffer} from '#/util/data';
-import { parse_params } from '#/util/dom';
-import type { BrowserAction } from 'webextension-polyfill';
+
 
 export const B_IS_BACKGROUND = 'clients' in globalThis && 'function' === typeof globalThis['Clients'] && globalThis['clients'] instanceof globalThis['Clients'];
 export const B_IS_SERVICE_WORKER = 'function' === typeof globalThis['ServiceWorkerGlobalScope'] && globalThis instanceof globalThis['ServiceWorkerGlobalScope'];
 
 export const SI_VERSION = __SI_VERSION;
 export const SI_ENGINE = __SI_ENGINE;
+
+export function parse_params<w_values extends string|string[]=string|string[]>(sx_params=location.search.slice(1)): Dict<w_values> {
+	const h_params = {};
+
+	// firefox-android gets polyfilled with a broken entries iterator for some reason...
+	new URLSearchParams(sx_params.replace(/^[?#]?/, '')).forEach((s_value, si_param) => {
+		if(si_param in h_params) {
+			if(Array.isArray(h_params[si_param])) {
+				h_params[si_param].push(s_value);
+			}
+			else {
+				h_params[si_param] = [h_params[si_param], s_value];
+			}
+		}
+		else {
+			h_params[si_param] = s_value;
+		}
+	});
+
+	return h_params;
+}
 
 // get URL params
 export const H_PARAMS = parse_params();

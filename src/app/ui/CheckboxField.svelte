@@ -7,7 +7,7 @@
 	/**
 	 * Handles click events for parent nodes that want to set their child checkbox value
 	 */
-	export function toggleChildCheckbox(d_event: MouseEvent): void {
+	export function toggleChildCheckbox(d_event: MouseEvent | KeyboardEvent): void {
 		// event was not explicitly handled by the child svelte component
 		if(!d_event[_$_CLICK_HANDLED] && d_event.currentTarget) {
 			qs(d_event.currentTarget as HTMLElement, 'fieldset')?.click();
@@ -16,6 +16,7 @@
 </script>
 
 <script lang="ts">
+	/* eslint-disable i/order */
 	import {createEventDispatcher} from 'svelte';
 
 	import SX_ICON_CHECKED from '#/icon/checked.svg?raw';
@@ -48,21 +49,30 @@
 	export let rootStyle = '';
 
 
+	let dm_label: HTMLLabelElement;
+
+	function handle_fieldset_keydown(d_event: KeyboardEvent) {
+		
+	}
+
 	// handle click events on the fieldset
 	function handle_fieldset_click(d_event: MouseEvent) {
 		// already handled; exit
-		if(d_event[_$_CLICK_HANDLED]) return;
+		if(d_event[_$_CLICK_HANDLED] || d_event.detail) return;
 
 		// not disabled
 		if(!disabled) {
+			// ref target
+			const dm_target = d_event.target as HTMLElement;
+
 			// handle click on field set
-			if(dm_input !== d_event.target) {
+			if(dm_input !== dm_target) {
 				dm_input.checked = !dm_input.checked;
 				handle_change();
 			}
 
 			// prevent default on label
-			if('LABEL' === (d_event.target as HTMLElement)?.tagName) {
+			if('LABEL' === (dm_target)?.tagName || dm_label === dm_target?.closest?.('label')) {
 				d_event.preventDefault();
 			}
 		}
@@ -141,7 +151,12 @@
 </style>
 
 
-<fieldset class="checkbox-field {containerClass}" on:click={handle_fieldset_click} class:disabled={disabled} style={rootStyle}>
+<fieldset class="checkbox-field {containerClass}"
+	on:click={handle_fieldset_click}
+	on:keydown={handle_fieldset_keydown}
+	class:disabled={disabled}
+	style={rootStyle}
+>
 	<span class="checkbox">
 		<span class="icon">
 			{@html checked? SX_ICON_CHECKED: SX_ICON_UNCHECKED}
@@ -154,7 +169,7 @@
 	</span>
 
 	{#if $$slots.default}
-		<label for={s_id}>
+		<label bind:this={dm_label} for={s_id}>
 			<slot />
 		</label>
 	{/if}

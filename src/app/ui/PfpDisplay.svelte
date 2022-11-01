@@ -1,13 +1,18 @@
 <script lang="ts">
-	import type {PfpTarget} from '#/meta/pfp';
-
-	import Put from './Put.svelte';
-	import {Pfps} from '#/store/pfps';
-	import {Medias} from '#/store/medias';
-	import {yw_store_medias} from '../mem';
 	import type {Nameable, Pfpable} from '#/meta/able';
-	import {F_NOOP} from '#/util/belt';
+	import type {PfpTarget} from '#/meta/pfp';
+	
 	import {createEventDispatcher} from 'svelte';
+	
+	import {yw_store_medias} from '../mem';
+	
+	import {Medias} from '#/store/medias';
+	import {Pfps} from '#/store/pfps';
+	import {F_NOOP} from '#/util/belt';
+	
+	import Put from './Put.svelte';
+	
+	
 
 	const dispatch = createEventDispatcher();
 
@@ -15,24 +20,21 @@
 	 * Extract ref and name from a resource
 	 */
 	export let resource: (Pfpable & Nameable) | null = null;
-	const g_resource = resource;
 
 	/**
 	 * Resource path to the pfp
 	 */
-	export let ref: PfpTarget | null | '' = g_resource?.pfp || '';
+	export let path: PfpTarget | null | '' = resource?.pfp || '';
 
 	/**
 	 * Name to use for alt and fallback
 	 */
-	export let name = g_resource?.name || '';
-	const s_name = name;
+	export let name = resource?.name || '';
 
 	/**
 	 * Square dimensions of the output element
 	 */
 	export let dim: number;
-	const x_dim = dim;
 
 	/**
 	 * Applies a predetermind styling to the border
@@ -51,13 +53,18 @@
 	const si_style_bg = bg;
 
 	export let genStyle = '';
-	const sx_style_gen = `width:${x_dim}px; height:${x_dim}px; `
+
+	// const sx_style_border_radius = (circular? `border-radius:${dim}px;`: '');
+
+	const sx_style_gen = `width:${dim}px; height:${dim}px; `
 		+(genStyle || '')
-		+(ref? `font-size:${x_dim}px;`: `font-size:${x_dim * 0.55}px;`)
-		+(circular? `border-radius:${x_dim}px;`: '');
+		+(path? `font-size:${dim}px;`: `font-size:${dim * 0.55}px;`);
 
 	export let rootStyle = '';
 	const sx_style_root = rootStyle;
+
+	// fallback dom style to use for icon-dom element
+	const sx_dom_style = sx_style_gen+`font-size:${dim * 0.55}px;`;
 
 	export let settle: VoidFunction | undefined = void 0;
 
@@ -66,9 +73,9 @@
 		const ks_medias = $yw_store_medias || await Medias.read();
 
 		// load pfp by ref
-		const dm_pfp = await Pfps.load(ref!, {
-			alt: s_name,
-			dim: x_dim,
+		const dm_pfp = await Pfps.load(path!, {
+			alt: name,
+			dim: dim,
 			medias: ks_medias,
 		});
 
@@ -106,6 +113,16 @@
 			outline: 1px solid var(--theme-color-border);
 			border-radius: 4px;
 		}
+
+		&.circular {
+			border-radius: 50%;
+
+			img {
+				:global(&) {
+					border-radius: 50%;
+				}
+			}
+		}
 	}
 
 	// .icon {
@@ -131,22 +148,28 @@
 </style>
 
 <!-- class:default={!k_icon}  -->
-{#key updates}
+{#key updates || path || name || dim}
 	<span class="global_pfp tile {s_classes}"
 		class:satin={'satin' === si_style_bg}
+		class:circular={circular}
 		style={sx_style_root}
-		data-path={ref}
+		data-path={path}
 	>
-		{#if ref}
+		{#if path}
 			{#await load_pfp()}
-				Loading pfp...
+				<span class="icon-dom global_loading dynamic-pfp" style={sx_dom_style} data-pfp-args={JSON.stringify({
+					alt: name,
+					dim: dim,
+				})}>
+					⊚
+				</span>
 			{:then dm_pfp}
 				{#if dm_pfp}
 					<Put element={dm_pfp} />
 				{:else}
 					<!-- fallback to icon dom -->
-					<span class="icon-dom" style={`${sx_style_gen} font-size:${x_dim * 0.55}px;`}>
-						{s_name[0] || ''}
+					<span class="icon-dom" style={sx_dom_style}>
+						{name[0] || ''}
 					</span>
 
 					<!-- TODO: error placeholder -->
@@ -159,7 +182,7 @@
 			{/await}
 		{:else}
 			<span class="icon-dom" style={sx_style_gen}>
-				{s_name[0] || ''}
+				{name[0] || ''}
 			</span>
 			{#await settle_inner() then _}_{/await}
 		{/if}

@@ -1,30 +1,29 @@
+
+import type * as ImportHelper from './ics-witness-imports';
 import type {
 	IcsToService, IntraExt,
 } from './messages';
 
-import type * as ImportHelper from './ics-witness-imports';
-
-import type {Consolidator} from '#/util/consolidator';
-
 
 // import type {Key as KeplrExportedKey} from '@keplr-wallet/types';
-import type {KeplrGetKeyWalletCoonectV1Response as KeplrExportedKey} from '@keplr-wallet/wc-client';
-import type {Dict, Promisable, JsonObject, JsonValue} from '#/meta/belt';
 import type {DirectSignResponse} from '@cosmjs/proto-signing';
-import type {AppProfile} from '#/store/apps';
-
-import type {Vocab} from '#/meta/vocab';
-
-import type {AppInterface, AppPermissionSet} from '#/meta/app';
-import type {Bech32, Caip2, ChainInterface, ChainPath} from '#/meta/chain';
-import type {PfpTarget} from '#/meta/pfp';
-import type {SessionRequest} from '#/meta/api';
-import type {InternalConnectionsResponse, InternalSessionResponse} from '#/provider/connection';
-import type {AccountInterface, AccountPath} from '#/meta/account';
-import type {Long} from 'long';
-import type {KeplrSignOptions} from '@keplr-wallet/types';
 import type {ProxyRequest, ProxyRequestResponse} from '@keplr-wallet/provider';
+import type {KeplrSignOptions} from '@keplr-wallet/types';
+import type {KeplrGetKeyWalletCoonectV1Response as KeplrExportedKey} from '@keplr-wallet/wc-client';
+import type {Long} from 'long';
+
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {SessionRequest} from '#/meta/api';
+import type {AppStruct, AppPermissionSet} from '#/meta/app';
+import type {Dict, Promisable, JsonObject, JsonValue} from '#/meta/belt';
+import type {Bech32, Caip2, ChainStruct, ChainPath} from '#/meta/chain';
+import type {PfpTarget} from '#/meta/pfp';
+import type {Vocab} from '#/meta/vocab';
 import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
+
+import type {InternalConnectionsResponse, InternalSessionResponse} from '#/provider/connection';
+import type {AppProfile} from '#/store/apps';
+import type {Consolidator} from '#/util/consolidator';
 
 
 // amount of time to wait for page to request an advertisement from StarShell before applying keplr polyfill
@@ -87,6 +86,9 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 		fromBech32,
 		ServiceRouter,
+
+		Secrets,
+		Snip2xToken,
 	} = inline_require('./ics-witness-imports.ts') as typeof ImportHelper;
 
 	type KeplrResponse<w_success extends any=any> = undefined | {
@@ -104,7 +106,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 	const buffer_to_keplr_str = (atu8: Uint8Array) => `__uint8array__${buffer_to_hex(atu8)}`;
 	const keplr_str_to_buffer = (sx_str: string) => hex_to_buffer(sx_str.replace(/^__uint8array__/, ''));
 
-	let g_registered_app: AppInterface | null = null;
+	let g_registered_app: AppStruct | null = null;
 
 	const h_keplr_connections: Dict<KeplrChainConnection> = {};
 
@@ -145,8 +147,8 @@ const XT_POLYFILL_DELAY = 1.5e3;
 	});
 
 	class KeplrChainConnection {
-		protected _g_account: AccountInterface;
-		protected _g_chain: ChainInterface;
+		protected _g_account: AccountStruct;
+		protected _g_chain: ChainStruct;
 		protected _g_permissions: Partial<AppPermissionSet>;
 		protected _p_account: AccountPath;
 		protected _p_chain: ChainPath;
@@ -182,7 +184,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return this._p_account;
 		}
 
-		get account(): AccountInterface {
+		get account(): AccountStruct {
 			return this._g_account;
 		}
 
@@ -348,7 +350,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			}
 
 			// convert Keplr chains to StarShell format
-			const h_chains = fold(a_chains_keplr, (si_chain): Record<Caip2.String, ChainInterface> => {
+			const h_chains = fold(a_chains_keplr, (si_chain): Record<Caip2.String, ChainStruct> => {
 				// ref chain def from Keplr's export
 				const g_chain_keplr = H_CHAINS_KEPLR_EXACT[si_chain];
 
@@ -772,9 +774,52 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				throw 'Request rejected';
 			}
 
+			if(!g_registered_app) {
+				// find matching app
+				const a_apps = await Apps.filter({
+					scheme: location.protocol.replace(/:$/, '') as 'https',
+					host: location.host,
+				});
+
+				if(!(g_registered_app = a_apps[0])) {
+					throw 'App is not registered';
+				}
+			}
+
+			const p_app = Apps.pathFrom(g_registered_app);
+
+			// look for existing viewing key
+			const a_vks = await Secrets.filter({
+				type: 'viewing_key',
+				chain: p_chain,
+				contract: sa_contract,
+				owner: k_connection.address,
+			});
+
+			// viewing key does not exist
+			if(!a_vks.length) {
+				throw `Viewing key does not exist for ${sa_contract}`;
+			}
+
+			// viewing key exists
+			const [s_viewing_key] = await Snip2xToken.viewingKeyFor(g_contract, g_chain, k_connection.account);
+
+			// prep success response
+			const g_approve = {
+				return: s_viewing_key,
+			};
+
+			// already approved for this app
+			if(a_vks.filter(g => g.outlets.includes(p_app))) {
+				return g_approve;
+			}
+
+			// app is not listed as an outlet, request user approval
 			const g_key = await k_connection.viewingKey(sa_contract);
 
-			return app_to_keplr(g_key);
+			if(g_key.ok) {
+				return g_approve;
+			}
 		},
 
 		async enigmaEncrypt(a_args): AsyncKeplrResponse<string> {

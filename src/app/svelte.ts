@@ -1,31 +1,22 @@
-import type {Completed} from '#/entry/flow';
+import type {Readable} from 'svelte/store';
+import type { AppProfile } from '#/store/apps';
 import type {Nameable, Pfpable} from '#/meta/able';
-import type {AccountPath} from '#/meta/account';
-import {AppApiMode, AppInterface} from '#/meta/app';
-import type {ChainInterface} from '#/meta/chain';
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {AppStruct, AppPath} from '#/meta/app';
+import type {ChainStruct, ChainPath, Bech32} from '#/meta/chain';
 import type {Resource} from '#/meta/resource';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
-import {H_LOOKUP_PFP} from '#/store/_init';
 import {ode, ofe} from '#/util/belt';
 import {dd} from '#/util/dom';
 import {getContext} from 'svelte';
 import {cubicOut} from 'svelte/easing';
-import type {Readable} from 'svelte/store';
-import PfpDisplay from './ui/PfpDisplay.svelte';
 import type {Page} from '##/nav/page';
-import type {AppProfile} from '#/store/apps';
+import PfpDisplay from './ui/PfpDisplay.svelte';
+import {Apps, G_APP_STARSHELL} from '#/store/apps';
 import type {IntraExt} from '#/script/messages';
 import {SessionStorage} from '#/extension/session-storage';
+import {Chains} from '#/store/chains';
 
-
-export const G_APP_STARSHELL: AppInterface = {
-	scheme: 'wallet' as 'https',
-	host: 'StarShell',
-	api: AppApiMode.STARSHELL,
-	connections: {},
-	name: 'StarShell',
-	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
-};
 
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
@@ -146,17 +137,20 @@ type Completable<w_complete extends any=any> = (b_answer: boolean, w_value?: w_c
 
 export interface PageContext {
 	k_page: Page;
-	g_cause: IntraExt.Cause;
+	g_cause: IntraExt.Cause | null;
+	b_searching: boolean;
 }
 
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 export function load_page_context(): PageContext {
 	const k_page = getContext<Page>('page');
 	const g_cause = getContext<IntraExt.Cause | null>('cause') || null;
+	const b_searching = getContext<boolean>('searching') || false;
 
 	return {
 		k_page,
 		g_cause,
+		b_searching,
 	};
 }
 
@@ -165,6 +159,7 @@ export interface FlowContext<w_complete extends any=never> extends PageContext {
 }
 
 export function load_flow_context<w_complete extends any=never>(): FlowContext<w_complete> {
+	// eslint-disable-next-line @typescript-eslint/no-extra-parens
 	const completed = getContext<Completable<w_complete> | ([w_complete] extends [never]? undefined: never)>('completed');
 
 	return {
@@ -174,25 +169,45 @@ export function load_flow_context<w_complete extends any=never>(): FlowContext<w
 }
 
 export interface AppContext<w_complete extends any=any> extends FlowContext<w_complete> {
-	g_app: AppInterface;
-	g_chain: ChainInterface;
+	g_app: AppStruct;
+	p_app: AppPath;
+	g_chain: ChainStruct;
+	p_chain: ChainPath;
 	p_account: AccountPath;
 }
 
+export interface LocalAppContext {
+	p_app: AppPath;
+	g_app: AppStruct;
+	p_chain: ChainPath;
+	g_chain: ChainStruct;
+	p_account: AccountPath;
+	g_account: AccountStruct;
+	sa_owner: Bech32;
+}
+
+export interface LoadedAppContext<w_complete extends any=any> extends AppContext<w_complete>, LocalAppContext {
+	g_account: AccountStruct;
+}
+
 export function load_app_context<w_complete extends any=any>() {
-	const g_app = getContext<AppInterface>('app') || G_APP_STARSHELL;
-	const g_chain = getContext<ChainInterface>('chain');
+	const g_app = getContext<AppStruct>('app') || G_APP_STARSHELL;
+	const p_app = Apps.pathFrom(g_app);
+	const g_chain = getContext<ChainStruct>('chain');
+	const p_chain = Chains.pathFrom(g_chain);
 	const p_account = getContext<AccountPath>('accountPath');
 
 	return {
 		...load_flow_context<w_complete>(),
 		g_app,
+		p_app,
 		g_chain,
+		p_chain,
 		p_account,
 	};
 }
 
-export async function load_app_profile(g_app: AppInterface) {
+export async function load_app_profile(g_app: AppStruct) {
 	const p_profile = `profile:${g_app.scheme}://${g_app.host}` as const;
 	console.log({p_profile});
 	const g_profile = await SessionStorage.get(p_profile);

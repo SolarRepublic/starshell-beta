@@ -1,25 +1,20 @@
 <script lang="ts">
-	import {getContext} from 'svelte';
-
+	import {ContactAgentType} from '#/meta/contact';
+	
 	import {
 		Tabs,
 		Tab,
 		TabList,
 		TabPanel,
 	} from 'svelte-tabs';
-
+	
 	import {
 		Screen,
 		Header,
-		type Page,
 	} from './_screens';
-
-	import ContactEdit from './ContactEdit.svelte';
-	import SubHeader from '../ui/SubHeader.svelte';
+	
 	import ContactList from '../ui/ContactList.svelte';
-	import {ContactAgentType} from '#/meta/contact';
-
-	const k_page = getContext<Page>('page');
+	import SubHeader from '../ui/SubHeader.svelte';
 
 </script>
 
@@ -56,6 +51,10 @@
 			<Tab>
 				Contracts
 			</Tab>
+
+			<Tab>
+				Bots
+			</Tab>
 		</TabList>
 
 
@@ -71,7 +70,6 @@
 				filter={g_contact => ContactAgentType.PERSON === g_contact.agentType}
 			/>
 		</TabPanel>
-
 		
 		<!-- Contracts -->
 		<TabPanel>
@@ -80,6 +78,12 @@
 			/>
 		</TabPanel>
 
+		<!-- Robots -->
+		<TabPanel>
+			<ContactList
+				filter={g_contact => ContactAgentType.ROBOT === g_contact.agentType}
+			/>
+		</TabPanel>
 	</Tabs>
 
 </Screen>

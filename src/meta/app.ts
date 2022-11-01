@@ -40,6 +40,7 @@ export interface AppSchemeRegistry {
 	http: {};
 	https: {};
 	file: {};
+	wallet: {};
 }
 
 export type AppSchemeKey = keyof AppSchemeRegistry;
@@ -60,7 +61,7 @@ export type App<
 	s_scheme extends AppSchemeKey=AppSchemeKey,
 > = Resource.New<{
 	segments: [`scheme.${s_scheme}`, `host.${si_host}`];
-	interface: [{
+	struct: [{
 		scheme: Compute<s_scheme>;
 		host: si_host;
 		on: 0 | 1;
@@ -70,4 +71,4 @@ export type App<
 }>;
 
 export type AppPath = Resource.Path<App>;
-export type AppInterface = App['interface'];
+export type AppStruct = App['struct'];

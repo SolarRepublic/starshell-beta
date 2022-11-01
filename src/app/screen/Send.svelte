@@ -1,8 +1,35 @@
 <script lang="ts">
+	import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+	
+	import type {AccountPath} from '#/meta/account';
+	import type {Bech32, Chain, CoinInfo, ContractPath, ContractStruct, FeeConfig, HoldingPath} from '#/meta/chain';
+	import type {ContactPath} from '#/meta/contact';
+	import type {TokenStructDescriptor} from '#/meta/token';
+	
+	import {Snip2xToken} from '#/schema/snip-2x-const';
+	
+	import {MsgSend} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
+	import BigNumber from 'bignumber.js';
 	import {getContext, onDestroy} from 'svelte';
 	import {slide} from 'svelte/transition';
-	import BigNumber from 'bignumber.js';
-
+	
+	import {Screen, type Page} from './_screens';
+	
+	import {encode_proto} from '#/chain/cosmos-msgs';
+	import type {SecretNetwork} from '#/chain/secret-network';
+	import {global_receive} from '#/script/msg-global';
+	import {NB_MAX_MEMO, XT_MINUTES} from '#/share/constants';
+	import {subscribe_store} from '#/store/_base';
+	import {Agents} from '#/store/agents';
+	import {G_APP_STARSHELL} from '#/store/apps';
+	import {Contracts} from '#/store/contracts';
+	import {Entities} from '#/store/entities';
+	import {QueryCache} from '#/store/query-cache';
+	import {Settings} from '#/store/settings';
+	import {CoinGecko} from '#/store/web-apis';
+	import {fold} from '#/util/belt';
+	import {buffer_to_base93, text_to_buffer} from '#/util/data';
+	import {format_amount, format_fiat} from '#/util/format';
 	import {
 		yw_account,
 		yw_account_ref,
@@ -10,51 +37,29 @@
 		yw_chain_ref,
 		yw_network,
 		yw_owner,
-		yw_page,
-		yw_send_asset,
-		yw_task,
-		// yw_asset_send,
-		// yw_holding_send,
 	} from '##/mem';
-
+	
+	import AmountInput from '##/ui/AmountInput.svelte';
+	import AssetSelect from '##/ui/AssetSelect.svelte';
+	import CheckboxField from '##/ui/CheckboxField.svelte';
+	import Field from '##/ui/Field.svelte';
+	import Header from '##/ui/Header.svelte';
+	
+	import RequestSignature from './RequestSignature.svelte';
+	import SettingsMemos from './SettingsMemos.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import Notice from '../ui/Notice.svelte';
+	import RecipientSelect from '../ui/RecipientSelect.svelte';
+	import SenderSelect from '../ui/SenderSelect.svelte';
+	
 	import SX_ICON_PERSONAL from '#/icon/account_box.svg?raw';
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
 	import SX_ICON_LOADING from '#/icon/donut_large.svg?raw';
-	import SX_ICON_INFO from '#/icon/info.svg?raw';
 	import SX_ICON_DROPDOWN from '#/icon/drop-down.svg?raw';
-	import SX_ICON_VISIBILITY from '#/icon/visibility.svg?raw';
+	import SX_ICON_INFO from '#/icon/info.svg?raw';
 	import SX_ICON_SHIELD from '#/icon/shield.svg?raw';
-
-	import AssetSelect from '##/ui/AssetSelect.svelte';
-	import AmountInput from '##/ui/AmountInput.svelte';
-	import CheckboxField from '##/ui/CheckboxField.svelte';
-	import Header from '##/ui/Header.svelte';
-	import Field from '##/ui/Field.svelte';
-
-	// import Execute from './Execute.svelte';
-	import type {Account, AccountInterface, AccountPath} from '#/meta/account';
-
-	import {Screen, type Page} from './_screens';
-	import type {Token, TokenInterfaceDescriptor} from '#/meta/token';
-	import {Entities} from '#/store/entities';
-	import SenderSelect from '../ui/SenderSelect.svelte';
-	import RecipientSelect from '../ui/RecipientSelect.svelte';
-	import type {Bech32, Chain, EntityPath, CoinInfo} from '#/meta/chain';
-	import type {Contact, ContactInterface, ContactPath} from '#/meta/contact';
-	import {subscribe_store} from '#/store/_base';
-	import {Agents} from '#/store/agents';
-	import {fold, F_NOOP, ofe} from '#/util/belt';
-	import {Chains} from '#/store/chains';
-	import {CoinGecko} from '#/store/web-apis';
-	import {format_amount, format_fiat} from '#/util/format';
-	import {NB_MAX_MEMO, XT_MINUTES} from '#/share/constants';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import SendNative from './SendNative.svelte';
-	import {Settings} from '#/store/settings';
-	import Notice from '../ui/Notice.svelte';
-	import SettingsMemos from './SettingsMemos.svelte';
-	import { global_receive } from '#/script/msg-global';
-	import { buffer_to_base93, text_to_buffer } from '#/util/data';
+	import SX_ICON_VISIBILITY from '#/icon/visibility.svg?raw';
+	
 
 	const G_SLIDE_IN = {
 		duration: 350,
@@ -65,96 +70,22 @@
 		duration: 150,
 	};
 
-
 	const k_page = getContext<Page>('page');
-
-	/**
-	 * Which account to initiate send from
-	 */
-	export let sender: AccountInterface = $yw_account;
-	let p_account: AccountPath = $yw_account_ref;
-
-	/**
-	 * Native coin symbol to use for the transfer
-	 */
-	export let native: keyof typeof $yw_chain.coins = Object.keys($yw_chain.coins)[0];
-	const si_native = native;
 
 	/**
 	 * Token to use for transfer (instead of native coin)
 	 */
-	export let token: TokenInterfaceDescriptor | null = null;
-	const g_token = token;
+	export let assetPath: HoldingPath | ContractPath | '' = '';
 
 
 	/**
 	 * Address of initial receiver
 	 */
-	export let recipient = '';
-	let sa_recipient = recipient;
-
-
-	let p_asset: EntityPath | '' = si_native
-		? Entities.holdingPathFor($yw_owner, si_native)
-		: '';
-		// : Entities.pathFrom(g_token);
-
-
-	// reactively assign the coin struct for the native asset
-	$: g_coin = p_asset && 'holding' === Entities.parseEntityPath(p_asset)?.type && si_native? $yw_chain.coins?.[si_native]: null;
-	
-	// reactively assign the token's path
-	$: p_token = p_asset && 'token' === Entities.parseEntityPath(p_asset)?.type && g_token? Entities.pathFrom(g_token): '';
-
-
-	// cache of contacts
-	let h_contacts: Record<ContactPath, ContactInterface>;
+	export let recipient: Bech32 | '' = '';
+	let sa_recipient: Bech32 | '' = recipient;
 
 	// address to contact lookup cache
 	let h_addr_to_contact: Record<Chain.Bech32String, ContactPath>;
-
-	// asset symbol
-	$: s_symbol = si_native || g_token?.symbol || '';
-
-
-	// whether the user has enabled encryption
-	let b_private_memo_enabled = false;
-	let b_private_memo_published = false;
-	let b_private_memo_recipient_published = false;
-
-	// 
-	async function reload_settings() {
-		const h_e2es = await Settings.get('e2e_encrypted_memos') || null;
-		if(h_e2es?.[$yw_chain_ref]) {
-			const g_config = h_e2es[$yw_chain_ref];
-			({
-				enabled: b_private_memo_enabled,
-				published: b_private_memo_published,
-			} = g_config);
-
-			check_recipient_publicity();
-		}
-	}
-
-	void reload_settings();
-
-	global_receive({
-		updateStore({key:si_store}) {
-			if('settings' === si_store) {
-				void reload_settings();
-			}
-		},
-	});
-
-
-	function check_recipient_publicity() {
-		b_private_memo_recipient_published = false;
-		$yw_network.e2eInfoFor(sa_recipient as Bech32).then((g_info) => {
-			b_private_memo_recipient_published = !!g_info.sequence;
-		}).catch(() => {
-			b_memo_private = false;
-		});
-	}
 
 
 	let b_busy_agents = false;
@@ -171,8 +102,8 @@
 		// read contact entries
 		const a_contacts = [...ks_agents.contacts()];
 
-		// replace cache
-		h_contacts = ofe(a_contacts);
+		// // replace cache
+		// h_contacts = ofe(a_contacts);
 
 		// replace address lookup cache
 		h_addr_to_contact = fold(a_contacts, ([p_contact, g_contact]) => ({
@@ -198,119 +129,179 @@
 		});
 	}
 
-	$: {
-		console.log({
-			si_native,
-			g_coin,
-			p_asset,
-			p_token,
-			g_token,
-		});
-	}
+	
+	// let g_coin: CoinInfo | null = null;
+	// let g_contract: ContractStruct | null = null;
+	// let g_token: TokenStructDescriptor['snip20'] | null = null;
+
+	// asset balance in lowest denomination
+	let yg_balance: BigNumber | null = null;
+
+	// asset balance in human-readable denomination
+	let s_balance = '';
+
+	// asset type
+	let b_native = false;
+
+	// native coin info
+	let g_coin: CoinInfo | null = null;
+
+	// contract struct
+	let g_contract: ContractStruct | null;
+
+	// asset properties
+	let n_decimals = -1;
+
+	// asset symbol
+	let s_symbol = '';
+
+	// coingecko id
+	let si_coingecko = '';
+
+	// amount that user intends to send
+	let s_amount = '';
+
+	// approx amount of fee padding to leave when using max
+	let yg_fee_buffer_approx = BigNumber(0);
+
 
 	// reactively compute the balance of the selected asset
-	let yg_balance: BigNumber | null = null;
-	$: s_balance = yg_balance? format_amount(yg_balance.shiftedBy(-(g_coin || g_token)!.decimals).toNumber()): '';
-	$: {
-		// react to account and asset changes
-		if($yw_account && p_asset) {
-			yg_balance = null;
+	$: if(null !== yg_balance && n_decimals >= 0) {
+		const yg_shifted: BigNumber = yg_balance.shiftedBy(-n_decimals);
 
-			// go async
-			queueMicrotask(async() => {
-				// indicate loading state
-				s_balance = '[...]';
+		s_balance = format_amount(yg_shifted.toNumber());
+	}
+
+	async function update_asset() {
+		b_use_max_native = false;
+
+		g_coin = g_contract = null;
+
+		// reset amount
+		s_amount = '';
+
+		// clear balance
+		yg_balance = null;
+
+		// indicate loading state
+		s_balance = '[...]';
+
+		// reset properties
+		n_decimals = -1;
+		s_symbol = '';
+		si_coingecko = '';
+
+		// reset fee buffer
+		yg_fee_buffer_approx = BigNumber(0);
+
+		// nothing
+		if(!assetPath) return;
+
+		// parse entity path
+		const g_parsed = Entities.parseEntityPath(assetPath) || {};
+		const s_entity_type = g_parsed['type'];
+
+		// coin
+		if('holding' === s_entity_type) {
+			// set asset type
+			b_native = true;
+
+			// extract coin id from parsed holding path
+			const si_coin = g_parsed['coin'] as string;
+
+			// lookup coin info
+			g_coin = $yw_chain.coins?.[si_coin];
+
+			// update properties
+			n_decimals = g_coin.decimals;
+			s_symbol = si_coin;
+			si_coingecko = g_coin.extra?.coingecko_id || '';
+
+			// set fee buffer
+			yg_fee_buffer_approx = BigNumber(12_000n+'');
+
+			// start with the cached balacachedCoinBalancests
+			const g_cached = $yw_network.cachedCoinBalance($yw_owner, si_coin);
+			if(g_cached && g_cached.timestamp > Date.now() - (5 * XT_MINUTES)) {
+				yg_balance = BigNumber(g_cached.data.amount);
+			}
+
+			// get the latest balance
+			const g_bundle = await $yw_network.bankBalance($yw_owner, si_coin);
+			if(g_bundle) {
+				yg_balance = BigNumber(g_bundle.balance.amount);
+			}
+		}
+		// token
+		else if('contract' === s_entity_type) {
+			// set asset type
+			b_native = false;
+
+			// load contract struct
+			g_contract = await Contracts.at(assetPath as ContractPath);
+
+			// token struct
+			let g_token!: TokenStructDescriptor<'snip20'>['snip20'] | null;
+
+			// secret-wasm; use snip-20 interface
+			if($yw_chain.features.secretwasm) {
+				g_token = g_contract?.interfaces.snip20 || null;
+			}
+
+			// token defined
+			if(g_token) {
+				// update properties
+				n_decimals = g_token.decimals;
+				s_symbol = g_token.symbol;
+				si_coingecko = g_token.extra?.coingecko_id || '';
+
+				// load query cache
+				const ks_cache = await QueryCache.read();
 
 				// start with the cached balance if it exists
-				const g_cached = $yw_network.cachedBalance($yw_owner, si_native);
+				const g_cached = ks_cache.get($yw_chain_ref, $yw_owner, g_contract!.bech32);
 				if(g_cached && g_cached.timestamp > Date.now() - (5 * XT_MINUTES)) {
-					yg_balance = new BigNumber(g_cached.data.amount);
+					yg_balance = new BigNumber(g_cached.data.amount as string);
 				}
 
 				// get the latest balance
-				const g_bundle = await $yw_network.bankBalance($yw_owner, si_native);
-				if(g_bundle) {
-					yg_balance = new BigNumber(g_bundle.balance.amount);
+				const k_token = new Snip2xToken(g_contract!, $yw_network as SecretNetwork, $yw_account);
+
+				const g_balance = await k_token.balance();
+				if(g_balance) {
+					yg_balance = new BigNumber(g_balance.balance.amount);
 				}
-			});
+			}
 		}
 	}
 
 
-	// input amount user intends to send
-	let s_amount = '';
+	$: {
+		// react to account and asset changes
+		if($yw_account && assetPath) {
+			// go async
+			queueMicrotask(update_asset);
+		}
+	}
 
 	// apply the maximum amount the user can possibly send
 	function use_max() {
-		s_amount = s_balance;
+		s_amount = (b_native
+			? yg_balance?.minus(yg_fee_buffer_approx).shiftedBy(-n_decimals).toString()
+			: yg_balance?.toString()
+		) || '';
 
-		// take away from gas fee
-		if(g_coin) {
-			s_amount = new BigNumber(s_amount).minus(x_fee).toString();
+		if(b_native) {
+			b_use_max_native = true;
 		}
 
 		c_show_validations++;
 	}
 
 	// reactively indicate whether the max is currently being used
-	$: b_using_max = s_amount === s_balance;
+	let b_use_max_native = false;
+	$: b_using_max = BigNumber(s_amount).eq(s_balance) || b_native && b_use_max_native;
 
-	// $: {
-	// 	if(g_token && Entities.pathFrom(g_to) !== p_entity) {
-	// 		s_amount = '';
-	// 		c_show_validations = 0;
-	// 		p_entity = g_token.iri;
-	// 	}
-	// }
-
-
-
-	// reactively assign the coingecko id from the asset struct
-	$: si_coingecko = (g_token || g_coin)?.extra?.coingecko_id || '';
-
-	// reactively fetch the worth of the asset
-	let x_worth: number | null = null;
-	let s_worth = '';
-	const si_versus = 'usd';
-	$: {
-		// coingecko id is set
-		if(si_coingecko) {
-			// indicate loading state
-			s_worth = '[...]';
-
-			// go async
-			(async() => {
-				// load the asset's worth from coingecko
-				const h_versus = await CoinGecko.coinsVersus([si_coingecko] as string[], si_versus);
-
-				// update the fiat display
-				x_worth = h_versus[si_coingecko];
-				if('number' === typeof x_worth) {
-					s_worth = format_fiat(x_worth, si_versus);
-				}
-				// set error indication
-				else {
-					s_worth = '(?)';
-				}
-			})();
-		}
-		// don't display anything
-		else {
-			s_worth = '';
-		}
-	}
-
-
-	const x_fee = 0.01;
-	
-	$: s_fee_fiat = 'number' === typeof x_worth? format_fiat(x_fee * x_worth, 'usd'): '';
-
-	
-	
-	// // 
-	// if($yw_asset_send) {
-	// 	$yw_chain_ref = $yw_asset_send.chainRef;
-	// }
 
 	const H_ADDRESS_TYPES = {
 		none: {
@@ -337,67 +328,191 @@
 	let si_address_type: keyof typeof H_ADDRESS_TYPES = 'none';
 	$: g_address_type = H_ADDRESS_TYPES[si_address_type];
 
-
-	$: {
-		if(!sa_recipient) {
-			si_address_type = 'none';
-		}
-		else {
-			si_address_type = 'unknown';
-
-			void $yw_network.isContract(sa_recipient as Bech32).then((b_contract) => {
-				if(b_contract) {
-					si_address_type = 'contract';
-				}
-				else {
-					si_address_type = 'personal';
-				}
-			});
-
-			check_recipient_publicity();
-		}
-	}
-
-
+	// whether the user has enabled encryption
+	let b_private_memo_enabled = false;
+	let b_private_memo_published = false;
+	let b_private_memo_recipient_published = false;
 
 	let b_memo_expanded = false;
 	let b_memo_private = false;
 	let s_memo = '';
 
-	function submit() {
+	// 
+	{
+		async function reload_settings() {
+			const h_e2es = await Settings.get('e2e_encrypted_memos') || null;
+			if(h_e2es?.[$yw_chain_ref]) {
+				const g_config = h_e2es[$yw_chain_ref];
+				({
+					enabled: b_private_memo_enabled,
+					published: b_private_memo_published,
+				} = g_config);
+
+				check_recipient_publicity();
+			}
+		}
+
+		void reload_settings();
+
+		global_receive({
+			updateStore({key:si_store}) {
+				if('settings' === si_store) {
+					void reload_settings();
+				}
+			},
+		});
+
+
+		function check_recipient_publicity() {
+			b_private_memo_recipient_published = false;
+			$yw_network.e2eInfoFor(sa_recipient as Bech32).then((g_info) => {
+				b_private_memo_recipient_published = !!g_info.sequence;
+			}).catch(() => {
+				b_memo_private = false;
+			});
+		}
+
+		$: {
+			if(!sa_recipient) {
+				si_address_type = 'none';
+			}
+			else {
+				si_address_type = 'unknown';
+
+				void $yw_network.isContract(sa_recipient as Bech32).then((b_contract) => {
+					if(b_contract) {
+						si_address_type = 'contract';
+					}
+					else {
+						si_address_type = 'personal';
+					}
+				});
+
+				check_recipient_publicity();
+			}
+		}
+	}
+
+
+
+	// reactively fetch the worth of the asset
+	let x_worth: number | null = null;
+	let s_worth = '';
+	const si_versus = 'usd';
+
+	// coingecko id is set
+	$: if(si_coingecko) {
+		// indicate loading state
+		s_worth = '[...]';
+
+		// go async
+		(async() => {
+			// load the asset's worth from coingecko
+			const h_versus = await CoinGecko.coinsVersus([si_coingecko] as string[], si_versus);
+
+			// update the fiat display
+			x_worth = h_versus[si_coingecko];
+			if('number' === typeof x_worth) {
+				s_worth = format_fiat(x_worth, si_versus);
+			}
+			// set error indication
+			else {
+				s_worth = '(?)';
+			}
+		})();
+	}
+	// don't display anything
+	else {
+		s_worth = '';
+	}
+
+
+
+	async function submit() {
+		debugger;
+
+		let g_msg!: Any;
+		let gc_props: {
+			fee?: FeeConfig;
+			memo?: string;
+		} = {};
+
+		const s_amount_denom = BigNumber(s_amount).shiftedBy(n_decimals).toString();
+
 		if(!b_form_valid) {
 			c_show_validations++;
 			return;
 		}
+		else if(b_native) {
+			// TODO: support use max to send entire balance
+
+			g_msg = {
+				typeUrl: '/cosmos.bank.v1beta1.MsgSend',
+				value: encode_proto(MsgSend, {
+					fromAddress: $yw_owner,
+					toAddress: sa_recipient,
+					amount: [{
+						amount: s_amount_denom,
+						denom: g_coin!.denom,
+					}],
+				}),
+			};
+
+			// TODO: get gas limit from chain struct
+			gc_props = {
+				fee: {
+					limit: 12_000n,
+				} as FeeConfig,
+			};
+
+
+			// k_page.push({
+			// 	creator: SendNative,
+			// 	props: {
+			// 		accountPath: $yw_account_ref,
+			// 		coin: si_native,
+			// 		recipient: sa_recipient,
+			// 		amount: s_amount,
+			// 		memoPlaintext: s_memo,
+			// 		encryptMemo: (b_memo_private || (!s_memo.length && b_private_memo_enabled && b_private_memo_published)) && b_private_memo_recipient_published,
+			// 		fee: x_fee+'',
+			// 	},
+			// });
+		}
 		else {
-			if(si_native) {
-				k_page.push({
-					creator: SendNative,
-					props: {
-						accountRef: p_account,
-						coin: si_native,
-						recipient: sa_recipient,
-						amount: s_amount,
-						memoPlaintext: s_memo,
-						encryptMemo: (b_memo_private || (!s_memo.length && b_private_memo_enabled && b_private_memo_published)) && b_private_memo_recipient_published,
-						fee: x_fee+'',
-					},
-				});
+			// secret-wasm
+			const g_secretwasm = $yw_chain.features.secretwasm;
+			if(g_secretwasm) {
+				const k_token = new Snip2xToken(g_contract!, $yw_network as SecretNetwork, $yw_account);
+
+				const xg_transfer = BigInt(s_amount_denom);
+				const g_prebuilt = await k_token.transfer(xg_transfer, sa_recipient as Bech32, s_memo);
+
+				g_msg = g_prebuilt.proto;
+
+				gc_props = {
+					fee: {
+						limit: g_secretwasm.snip20GasLimits.transfer,
+					} as FeeConfig,
+				};
 			}
-			else {
-				// k_page.pusyw_send_asset
-				// 	creator: Execute,
-				// 	props: {
-				// 		contract: $yw_asset_send?.address,
-				// 		snip20: yw_send_asset
-				// 			transfer: {
-				// 				recipient: sa_receiver,
-				// 				amount: $yw_asset_send?.denomFromString(s_amount) || '0',
-				// 			},
-				// 		},
-				// 	},
-				// });
-			}
+		}
+
+		if(g_msg) {
+			k_page.push({
+				creator: RequestSignature,
+				props: {
+					...gc_props,
+					protoMsgs: [g_msg],
+					broadcast: {},
+					local: true,
+				},
+				context: {
+					chain: $yw_chain,
+					accountPath: $yw_account_ref,
+					app: G_APP_STARSHELL,
+				},
+			});
 		}
 	}
 
@@ -462,6 +577,23 @@
 				},
 			},
 		});
+	}
+
+	function adjust_contract_settings() {
+		// k_page.push({
+		// 	creator: Snip,
+		// 	context: {
+		// 		intent: {
+		// 			id: 'send_adjust_memo_settings',
+		// 		},
+		// 	},
+		// });
+	}
+
+	// reactively update account if user switches in select
+	let p_account_select: AccountPath = $yw_account_ref;
+	$: if(p_account_select) {
+		$yw_account_ref = p_account_select;
 	}
 </script>
 
@@ -658,8 +790,8 @@
 	submit();
 }}>
 	<Header pops
-		title={g_token? 'Transferring': 'Sending'}
-		symbol={g_token? g_token.symbol: ''}
+		title={b_native? 'Sending': 'Transferring'}
+		postTitle={s_symbol}
 		subtitle={$yw_chain?.name || '?'}
 	/>
 
@@ -668,8 +800,8 @@
 		name='From'
 	>
 		<SenderSelect
-			bind:accountRef={p_account}
-			/>
+			bind:accountPath={p_account_select}
+		/>
 	</Field>
 
 	<Field short
@@ -726,7 +858,7 @@
 		key='asset-select'
 		name='Asset'
 	>
-		<AssetSelect bind:assetRef={p_asset} />
+		<AssetSelect bind:assetPath={assetPath} />
 	</Field>
 
 	<Field short
@@ -734,8 +866,9 @@
 		name='Amount'
 	>
 		<AmountInput
-			bufferMax={g_coin? x_fee: 0}
-			assetRef={p_asset}
+			disabled={null === yg_balance}
+			bufferMax={b_native? 1: 0}
+			assetPath={assetPath}
 			bind:error={s_err_amount}
 			bind:value={s_amount}
 			showValidation={c_show_validations}
@@ -747,7 +880,7 @@
 		name=''
 	>
 		<span class="balance-line">
-			{#if p_asset}
+			{#if assetPath}
 				<span class="balance">
 					<span class="label">
 						Balance
@@ -758,7 +891,9 @@
 				</span>
 
 				<span class="use-max">
-					<span class="link" class:disabled={b_using_max} on:click={() => use_max()}>USE MAX</span>
+					<span class="link" class:disabled={b_using_max} on:click={() => use_max()}>
+						USE MAX
+					</span>
 				</span>
 			{/if}
 		</span>
@@ -766,33 +901,8 @@
 
 	<hr>
 
-	<Field short
-		key='fee-manual'
-		name='Fee'
-	>
-		<div class="fee-amount">
-			{x_fee} SCRT
-		</div>
-
-		<div class="fee-fiat">
-			{s_fee_fiat}
-		</div>
-
-		<svelte:fragment slot="post">
-			<div class="manual-fee">
-<!-- 
-				<span class="link disabled">Set fee manually</span>
-				<span class="icon info">
-					{@html SX_ICON_INFO}
-				</span>
-				 -->
-			</div>
-		</svelte:fragment>
-	</Field>
-
-	<hr>
-
 	<div class="memo" class:expanded={b_memo_expanded}>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<div class="title clickable" on:click={() => b_memo_expanded = !b_memo_expanded}>
 			<span class="icon dropdown">
 				{@html SX_ICON_DROPDOWN}
@@ -802,8 +912,14 @@
 			</span>
 
 			{#if b_memo_expanded}
-				{#if b_private_memo_enabled && b_private_memo_recipient_published}
-					<CheckboxField containerClass='encrypt' id='encrypted' bind:checked={b_memo_private}>
+				{#if b_native}
+					{#if b_private_memo_enabled && b_private_memo_recipient_published}
+						<CheckboxField containerClass='encrypt' id='encrypted' bind:checked={b_memo_private}>
+							Private
+						</CheckboxField>
+					{/if}
+				{:else if g_contract?.interfaces.snip21}
+					<CheckboxField containerClass='encrypt' id='encrypted' checked={true} disabled>
 						Private
 					</CheckboxField>
 				{/if}
@@ -811,7 +927,7 @@
 		</div>
 
 		{#if b_memo_expanded}
-			{#if !b_private_memo_enabled}
+			{#if b_native && !b_private_memo_enabled}
 				<Notice
 					dismissable='send_encrypted_memo'
 					title='Make Your Memos Private'
@@ -828,46 +944,66 @@
 			</div>
 
 			<div class="submemo">
-				{#if !b_private_memo_recipient_published}
-					<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
-						<span class="global_svg-icon display_inline icon-diameter_18px">
-							{@html SX_ICON_VISIBILITY}
-						</span>
-						<span class="text vertical-align_middle">
-							Recipient isn't published, memo will be public. <span class="link" on:click={() => adjust_memo_settings()}>Settings</span>
-						</span>
-					</span>
-				{:else if !b_memo_private}
-					{#if !s_memo.length && b_private_memo_enabled && b_private_memo_published}
-						<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
-							<span class="global_svg-icon display_inline icon-diameter_18px">
-								{@html SX_ICON_SHIELD}
-							</span>
-							<span class="text vertical-align_middle">
-								Empty memos will still appear encrypted. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
-							</span>
-						</span>
-					{:else}
+				{#if b_native}
+					{#if !b_private_memo_recipient_published}
 						<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
 							<span class="global_svg-icon display_inline icon-diameter_18px">
 								{@html SX_ICON_VISIBILITY}
 							</span>
 							<span class="text vertical-align_middle">
-								This memo will be public. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
+								Recipient isn't published, memo will be public. <span class="link" on:click={() => adjust_memo_settings()}>Settings</span>
+							</span>
+						</span>
+					{:else if !b_memo_private}
+						{#if !s_memo.length && b_private_memo_enabled && b_private_memo_published}
+							<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+								<span class="global_svg-icon display_inline icon-diameter_18px">
+									{@html SX_ICON_SHIELD}
+								</span>
+								<span class="text vertical-align_middle">
+									Empty memos will still appear encrypted. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
+								</span>
+							</span>
+						{:else}
+							<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+								<span class="global_svg-icon display_inline icon-diameter_18px">
+									{@html SX_ICON_VISIBILITY}
+								</span>
+								<span class="text vertical-align_middle">
+									This memo will be public. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
+								</span>
+							</span>
+						{/if}
+					{:else}
+						<span class="memo-length-indicator" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+							{buffer_to_base93(text_to_buffer(s_memo || '')).length} / {NB_MAX_MEMO}
+						</span>
+
+						<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+							<span class="global_svg-icon display_inline icon-diameter_18px" style="color:var(--theme-color-sky);">
+								{@html SX_ICON_SHIELD}
+							</span>
+							<span class="text vertical-align_middle">
+								This memo will be private, using encryption. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
 							</span>
 						</span>
 					{/if}
-				{:else}
-					<span class="memo-length-indicator" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
-						{buffer_to_base93(text_to_buffer(s_memo || '')).length} / {NB_MAX_MEMO}
-					</span>
-
+				{:else if g_contract?.interfaces.snip21}
 					<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
 						<span class="global_svg-icon display_inline icon-diameter_18px" style="color:var(--theme-color-sky);">
 							{@html SX_ICON_SHIELD}
 						</span>
 						<span class="text vertical-align_middle">
-							This memo will be private, using encryption. <span class="link" on:click={() => adjust_memo_settings()}>Memo Settings</span>
+							This memo will be private, using the SNIP-21 interface.
+						</span>
+					</span>
+				{:else}
+					<span class="disclaimer" in:slide={G_SLIDE_IN} out:slide={G_SLIDE_OUT}>
+						<span class="global_svg-icon display_inline icon-diameter_18px">
+							{@html SX_ICON_VISIBILITY}
+						</span>
+						<span class="text vertical-align_middle">
+							This memo will be public.&nbsp;&nbsp;<span class="link" on:click={() => adjust_contract_settings()}>{s_symbol} Settings</span>
 						</span>
 					</span>
 				{/if}
