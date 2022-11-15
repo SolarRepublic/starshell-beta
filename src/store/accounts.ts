@@ -1,3 +1,5 @@
+import type {Replace} from 'ts-toolbelt/out/String/Replace';
+
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {Bech32, ChainStruct, ChainNamespaceKey} from '#/meta/chain';
 
@@ -6,14 +8,15 @@ import {
 	WritableStoreMap,
 } from './_base';
 
-import {SI_STORE_ACCOUNTS} from '#/share/constants';
-import type {Replace} from 'ts-toolbelt/out/String/Replace';
-import {ode} from '#/util/belt';
+
 import {Chains} from './chains';
 import {Secrets} from './secrets';
-import {Secp256k1Key} from '#/crypto/secp256k1';
-import RuntimeKey from '#/crypto/runtime-key';
+
 import {Bip32} from '#/crypto/bip32';
+import RuntimeKey from '#/crypto/runtime-key';
+import {Secp256k1Key} from '#/crypto/secp256k1';
+import {SI_STORE_ACCOUNTS} from '#/share/constants';
+import {ode} from '#/util/belt';
 
 type PathFor<
 	si_family extends ChainNamespaceKey,
@@ -26,9 +29,14 @@ type PathFromAccount<
 
 export class NoAccountOwner extends Error {}
 
+export interface AccountFilter {
+	name: string;
+	family: ChainNamespaceKey;
+}
+
 export const Accounts = create_store_class({
 	store: SI_STORE_ACCOUNTS,
-	extension: 'map',
+	extension: ['map', 'filterable'],
 	class: class AccountsI extends WritableStoreMap<typeof SI_STORE_ACCOUNTS> {
 		static pathFor<
 			si_family extends ChainNamespaceKey,

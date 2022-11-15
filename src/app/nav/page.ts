@@ -1,10 +1,11 @@
-import type {PlainObject} from '#/meta/belt';
-import type {ParametricSvelteConstructor} from '#/meta/svelte';
-import {
-	Dict, objects_might_differ, ode, Promisable,
-} from '#/util/belt';
-import {dd, uuid_v4} from '#/util/dom';
 import type {JumpConfig, PopConfig, Thread} from './thread';
+
+import type {Dict, PlainObject, Promisable} from '#/meta/belt';
+import type {ParametricSvelteConstructor} from '#/meta/svelte';
+
+import {objects_might_differ, ode} from '#/util/belt';
+import {dd, uuid_v4} from '#/util/dom';
+
 
 export interface PageConfig<
 	h_props extends Dict<unknown>=Dict<unknown>,
@@ -144,9 +145,9 @@ export class Page<
 			&& !objects_might_differ(w_other.props || {}, this.props);
 	}
 
-	peak(): Page {
-		return this._kt_parent.peak();
-	}
+	// peak(): Page {
+	// 	return this._kt_parent.peak();
+	// }
 
 	push(gc_page: PageConfig): Page {
 		return this._kt_parent.push(gc_page, this);

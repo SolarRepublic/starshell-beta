@@ -1,8 +1,9 @@
-import type { Dict, JsonObject } from '#/meta/belt';
 import type {Nameable, Pfpable} from './able';
-import type {ChainPath, ChainNamespace, ChainNamespaceKey} from './chain';
+import type {ChainNamespace, ChainNamespaceKey} from './chain';
 import type {Resource} from './resource';
-import type { Secret, SecretPath } from './secret';
+import type {SecretPath} from './secret';
+
+import type {Dict} from '#/meta/belt';
 
 export interface UtilityKeyRegistry {
 	secretWasmTx: {};
@@ -22,6 +23,9 @@ export type Account<
 > = Resource.New<{
 	segments: [ChainNamespace.Segment<si_family>, `account.${s_pubkey}`];
 	struct: [{
+		/**
+		 * The family of chains that the account seed is compatible with (corresponds to CAIP-2 namespace)
+		 */
 		family: si_family;
 
 		/**
@@ -29,8 +33,19 @@ export type Account<
 		 */
 		pubkey: s_pubkey;
 
+		/**
+		 * Path to secret responsible for deriving account key(s)
+		 */
 		secret: SecretPath<'mnemonic' | 'bip32_node' | 'private_key'>;
+
+		/**
+		 * Keys dervied from signatures used to generate data for specific purposes
+		 */
 		utilityKeys: UtilityKeys;
+
+		/**
+		 * Custom data extensions
+		 */
 		extra?: Dict<any>;
 	}, Nameable, Pfpable];
 }>;

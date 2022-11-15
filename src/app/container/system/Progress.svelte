@@ -1,11 +1,12 @@
 <script>
-	import { yw_progress } from '##/mem';
+	import {yw_progress} from '##/mem';
 
-	$: x_width_pct_bar = ($yw_progress[0] / $yw_progress[1]) * 100;
+	// reactively assign percentage based on shared progress var. avoid divide by zero
+	$: x_width_pct_bar = 0 === $yw_progress[1]? 0: ($yw_progress[0] / $yw_progress[1]) * 100;
 </script>
 
 <style lang="less">
-	@import '../../../style/util.less';
+	@import '../../_base.less';
 
 	.progress {
 		--bar-height: 4px;
@@ -39,7 +40,6 @@
 		position: absolute;
 		top: calc(0px - var(--ui-padding));
 		left: 0;
-		// left: calc(0px - (var(--app-window-width) * 0.25));
 		
 		margin-top: var(--ui-padding);
 		margin-left: var(--ui-padding);
@@ -49,7 +49,6 @@
 		transition-delay: 0.4s;
 
 		&.visible {
-			// left: 0;
 			top: 0;
 			opacity: 1;
 		}

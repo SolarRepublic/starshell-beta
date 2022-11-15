@@ -103,12 +103,10 @@ export interface ChainHandle {
 
 }
 
-export interface BlockInfoHeader extends JsonObject {
-	header: {
-		chain_id: string;
-		time: string;
-		height: string;
-	};
+export interface BlockInfoHeader {
+	chain_id: string;
+	time: string;
+	height: string;
 }
 
 

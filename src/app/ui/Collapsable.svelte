@@ -1,11 +1,13 @@
 <script lang="ts">
+	import {slide} from 'svelte/transition';
+	
 	import SX_ICON_DROPDOWN from '#/icon/drop-down.svg?raw';
+
 
 	/**
 	 * Sets the title for the collapsable section
 	 */
 	export let title: string;
-	const s_title = title;
 
 	/**
 	 * Exposed binding of the expanded state
@@ -16,14 +18,14 @@
 	 * Injects class names into the container element
 	 */
 	export let classNames = '';
-	const s_classes = classNames;
 
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.collapsable {
+		position: relative;
 		padding-top: var(--ui-padding);
 		padding-bottom: var(--ui-padding);
 		border-top: 1px solid var(--theme-color-border);
@@ -38,41 +40,44 @@
 			position: relative;
 
 			.dropdown.icon {
-				--icon-diameter: 22px;
+				--icon-diameter: 24px;
 				--icon-color: var(--theme-color-primary);
 	
-				transform: rotate(0deg);
+				transform: rotate(-180deg);
 				transition: transform 300ms var(--ease-out-quad);
+			}
+
+			.text {
+				align-self: center;
 			}
 		}
 
 		&.expanded {
 			.dropdown.icon {
-				transform: rotate(-180deg);
+				transform: rotate(0deg);
 			}
+
+			padding-bottom: 0;
 		}
 	}
 
 </style>
 
 
-<div class="collapsable {s_classes}" class:expanded={expanded}>
-	<div class="title clickable" on:click={() => expanded = !expanded}>
+<div class="collapsable {classNames}" class:expanded={expanded}>
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<div class="title" on:click={() => expanded = !expanded}>
 		<span class="icon dropdown">
 			{@html SX_ICON_DROPDOWN}
 		</span>
 		<span class="text">
-			{s_title}
+			{title}
 		</span>
-	<!-- 
-		{#if b_expanded}
-			<span class="disclaimer" transition:slide={{duration:350, delay:400}}>
-				Caution: Memos are NOT private
-			</span>
-		{/if} -->
 	</div>
 
 	{#if expanded}
-		<slot />
+		<div transition:slide>
+			<slot />
+		</div>
 	{/if}
 </div>

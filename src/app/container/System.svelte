@@ -1,41 +1,52 @@
 <script lang="ts">
+	import type {PlainObject} from '#/meta/belt';
+	
+	// import './tailwind.css';
 	import {
 		getAllContexts,
 		onMount,
 		tick,
 	} from 'svelte';
-
-	import type {PlainObject} from '#/meta/belt';
+	
+	import {Gestures} from '../helper/gestures';
+	import {await_transition, GC_HOOKS_DEFAULT, page_slide} from '../nav/defaults';
+	import {once_store_updates} from '../svelte';
+	
+	import {Vault} from '#/crypto/vault';
+	import {Accounts} from '#/store/accounts';
+	import {Chains} from '#/store/chains';
+	import {Providers} from '#/store/providers';
 	import {
 		ode,
 		oderom,
-		timeout,
 	} from '#/util/belt';
-
+	
+	import {H_THREADS, ThreadId} from '##/def';
+	import {
+		yw_account,
+		yw_account_ref,
+		yw_chain,
+		yw_chain_ref,
+		yw_navigator,
+		yw_network,
+		yw_provider_ref,
+		yw_page,
+		yw_thread,
+	} from '##/mem';
+	import {Navigator, type NavigatorConfig} from '##/nav/navigator';
+	import type {PageConfig} from '##/nav/page';
+	import BlankSvelte from '##/screen/Blank.svelte';
+	
+	import NavSvelte from './system/Nav.svelte';
+	import NotificationsSvelte from './system/Notifications.svelte';
 	import OverscrollSvelte from './system/Overscroll.svelte';
 	import PopupSvelte from './system/Popup.svelte';
-	import NavSvelte from './system/Nav.svelte';
-	import SearchSvelte from './system/Search.svelte';
 	import ProgressSvelte from './system/Progress.svelte';
+	import SearchSvelte from './system/Search.svelte';
 	import SideMenuSvelte from './system/SideMenu.svelte';
 	import VendorMenuSvelte from './system/VendorMenu.svelte';
-	import NotificationsSvelte from './system/Notifications.svelte';
-
-	import BlankSvelte from '##/screen/Blank.svelte';
-
-	import type {Page, PageConfig} from '##/nav/page';
-	import type {PopConfig, Thread} from '##/nav/thread';
-	import {Navigator, type NavigatorConfig} from '##/nav/navigator';
-
-	import {H_THREADS, ThreadId} from '##/def';
-	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_nav_visible, yw_provider, yw_network, yw_provider_ref, yw_page, yw_thread} from '##/mem';
-	import {Chains} from '#/store/chains';
-	import {Accounts} from '#/store/accounts';
-	import {once_store_updates} from '../svelte';
-	import {Providers} from '#/store/providers';
-	import {Vault} from '#/crypto/vault';
-	import {Gestures} from '../helper/gestures';
-	import {await_transition, GC_HOOKS_DEFAULT, page_slide} from '../nav/defaults';
+	
+	
 
 	export let page: PageConfig;
 	const gc_page = page;
@@ -53,6 +64,8 @@
 	const h_context_all = Object.fromEntries(getAllContexts().entries());
 
 	async function initialize_mem() {
+		console.debug('System#initialize-mem');
+
 		// allow these to fail in order to recover from disasters
 		try {
 			// set defaults
@@ -134,8 +147,6 @@
 
 					// // maintain scrollTop of the src page
 					// const x_scroll_top = kp_src.dom.scrollTop;
-
-					// debugger;
 
 					// thread was created by transferring search result pages
 					if(ThreadId.SCRATCH === kt_context.id) {
@@ -229,216 +240,6 @@
 		$yw_navigator = k_navigator;
 
 
-
-		// handle pop state
-		// window.onpopstate = function(d_event: PopStateEvent) {
-		// 	k_navigator.activePage.pop({
-		// 		external: true,
-		// 	});
-		// };
-
-		// $yw_exitting_dom = dm_exitting;
-
-		// const k_state_root = new State('/locked', null as unknown as SvelteComponent, '/locked');
-		// const k_thread_root = new StateThread(k_state_root);
-
-	// 	initialize(new StateManager({
-	// 		router: K_ROUTER,
-
-	// 		arrive(this: StateManager, ks_src: State, ks_dst: State, si_thread_src: string, s_transition=''): Promise<void> {
-	// 			// maintain scrollTop
-	// 			const x_scroll_top = ks_src.dom.scrollTop;
-
-	// 			console.log({
-	// 				type: 'arrive',
-	// 				ks_src,
-	// 				ks_dst,
-	// 				si_thread_src,
-	// 				s_transition,
-	// 			});
-
-	// 			// new MutationObserver((m) => {
-	// 			// 	debugger;
-	// 			// }).observe(ks_src.dom, {
-	// 			// 	attributes: true,
-	// 			// 	childList: true,
-	// 			// });
-
-	// 			// Object.defineProperty(ks_src.dom, 'scrollTop', {
-	// 			// 	get() {
-	// 			// 		return x_scroll_top;
-	// 			// 	},
-	// 			// 	set(x_to: number) {
-	// 			// 		console.log(`SET TO: ${x_to}`);
-	// 			// 		debugger;
-	// 			// 	},
-	// 			// });
-
-	// 			// neuter src frame
-	// 			ks_src.dom.classList.add('frozen');
-
-	// 			// ensure incoming frame is not frozen
-	// 			ks_dst.dom.classList.remove('frozen');
-
-	// 			const gc_params = yw_params.get();
-	// 			// const gc_params = {};
-
-	// 			$yw_path = ks_dst.path;
-	// 			$yw_pattern = ks_dst.pattern;
-
-	// 			const gc_props = ks_dst.props;
-
-	// 			$yw_params = {
-	// 				familyId: gc_props.familyId as string || gc_params.familyId,
-	// 				chainId: gc_props.chainId as string || gc_params.chainId,
-	// 				accountId: gc_props.accountId as string || gc_params.accountId,
-	// 			};
-
-	// 			if(gc_props.familyId) {
-	// 				const p_family = Family.refFromId(gc_props.familyId as string);
-	// 				if(!H_FAMILIES[p_family]) debugger;
-	// 				$yw_family = H_FAMILIES[p_family];
-	// 			}
-
-	// 			// if(gc_props.chainId) {
-	// 			// 	if(!$yw_family) debugger;
-	// 			// 	const p_chain = Chain.refFromFamilyId($yw_family.def.iri, gc_props.chainId as string);
-	// 			// 	$yw_chain = H_CHAINS[p_chain] || null;
-	// 			// }
-
-	// 			// if(gc_props.accountId) {
-	// 			// 	console.warn(`<${$yw_path}> props set accountId = ${gc_props.accountId}`);
-	// 			// 	$yw_account = H_ACCOUNTS[Account.refFromId(gc_props.accountId as string)];
-	// 			// }
-
-	// 			$yw_screen_dom = ks_dst.dom;
-
-	// 			// trigger component settings
-	// 			const fk_arrive = hm_arrivals.get(ks_dst.dom);
-	// 			if(fk_arrive) fk_arrive();
-
-	// 			// eslint-disable-next-line
-	// 			return new Promise(async(fk_resolve) => {
-	// 				// ref src state's dom
-	// 				let dm_src = ks_src.dom;
-
-	// 				// ref classlist
-	// 				const d_class_list = dm_src.classList;
-
-	// 				// short circuit expensive computed style call
-	// 				let b_transitions = false;
-	// 				if('goto' === s_transition) {
-	// 					if(d_class_list.contains('slides')) {
-	// 						// changing threads
-	// 						if(si_thread_src) {
-	// 							dm_src = dm_src.cloneNode(true) as HTMLElement;
-	// 							dm_exitting.replaceChildren(dm_src);
-	// 						}
-
-	// 						dm_src.style.zIndex = '1001';
-
-	// 						await timeout(0);
-
-	// 						// dm_src.style.left = `-${XP_APP_WIDTH}px`;
-	// 						dm_src.style.transform = `translate(-${XP_APP_WIDTH}px)`;
-	// 						b_transitions = true;
-	// 					}
-	// 					else {
-	// 						const si_exit = dm_src.getAttribute('data-s2-exit') as string;
-
-	// 						switch(si_exit) {
-	// 							case 'swipes': {
-	// 								dm_src.style.left = `-${XP_APP_WIDTH}px`;
-	// 								dm_src.style.zIndex = '1001';
-	// 								b_transitions = true;
-	// 								break;
-	// 							}
-
-	// 							case 'leaves': {
-	// 								// changing threads
-	// 								if(si_thread_src) {
-	// 									dm_src = dm_src.cloneNode(true) as HTMLElement;
-	// 									dm_exitting.replaceChildren(dm_src);
-	// 								}
-
-	// 								dm_src.style.zIndex = '1001';
-
-	// 								await timeout(0);
-
-	// 								// dm_src.style.left = `-${XP_APP_WIDTH}px`;
-	// 								dm_src.style.transform = `translate(-${XP_APP_WIDTH}px)`;
-	// 								b_transitions = true;
-	// 								break;
-	// 							}
-
-	// 							case 'reveals': {
-	// 								dm_src.classList.add('reveal');
-	// 								b_transitions = true;
-	// 								break;
-	// 							}
-
-	// 							default: {
-	// 								throw new Error(`Unexpected attribute value: "${si_exit ?? ''}"`);
-	// 							}
-	// 						}
-	// 					}
-	// 				}
-
-	// 				// not changing threads
-	// 				if(!si_thread_src) {
-	// 					// // src leaves
-	// 					// if(d_class_list.contains('leaves')) {
-	// 					// 	dm_src.style.left = `-${XP_APP_WIDTH}px`;
-	// 					// 	dm_src.style.zIndex = '1001';
-	// 					// 	b_transitions = true;
-	// 					// }
-
-	// 					// src slides out
-	// 					if(d_class_list.contains('slides')) {
-	// 						b_transitions = true;
-	// 					}
-	// 				}
-	// 				// changing threads
-	// 				else {
-	// 					// going to search
-	// 					if('/search' === ks_dst.pattern) {
-	// 						dm_src.classList.add('sublimate');
-	// 					}
-	// 					// leaving search
-	// 					else if('/search' === ks_src.pattern) {
-	// 						ks_dst.dom.classList.remove('sublimate');
-	// 					}
-	// 				}
-
-	// 				// 
-	// 				await microtask();
-
-	// 				// element is transitioning
-	// 				if(!s_transition.endsWith('.bypass')) {
-	// 					if(b_transitions || SX_NO_TRANSITION !== getComputedStyle(dm_src).transition) {
-	// 						// wait for transition to end
-	// 						dm_src.addEventListener('transitionend', function transition_end(d_event) {
-	// 							// not a position property
-	// 							if('transform' !== d_event.propertyName) return;
-
-	// 							// remove self
-	// 							dm_src.removeEventListener('transitionend', transition_end);
-
-	// 							// resolve
-	// 							fk_resolve();
-	// 						});
-
-	// 						// wait for callback
-	// 						return;
-	// 					}
-	// 				}
-
-	// 				fk_resolve();
-	// 			});
-	// 		},
-	// 	}));
-
-
 		let xl_dx_tracking = 0;
 
 		// gestures
@@ -516,7 +317,7 @@
 
 			move(xl_dy) {
 				console.log(`Overscroll position: ${xl_dy}`);
-				x_overscroll_progress = (xl_dy / 50);
+				x_overscroll_progress = xl_dy / 50;
 				x_overscroll_position = xl_dy / 80;
 			},
 
@@ -534,7 +335,7 @@
 
 
 <style lang="less">
-	@import '../../style/util.less';
+	@import '../_base.less';
 
 	.full(@type) {
 		position: @type;
@@ -554,13 +355,6 @@
 		color: var(--theme-color-text-light);
 		background-color: var(--theme-color-bg);
 
-		// .selected {
-		// 	:global(&) {
-		// 		color: var(--theme-color-black);
-		// 		background-color: var(--theme-color-primary);
-		// 	}
-		// }
-
 		>.content {
 			.full(relative);
 			overflow: hidden;
@@ -579,15 +373,8 @@
 			>.thread {
 				:global(&) {
 					.full(absolute);
-					// padding-left: calc(50vw - (var(--app-max-width) / 2));
 				}
 			}
-	
-			// :global(&>section) {
-			// 	position: absolute;
-			// 	top: 0px;
-			// 	transition: left 0.6s var(--ease-out-quick);
-			// }
 		}
 	}
 </style>

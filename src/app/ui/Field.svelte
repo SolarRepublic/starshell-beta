@@ -1,13 +1,13 @@
 <script lang="ts">
+	import {slide as svelte_slide} from 'svelte/transition';
+	
 	import {uuid_v4} from '#/util/dom';
-
-	import {
-		slide as svelte_slide,
-	} from 'svelte/transition';
+	
 
 	export let name = '';
 	export let key = uuid_v4();
 
+	export let rootClasses = '';
 	export let rootStyle = '';
 
 	/**
@@ -24,26 +24,10 @@
 	export let double = false;
 
 	export let unlabeled = false;
-
-	// interface AutoConfig {
-	// 	fn: (node: Element, { delay, duration, easing }?: SlideParams) => TransitionConfig;
-	// 	config: TransitionConfig;
-	// }
-
-	// function auto(dm_node: HTMLElement, gc_auto: {}): TransitionConfig {
-	// 	if(slide) {
-	// 		return svelte_slide(dm_node, {
-	// 			duration: 500,
-	// 		});
-	// 	}
-
-	// 	return void 0 as unknown as TransitionConfig;
-	// }
-	
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.field {
 		align-items: end;
@@ -69,7 +53,7 @@
 		>.field-value {
 			.font(regular, @size: 13px);
 			color: var(--theme-color-text-light);
-			// overflow-x: scroll;  // this messes up svelte-select
+			// overflow-x: scroll;  // this messes up svelte-select and tooltips
 
 			&.hide-scrollbar {
 				scrollbar-width: none;
@@ -108,13 +92,18 @@
 			>.field-value {
 				flex: 3;
 				width: 0;
+
+				// TODO: make tooltips absolute to workaround overflow issues
+				// &.hide-scrollbar>* {
+				// 	overflow-x: scroll;
+				// }
 			}
 		}
 	}
 </style>
 
 
-<div class="field" id="field-{key}"
+<div class="field {rootClasses}" id="field-{key}"
 	class:double={double}
 	class:simple={simple} 
 	class:short={short}

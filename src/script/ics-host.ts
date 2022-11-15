@@ -1,38 +1,32 @@
 import type {
-	HmacSHA256,
-} from 'crypto-js';
-
-// import type * as Constants from './constants';
-import type * as Utils from './utils';
-import type * as Flow from './msg-flow';
-
-import type {
 	HostToRelay,
 	RelayToHost,
 	HostToRatifier,
 	IcsToService,
 } from './messages';
+import type * as Flow from './msg-flow';
+import type {HmacSHA256} from 'crypto-js';
 
+import type {ConnectionManifestV1} from '#/meta/api';
+import type {ChainStruct} from '#/meta/chain';
 import type {Vocab} from '#/meta/vocab';
+
+import {
+	locate_script,
+} from './utils';
+
+import {HostConnection} from '#/provider/host-connection';
+import {
+	A_CHAIN_CATEGORIES,
+	A_CHAIN_NAMESPACES,
+	R_CHAIN_ID_VERSION,
+	R_CHAIN_NAME,
+} from '#/share/constants';
 import {uuid_v4} from '#/util/dom';
 
 interface ScriptParams {
 	session: string;
 }
-
-import {
-	A_CHAIN_CATEGORIES,
-	A_CHAIN_NAMESPACES as A_CHAIN_NAMESPACES,
-	R_CHAIN_ID_VERSION,
-	R_CHAIN_NAME,
-} from '#/share/constants';
-
-import {
-	locate_script,
-} from './utils';
-import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
-import type {ChainStruct} from '#/meta/chain';
-import { HostConnection } from '#/provider/host-connection';
 
 /**
  * The host provides a connection between the page and the extension and allows messages from the relay frame to be

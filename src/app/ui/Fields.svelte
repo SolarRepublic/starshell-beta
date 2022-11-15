@@ -2,17 +2,20 @@
 	import type {Nameable, Pfpable} from '#/meta/able';
 	import type {AccountPath, AccountStruct} from '#/meta/account';
 	import type {AppPath, AppStruct} from '#/meta/app';
+	import type {Promisable} from '#/meta/belt';
 	import type {Bech32, ChainStruct, ChainPath, ContractStruct} from '#/meta/chain';
 	import type {ContactStruct} from '#/meta/contact';
 	import type {FieldConfig} from '#/meta/field';
 	import type {Incident, TxSynced} from '#/meta/incident';
 	import type {PfpTarget} from '#/meta/pfp';
 	
+	import type {SecretPath} from '#/meta/secret';
+	
 	import {syserr} from '../common';
 	import {classify} from '../helper/json-previewer';
 	import {yw_chain} from '../mem';
 	
-	import {load_app_profile, svelte_to_dom} from '../svelte';
+	import {load_app_profile, load_page_context, svelte_to_dom} from '../svelte';
 	
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import {ecdhNonce, extractMemoCiphertext} from '#/crypto/privacy';
@@ -23,27 +26,29 @@
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
 	
-	import AsyncLockPool from '#/util/async-lock-pool';
-	import {forever, ode, proper} from '#/util/belt';
+	import {Secrets} from '#/store/secrets';
+	import {fold, forever, ode, proper} from '#/util/belt';
 	import {buffer_to_text} from '#/util/data';
 	import {dd, open_external_link, qsa} from '#/util/dom';
 	import {phrase_to_hyphenated} from '#/util/format';
 	
-	import Address from './Address.svelte';
+	import Address from '../frag/Address.svelte';
 	import Copyable from './Copyable.svelte';
 	import Field from './Field.svelte';
 	import Gap from './Gap.svelte';
 	import Load from './Load.svelte';
 	import LoadingRows from './LoadingRows.svelte';
-	import MemoReview from './MemoReview.svelte';
+	import MemoReview from '../frag/MemoReview.svelte';
 	import PasswordField from './PasswordField.svelte';
-	import PfpDisplay from './PfpDisplay.svelte';
+	import PfpDisplay from '../frag/PfpDisplay.svelte';
 	import Put from './Put.svelte';
+	import QueryPermitRow from '../frag/QueryPermitRow.svelte';
 	import Row from './Row.svelte';
 	
-	import TransactionHashField from './TransactionHashField.svelte';
+	import TransactionHashField from '../frag/TransactionHashField.svelte';
 	
 	import SX_ICON_COPY from '#/icon/copy.svg?raw';
+	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
 	import SX_ICON_EYE from '#/icon/visibility.svg?raw';
 
 
@@ -93,8 +98,6 @@
 
 		const [, g_account] = await Accounts.find(sa_owner, $yw_chain);
 
-		// const g_chain = (await Chains.at(p_chain))!;
-
 		// wait for load to complete
 		await loaded;
 
@@ -125,7 +128,7 @@
 	let b_profile_load_attempted = false;
 	let g_profile: AppProfile | undefined;
 
-	async function load_contract(sa_contract: Bech32, g_chain: ChainStruct, g_app: AppStruct): Promise<ContractStruct> {
+	async function load_contract(sa_contract: Bech32, g_chain: ChainStruct, g_app: AppStruct | undefined): Promise<ContractStruct> {
 		// create contract path
 		const p_contract = Contracts.pathFor(Chains.pathFrom(g_chain), sa_contract);
 
@@ -135,7 +138,7 @@
 		// definition does not exist in store
 		if(!g_contract) {
 			// no app profile loaded
-			if(!b_profile_load_attempted) {
+			if(g_app && !b_profile_load_attempted) {
 				// acquire lock on profile
 				await navigator.locks.request('ui:fields:profile', async() => {
 					if(!b_profile_load_attempted) {
@@ -163,7 +166,7 @@
 				hash: g_contract?.hash || '',
 				bech32: sa_contract,
 				interfaces: g_contract?.interfaces || {},
-				name: g_contract?.name || `Unknown Contract from ${g_app.host}`,
+				name: g_contract?.name || `Unknown Contract${g_app? ` from ${g_app.host}`: ''}`,
 				origin: 'domain',
 				pfp: '' as PfpTarget,
 			};
@@ -203,7 +206,9 @@
 		})()];
 	}
 
-	async function load_contact(sa_contact: Bech32, g_chain: ChainStruct): Promise<ContactStruct | AccountStruct | null> {
+	async function load_contact(w_contact: Promisable<Bech32>, g_chain: ChainStruct): Promise<[Bech32, ContactStruct | AccountStruct | null]> {
+		const sa_contact = await w_contact;
+
 		// create contact path
 		const p_contact = Agents.pathForContactFromAddress(sa_contact);
 
@@ -211,20 +216,34 @@
 		const g_contact = await Agents.getContact(p_contact) || null;
 
 		// contact found
-		if(g_contact) return g_contact;
+		if(g_contact) return [sa_contact, g_contact];
 
 		// no contact, check accounts
 		try {
 			const [p_account, g_account] = await Accounts.find(sa_contact, g_chain);
 
-			return g_account;
+			return [sa_contact, g_account];
 		}
 		catch(e_find) {
-			return null;
+			return [sa_contact, null];
 		}
 	}
 
+	async function load_account(p_account: AccountPath) {
+		return (await Accounts.at(p_account))!;
+	}
+
+	async function load_app(p_app: AppPath) {
+		return (await Apps.at(p_app))!;
+	}
 	
+	async function load_query_permit(p_secret: SecretPath<'query_permit'>) {
+		const g_secret = await Secrets.metadata(p_secret);
+		return {
+			g_secret,
+			g_app: await Apps.at(g_secret.outlets[0]),
+		};
+	}
 
 	async function render_resource(g_resource: Nameable & Pfpable, si_class: string): Promise<HTMLDivElement> {
 		return dd('div', {
@@ -325,7 +344,7 @@
 
 <style lang="less">
 	hr.minimal {
-		margin: calc(var(--ui-padding) / 8);
+		margin: calc(var(--ui-padding) / 2);
 		visibility: hidden;
 	}
 
@@ -440,19 +459,22 @@
 				</div>
 			{:else if 'resource' === gc_field.type}
 				{@const si_res_type = gc_field.resourceType}
-				<Field key={`resource-${si_res_type}`} name={gc_field.label || proper(si_res_type)}>
+				<Field short={!!gc_field.short}
+					key={`resource-${si_res_type}`} name={gc_field.label || proper(si_res_type)}
+				>
 					{#await load_resource(gc_field)}
 						<Load forever />
 					{:then [g_resource, s_detail]}
 						{#if g_resource}
+						<!-- ; padding:calc(0.5 * var(--ui-padding)) 1px; -->
 							<Row
-								rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
+								rootStyle='border:none; padding:0;'
 								resource={g_resource}
 								detail={s_detail}
 							/>
 						{:else}	
 							<Row
-								rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
+								rootStyle='border:none; padding:0;'
 								name={`Unknown ${proper(si_res_type)}`}
 								detail={gc_field.path || '(null)'}
 							/>
@@ -461,25 +483,55 @@
 				</Field>
 			{:else if 'password' === gc_field.type}
 				<PasswordField password={gc_field.value} label={gc_field.label} />
+			{:else if 'accounts' === gc_field.type}
+				<Field short={!!gc_field.short}
+					key={phrase_to_hyphenated(gc_field.label || 'accounts')} name={gc_field.label || 'Accounts'}
+				>
+					{#each gc_field.paths as p_account}
+						{#await load_account(p_account)}
+							<Load forever />
+						{:then g_account} 
+							<Row pfpDim={gc_field.short? 22: 0}
+								rootStyle='border:none; padding:0;'
+								resource={g_account}
+							/>
+						{/await}
+					{/each}
+				</Field>
+			{:else if 'apps' === gc_field.type}
+				<Field short={!!gc_field.short}
+					key={phrase_to_hyphenated(gc_field.label || 'apps')} name={gc_field.label || 'Apps'}
+				>
+					{#each gc_field.paths as p_app}
+						{#await load_app(p_app)}
+							<Load forever />
+						{:then g_app} 
+							<Row pfpDim={gc_field.short? 22: 0}
+								rootStyle='border:none; padding:0;'
+								resource={g_app}
+							/>
+						{/await}
+					{/each}
+				</Field>
 			{:else if 'contacts' === gc_field.type}
 				<Field key={phrase_to_hyphenated(gc_field.label || 'affiliated-addresses')} name={gc_field.label || 'Affiliated address'}>
-					{#each gc_field.bech32s as sa_agent}
-						{#await load_contact(sa_agent)}
+					{#each gc_field.bech32s as w_agent}
+						{#await load_contact(w_agent, gc_field.g_chain)}
 							<Load forever />
-						{:then g_contact} 
+						{:then [sa_agent, g_contact]} 
 							<Copyable confirmation="Address copied!" let:copy>
 								{#if g_contact}
 									<Row
 										rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
 										resource={g_contact}
-										detail={sa_agent}
+										address={sa_agent}
 										on:click={() => copy(sa_agent)}
 									/>
 								{:else}	
 									<Row
 										rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
 										name={`Unknown`}
-										detail={sa_agent}
+										address={sa_agent}
 										on:click={() => copy(sa_agent)}
 									/>
 								{/if}
@@ -490,23 +542,33 @@
 			{:else if 'contracts' === gc_field.type}
 				<Field key='involved-contracts' name={gc_field.label || 'Contracts'}>
 					{@const {g_chain, g_app} = gc_field}
-					{#each gc_field.bech32s as sa_contract}
+					{@const z_bech32s = gc_field.bech32s}
+					{@const h_bech32s = Array.isArray(z_bech32s)? fold(z_bech32s, sa => ({[sa]:''})): z_bech32s}
+					{#each ode(h_bech32s) as [sa_contract, w_disabled]}
 						{#await load_contract(sa_contract, g_chain, g_app)}
 							<LoadingRows />
 						{:then g_contract} 
 							<Copyable confirmation="Address copied!" let:copy>
-								<Row
-									appRelated
+								<Row appRelated cancelled={!!w_disabled}
 									rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
 									resource={g_contract}
-									pfp={g_contract.pfp || `pfp:${g_app.scheme}://${g_app.host}/${g_chain.namespace}:${g_chain.reference}:${g_contract.bech32}`}
-									detail={g_contract.bech32}
+									pfp={g_contract.pfp || (g_app? `pfp:${g_app.scheme}://${g_app.host}/${g_chain.namespace}:${g_chain.reference}:${g_contract.bech32}`: '')}
+									address={g_contract.bech32}
 									on:click={() => copy(g_contract.bech32)}
 								/>
 							</Copyable>
 						{/await}
 					{/each}
 				</Field>
+			{:else if 'query_permit' === gc_field.type}
+				{@const p_secret = gc_field.secret}
+				{#await load_query_permit(p_secret)}
+					<LoadingRows />
+				{:then {g_secret, g_app}}
+					<Field key='query-permit' name='Query Permit'>
+						<QueryPermitRow secret={g_secret} app={g_app} />
+					</Field>
+				{/await}
 			{:else if 'dom' === gc_field.type}
 				{#if gc_field.title}
 					<Field
@@ -534,7 +596,11 @@
 			{:else if 'gap' === gc_field.type}
 				<Gap plain />
 			{:else if 'group' === gc_field.type}
-				<svelte:self noHrs={!gc_field.expanded} flex={!!gc_field.flex} configs={gc_field.fields} />
+				{#await gc_field.fields}
+					<LoadingRows />
+				{:then a_configs}
+					<svelte:self noHrs={!gc_field.expanded} flex={!!gc_field.flex} configs={a_configs} />
+				{/await}
 			{/if}
 		{/await}
 	{/each}

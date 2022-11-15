@@ -3,7 +3,7 @@ import type { AppProfile } from '#/store/apps';
 import type {Nameable, Pfpable} from '#/meta/able';
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {AppStruct, AppPath} from '#/meta/app';
-import type {ChainStruct, ChainPath, Bech32} from '#/meta/chain';
+import type {ChainStruct, ChainPath, Bech32, ContractStruct} from '#/meta/chain';
 import type {Resource} from '#/meta/resource';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import {ode, ofe} from '#/util/belt';
@@ -11,11 +11,13 @@ import {dd} from '#/util/dom';
 import {getContext} from 'svelte';
 import {cubicOut} from 'svelte/easing';
 import type {Page} from '##/nav/page';
-import PfpDisplay from './ui/PfpDisplay.svelte';
+import PfpDisplay from './frag/PfpDisplay.svelte';
 import {Apps, G_APP_STARSHELL} from '#/store/apps';
 import type {IntraExt} from '#/script/messages';
 import {SessionStorage} from '#/extension/session-storage';
 import {Chains} from '#/store/chains';
+import { Contracts } from '#/store/contracts';
+import type { PfpTarget } from '#/meta/pfp';
 
 
 
@@ -186,6 +188,16 @@ export interface LocalAppContext {
 	sa_owner: Bech32;
 }
 
+export interface PartialLocalAppContext {
+	p_app: AppPath | undefined;
+	g_app: AppStruct | null;
+	p_chain: ChainPath | undefined;
+	g_chain: ChainStruct | null;
+	p_account: AccountPath | undefined;
+	g_account: AccountStruct | null;
+	sa_owner: Bech32 | undefined;
+}
+
 export interface LoadedAppContext<w_complete extends any=any> extends AppContext<w_complete>, LocalAppContext {
 	g_account: AccountStruct;
 }
@@ -216,3 +228,47 @@ export async function load_app_profile(g_app: AppStruct) {
 	return g_profile as AppProfile;
 }
 /* eslint-enable */
+
+
+export async function load_contract(sa_contract: Bech32, g_chain: ChainStruct, g_app?: AppStruct | undefined, g_profile: AppProfile | null=null): Promise<ContractStruct> {
+	// create contract path
+	const p_contract = Contracts.pathFor(Chains.pathFrom(g_chain), sa_contract);
+
+	// attempt to locate entity
+	let g_contract = await Contracts.at(p_contract);
+
+	// definition does not exist in store
+	if(!g_contract) {
+		// no app profile loaded
+		if(g_app && !g_profile) {
+			// acquire lock on profile
+			await navigator.locks.request('ui:fields:profile', async() => {
+				// load profile
+				g_profile = await load_app_profile(g_app) || null;
+			});
+		}
+
+		// find contract def in app profile
+		const h_contracts = g_profile?.contracts;
+		if(h_contracts) {
+			for(const [, g_def] of ode(h_contracts)) {
+				if(sa_contract === g_def.bech32) {
+					g_contract = g_def;
+				}
+			}
+		}
+
+		return {
+			on: 1,
+			chain: Chains.pathFrom(g_chain),
+			hash: g_contract?.hash || '',
+			bech32: sa_contract,
+			interfaces: g_contract?.interfaces || {},
+			name: g_contract?.name || `Unknown Contract${g_app? ` from ${g_app.host}`: ''}`,
+			origin: 'domain',
+			pfp: '' as PfpTarget,
+		};
+	}
+
+	return g_contract;
+}

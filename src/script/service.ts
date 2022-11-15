@@ -1,10 +1,10 @@
 import type Browser from 'webextension-polyfill';
 
-import {B_IPHONE_IOS, B_NATIVE_IOS, G_USERAGENT, R_CAIP_2} from '#/share/constants';
+import {B_IPHONE_IOS, B_IOS_NATIVE, G_USERAGENT, R_CAIP_2, XT_TIMEOUT_APP_PERMISSIONS, XT_TIMEOUT_SERVICE_REQUEST} from '#/share/constants';
 
 import {do_webkit_polyfill} from './webkit-polyfill';
 
-if(B_NATIVE_IOS) {
+if(B_IOS_NATIVE) {
 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.background: ${s}`, ...a_args));
 }
 
@@ -47,10 +47,11 @@ import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
 import type {NotificationConfig} from '#/extension/notifications';
 import {process_permissions_request} from '#/extension/permissions';
-import {PublicStorage, storage_clear, storage_remove} from '#/extension/public-storage';
+import {PublicStorage, storage_clear, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
 import type {InternalConnectionsResponse} from '#/provider/connection';
 import {add_utility_key, import_private_key} from '#/share/account';
+import {factory_reset, reinstall} from '#/share/auth';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
@@ -61,6 +62,10 @@ import {Secrets} from '#/store/secrets';
 import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
 import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, sha256_sync, text_to_base64, text_to_buffer} from '#/util/data';
 import {stringify_params, uuid_v4} from '#/util/dom';
+import { system_notify } from '#/extension/browser';
+import { EntropyProducer } from '#/crypto/entropy';
+import {Settings, type SettingsRegistry} from '#/store/settings';
+import BigNumber from 'bignumber.js';
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
@@ -470,33 +475,37 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 
 		// 
 		for(const k_feed of a_feeds) {
-			// whether to recreate the feed
-			let b_recreate = true;
+			await navigator.locks.request(`net:feed:${k_feed.provider.rpcHost}`, async() => {
+				// whether to recreate the feed
+				let b_recreate = true;
 
-			// 30 seconds of tolerance, wait for up to 5 seconds per socket, for a total of up to 30 seconds
-			try {
-				const [, xc_timeout] = await timeout_exec(30e3, () => k_feed.wake(30e3, 5e3));
+				// 30 seconds of tolerance, wait for up to 5 seconds per socket, for a total of up to 30 seconds
+				try {
+					const [, xc_timeout] = await timeout_exec(30e3, () => k_feed.wake(30e3, 5e3));
 
-				// feed is OK
-				if(!xc_timeout) {
-					b_recreate = false;
+					// feed is OK
+					if(!xc_timeout) {
+						b_recreate = false;
+					}
 				}
-			}
-			catch(e_exec) {}
+				catch(e_exec) {
+					console.error(e_exec);
+				}
 
-			// recreate feed
-			if(b_recreate) {
-				console.warn(`Recreating delinquent network feed for ${k_feed.provider.rpcHost}`);
+				// recreate feed
+				if(b_recreate) {
+					console.warn(`Recreating delinquent network feed for ${k_feed.provider.rpcHost}`);
 
-				// destroy existing feed
-				k_feed.destroy();
+					// destroy existing feed
+					k_feed.destroy();
 
-				// remove from list
-				a_feeds.splice(a_feeds.indexOf(k_feed), 1);
+					// remove from list
+					a_feeds.splice(a_feeds.indexOf(k_feed), 1);
 
-				// replace with new feed
-				a_feeds.push(await k_feed.recreate());
-			}
+					// replace with new feed
+					a_feeds.push(await k_feed.recreate());
+				}
+			});
 		}
 	},
 
@@ -555,7 +564,7 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 					g_app = {
 						on: 1,
 						api: AppApiMode.UNKNOWN,
-						name: (await SessionStorage.get(`profile:${new URL(p_tab).origin}`))?.name as string
+						name: (await SessionStorage.get(`profile:${new URL(p_tab).origin}`))?.name!
 							|| g_tab.title || new URL(p_tab).host,
 						scheme: s_scheme,
 						host: s_host,
@@ -760,7 +769,7 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 			// app message
 			if(si_type in H_HANDLERS_ICS_APP) {
 				// go async
-				(async() => {
+				timeout_exec(XT_TIMEOUT_APP_PERMISSIONS, async() => {
 					// check app permissions
 					const g_check = await check_app_permissions(g_sender);
 
@@ -820,7 +829,18 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 					fk_respond({
 						ok: w_return,
 					});
-				})();
+				}).then(([, xc_timeout]) => {
+					// service response timeout exceeded; fail
+					if(xc_timeout) {
+						fk_respond({
+							error: 'Timed out while waiting for app permissions check',
+						});
+					}
+				}).catch((e_handle: Error) => {
+					fk_respond({
+						error: `Uncaught message handler error: ${e_handle.message}`,
+					});
+				});
 
 				return true;
 			}
@@ -840,11 +860,40 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 
 		// route message to handler
 		if(f_handler) {
-			const z_response = f_handler(g_msg.value, g_sender, fk_respond);
+			// flag set once request has been terminated
+			let b_terminated = false;
+
+			// force a timeout if handler doesn't respond for some time
+			const i_unresponsive = setTimeout(() => {
+				// prevent tardy handler response from executing callback
+				b_terminated = true;
+
+				// respond to request
+				fk_respond();
+			}, XT_TIMEOUT_SERVICE_REQUEST);
+
+			// wrap responder
+			const fk_response_wrapper = (w_data?: any) => {
+				// already terminated; exit
+				if(b_terminated) return;
+
+				// cancel timeout handler
+				clearTimeout(i_unresponsive);
+
+				// respond to request
+				fk_respond(w_data);
+			};
+
+			// invoke handler
+			const z_response = f_handler(g_msg.value, g_sender, fk_response_wrapper);
 
 			// async handler
 			if(z_response && 'function' === typeof z_response['then']) {
 				return true;
+			}
+			// synchronous; clear unresponsive timeout
+			else {
+				clearTimeout(i_unresponsive);
 			}
 		}
 		else {
@@ -857,41 +906,13 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 chrome.runtime.onMessage?.addListener(message_router);
 
 
+
 chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 	// whether or not this is a fresh install
 	const b_install = 'install' === g_installed.reason;
 
-	// mark event
-	await PublicStorage.installed();
-
-	// migration; wipe everything
-	if(await PublicStorage.isUpgrading('0.3.0')) {
-		await storage_clear();
-		await SessionStorage.clear();
-	}
-	// selective wipe
-	else if(await PublicStorage.isUpgrading('0.5.0')) {
-		await storage_remove('apps');
-		await storage_remove('pfps');
-		await storage_remove('media');
-		await storage_remove('chains');
-		await storage_remove('contracts');
-		for(const [, g_account] of (await Accounts.read()).entries()) {
-			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
-		}
-	}
-
-	// fresh install
-	if(b_install) {
-		// enable keplr compatibility mode
-		await PublicStorage.keplrCompatibilityMode(true);
-
-		// enable detection mode by default
-		await PublicStorage.keplrDetectionMode(true);
-	}
-
-	// set compatibility mode based on apps and current settings
-	await set_keplr_compatibility_mode();
+	// reinstall
+	await reinstall(b_install);
 
 	// pause for ui
 	await timeout(1e3);
@@ -1010,40 +1031,6 @@ chrome.notifications?.onClicked?.addListener((si_notif) => {
 });
 
 
-const notify_user = B_IPHONE_IOS
-	? function notify_user(gc_notification: NotificationConfig) {
-		const g_message = {
-			type: 'notification',
-			value: gc_notification,
-		} as const;
-
-		console.log(g_message);
-
-		f_runtime_ios().sendNativeMessage('application.id', g_message, (w_response) => {
-			console.debug(`Received response from native app: %o`, w_response);
-		});
-	}
-	: chrome.notifications
-		? function notify_user(gc_notification: NotificationConfig) {
-			chrome.notifications?.create(gc_notification.id || '', {
-				type: 'basic',
-				priority: 1,
-				iconUrl: '/media/vendor/logo-192px.png',
-				eventTime: Date.now(),
-				title: gc_notification.item.title || '1 New Notification',
-				message: gc_notification.item.message || ' ',
-			}, (si_notifcation) => {
-				// clear after some timeout
-				const xt_timeout = gc_notification.timeout;
-				if(Number.isFinite(xt_timeout)) {
-					setTimeout(() => {
-						chrome.notifications?.clear(si_notifcation);
-					}, xt_timeout! > 0? xt_timeout: 5e3);
-				}
-			});
-		}
-		: F_NOOP;
-
 
 
 // global message handler
@@ -1055,11 +1042,8 @@ global_receive({
 
 		// start feeds
 		a_feeds.push(...await NetworkFeed.createAll({
-			// notification event
-			notify(gc_notify, k_feed) {
-				// create notification
-				notify_user(gc_notify);
-			},
+			// wire up notification hook
+			notify: system_notify,
 		}));
 	},
 
@@ -1115,6 +1099,9 @@ Object.assign(globalThis, {
 	Contracts,
 	Histories,
 	Incidents,
+	Providers,
+
+	EntropyProducer,
 
 	base93_to_buffer,
 	base58_to_buffer,
@@ -1147,10 +1134,16 @@ Object.assign(globalThis, {
 	global_broadcast,
 	global_receive,
 
-	async factory_reset() {
-		await SessionStorage.clear();
-		await chrome.storage.local.clear();
-	},
+	factory_reset,
+
+	storage_get,
+	storage_get_all,
+	storage_set,
+	storage_remove,
+	storage_clear,
+
+	Settings,
+	BigNumber,
 
 	deep_seal(w_thing) {
 		// blocking
@@ -1210,8 +1203,8 @@ Object.assign(globalThis, {
 		const p_chain = Chains.pathFor(si_namespace as 'cosmos', si_reference);
 		const g_chain = (await Chains.at(p_chain))!;
 		const k_network = await Providers.activateDefaultFor(g_chain);
-		return await k_network.inspectTx(si_tx);
-	}
+		return await k_network.fetchTx(si_tx);
+	},
 });
 
 

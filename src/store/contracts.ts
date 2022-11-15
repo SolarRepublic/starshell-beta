@@ -19,6 +19,22 @@ import {SI_STORE_CONTRACTS} from '#/share/constants';
 import {is_dict, ode} from '#/util/belt';
 
 
+export enum ContractType {
+	// contract type has not yet been deduced
+	UNKNOWN = 0b000,
+
+	// fungible token
+	FUNGIBLE = 0b001,
+
+	// non-fungible token
+	NONFUNGIBLE = 0b010,
+
+	// any token
+	TOKEN = 0b011,
+
+	// not a token
+	OTHER = 0b100,
+}
 
 export interface ContractFilterConfig {
 	chain?: ChainPath;

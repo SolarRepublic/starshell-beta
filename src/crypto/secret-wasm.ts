@@ -303,6 +303,10 @@ export class SecretWasm {
 	}
 
 	async encrypt(s_code_hash: string, g_msg: JsonValue): Promise<Uint8Array> {
+		if(64 !== s_code_hash.length) {
+			throw new Error(`Missing required code hash for secret wasm message encryption`);
+		}
+
 		// construct payload
 		const atu8_payload = text_to_buffer(s_code_hash+JSON.stringify(g_msg));
 

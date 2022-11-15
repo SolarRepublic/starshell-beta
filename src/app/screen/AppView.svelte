@@ -7,8 +7,8 @@
 	import {Apps} from '#/store/apps';
 	
 	import Header from '../ui/Header.svelte';
-	import Portrait, {type Actions} from '../ui/Portrait.svelte';
-	import IncidentsList from '../ui/IncidentsList.svelte';
+	import IncidentsList from '../frag/IncidentsList.svelte';
+	import Portrait, {type Actions} from '../frag/Portrait.svelte';
 	
 
 	export let app: AppStruct;

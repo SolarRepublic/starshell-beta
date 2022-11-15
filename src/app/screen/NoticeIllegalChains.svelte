@@ -1,13 +1,16 @@
 <script lang="ts">
-	import {Screen} from './_screens';
-
 	import type {AppStruct} from '#/meta/app';
-	import ActionsLine from '../ui/ActionsLine.svelte';
 	import type {Caip2, ChainStruct} from '#/meta/chain';
-	import {F_NOOP, ode} from '#/util/belt';
-	import AppBanner from '../ui/AppBanner.svelte';
-	import Row from '../ui/Row.svelte';
+	
+	import {Screen} from './_screens';
 	import {load_flow_context} from '../svelte';
+	
+	import {F_NOOP, ode} from '#/util/belt';
+	
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
+	import Row from '../ui/Row.svelte';
+	
 
 	const {
 		completed,

@@ -8,7 +8,8 @@ import type {Promisable, Values} from '#/meta/belt';
 import type {Bech32, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
 import type {Snip20} from '#/schema/snip-20-def';
-import {Snip20Util, Snip2xToken} from '#/schema/snip-2x-const';
+import type {Snip2x} from '#/schema/snip-2x-def';
+import {Snip2xUtil, Snip2xToken} from '#/schema/snip-2x-const';
 
 import BigNumber from 'bignumber.js';
 
@@ -20,7 +21,7 @@ import type {LoadedAppContext} from '#/app/svelte';
 import type {NotifyItemConfig} from '#/extension/notifications';
 
 import {R_TRANSFER_AMOUNT, XT_SECONDS} from '#/share/constants';
-import {G_APP_STARSHELL} from '#/store/apps';
+import {Apps, G_APP_STARSHELL} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
 import {Providers} from '#/store/providers';
@@ -42,21 +43,21 @@ interface ExecContractMsg {
 
 type TokenInfoResponse = Snip20.BaseQueryResponse<'token_info'>;
 
-interface Bundle<si_key extends Snip20.AnyMessageKey=Snip20.AnyMessageKey> extends LoadedAppContext {
-	h_args: Snip20.AnyMessageParameters<si_key>[si_key];
+interface Bundle<si_key extends Snip2x.AnyMessageKey=Snip2x.AnyMessageKey> extends LoadedAppContext {
+	h_args: Snip2x.AnyMessageParameters<si_key>[si_key];
 	g_exec: ExecContractMsg;
 	p_contract: ContractPath;
 	g_contract_loaded: ContractStruct | null;
 	g_contract_pseudo: ContractStruct;
-	g_snip20: NonNullable<ContractStruct['interfaces']['snip20']>;
+	g_snip20: NonNullable<ContractStruct['interfaces']['snip20']> | undefined;
 	sa_owner: Bech32;
 }
 
 type SnipConfigs = {
-	[si_each in Snip20.AnyMessageKey]: (
+	[si_each in Snip2x.AnyMessageKey]: (
 		g_bundle: Bundle<si_each>
 	) => Promisable<{
-		apply?(): Promisable<NotifyItemConfig | void>;
+		apply?(si_txn: string): Promisable<NotifyItemConfig | void>;
 
 		review?(b_pending: boolean): Promisable<ReviewedMessage>;
 	} | void>;
@@ -64,12 +65,12 @@ type SnipConfigs = {
 
 
 type SnipHandlers = {
-	[si_each in Snip20.AnyMessageKey]: (
-		h_args: Snip20.AnyMessageParameters<si_each>[si_each],
+	[si_each in Snip2x.AnyMessageKey]: (
+		h_args: Snip2x.AnyMessageParameters<si_each>[si_each],
 		g_context: LoadedAppContext,
 		g_exec: ExecContractMsg,
 	) => Promisable<{
-		apply?(): Promisable<NotifyItemConfig | void>;
+		apply?(si_txn: string): Promisable<NotifyItemConfig | void>;
 
 		review?(b_pending: boolean): Promisable<ReviewedMessage>;
 	} | void>;
@@ -83,7 +84,7 @@ function snip_info(g_contract: ContractStruct, g_chain: ChainStruct): string[] {
 
 function wrap_handlers(h_configs: Partial<SnipConfigs>): SnipHandlers {
 	return fodemtv(h_configs, (f_action, si_action) => async(
-		h_args: Values<Snip20.AnyMessageParameters>,
+		h_args: Values<Snip2x.AnyMessageParameters>,
 		g_context: LoadedAppContext,
 		g_exec: ExecContractMsg
 	) => {
@@ -104,66 +105,68 @@ function wrap_handlers(h_configs: Partial<SnipConfigs>): SnipHandlers {
 		// prep snip20 struct
 		let g_snip20 = g_contract_loaded?.interfaces?.snip20;
 
-		if(!g_snip20) {
-			let g_response: TokenInfoResponse | undefined;
-			let xc_timeout: 0 | 1;
+		// TODO: the below code attempts to detect if a contract is a SNIP-20, but this should not happen automatically
+		// // contract was not declared to be a SNIP-20
+		// if(!g_snip20) {
+		// 	let g_response: TokenInfoResponse | undefined;
+		// 	let xc_timeout: 0 | 1;
 
-			const k_network = await Providers.activateDefaultFor(g_chain) as SecretNetwork;
+		// 	const k_network = await Providers.activateDefaultFor(g_chain) as SecretNetwork;
 
-			// fetch code hash
-			const s_hash = await k_network.codeHashByContractAddress(sa_contract);
+		// 	// fetch code hash
+		// 	const s_hash = await k_network.codeHashByContractAddress(sa_contract);
 
-			// attempt to query for token info
-			try {
-				[g_response, xc_timeout] = await timeout_exec(XT_QUERY_TOKEN_INFO, async() => {
-					const g_query: Snip20.BaseQueryParameters<'token_info'> = {
-						token_info: {},
-					};
+		// 	// attempt to query for token info
+		// 	try {
+		// 		[g_response, xc_timeout] = await timeout_exec(XT_QUERY_TOKEN_INFO, async() => {
+		// 			const g_query: Snip20.BaseQueryParameters<'token_info'> = {
+		// 				token_info: {},
+		// 			};
 
-					return await k_network.queryContract<TokenInfoResponse>(g_account, {
-						bech32: sa_contract,
-						hash: s_hash,
-					}, g_query);
-				});
+		// 			return await k_network.queryContract<TokenInfoResponse>(g_account, {
+		// 				bech32: sa_contract,
+		// 				hash: s_hash,
+		// 			}, g_query);
+		// 		});
 
-				if(xc_timeout) {
-					return syswarn({
-						title: 'Token info query timed out',
-						text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract} because the query took more than ${XT_QUERY_TOKEN_INFO / XT_SECONDS} seconds`,
-					});
-				}
-			}
-			catch(e_query) {
-				return syswarn({
-					title: 'Token info query failed',
-					text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract}: ${e_query.message}`,
-				});
-			}
+		// 		if(xc_timeout) {
+		// 			return syswarn({
+		// 				title: 'Token info query timed out',
+		// 				text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract} because the query took more than ${XT_QUERY_TOKEN_INFO / XT_SECONDS} seconds`,
+		// 			});
+		// 		}
+		// 	}
+		// 	catch(e_query) {
+		// 		return syswarn({
+		// 			title: 'Token info query failed',
+		// 			text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract}: ${e_query.message}`,
+		// 		});
+		// 	}
 
-			const g_token_info = g_response!.token_info;
+		// 	const g_token_info = g_response!.token_info;
 
-			// invalid token info
-			if(!Snip20Util.validate_token_info(g_token_info)) {
-				return;
-			}
+		// 	// invalid token info
+		// 	if(!Snip20Util.validate_token_info(g_token_info)) {
+		// 		return;
+		// 	}
 
-			g_snip20 = {
-				decimals: g_token_info.decimals as L.UnionOf<N.Range<0, 18>>,
-				symbol: g_token_info.symbol,
-			};
+		// 	g_snip20 = {
+		// 		decimals: g_token_info.decimals as L.UnionOf<N.Range<0, 18>>,
+		// 		symbol: g_token_info.symbol,
+		// 	};
 
-			g_contract_pseudo = {
-				bech32: sa_contract,
-				chain: p_chain,
-				hash: s_hash,
-				interfaces: {
-					snip20: g_snip20,
-				},
-				name: g_token_info.name,
-				origin: 'domain',
-				pfp: g_app.pfp,
-			};
-		}
+		// 	g_contract_pseudo = {
+		// 		bech32: sa_contract,
+		// 		chain: p_chain,
+		// 		hash: s_hash,
+		// 		interfaces: {
+		// 			snip20: g_snip20,
+		// 		},
+		// 		name: g_token_info.name,
+		// 		origin: 'domain',
+		// 		pfp: g_app.pfp,
+		// 	};
+		// }
 
 		return await f_action({
 			h_args: h_args as Bundle['h_args'],
@@ -256,7 +259,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 				security: {
 					type: 'none' as const,
 				},
-				name: `Viewing Key for ${g_snip20.symbol}`,
+				name: `Viewing Key for ${g_snip20!.symbol}`,
 				chain: p_chain,
 				owner: Chains.addressFor(g_account.pubkey, g_chain),
 				contract: g_contract_loaded.bech32,
@@ -279,7 +282,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 			return {
 				group: nl => `Viewing Key${1 === nl? '': 's'} Updated`,
 				title: '🔑 Viewing Key Updated',
-				message: `${g_contract_loaded.name} token (${g_snip20.symbol}) has been updated on ${g_chain.name}`,
+				message: `${g_contract_loaded.name} token (${g_snip20!.symbol}) has been updated on ${g_chain.name}`,
 			};
 		},
 
@@ -309,9 +312,9 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		g_exec,
 	}) => {
 		// attempt to parse the amount
-		const xg_amount = BigNumber(h_args.amount).shiftedBy(-g_snip20.decimals);
+		const xg_amount = BigNumber(h_args.amount).shiftedBy(-g_snip20!.decimals);
 
-		const s_payload = `${format_amount(xg_amount.toNumber())} ${g_snip20.symbol}`;
+		const s_payload = `${format_amount(xg_amount.toNumber())} ${g_snip20!.symbol}`;
 
 		return {
 			apply() {
@@ -350,9 +353,9 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		g_exec,
 	}) => {
 		// attempt to parse the amount
-		const xg_amount = BigNumber(h_args.amount).shiftedBy(-g_snip20.decimals);
+		const xg_amount = BigNumber(h_args.amount).shiftedBy(-g_snip20!.decimals);
 
-		const s_payload = `${format_amount(xg_amount.toNumber())} ${g_snip20.symbol}`;
+		const s_payload = `${format_amount(xg_amount.toNumber())} ${g_snip20!.symbol}`;
 
 		const s_recipient = await address_to_name(h_args.recipient, g_chain);
 
@@ -384,6 +387,62 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 						},
 					],
 					resource: g_contract_pseudo,
+				};
+			},
+		};
+	},
+
+	revoke_permit: async({
+		h_args,
+		p_app, g_app,
+		p_chain, g_chain,
+		p_account, g_account,
+		p_contract, g_contract_loaded, g_contract_pseudo,
+		g_exec,
+	}) => {
+		const sa_contract = g_exec.contract;
+
+		// load permit metadata
+		const g_secret = (await Secrets.filter({
+			type: 'query_permit',
+			chain: p_chain,
+			owner: Chains.addressFor(g_account.pubkey, g_chain),
+			name: h_args.permit_name,
+			contracts: [sa_contract],
+		}))![0];
+
+		// const g_outlet = await Apps.at(g_secret.outlets[0]);
+
+		return {
+			async apply(si_txn) {
+				// update query permit secret
+				g_secret.contracts[sa_contract] = si_txn;
+				await Secrets.update(g_secret);
+
+				// notification summary
+				return {
+					group: nl => `Permit${1 === nl? '': 's'} Revoked`,
+					title: `🙅 Permit Revoked`,
+					message: `Apps will no longer be able to use this permit to view your private data.`,
+				};
+			},
+
+			review(b_pending) {
+				return {
+					title: `Revok${b_pending? 'ing': 'ed'} Permit`,
+					infos: [
+						`on ${g_contract_loaded?.name || 'Unknown Contract'}`,
+					],
+					fields: [
+						{
+							type: 'query_permit',
+							secret: Secrets.pathFrom(g_secret),
+						},
+					],
+					resource: {
+						name: g_secret.name,
+						pfp: g_contract_loaded?.pfp || g_app?.pfp || '',
+					},
 				};
 			},
 		};

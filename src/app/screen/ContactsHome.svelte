@@ -8,18 +8,19 @@
 		TabPanel,
 	} from 'svelte-tabs';
 	
-	import {
-		Screen,
-		Header,
-	} from './_screens';
+	import {Screen, Header} from './_screens';
 	
-	import ContactList from '../ui/ContactList.svelte';
+	import ContactList from '../frag/ContactList.svelte';
 	import SubHeader from '../ui/SubHeader.svelte';
+	import { load_page_context } from '../svelte';
+    import ContactEdit from './ContactEdit.svelte';
+
+	const {k_page} = load_page_context();
 
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.screen.contacts div.svelte-tabs>div.svelte-tabs__tab-panel {
 		:global(&) {
@@ -34,9 +35,11 @@
 	</Header>
 
 	<SubHeader title="Contacts"
+		on:add_new={() => k_page.push({
+			creator: ContactEdit,
+		})}
 	/>
 	<!-- buttons={['Export']} -->
-	<!-- on:add_new={() => k_page.push({creator:ContactEdit})} -->
 	
 	<Tabs>
 		<TabList>

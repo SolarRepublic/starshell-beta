@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type {LocalAppContext} from '../svelte';
 
-	import type {AccountStruct} from '#/meta/account';
+	import type {AccountPath, AccountStruct} from '#/meta/account';
 	import type {AppPath, AppStruct} from '#/meta/app';
 	import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
 	import type {ChainStruct, ChainPath} from '#/meta/chain';
@@ -11,22 +11,17 @@
 	import {MsgSend} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
 	import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 	import {Tx} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-	import {JsonView} from '@zerodevx/svelte-json-view';
 	import BigNumber from 'bignumber.js';
-	import {Tab, TabList, TabPanel, Tabs} from 'svelte-tabs';
 	
 	import {Header, Screen} from './_screens';
 	import {syswarn} from '../common';
-	import {yw_account, yw_account_ref} from '../mem';
+	import {JsonPreviewer} from '../helper/json-previewer';
 	import {load_flow_context, load_page_context} from '../svelte';
 	
-	import {parse_coin_amount, to_fiat} from '#/chain/coin';
 	import {proto_to_amino} from '#/chain/cosmos-msgs';
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import type {ReviewedMessage} from '#/chain/messages/_types';
-	import {kv} from '#/chain/messages/_util';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
-	import type {NotifyItemConfig} from '#/extension/notifications';
 	import {R_TRANSFER_AMOUNT} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Apps, G_APP_EXTERNAL} from '#/store/apps';
@@ -36,18 +31,15 @@
 	import {ode, oderac} from '#/util/belt';
 	import {base93_to_buffer, buffer_to_base64} from '#/util/data';
 	import {dd} from '#/util/dom';
-	import {format_amount, format_date_long, format_fiat, format_time} from '#/util/format';
+	import {format_amount, format_date_long, format_time} from '#/util/format';
 	
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
-	import Field from '../ui/Field.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
 	import Fields from '../ui/Fields.svelte';
-	import Gap from '../ui/Gap.svelte';
-	import IncidentFields from '../ui/IncidentFields.svelte';
-	import type {SimpleField} from '../ui/IncidentFields.svelte';
 	import Spacer from '../ui/Spacer.svelte';
 	
 	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
+	
 
 	const {
 		completed,
@@ -75,7 +67,7 @@
 	};
 
 	// determines view mode for app banner
-	const b_banner_view = true;
+	const b_banner = true;
 
 	// const a_fields: SimpleField[] = [];
 	async function pretty_amount(s_input: string, p_chain: ChainPath): Promise<string> {
@@ -139,13 +131,6 @@
 	} = {
 		async tx_out(g_data, g_context) {
 			const h_events = g_data.events;
-
-			// set app banner
-			gc_banner = {
-				app: (await Apps.at(g_data.app!))!,
-				chain: (await Chains.at(g_data.chain))!,
-				account: (await Accounts.at(g_data.account))!,
-			};
 
 			// interpret raw messages
 			const a_reviewed = await Promise.all(g_data.msgs.map(async(g_msg_proto) => {
@@ -337,22 +322,58 @@
 			s_title: 'App Connected',
 			a_fields: [
 				{
-					type: 'key_value',
-					key: 'App',
-					value: Apps.parsePath(g_data.app)[1],
+					type: 'resource',
+					resourceType: 'app',
+					path: g_data.app,
+					short: true,
 				},
+				// @ts-expect-error idk
+				...oderac(g_data.connections, (p_chain: ChainPath, g_connection, i_connection) => ({
+					type: 'group',
+					fields: [
+						...i_connection? [{
+							type: 'gap',
+						}]: [],
+						{
+							type: 'resource',
+							resourceType: 'chain',
+							label: 'On Chain',
+							path: p_chain,
+							short: true,
+						},
+						{
+							type: 'key_value',
+							key: 'Permissions',
+							value: (() => {
+								const a_permissions = oderac(g_connection.permissions, (si, g) => `${si}:${JSON.stringify(g)}`);
+								return a_permissions.length? a_permissions.join(', '): dd('i', {}, [
+									'(none)',
+								]);
+							})(),
+						},
+						{
+							type: 'accounts',
+							paths: g_connection.accounts,
+							short: true,
+						},
+					],
+				})),
+			],
+		}),
+
+		signed_json: ({json:w_json}) => ({
+			s_title: 'Signed Document',
+			a_fields: [
+				JsonPreviewer.render(w_json),
+			],
+		}),
+
+		signed_query_permit: g_data => ({
+			s_title: 'Signed Query Permit',
+			a_fields: [
 				{
-					type: 'key_value',
-					key: 'Accounts',
-					value: Promise.all(g_data.accounts
-						.map(async p_account => (await Accounts.at(p_account))!.name)
-						.join(', ')),
-				},
-				{
-					type: 'key_value',
-					key: 'Permissions',
-					value: oderac(g_data.connections, (si_key, g_permission) => `${si_key}:${JSON.stringify(g_permission)}`)
-						.join(', '),
+					type: 'query_permit',
+					secret: g_data.secret,
 				},
 			],
 		}),
@@ -371,18 +392,34 @@
 
 		const g_data = g_incident.data;
 
-		g_chain = g_data['chain']? await Chains.at(g_data['chain'] as ChainPath): null;
-
 		const p_app = g_data['app'] as AppPath;
+		const p_chain = g_data['chain'] as ChainPath;
+		const p_account = g_data['account'] as AccountPath;
+
+		const [g_app, g_chain_local, g_account] = await Promise.all([
+			(async() => p_app? await Apps.at(p_app): G_APP_EXTERNAL)(),
+			(async() => p_chain? await Chains.at(p_chain): null)(),
+			(async() => p_account? await Accounts.at(p_account): null)(),
+		]);
+
+		g_chain = g_chain_local;
+
+		if(g_app && g_chain && g_account) {
+			gc_banner = {
+				app: g_app,
+				chain: g_chain,
+				account: g_account,
+			};
+		}
 
 			// prep local app context
 		const g_context = {
-			g_app: p_app? await Apps.at(p_app): G_APP_EXTERNAL,
-			p_app: p_app,
+			p_app: p_app || '',
+			g_app: g_app,
+			p_chain: p_chain || '',
 			g_chain,
-			p_chain: g_chain? Chains.pathFrom(g_chain): '',
-			p_account: $yw_account_ref,
-			g_account: $yw_account,
+			p_account: p_account || '',
+			g_account: g_account,
 		};
 
 		if(g_chain) {
@@ -479,7 +516,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.subvalue {
 		.font(tiny);
@@ -497,7 +534,7 @@
 	}
 </style>
 
-<Screen>
+<Screen nav>
 	<Header
 		search={!completed}
 		pops={!completed}
@@ -508,17 +545,18 @@
 
 	{#key c_updates}
 		{#if s_title}
+			{#if b_banner && gc_banner}
+				<AppBanner embedded
+					app={gc_banner.app}
+					chain={gc_banner.chain}
+					account={gc_banner.account}
+					rootStyle='margin-bottom: 8px;'
+				/>
+
+				<hr>
+			{/if}
+
 			{#if 'tx_in' === g_incident.type || 'tx_out' === g_incident.type}
-				{#if gc_banner}
-					<AppBanner embedded
-						app={gc_banner.app}
-						chain={gc_banner.chain}
-						account={gc_banner.account}
-					/>
-
-					<hr>
-				{/if}
-
 				<Fields
 					incident={g_incident}
 					configs={[
@@ -533,18 +571,7 @@
 					network={k_network}
 					loaded={dp_loaded}
 				/>
-
 			{:else}
-				<span>&nbsp;</span>
-
-				<!-- <Field
-					short
-					key='datetime'
-					name='Date'
-				>
-					{format_date_long(g_incident.time)}
-				</Field> -->
-
 				<Fields
 					incident={g_incident}
 					configs={[
@@ -563,7 +590,7 @@
 		{/if}
 	{/key}
 
-	<Spacer height="2em" />
+	<Spacer height="0px" />
 
 	{#if completed}
 		<ActionsLine confirm={['Done', complete]} />

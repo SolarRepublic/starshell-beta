@@ -1,24 +1,30 @@
 <script lang="ts">
-	import {Chains} from '#/store/chains';
-	import {getContext} from 'svelte';
 	import type {Intent} from '../svelte';
+	
+	import type {ChainStruct, ChainPath} from '#/meta/chain';
+	
+	import Toggle from '@solar-republic/svelte-toggle';
+	import {getContext} from 'svelte';
+	
+	import {Screen} from './_screens';
+	import {syserr} from '../common';
+	import {yw_account, yw_owner} from '../mem';
+	import {load_page_context} from '../svelte';
+	
+	import {Chains} from '#/store/chains';
+	import {type ActiveNetwork, Providers, UnpublishedAccountError} from '#/store/providers';
+	import {Settings, type SettingsRegistry} from '#/store/settings';
+	
+	import {microtask} from '#/util/belt';
+	
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Header from '../ui/Header.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-	import Toggle from '@solar-republic/svelte-toggle';
-	import {Screen, type Page} from './_screens';
-	import type {ChainStruct, ChainPath} from '#/meta/chain';
-	import {Settings, type SettingsRegistry} from '#/store/settings';
-	import {yw_account, yw_owner} from '../mem';
-	import {syserr} from '../common';
-	import {
-		type ActiveNetwork,
-		Providers,
-		UnpublishedAccountError,
-	} from '#/store/providers';
+	
+	
 
-	const k_page = getContext<Page>('page');
+	const {k_page} = load_page_context();
 	const g_intent = getContext<Intent | null>('intent') || null;
 
 	// whether the settings are busy being adjusted
@@ -103,11 +109,12 @@
 		// update entry
 		await Settings.set('e2e_encrypted_memos', h_settings);
 
+		// reactive update
 		h_settings = h_settings;
 
-		queueMicrotask(() => {
-			b_busy = false;
-		});
+		await microtask();
+
+		b_busy = false;
 	}
 </script>
 
@@ -141,8 +148,8 @@
 						<Toggle size={20}
 							on="On" off="Off"
 							disabled={b_busy}
-							toggled={h_settings[p_chain]?.enabled && h_settings[p_chain]?.published}
 							on:toggle={d_event => toggle_chain(p_chain, g_chain, d_event.detail)}
+							toggled={!!(h_settings[p_chain]?.enabled && h_settings[p_chain]?.published)}
 						/>
 					</svelte:fragment>
 				</Row>

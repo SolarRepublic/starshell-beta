@@ -1,24 +1,27 @@
 <script lang="ts">
+	import {slide} from 'svelte/transition';
+	
 	import {Screen} from './_screens';
-
+	import {load_flow_context} from '../svelte';
+	
 	import Field from '#/app/ui/Field.svelte';
 	import Log, {Logger} from '#/app/ui/Log.svelte';
-
 	import {Vault} from '#/crypto/vault';
 	import {
 		acceptable,
 		login,
 		register,
 	} from '#/share/auth';
-
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import {slide} from 'svelte/transition';
-	import StarShellLogo from '../ui/StarShellLogo.svelte';
-	import StarShellTitle from '../ui/StarShellTitle.svelte';
-	import RegisterWeakPasswordSvelte from './RegisterWeakPassword.svelte';
+	
 	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM} from '#/share/constants';
 	import {AlreadyRegisteredError, InvalidPassphraseError} from '#/share/errors';
-	import {load_flow_context} from '../svelte';
+	
+	import RegisterWeakPasswordSvelte from './RegisterWeakPassword.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import StarShellLogo from '../ui/StarShellLogo.svelte';
+	import StarShellTitle from '../ui/StarShellTitle.svelte';
+	
+	
 
 	// will be set if this is part of a flow
 	const {
@@ -106,6 +109,7 @@
 				creator: RegisterWeakPasswordSvelte,
 				props: {
 					attempt_register,
+					password: sh_phrase,
 				},
 			});
 		}
@@ -119,7 +123,10 @@
 	let b_busy = false;
 	
 	// attempt to register
-	async function attempt_register(): Promise<1> {
+	async function attempt_register(s_password?: string): Promise<1> {
+		// restore password from caller
+		if(s_password) sh_phrase = s_password;
+
 		// invalid state
 		if(!b_password_acceptable) return 1;
 
@@ -151,6 +158,9 @@
 				log(`This could take a while. Please be patient`);
 			}
 		}
+
+		// restore password from caller (again, after restore wiped it)
+		if(s_password) sh_phrase = s_password;
 
 		// attempt to register
 		try {

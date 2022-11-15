@@ -7,7 +7,7 @@ window.addEventListener('error', (d_event) => {
 	console.error(d_event.error);
 });
 
-import {B_LOCALHOST, B_MOBILE, B_NATIVE_IOS, XT_SECONDS} from '#/share/constants';
+import {B_LOCALHOST, B_MOBILE, B_IOS_NATIVE, XT_SECONDS} from '#/share/constants';
 // import {
 // 	do_webkit_polyfill,
 // } from '#/script/webkit-polyfill';
@@ -27,17 +27,16 @@ import {Vault} from '#/crypto/vault';
 import {parse_params, qs} from '#/util/dom';
 import {initialize_caches, yw_navigator} from '#/app/mem';
 import {ThreadId} from '#/app/def';
-import {F_NOOP, ode, timeout} from '#/util/belt';
+import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
 import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
-import {global_receive} from '#/script/msg-global';
+import {global_broadcast, global_receive} from '#/script/msg-global';
 import {Accounts} from '#/store/accounts';
 import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
-import {login, register} from '#/share/auth';
+import {factory_reset, login, register, reinstall} from '#/share/auth';
 import {check_restrictions} from '#/extension/restrictions';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
 import type {Vocab} from '#/meta/vocab';
 import type {IntraExt} from '#/script/messages';
-import {storage_clear} from '#/extension/public-storage';
 import type {Dict} from '#/meta/belt';
 import {Apps} from '#/store/apps';
 import {AppApiMode, AppStruct} from '#/meta/app';
@@ -129,94 +128,6 @@ const dp_cause = (async() => {
 	}
 })();
 
-
-// wait for DOM
-window.addEventListener('DOMContentLoaded', () => {
-	debug('dom content loaded');
-	// ref document element
-	const dm_html = document.documentElement;
-
-	const d_style_root = dm_html.style;
-
-	// mobile
-	if(B_MOBILE) {
-		// use all available 
-
-
-		// // in tab
-		// if('tab' in h_params) {
-		// 	// safari mobile
-		// 	if(B_SAFARI_MOBILE) {
-		// 		const d_viewport = globalThis.visualViewport;
-
-
-		// 		d_style_root.setProperty('--app-window-width', d_viewport.width+'px');
-		// 		d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
-
-		// 		// viewport is resized (e.g., from virtual keyboard overlay)
-		// 		d_viewport.addEventListener('resize', () => {
-		// 			// resize document to viewport
-		// 			// d_style_root.setProperty('--app-window-width', '100%');
-		// 			d_style_root.setProperty('--app-window-height', d_viewport.height+'px');
-
-		// 			// dm_html.style.height = d_viewport.height+'px';
-
-		// 			// scroll to top
-		// 			dm_html.scrollTop = 0;
-		// 		});
-		// 	}
-
-		// 	// debugger;
-		// 	// Object.assign(document.documentElement.style, {
-
-		// 	// });
-
-		// 	// globalThis.addEventListener('scroll', () => {
-		// 	// 	console.log('window#scroll');
-		// 	// });
-
-		// 	// document.addEventListener('scroll', (d_event) => {
-		// 	// 	console.log('document#scroll: %o', d_event);
-		// 	// });
-
-		// 	// document.addEventListener('focus', )
-
-		// 	// globalThis.addEventListener('resize', () => {
-		// 	// 	console.log('#resize');
-		// 	// });
-
-		// 	// setTimeout(async() => {
-		// 	// 	console.log('updating scroll');
-
-
-		// 	// 	// dm_scroll.scrollTop = dm_scroll.scrollHeight;
-		// 	// 	// await microtask();
-		// 	// 	dm_html.style.height = (window.innerHeight - 52)+'px';
-		// 	// 	await microtask();
-		// 	// 	dm_html.scrollTop = 0;
-		// 	// 	await microtask();
-		// 	// 	qsa(document.body, '.thread>.bounds>.screen').map(dm => dm.scrollTop = dm.scrollHeight);
-		// 	// }, 12e3);
-		// }
-	}
-
-	// hide dom log
-	if(dm_log) {
-		dm_log.style.opacity = '0';
-
-		// show it shortly
-		setTimeout(() => {
-			dm_log!.style.opacity = '1';
-		}, 2e3);
-	}
-
-	// bind factory reset button
-	document.getElementById('factory-reset')?.addEventListener('click', async() => {
-		await SessionStorage.clear();
-		await storage_clear();
-		await reload();
-	});
-});
 
 // top-level system component
 let yc_system: SvelteComponent | null = null;
@@ -379,18 +290,28 @@ async function reload() {
 			catch(e_hide) {}
 
 			// listen for heartbeat
-			if(!B_NATIVE_IOS) {
+			if(!B_IOS_NATIVE) {
 				const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
 				let i_service_health = 0;
 				function health_check() {
 					clearTimeout(i_service_health);
 
-					i_service_health = window.setTimeout(() => {
-						void d_service.sendMessage({
-							type: 'wake',
+					i_service_health = window.setTimeout(async() => {
+						console.warn(`Waking idle service worker`);
+
+						const [, xc_timeout] = await timeout_exec(2e3, async() => {
+							await d_service.sendMessage({
+								type: 'wake',
+							});
+
+							console.warn(`Service worker responded`);
 						});
 
-						console.warn(`Waking idle service worker`);
+						if(xc_timeout) {
+							global_broadcast({
+								type: 'unresponsiveService',
+							});
+						}
 					}, 2e3);
 				}
 

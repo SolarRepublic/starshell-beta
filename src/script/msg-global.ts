@@ -1,7 +1,8 @@
+import type {IntraExt} from './messages';
 import type {Union} from 'ts-toolbelt';
+
 import type {JsonValue, Promisable} from '#/meta/belt';
 import type {Vocab} from '#/meta/vocab';
-import type {IntraExt} from './messages';
 
 const d_broadcast_global: Vocab.TypedBroadcast<IntraExt.GlobalVocab> = new BroadcastChannel('global');
 

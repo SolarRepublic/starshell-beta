@@ -8,7 +8,7 @@
 	
 	import AppView from './AppView.svelte';
 	import Header from '../ui/Header.svelte';
-	import InlineTags from '../ui/InlineTags.svelte';
+	import InlineTags from '../frag/InlineTags.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
 

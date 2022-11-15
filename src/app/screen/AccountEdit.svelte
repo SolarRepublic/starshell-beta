@@ -1,45 +1,48 @@
 <script lang="ts">
-	import {getContext} from 'svelte';
-
-	import type {Completed} from '#/entry/flow';
-
-	import type {Account, AccountStruct, AccountPath} from '#/meta/account';
+	import type {AccountStruct, AccountPath} from '#/meta/account';
 	import type {Bech32} from '#/meta/chain';
+	import type {PfpTarget} from '#/meta/pfp';
+	
+	import {Screen} from './_screens';
+	import {syserr} from '../common';
+	import {yw_account_editted, yw_account_ref, yw_chain} from '../mem';
+	import {load_flow_context} from '../svelte';
+	
+	import {N_PX_DIM_ICON} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Chains} from '#/store/chains';
-	import {yw_account_editted, yw_account_ref, yw_chain} from '../mem';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import Address from '../ui/Address.svelte';
-	import Field from '../ui/Field.svelte';
-	import Info from '##/ui/Info.svelte';
-	import {Screen, type Page} from './_screens';
-	import PfpGenerator from '../ui/PfpGenerator.svelte';
+	import {Incidents} from '#/store/incidents';
+	import {Pfps} from '#/store/pfps';
 	import {Secrets} from '#/store/secrets';
-	import {base64_to_buffer, buffer_to_base64, text_to_base64, text_to_buffer} from '#/util/data';
-
-	import SX_ICON_ARROW from '#/icon/expand_more.svg?raw';
-	import Tooltip from '../ui/Tooltip.svelte';
+	import {qsa, render_svg_squarely} from '#/util/dom';
+	import Info from '##/ui/Info.svelte';
+	
+	import Address from '../frag/Address.svelte';
+	import IconEditor from '../frag/IconEditor.svelte';
+	import InlineTags from '../frag/InlineTags.svelte';
+	import PfpGenerator from '../frag/PfpGenerator.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Curtain from '../ui/Curtain.svelte';
-	import { dd, qsa, render_svg_squarely } from '#/util/dom';
-	import { Pfps } from '#/store/pfps';
-	import { Medias } from '#/store/medias';
-	import { N_PX_DIM_ICON } from '#/share/constants';
-	import type { Dict, JsonValue } from '#/meta/belt';
-	import type { ImageSet, PfpPath, PfpTarget } from '#/meta/pfp';
-	import { syserr } from '../common';
-	import { load_flow_context } from '../svelte';
-    import { Incidents } from '#/store/incidents';
-    import Load from '../ui/Load.svelte';
+	import Field from '../ui/Field.svelte';
+	import Load from '../ui/Load.svelte';
+	import Tooltip from '../ui/Tooltip.svelte';
+	
+	import SX_ICON_ARROW from '#/icon/expand_more.svg?raw';
+    import { text_to_base64 } from '#/util/data';
+	
 
 	export let accountPath: AccountPath;
-	const p_account = accountPath;
 
 	let g_account: AccountStruct;
 
 	export let oneway = false;
 
+	export let fresh = false;
+
 	let s_name = '';
 	let sa_account: Bech32 | string;
+	let p_pfp: PfpTarget;
+	let p_pfp_custom: PfpTarget;
 
 	$: b_form_valid = !!s_name;
 
@@ -55,16 +58,21 @@
 
 	let dm_svg_pfpg: SVGSVGElement;
 
-	// off-screen canvas
-	let dm_canvas_glob: HTMLCanvasElement;
-
 	async function load_account() {
+		// load account store
 		const ks_accounts = await Accounts.read();
-		g_account = ks_accounts.at(p_account)!;
+
+		// load account
+		g_account = ks_accounts.at(accountPath)!;
+
+		// 
 		if(!g_account) {
-			console.error(`Account '${p_account}'' was not found in %o`, ks_accounts.raw);
+			console.error(`Account '${accountPath}'' was not found in %o`, ks_accounts.raw);
 			debugger;
 		}
+
+		// propagate custom pfp
+		p_pfp_custom = g_account?.extra?.['customPfp'];
 
 		const p_secret_art = g_account.utilityKeys.antiPhishingArt;
 		if(p_secret_art) {
@@ -78,36 +86,33 @@
 	}
 
 	async function save_account() {
-		// prep pfp icon
-		let p_pfp: PfpTarget = '';
+		// custom pfp not defined
+		if(!p_pfp_custom) {
+			// prep the square icons
+			try {
+				const h_renders = await render_svg_squarely(dm_svg_pfpg, [
+					32,  // account switcher
+					48,  // app banner
+					N_PX_DIM_ICON,  // anywhere else
+				]);
 
-		// prep the square icons
-		try {
-			const h_renders = await render_svg_squarely(dm_svg_pfpg, [
-				32,  // account switcher
-				48,  // app banner
-				N_PX_DIM_ICON,  // anywhere else
-			]);
-
-			// add square pfp
-			p_pfp = await Pfps.open(ks => ks.add({
-				type: 'plain',
-				image: {
-					...h_renders,
-					default: h_renders[N_PX_DIM_ICON],
-				},
-			}));
+				// generate square pfp from aura
+				p_pfp = await Pfps.open(ks => ks.upsert({
+					type: 'plain',
+					image: {
+						...h_renders,
+						default: h_renders[N_PX_DIM_ICON],
+					},
+				}));
+			}
+			// don't let runtime error prevent account creation
+			catch(e_pfp) {
+				syserr({
+					title: 'Failed to save account PFP',
+					error: e_pfp,
+				});
+			}
 		}
-		// don't let runtime error prevent account creation
-		catch(e_pfp) {
-			syserr({
-				title: 'Failed to save account PFP',
-				error: e_pfp,
-			});
-		}
-
-		// // save aura
-		// const [p_pfp, g_pfp] = await Pfps.addSvg(dm_svg_pfpg);
 
 		// prep aura media
 		let sx_aura = '';
@@ -192,14 +197,14 @@
 		await Incidents.record({
 			type: 'account_edited',
 			data: {
-				account: p_account,
+				account: accountPath,
 				deltas: a_deltas,
 			},
 		});
 
 		// editted active account; reload
-		if(p_account === $yw_account_ref) {
-			$yw_account_ref = p_account;
+		if(accountPath === $yw_account_ref) {
+			$yw_account_ref = accountPath;
 		}
 
 		// trigger account edit
@@ -213,41 +218,20 @@
 		}
 	}
 
-	// function save() {
-	// 	if(!b_form_valid) return;
+	function pfpg_updated() {
+		if(!g_account?.extra?.['customPfp'] && !p_pfp_custom) {
+			// clone aura element
+			const dm_svg_clone = dm_svg_pfpg.cloneNode(true) as SVGSVGElement;
 
-	// 	const g_save = {
-	// 		label: accountName,
-	// 		tagRefs: a_tags.map(k => k.def.iri),
-	// 	};
+			// adjust svg bounds
+			const s_height = dm_svg_clone.getAttribute('height')!;
+			dm_svg_clone.setAttribute('width', s_height);
+			dm_svg_clone.setAttribute('viewBox', `0 0 ${s_height} ${s_height}`);
 
-	// 	if(account) {
-	// 		Object.assign(account.def, g_save);
-
-	// 		restart();
-
-	// 		if(Tasks.ADD_TAG === $yw_task) {
-	// 			setTimeout(() => {
-	// 				$yw_task = -$yw_task;
-	// 			}, 1200);
-	// 		}
-	// 	}
-	// 	else {
-	// 		const gd_account = Account.Def.fromConfig({
-	// 			...g_save,
-	// 			pubkey: sa_account.replace(/^\w+1/g, ''),
-	// 			iconRef: p_icon,
-	// 		});
-
-	// 		const k_account = H_ACCOUNTS[gd_account.iri] = new Account(gd_account);
-
-	// 		restart();
-
-	// 		push_screen(AccountView, {
-	// 			account: k_account,
-	// 		});
-	// 	}
-	// }
+			// preview pfp replacement
+			p_pfp = `svg:data:image/svg+xml;base64,${text_to_base64(dm_svg_clone.outerHTML)}`;
+		}
+	}
 
 
 	let b_tooltip_showing = false;
@@ -255,7 +239,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.tooltip {
 		position: absolute;
@@ -313,7 +297,7 @@
 
 <Screen>
 	<h3>
-		{accountPath? 'Edit': 'New'} account
+		{accountPath && !fresh? 'Edit': 'New'} account
 	</h3>
 
 	<span style="display:none" class:pfpg-preview={false} class:generator={false}></span>
@@ -321,7 +305,7 @@
 	{#await load_account()}
 		<Load forever />
 	{:then}
-		<Field key="profile-icon" name="Profile image">
+		<Field key="profile-aura" name="Profile aura">
 			<span class="tooltip">
 				<Tooltip overlayStyle='right:0;' bind:showing={b_tooltip_showing}>
 					These images are procedurally generated by your account.
@@ -332,7 +316,10 @@
 			</span>
 
 			<div class="pfpg-preview">
-				<PfpGenerator offset={i_offset} seed={atu8_seed} bind:svgElement={dm_svg_pfpg} />
+				<PfpGenerator offset={i_offset} seed={atu8_seed}
+					bind:svgElement={dm_svg_pfpg}
+					on:update={() => pfpg_updated()}
+				/>
 
 				<span class="offset">
 					#{i_offset+1}
@@ -351,27 +338,39 @@
 					</span>
 				</button>
 			</div>
-			<!-- <IconEditor intent='person' iconRef={p_icon} /> -->
 		</Field>
 
 		<Field key="account-name" name="Name">
 			<input id="account-name" type="text" bind:value={s_name} placeholder="Satoshi">
 		</Field>
 
-		<!-- <Field key="account-path" name="Derivation path">
-			<Info key="account-path">
-				m/44'/118'/0'/0/{Object.values(H_ACCOUNTS).length}
-			</Info>
-		</Field> -->
-
 		<Field key="account-address" name="Public address">
 			<Info address key="account-address">
 				<Address copyable address={sa_account} />
 			</Info>
 		</Field>
-<!-- 
-		<Field key="account-tags" name="Add tags">
-			<InlineTags editable resourcePath={p_account} />
+
+		<Field key="profile-image" name="Custom profile image (optional)">
+			<div class="pfp-preview">
+				<IconEditor intent='person' name={s_name}
+					bind:pfpPath={p_pfp}
+					on:upload={(d_event) => {
+						p_pfp = p_pfp_custom = d_event.detail;
+						g_account.extra = {
+							...g_account.extra,
+							customPfp: 1,
+						};
+					}}
+				/>
+			</div>
+		</Field>
+
+		<h3>{accountPath && !fresh? 'Edit': 'Add'} Tags</h3>
+
+		<InlineTags editable resourcePath={accountPath} />
+
+		<!-- <Field key="account-tags" name="Add tags">
+			<InlineTags editable resourcePath={accountPath} />
 		</Field> -->
 
 		{#if oneway}
@@ -379,16 +378,6 @@
 		{:else}
 			<ActionsLine cancel={!completed} back confirm={['Finish', save_account, !b_form_valid]} />
 		{/if}
-
-		<!-- <div class="action-line clickable">
-			<button on:click={() => pop()}>
-				Cancel
-			</button>
-
-			<button class="primary" readonly={!b_form_valid} on:click={() => save()}>
-				Finish
-			</button>
-		</div> -->
 	{/await}
 
 	<Curtain on:click={() => b_tooltip_showing = false} />

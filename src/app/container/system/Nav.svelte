@@ -1,12 +1,10 @@
 <script lang="ts">
 	import type {ParametricSvelteConstructor} from '#/meta/svelte';
 
-	import {ode, oderac, oderom} from '#/util/belt';
+	import {ode, oderac} from '#/util/belt';
 	import {H_THREADS, ThreadId} from '##/def';
 	import {
-		yw_pattern,
 		yw_nav_collapsed,
-		// yw_thread_id,
 		yw_nav_visible,
 		yw_menu_expanded,
 		yw_blur,
@@ -54,6 +52,7 @@
 	} as Record<string, {
 		svg: string;
 		label: string;
+		disabled?: boolean;
 	}>;
 
 	const HM_HOMESCREENS = new Map<ParametricSvelteConstructor, ThreadId>(
@@ -133,34 +132,10 @@
 			}
 		}
 	}
-
-
-	// const HM_HOMESCREENS = new Map<ParametricSvelteConstructor, ThreadId>([
-	// 	[Holdings, ThreadId.TOKENS],
-	// 	[ContactList, ThreadId.CONTACTS],
-	// ]);
-
-	// const H_HOMES: Record<string, ThreadId> = {
-	// 	'/families/{familyId}/chains/{chainId}/holdings/{accountId}': ThreadId.TOKENS,
-	// 	'/families/{familyId}/chains/{chainId}/gallery/{accountId}': ThreadId.NFTS,
-	// 	'/contacts': ThreadId.CONTACTS,
-	// 	// '/networks': ThreadId.PROVIDERS,
-	// 	'/accounts': ThreadId.ACCOUNTS,
-	// 	'/history': ThreadId.HISTORY,
-	// };
-
-	// let si_thread_head: '' | ThreadId = '';
-	// $: {
-	// 	$yw_page
-	// 	$yw_thread
-	// 	// const sx_pattern = $yw_pattern;
-
-	// 	si_thread_head = H_HOMES[sx_pattern] || '';
-	// }
 </script>
 
 <style lang="less">
-	@import '../../../style/util.less';
+	@import '../../_base.less';
 
 	nav {
 		--nav-height: 72px;

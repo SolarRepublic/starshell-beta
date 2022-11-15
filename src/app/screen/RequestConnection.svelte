@@ -1,17 +1,20 @@
 <script lang="ts">
-	import {Screen} from './_screens';
-
-	import type {AppStruct} from '#/meta/app';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import type {Caip2, ChainStruct} from '#/meta/chain';
 	import type {SessionRequest} from '#/meta/api';
-	import {fodemtv, F_NOOP, ode, oderom} from '#/util/belt';
+	import type {AppStruct} from '#/meta/app';
 	import type {Dict} from '#/meta/belt';
-	import AppBanner from '../ui/AppBanner.svelte';
-	import Row from '../ui/Row.svelte';
-	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
-	import RequestConnectionAccounts from './RequestConnection_Accounts.svelte';
+	import type {Caip2, ChainStruct} from '#/meta/chain';
+	
+	import {Screen} from './_screens';
 	import {load_flow_context} from '../svelte';
+	
+	import {fodemtv, F_NOOP, ode} from '#/util/belt';
+	
+	import RequestConnectionAccounts from './RequestConnection_Accounts.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
+	import Row from '../ui/Row.svelte';
+	
 
 	const {
 		completed,
@@ -42,16 +45,6 @@
 	<AppBanner {app} on:close={() => completed(false)}>
 		This app wants to connect on {1 === nl_chains? 'the chain': `${nl_chains} chains`}:
 	</AppBanner>
-
-
-<!-- 
-	{#if nl_chains > 2}
-		<div class="select-all">
-			<button class="pill">
-				Select all
-			</button>
-		</div>
-	{/if} -->
 
 	<div class="rows no-margin">
 		{#each ode(h_chains) as [si_caip2, g_chain]}

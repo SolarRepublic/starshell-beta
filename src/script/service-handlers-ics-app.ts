@@ -14,7 +14,7 @@ import {open_flow, RegisteredFlowError} from './msg-flow';
 import {page_info_from_sender, position_widow_over_tab} from './service-apps';
 
 import {syserr} from '#/app/common';
-import {yw_account} from '#/app/mem';
+import {save_query_permit} from '#/chain/query-permit';
 import {SecretWasm} from '#/crypto/secret-wasm';
 
 import {Accounts} from '#/store/accounts';
@@ -22,10 +22,9 @@ import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
-import {fold, is_dict, ode} from '#/util/belt';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json, json_to_buffer} from '#/util/data';
+import {is_dict, ode} from '#/util/belt';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json} from '#/util/data';
 import {uuid_v4} from '#/util/dom';
-import { SecretNetwork } from '#/chain/secret-network';
 
 
 interface Resolved {
@@ -282,25 +281,17 @@ const H_AMINO_SANITIZERS = {
 		}
 
 		// request signature
-		const g_completed = await fk_flow(Snip24.construct(g_chain.reference, g_permit_msg), 'snip24');
+		const g_completed = await fk_flow(Snip24.query_permit(g_chain.reference, g_permit_msg), 'snip24');
 
-		// convert permit to buffer
-		const atu8_permit = json_to_buffer(g_completed);
-
-		// save to secrets
-		await Secrets.put(atu8_permit, {
-			type: 'query_permit',
-			uuid: SecretNetwork.uuidForQueryPermit(g_chain, g_permit_msg.value.permit_name),
-			security: {
-				type: 'none',
-			},
-			chain: g_request.chainPath,
-			owner: Chains.addressFor(g_account.pubkey, g_chain),
-			name: g_permit_msg.value.permit_name,
-			permissions: a_permissions,
-			contracts: fold(a_tokens, sa_token => ({[sa_token]:''})),
-			outlets: [g_resolved.appPath],
-		});
+		await save_query_permit(
+			g_completed!,
+			g_resolved.appPath,
+			g_request.chainPath,
+			g_request.accountPath,
+			g_permit_msg.value.permit_name,
+			a_permissions,
+			a_tokens
+		);
 
 		// return signed response
 		return g_completed;

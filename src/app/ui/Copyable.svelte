@@ -27,11 +27,6 @@
 		b_copy_confirm = true;
 		setTimeout(() => {
 			b_copy_confirm = false;
-			// dm_copied.style.opacity = '0';
-
-			// setTimeout(() => {
-			// 	b_copy_confirm = false;
-			// }, 850);
 		}, 800);
 	}
 
@@ -43,7 +38,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.copyable {
 		display: inline-block;

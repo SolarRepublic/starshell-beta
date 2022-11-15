@@ -7,6 +7,8 @@
 	import type {TxPending} from '#/meta/incident';
 	import type {Snip20} from '#/schema/snip-20-def';
 	
+	import {ViewingKeyError} from '#/schema/snip-2x-const';
+	
 	import BigNumber from 'bignumber.js';
 	import {getContext, onDestroy} from 'svelte';
 	
@@ -18,6 +20,7 @@
 	import {amino_to_base} from '#/chain/cosmos-msgs';
 	import {token_balance} from '#/chain/token';
 	import {global_receive} from '#/script/msg-global';
+	import {subscribe_store} from '#/store/_base';
 	import {Accounts} from '#/store/accounts';
 	import {G_APP_STARSHELL} from '#/store/apps';
 	import {Contracts} from '#/store/contracts';
@@ -32,11 +35,11 @@
 	import RequestSignature from './RequestSignature.svelte';
 	import Send from './Send.svelte';
 	import TokensAdd from './TokensAdd.svelte';
-	import Address from '../ui/Address.svelte';
-	import Portrait from '../ui/Portrait.svelte';
+	import Address from '../frag/Address.svelte';
+	import Portrait from '../frag/Portrait.svelte';
+	import TokenRow from '../frag/TokenRow.svelte';
 	import Row from '../ui/Row.svelte';
-	import TokenRow from '../ui/TokenRow.svelte';
-    import { Snip20MessageConstructor, Snip20Util, Snip2xToken, ViewingKeyError } from '#/schema/snip-2x-const';
+	
 
 
 	// get page from context
@@ -48,23 +51,15 @@
 	let a_no_gas: string[] = [];
 
 	let c_updates = 0;
+	subscribe_store(['chains', 'contracts', 'incidents'], () => {
+		console.info(`HoldingsHome.svelte observed store update; reloading...`);
+		c_updates++;
+	}, onDestroy);
 
 	const f_unregister = global_receive({
 		transferReceive() {
 
 		},
-
-		updateStore({key:si_store}) {
-			if(['chains', 'contracts', 'incidents'].includes(si_store)) {
-				c_updates += 1;
-			}
-		},
-
-		// updateStore({key:si_key}) {
-		// 	if('' === si_key) {
-		// 		c_updates += 1;
-		// 	}
-		// },
 	});
 
 	yw_doc_visibility.subscribe((s_state) => {
@@ -103,9 +98,7 @@
 			fk_resolve_total(s_total);
 
 			// save to cache
-			const g_account = $yw_account;
-			void Accounts.open(ks => ks.put({
-				...g_account,
+			void Accounts.update($yw_account_ref, g_account => ({
 				extra: {
 					...g_account.extra,
 					total_fiat_cache: s_total,
@@ -115,24 +108,6 @@
 	}
 
 	type Submitter = (z_out: Promisable<BigNumber>) => Promise<BigNumber>;
-
-	// async function with_balance<w_value>(dp_thing: Promisable<w_value>): Promise<[w_value, Submitter]> {
-	// 	c_balances += 1;
-
-	// 	const w_value = await dp_thing;
-
-	// 	return [
-	// 		w_value,
-	// 		async(z_out: Promisable<BigNumber>): Promise<BigNumber> => {
-	// 			const yg_balance = await z_out;
-
-	// 			yg_total = yg_total.plus(yg_balance);
-
-	// 			check_total();
-	// 			return yg_balance;
-	// 		},
-	// 	];
-	// }
 
 	async function load_native_balances() {
 		let h_balances: Dict<BalanceBundle>;
@@ -309,7 +284,7 @@
 		const g_balance = await token_balance(g_contract, $yw_account, $yw_network);
 
 		if(g_balance) {
-			if(g_balance.yg_amount.eq(0)) {
+			if(g_balance.yg_amount.eq(0) && !a_zero_balance_tokens.find(g => g.bech32 === g_contract.bech32)) {
 				a_zero_balance_tokens = a_zero_balance_tokens.concat([g_contract]);
 			}
 
@@ -364,7 +339,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.testnet-reminder {
 		.font(tiny);
@@ -551,10 +526,10 @@
 				{:then a_tokens}
 					{#each a_tokens as g_token}
 						{#await load_token_balance(g_token)}
-							<TokenRow contract={g_token} />
+							<TokenRow contract={g_token} balance />
 						{:then g_balance}
 							{#if h_pending_txs[g_token.bech32]}
-								<TokenRow contract={g_token} pending />
+								<TokenRow contract={g_token} pending balance />
 							{:else if g_balance}
 								{#if '0' !== g_balance.s_amount}
 									<TokenRow contract={g_token} balance={g_balance} />
@@ -580,14 +555,6 @@
 						{/await}
 					{/each}
 				{/await}
-
-				<!-- {#await Entities.readFungibleTokens($yw_chain)}
-					Loading tokens...
-				{:then h_fungibles}
-					{#each ode(merge_fungible_tokens(h_fungibles)) as [p_token, g_token]}
-						{g_token.spec}
-					{/each}
-				{/await} -->
 			</div>
 		{/key}
 	{/key}

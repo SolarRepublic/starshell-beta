@@ -1,19 +1,26 @@
 <script lang="ts">
-	import {getContext} from 'svelte';
-
+	import {Screen} from './_screens';
+	
+	import {load_page_context} from '../svelte';
+	
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import {Screen, type Page} from './_screens';
 
 
-	export let attempt_register: VoidFunction;
+	export let attempt_register: (s_password: string) => void;
+
+	export let password: string;
+
+	// copy to memory in order to pass back
+	const s_password = password;
+
 	export let weakness: number;
-	const i_weakness = weakness;
 
 	// get page from context
-	const k_page = getContext<Page>('page');
+	const {k_page} = load_page_context();
 
 	function use_anyway() {
-		attempt_register();
+		debugger;
+		attempt_register(s_password);
 		k_page.pop();
 	}
 </script>

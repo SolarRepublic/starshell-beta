@@ -15,6 +15,8 @@
 </script>
 
 <style lang="less">
+	@import '../_base.less';
+
 	.info {
 		--icon-diameter: 24px;
 
@@ -34,12 +36,14 @@
 		}
 
 		>* {
-			flex: var(--flex, 0);
+			flex: var(--flex, auto);
 		}
 
 		.info-value {
 			width: 100%;
 			display: flex;
+			.hide-scrollbar();
+			overflow-x: scroll;
 
 			>.address {
 				:global(&) {

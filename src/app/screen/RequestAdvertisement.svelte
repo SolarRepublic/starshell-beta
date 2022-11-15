@@ -1,25 +1,26 @@
 <script lang="ts">
+	import type {PageConfig} from '../nav/page';
+
+	import type {AppStruct} from '#/meta/app';
+	
 	import {Screen} from './_screens';
-
-	import type {App, AppStruct} from '#/meta/app';
-	import {Apps} from '#/store/apps';
-
-	import {P_PUBLIC_SUFFIX_LIST, R_DOMAIN_IP, R_DOMAIN_LOCALHOST} from '#/share/constants';
-	import {WebResourceCache} from '#/store/web-resource-cache';
-
-	import '#/chain/cosmos-network';
-	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
-	import {qsa} from '#/util/dom';
-	import {microtask, timeout} from '#/util/belt';
-	import ActionsWall from '../ui/ActionsWall.svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
-	import ReloadPage from './ReloadPage.svelte';
-	import AdjustKeplrCompatibilityMode from './AdjustKeplrCompatibilityMode.svelte';
+	import {load_flow_context} from '../svelte';
+	
 	import type {PageInfo} from '#/script/messages';
 	import {keplr_polyfill_script_add_matches} from '#/script/scripts';
-	import type {PageConfig} from '../nav/page';
-	import {load_flow_context} from '../svelte';
-
+	import {P_PUBLIC_SUFFIX_LIST, R_DOMAIN_IP, R_DOMAIN_LOCALHOST} from '#/share/constants';
+	import {Apps} from '#/store/apps';
+	import {WebResourceCache} from '#/store/web-resource-cache';
+	import '#/chain/cosmos-network';
+	import {microtask, timeout} from '#/util/belt';
+	import {qsa} from '#/util/dom';
+	
+	import AdjustKeplrCompatibilityMode from './AdjustKeplrCompatibilityMode.svelte';
+	import ReloadPage from './ReloadPage.svelte';
+	import ActionsWall from '../ui/ActionsWall.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
+	
 
 	const {
 		k_page,
@@ -215,7 +216,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.column {
 		display: flex;
@@ -255,20 +256,6 @@
 		{/if}
 	</AppBanner>
 
-<!-- 
-	<div class="request-summary no-margin">
-		{#if g_app.name}
-			<strong>{g_app.name.length > 32? g_app.name.slice(0, 32)+'...': g_app.name}</strong>
-		{:else}
-			<code>{g_app.host}</code>
-		{/if}
-		{#if keplr}
-			might be trying to use the Keplr API. Do you intend to use your wallet with this site?
-		{:else}
-			wants to know if you have StarShell installed.
-		{/if}
-	</div> -->
-
 	<hr>
 
 	{#if keplr}
@@ -276,10 +263,6 @@
 			For privacy and compatibility, this site will think you have Keplr installed.
 			You still must review permissions before the site is able to connect to your wallet.
 		</div>
-
-		<!-- <div class="additional-info no-margin">
-			You will still be able to review permissions before the site is able to connect to your wallet.
-		</div> -->
 	{/if}
 
 	{#if !keplr}

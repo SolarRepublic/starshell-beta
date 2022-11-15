@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { F_NOOP } from "#/util/belt";
+	import {yw_connection_health} from '../mem';
+	
+	import {ConnectionHealth, H_HEALTH_COLOR} from '#/store/providers';
+	
+	import Dot from './Dot.svelte';
+
 
 	/**
 	 * target dimensinos
@@ -20,6 +25,16 @@
 </script>
 
 <style lang="less">
+	.vendor-group {
+		position: relative;
+
+		>.status {
+			position: absolute;
+			bottom: 0px;
+			right: 0px;
+		}
+	}
+
 	.logo {
 		display: block;
 		margin: 0;
@@ -37,7 +52,15 @@
 	}
 </style>
 
-<picture class="no-margin logo" style="width:{x_dim}px; height:{x_dim}px;" on:click>
-	<source srcset="{sr_double}" media="(min-resolution: 2dppx)">
-	<img alt={s_alt} src="{sr_default}" />
-</picture>
+<div class="vendor-group" on:click>
+	<picture class="no-margin logo" style="width:{x_dim}px; height:{x_dim}px;">
+		<source srcset="{sr_double}" media="(min-resolution: 2dppx)">
+		<img alt={s_alt} src="{sr_default}" />
+	</picture>
+
+	<span class="status">
+		<Dot n_border={2} b_pulsing={[ConnectionHealth.LOADING, ConnectionHealth.CONNECTING, ConnectionHealth.DELINQUENT].includes($yw_connection_health)}
+			sx_color={H_HEALTH_COLOR[$yw_connection_health]}
+		/>
+	</span>
+</div>

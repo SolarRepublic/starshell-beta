@@ -1,9 +1,13 @@
-import type { ParametricSvelteConstructor } from '#/meta/svelte';
-import { Dict, F_NOOP } from '#/util/belt';
-import { dd } from '#/util/dom';
+import type {Navigator} from './navigator';
+import type {PageConfig} from './page';
 import type {ThreadId} from '../def';
-import { Navigator, set_zindex_relatively } from './navigator';
-import {Page, PageConfig} from './page';
+
+import {set_zindex_relatively} from './navigator';
+
+
+import {Page} from './page';
+
+import {dd} from '#/util/dom';
 
 
 export interface ResetConfig {
@@ -100,9 +104,6 @@ export class Thread {
 		// ref history
 		const a_history = this._a_history;
 
-		// // keep top is enabled; grab src style
-		// const d_style = b_keep_top? a_history[0].dom.style: null;
-
 		// drop all stale states in history
 		for(let i_state=b_keep_top? 1: 0; i_state<a_history.length; i_state++) {
 			a_history[i_state].component.$destroy();
@@ -116,12 +117,6 @@ export class Thread {
 
 		// fire change on new page
 		void this._k_navigator.after_reset(this, kp_new, gc_reset || {});
-
-		// // keep top is enabled
-		// if(d_style) {
-		// 	// set new screen below
-		// 	ks_new.dom.style.zIndex = ((+d_style.zIndex)+1)+'';
-		// }
 
 		return kp_new;
 	}

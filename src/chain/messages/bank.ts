@@ -1,16 +1,19 @@
-import type {Bech32, ChainStruct, CoinInfo} from '#/meta/chain';
-import type { Cw } from '#/meta/cosm-wasm';
-import type {FieldConfig} from '#/meta/field';
-import { Accounts } from '#/store/accounts';
-import { Agents } from '#/store/agents';
-import { Chains } from '#/store/chains';
-import { ode } from '#/util/belt';
-import { abbreviate_addr, format_amount } from '#/util/format';
-import type {Coin} from '@cosmjs/amino';
-import BigNumber from 'bignumber.js';
-import { to_fiat } from '../coin';
 import type {MessageDict, ReviewedMessage} from './_types';
+import type {Coin} from '@cosmjs/amino';
+
+import type {Bech32, ChainStruct} from '#/meta/chain';
+import type {Cw} from '#/meta/cosm-wasm';
+import type {FieldConfig} from '#/meta/field';
+
+import BigNumber from 'bignumber.js';
+
 import {address_to_name, add_coins} from './_util';
+
+import {Chains} from '#/store/chains';
+import {ode} from '#/util/belt';
+import {format_amount} from '#/util/format';
+
+
 
 function coin_to_payload(g_amount: Coin, g_chain: ChainStruct): Cw.Amount {
 	// locate coin
@@ -98,6 +101,12 @@ export const BankMessages: MessageDict = {
 						: `Sen${b_pending? 'ding': 't'} ${s_payload}`,
 					infos: [`on ${g_chain.name}`],
 					fields: [
+						{
+							type: 'key_value',
+							key: 'Amount',
+							value: s_payload,
+							// subvalue: to_fiat
+						},
 						b_incoming
 							? {
 								type: 'contacts',
@@ -109,12 +118,6 @@ export const BankMessages: MessageDict = {
 								bech32s: [sa_recipient],
 								label: 'Recipient',
 							},
-						{
-							type: 'key_value',
-							key: 'Amount',
-							value: s_payload,
-							// subvalue: to_fiat
-						},
 					],
 					resource: {
 						name: Object.values(g_chain.coins)[0].name,

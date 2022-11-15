@@ -167,6 +167,9 @@ export type Store = Merge<{
 	histories: {
 		order: IncidentPath[];
 		syncs: Record<ChainPath, Dict<SyncInfo>>;
+
+		// datetime of last seen message
+		seen: number;
 	};
 
 

@@ -1,17 +1,11 @@
-import type {Nameable, Pfpable} from '#/meta/able';
 import type {Dict, JsonValue, Promisable} from '#/meta/belt';
-import type {Bech32, ChainStruct} from '#/meta/chain';
-import type { FieldConfig } from '#/meta/field';
+import type {ChainStruct} from '#/meta/chain';
+import type {FieldConfig} from '#/meta/field';
+
 import {RT_UINT, RT_URI_LIKELY, R_BECH32} from '#/share/constants';
-import {Accounts} from '#/store/accounts';
-import {Agents} from '#/store/agents';
 import {Chains} from '#/store/chains';
-import {Contracts} from '#/store/contracts';
-import {is_dict_es, ode, oderac} from '#/util/belt';
-import {dd, qs, uuid_v4} from '#/util/dom';
-import {svelte_to_dom} from '../svelte';
-import Address from '../ui/Address.svelte';
-import PfpDisplay from '../ui/PfpDisplay.svelte';
+import {is_dict_es} from '#/util/belt';
+import {dd, uuid_v4} from '#/util/dom';
 
 export interface PreviewerConfig {
 	chain?: ChainStruct;
@@ -22,51 +16,6 @@ export function classify(s_value: string, s_class: string): HTMLSpanElement {
 		class: s_class,
 	}, [s_value]);
 }
-
-// async function render_resource(g_resource: Nameable & Pfpable, si_class: string) {
-// 	return dd('div', {
-// 		class: `resource ${si_class}`,
-// 	}, [
-// 		await svelte_to_dom(PfpDisplay, {
-// 			resource: g_resource,
-// 			dim: 16,
-// 		}, 'loaded'),
-
-// 		classify(g_resource.name, `${si_class}-name`),
-// 	]);
-// }
-
-// export async function load_inline_bech32(sa_find: Bech32, g_chain: ChainStruct): Promise<HTMLDivElement | null> {
-// 	// chain path
-// 	const p_chain = Chains.pathFrom(g_chain);
-
-// 	// split bech32
-// 	const [s_hrp, s_addr] = sa_find.split('1');
-
-// 	// account
-// 	try {
-// 		const [p_account, g_account] = await Accounts.find(sa_find, g_chain);
-
-// 		return await render_resource(g_account, 'account');
-// 	}
-// 	catch(e_find) {}
-
-// 	// contact
-// 	const p_contact = Agents.pathForContactFromAddress(sa_find);
-// 	const g_contact = await Agents.getContact(p_contact);
-// 	if(g_contact) {
-// 		return await render_resource(g_contact, 'contact');
-// 	}
-
-// 	// contract
-// 	const p_contract = Contracts.pathFor(p_chain, sa_find);
-// 	const g_contract = await Contracts.at(p_contract);
-// 	if(g_contract) {
-// 		return await render_resource(g_contract, 'contract');
-// 	}
-
-// 	return null;
-// }
 
 export type RenderValue = JsonValue<Promise<JsonValue> | (() => Promisable<JsonValue>)>;
 
@@ -86,8 +35,6 @@ export class JsonPreviewer {
 			...gc_field,
 		} as const;
 	}
-
-	// protected _xt_delay = 0;
 
 	constructor(protected _gc_previewer: PreviewerConfig) {}
 
@@ -331,7 +278,6 @@ export class JsonPreviewer {
 		// invalid json
 		else {
 			return classify(z_value+'', 'invalid');
-			// throw new Error(`Invalid JSON value`);
 		}
 	}
 }

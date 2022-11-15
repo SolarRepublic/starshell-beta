@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type {ContactStruct, ContactPath} from '#/meta/contact';
 	
-	import type {Incident, TxPending} from '#/meta/incident';
+	import type {Incident} from '#/meta/incident';
 	
 	import {getContext} from 'svelte';
 	
@@ -14,14 +14,12 @@
 	import {yw_chain} from '##/mem';
 	
 	import Send from '##/screen/Send.svelte';
-	import Address from '##/ui/Address.svelte';
-	import Portrait from '##/ui/Portrait.svelte';
+	import Address from '#/app/frag/Address.svelte';
+	import Portrait from '#/app/frag/Portrait.svelte';
 	
 	import ContactEdit from './ContactEdit.svelte';
 	import DeadEnd from './DeadEnd.svelte';
-	import IncidentsList from '../ui/IncidentsList.svelte';
-    import { proto_to_amino } from '#/chain/cosmos-msgs';
-    import type { TypedEvent } from '#/chain/cosmos-network';
+	import IncidentsList from '../frag/IncidentsList.svelte';
 	
 
 	export let contactPath: ContactPath;
@@ -68,19 +66,6 @@
 		},
 	};
 
-	// $: a_txns = A_TXNS.filter((k_txn) => {
-	// 	const gd_txn = k_txn.def;
-
-	// 	if(sa_contact === gd_txn.address) return true;
-
-	// 	const g_bankish = k_txn.bankish($yw_account.address($yw_chain));
-	// 	if(g_bankish) {
-	// 		return sa_contact === g_bankish.address;
-	// 	}
-
-	// 	return false;
-	// });
-
 	// load incidents
 	async function load_incidents() {
 		const ks_incidents = await Incidents.read();
@@ -118,7 +103,7 @@
 </script>
 
 <style lang="less">
-	@import '_base.less';
+	@import '../_base.less';
 
 
 	.pfp-gen {
@@ -154,42 +139,6 @@
 				<Address copyable address={Agents.addressFor(g_contact, $yw_chain)} />
 			</svelte:fragment>address
 		</Portrait>
-
-
-<!-- 
-		<TxnList
-			context={TxnContext.CONTACT}
-			txns={a_txns}
-		/> -->
-	<!-- 
-		<div class="txns no-margin">
-			{#if !a_txns.length}
-				<div>
-					No transactions yet
-				</div>
-			{/if}
-
-			{#each a_txns as k_txn}
-				{@const gd_txn = k_txn.def}
-				{@const k_token = H_ADDRESS_TO_TOKEN[k_txn.def.address]}
-				{@const g_bankish = k_txn.bankish($yw_account.address($yw_chain))}
-				{@const a_debug = [g_bankish, k_txn]}
-				</!-- {@debug a_debug} --/>
-
-				{#if Txn.Type.RECV === gd_txn.type}
-					<Row
-						name="Received SCRT"
-					>
-					</Row>
-					</!-- approx(gd_txn.amount) --/>
-				{:else if Txn.Type.SEND === gd_txn.type}
-					<Row
-						name="Sent SCRT"
-					>
-					</Row>
-				{/if}
-			{/each}
-		</div> -->
 	{/await}
 	
 

@@ -141,6 +141,12 @@ export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(fold<PfpStruct
 			default: H_MEDIA_LOOKUP['/media/token/busd.svg'],
 		},
 	},
+	{
+		type: 'plain',
+		image: {
+			default: H_MEDIA_LOOKUP['/media/other/trivium.svg'],
+		},
+	},
 ], (g_pfp, i_pfp) => ({
 	[`/template.pfp/uuid.${i_pfp}`]: g_pfp,
 })));
@@ -193,6 +199,9 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 		features: {
 			'secretwasm': {
 				consensusIoPubkey: '|dB)LVfX1mgQ<eeI6X*Uxq]/H-KwnPj1dPZ30;iB',
+				gasPadding: {
+					stepSize: `${10_000n}`,
+				},
 				// gasLimits: fodemtv({
 				// 	'cosmos-sdk/MsgSend': 13_000n,
 				// }, xg => xg+''),
@@ -212,12 +221,14 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 					burn_from: S_SNIP20_GAS_LIMIT_LOW,
 					deposit: S_SNIP20_GAS_LIMIT_LOW,  // 150k
 					redeem: S_SNIP20_GAS_LIMIT_LOW,
+					revoke_permit: S_SNIP20_GAS_LIMIT_LOW,
 				},
 			},
 			'ibc-go': {},
 			'ibc-transfer': {},
 		},
-		tokenInterfaces: ['snip-20', 'snip-21', 'snip-721', 'snip-722'],
+		fungibleTokenInterfaces: ['snip-20', 'snip-21', 'snip-22', 'snip23', 'snip-24'],
+		nonFungibleTokenInterfaces: ['snip-721', 'snip-722'],
 		blockExplorer: {
 			base: 'https://secretnodes.com/{chain_prefix}',
 			block: '/blocks/{height}',
@@ -412,6 +423,13 @@ export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold
 
 export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold([
 	{
+		name: 'Trivium',
+		pfp: H_LOOKUP_PFP['/media/other/trivium.svg'],
+		chain: '/family.cosmos/chain.pulsar-2',
+		grpcWebUrl: 'https://pulsar-2.api.trivium.network:9091',
+		rpcHost: 'pulsar-2.api.trivium.network:26657',
+	},
+	{
 		name: '𝕊ecret 𝕊aturn',
 		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
 		chain: '/family.cosmos/chain.pulsar-2',
@@ -419,11 +437,25 @@ export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold
 		rpcHost: 'rpc.testnet.secretsaturn.net',
 	},
 	{
+		name: 'SCRT Testnet Committee',
+		pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
+		chain: '/family.cosmos/chain.pulsar-2',
+		grpcWebUrl: 'https://grpc.pulsar.scrttestnet.com',
+		rpcHost: 'rpc.pulsar.scrttestnet.com',
+	},
+	{
+		name: 'Polypore',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+		chain: '/family.cosmos/chain.theta-testnet-001',
+		grpcWebUrl: 'https://grpc.sentry-01.theta-testnet.polypore.xyz/',
+		rpcHost: 'rpc.sentry-01.theta-testnet.polypore.xyz',
+	},
+	{
 		name: 'StarShell',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 		chain: '/family.cosmos/chain.theta-testnet-001',
-		grpcWebUrl: 'https://grpc-web.cosmos-theta.starshell.net',
-		rpcHost: 'rpc.cosmos-theta.starshell.net',
+		grpcWebUrl: 'https://grpc-web.tactus-1.cosmos-theta.starshell.net/',
+		rpcHost: 'rpc.tactus-1.cosmos-theta.starshell.net',
 	},
 ], g_each => ({
 	[`/provider.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: g_each,
@@ -474,7 +506,7 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		chains: ['/family.cosmos/chain.pulsar-2'],
 		agentType: ContactAgentType.PERSON,
 		addressSpace: 'acc',
-		addressData: 'hnfs6m9vnxgylt97cnw665645pwnvqrs',
+		addressData: '7zsfp55my52xv0qx2p0ryfull82cr3cm',
 		origin: 'built-in',
 		name: 'supdoggie',
 		pfp: H_LOOKUP_PFP['/media/other/supdoggie.png'],
@@ -546,24 +578,31 @@ export const H_STORE_INITS: {
 		syncs: oderom(H_STORE_INIT_CHAINS, p_chain => ({
 			[p_chain]: {},
 		})),
+		seen: 0,
 	},
 	[SI_STORE_SECRETS]: {},
 	[SI_STORE_TAGS]: {
 		registry: oderac({
-			pink: '#D500F9',
+			// pink: '#D500F9',
+			art: '#D500F9',
 			hot: '#C51162',
 			orange: '#FF4D21',
-			gold: '#FF8622',
+			// gold: '#FF8622',
+			personal: '#FF8622',
 			yellow: '#EEB521',
-			autum: '#7E9E24',
-			grass: '#3A6F16',
-			teal: '#009688',
+			// autum: '#7E9E24',
+			business: '#7E9E24',
+			// grass: '#3A6F16',
+			trusted: '#3A6F16',
+			// teal: '#009688',
+			defi: '#009688',
 			// sky: '#1976D2',,
 			faucet: '#1976D2',
 			violet: '#6200EA',
 			// gray: '#607D8B',
 			stablecoin: '#607D8B',
-			brown: '#795548',
+			// brown: '#795548',
+			sellable: '#795548',
 			bright: '#ffffff',
 		}, (si_key, s_value, i_entry) => ({
 			index: i_entry,

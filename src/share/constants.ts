@@ -106,9 +106,14 @@ export const B_WEBEXT_BROWSER_ACTION = B_WEBEXT && 'function' === typeof (chrome
 /**
  * Indicates the app is operating as the native iOS app
  */
-export const B_NATIVE_IOS = !B_WEBEXT && B_WEBKIT && B_WITHIN_WEBVIEW;
+export const B_IOS_NATIVE = !B_WEBEXT && B_WEBKIT && B_WITHIN_WEBVIEW;
 
+/**
+ * Indicates the app is operating as the web extension on iOS
+ */
+ export const B_IOS_WEBEXT = B_WEBEXT && B_IPHONE_IOS;
 
+ 
 // firefox android toolbar is 56px high
 export const N_PX_FIREFOX_TOOLBAR = 56;
 
@@ -150,7 +155,7 @@ export const RT_UINT = /^(0|[1-9][0-9]*)$/;
 export const RT_URI_LIKELY = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[\w]*))?)/;
 
 
-export const R_BIP_44 = /^m\/44'(\/[0-9]+'){2}(\/[0-9]+){2}$/;
+export const R_BIP_44 = /^m\/44'\/([0-9]+)'\/([0-9]+)'\/([0-9]+)\/([0-9]+)$/;
 
 /** 
  * Bech32 parsing regex. {@link https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki BIP-173 speicifcation}
@@ -281,6 +286,11 @@ export const XT_INTERVAL_HEARTBEAT = 200;
 
 export const XG_64_BIT_MAX = (2n ** 64n) - 1n;
 
+export const X_SIMULATION_GAS_MULTIPLIER = 1.004;
+
+export const XT_TIMEOUT_APP_PERMISSIONS = 5 * XT_MINUTES;
+export const XT_TIMEOUT_SERVICE_REQUEST = 5 * XT_MINUTES;
+
 
 // default chain namepsaces
 export const A_CHAIN_NAMESPACES = [
@@ -315,3 +325,4 @@ export const SI_STORE_WEB_RESOURCES: StoreKey<'web_resources'> = 'web_resources'
 export const SI_STORE_WEB_APIS: StoreKey<'web_apis'> = 'web_apis';
 
 export {A_KEPLR_EMBEDDED_CHAINS, A_TESTNETS} from './keplr-exports';
+

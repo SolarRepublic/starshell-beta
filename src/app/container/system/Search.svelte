@@ -1,6 +1,6 @@
 <script type="ts">
 	import type {AppPath} from '#/meta/app';
-	import type {Dict, PlainObject, Promisable} from '#/meta/belt';
+	import type {Dict, Promisable} from '#/meta/belt';
 	
 	import type {PfpTarget} from '#/meta/pfp';
 	import type {Resource} from '#/meta/resource';
@@ -8,10 +8,10 @@
 	
 	import Fuse from 'fuse.js';
 	
-	import {onMount, tick} from 'svelte';
+	import {onMount} from 'svelte';
 	
 	import {ClassType, ThreadId} from '#/app/def';
-	import {GC_HOOKS_DEFAULT, page_slide} from '#/app/nav/defaults';
+	import {GC_HOOKS_DEFAULT} from '#/app/nav/defaults';
 	import {Navigator, type NavigatorConfig} from '#/app/nav/navigator';
 	import AccountView from '#/app/screen/AccountView.svelte';
 	import AppView from '#/app/screen/AppView.svelte';
@@ -22,21 +22,20 @@
 	import ProviderView from '#/app/screen/ProviderView.svelte';
 	import Send from '#/app/screen/Send.svelte';
 	import TokensAdd from '#/app/screen/TokensAdd.svelte';
-	import {load_page_context} from '#/app/svelte';
 	import GenericRow from '#/app/ui/GenericRow.svelte';
-	import { open_window, P_POPUP } from '#/extension/browser';
-	import { launch_qr_scanner } from '#/extension/sensors';
-	import { logout } from '#/share/auth';
+	import {open_window, P_POPUP} from '#/extension/browser';
+	import {launch_qr_scanner} from '#/extension/sensors';
+	import {logout} from '#/share/auth';
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
-	import {Entities} from '#/store/entities';
 	import {Medias} from '#/store/medias';
 	import {Pfps} from '#/store/pfps';
 	import {Providers} from '#/store/providers';
-	import {interjoin, microtask, ode, oderac, oderom, proper, timeout, timeout_exec} from '#/util/belt';
+	import {interjoin, microtask, oderac, proper} from '#/util/belt';
+	import {text_to_base64} from '#/util/data';
 	import {dd, qsa} from '#/util/dom';
 	import {abbreviate_addr} from '#/util/format';
 	import {
@@ -49,7 +48,6 @@
 	import {
 		Screen,
 	} from '##/screen/_screens';
-	import { buffer_to_base64, sha256_sync, text_to_base64, text_to_buffer } from '#/util/data';
 	
 	import SX_ICON_ACCOUNTS from '#/icon/account_circle.svg?raw';
 	import SX_ICON_CONNECTIONS from '#/icon/account_tree.svg?raw';
@@ -211,7 +209,7 @@
 		includeMatches: true,
 		keys: [
 			'name',
-			...Object.keys(a_items[0].details)
+			...Object.keys(a_items[0]?.details || {})
 				.filter(s => !a_exclude.includes(s))
 				.map(s => `details.${s}`),
 		],
@@ -430,7 +428,7 @@
 			},
 
 			click(p_resource, k_navigator) {
-				H_ACTIONS[p_resource as keyof typeof H_ACTIONS].click(k_navigator);
+				return H_ACTIONS[p_resource as keyof typeof H_ACTIONS].click(k_navigator);
 			},
 		},
 
@@ -1069,7 +1067,7 @@
 </script>
 
 <style lang="less">
-	@import '../../screen/_base.less';
+	@import '../../_base.less';
 
 	.search {
 		position: absolute;

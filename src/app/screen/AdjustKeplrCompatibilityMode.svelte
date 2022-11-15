@@ -1,13 +1,18 @@
 <script lang="ts">
-	import type {App, AppStruct} from '#/meta/app';
 	import type {PageConfig} from '../nav/page';
-	import ActionsWall from '../ui/ActionsWall.svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
+
+	import type {AppStruct} from '#/meta/app';
+	
 	import {Screen} from './_screens';
-	import {Policies} from '#/store/policies';
+	import {load_flow_context} from '../svelte';
+	
 	import {keplr_polyfill_script_add_matches, set_keplr_compatibility_mode, set_keplr_detection, set_keplr_polyfill} from '#/script/scripts';
 	import {Apps} from '#/store/apps';
-	import {load_flow_context} from '../svelte';
+	import {Policies} from '#/store/policies';
+	
+	import ActionsWall from '../ui/ActionsWall.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
+
 
 	const {
 		k_page,
@@ -72,7 +77,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	p {
 		color: var(--theme-color-text-med);

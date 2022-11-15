@@ -1,4 +1,8 @@
 <script lang="ts">
+	/**
+	 * Takes an HTML element, extracts only its HTML, and injects it into the DOM as a svelte component
+	*/
+
 	import {createEventDispatcher, onMount} from 'svelte';
 
 	const dispatch = createEventDispatcher();

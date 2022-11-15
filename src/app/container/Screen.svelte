@@ -1,13 +1,19 @@
-<script context="module" lang="ts">
-	const c_screens = 0;
-</script>
-
 <script lang="ts">
-	import {yw_blur, yw_curtain, yw_help, yw_nav_collapsed, yw_nav_visible, yw_overscroll_pct, yw_progress} from '#/app/mem';
-
+	
 	import type {Page} from '../screen/_screens';
-
-	import {createEventDispatcher, getContext, onMount} from 'svelte';
+	
+	import {
+		createEventDispatcher,
+		getContext,
+		onMount,
+	} from 'svelte';
+	
+	import {
+		yw_blur,
+		yw_curtain,
+		yw_nav_visible,
+		yw_overscroll_pct,
+	} from '#/app/mem';
 
 	export let nav = false;
 	const b_nav = nav;
@@ -121,26 +127,6 @@
 			}
 		});
 
-		// arrival(dm_screen, () => {
-		// 	console.log('arrived to screen');
-		// 	$yw_nav_visible = nav;
-		// 	// $yw_nav_collapsed = !nav;
-
-		// 	// if(nav) {
-		// 	// 	$yw_nav_visible = true;
-		// 	// }
-
-		// 	if(progress) {
-		// 		$yw_progress = progress;
-		// 	}
-
-		// 	$yw_help = dm_help
-		// 		? Array.from(dm_help.cloneNode(true).childNodes) as HTMLElement[]
-		// 		: [];
-
-		// 	dispatchEvent('arrive');
-		// });
-
 		// if screen has keyed svelte components
 		if(keyed) {
 			let x_scroll_top = 0;
@@ -170,7 +156,7 @@
 </script>
 
 <style lang="less">
-	@import '../../style/util.less';
+	@import '../_base.less';
 
 	div.bounds {
 		position: absolute;
@@ -216,20 +202,12 @@
 
 		min-height: 100%;
 
-		// not necessary
-		// @media screen and (max-width: 500px) {
-		// 	min-height: calc(100% - 70px);
-		// 	padding-bottom: 70px;
-		// }
-
 		.font(regular);
 
 		background-color: var(--theme-color-bg);
 
 		opacity: 1;
 		filter: blur(0);
-
-		// transition: transform 0.6s var(--ease-out-quick);
 
 		&.transparent {
 			background-color: transparent;
@@ -265,11 +243,6 @@
 				}
 			}
 		}
-
-		// &.slides {
-		// 	transform: translateX(calc(var(--app-window-width) / 2));
-		// 	transition: transform 0.6s var(--ease-out-quick);
-		// }
 
 		&.slid {
 			transition: transform 0.5s var(--ease-out-cubic);
@@ -317,26 +290,6 @@
 			}
 		}
 
-		// @keyframes sublimate {
-		// 	0% {
-		// 		opacity: 1;
-		// 		transform: scale(1);
-		// 		filter: blur(0);
-		// 	}
-
-		// 	25% {
-		// 		filter: blur(14px);
-		// 	}
-
-		// 	80% {
-		// 		opacity: 0;
-		// 	}
-
-		// 	100% {
-		// 		transform: scale(1.75)
-		// 	}
-		// }
-
 		@keyframes turn-away {
 			0% {
 				transform: perspective(0px) rotateY(0deg);
@@ -370,16 +323,6 @@
 		}
 
 		&.sublimate {
-			// animation: 
-			// 	scale-up 1000ms var(--ease-out-cubic) forwards,
-			// 	fade-away 1000ms var(--ease-out-quad) forwards,
-			// 	blur-away 200ms var(--ease-out-quad) forwards;
-
-			// --mimic: 1000ms var(--ease-out-quint) forwards;
-			// animation: turn-away var(--mimic),
-			// 	fade-out var(--mimic);
-			// transform-origin: 120%;
-
 			transition: opacity 400ms var(--ease-out-quad);
 			opacity: 0;
 		}
@@ -403,7 +346,6 @@
 		}
 
 
-
 		/*
 			Copied from screen.less
 		*/
@@ -419,7 +361,7 @@
 	}
 
 </style>
-<!-- class:slides={slides} -->
+
 
 <div class="bounds"
 	class:slides={b_slides}

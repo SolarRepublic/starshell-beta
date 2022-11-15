@@ -2,11 +2,15 @@ import {NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM, XG_64_BIT_MAX} from './con
 import {AlreadyRegisteredError, CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from './errors';
 
 import {Vault} from '#/crypto/vault';
-import {PublicStorage} from '#/extension/public-storage';
+import {PublicStorage, storage_clear, storage_remove} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
 import {global_broadcast} from '#/script/msg-global';
 import {F_NOOP, timeout} from '#/util/belt';
 import {text_to_buffer} from '#/util/data';
+import { add_utility_key } from './account';
+import { Accounts } from '#/store/accounts';
+import { set_keplr_compatibility_mode } from '#/script/scripts';
+import { storage } from 'webextension-polyfill';
 
 
 /**
@@ -231,4 +235,59 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
  */
 export async function logout(): Promise<void> {
 	await Vault.clearRootKey();
+}
+
+
+/**
+ * (Re)installs app
+ */
+export async function reinstall(b_install=false): Promise<void> {
+	// mark event
+	await PublicStorage.installed();
+
+	// migration; wipe everything
+	if(await PublicStorage.isUpgrading('0.3.0')) {
+		await storage_clear();
+	}
+	// selective wipe
+	else if(await PublicStorage.isUpgrading('0.5.0')) {
+		await storage_remove('apps');
+		await storage_remove('pfps');
+		await storage_remove('media');
+		await storage_remove('chains');
+		await storage_remove('contracts');
+		for(const [, g_account] of (await Accounts.read()).entries()) {
+			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
+		}
+	}
+	// selective wipe
+	else if(await PublicStorage.isUpgrading('0.5.4')) {
+		await storage_remove('providers');
+		await storage_remove('chains');
+		await storage_remove('contracts');
+	}
+	else if(await PublicStorage.isUpgrading('0.6.0')) {
+		await storage_remove('chains');
+	}
+
+	// fresh install
+	if(b_install) {
+		// enable keplr compatibility mode
+		await PublicStorage.keplrCompatibilityMode(true);
+
+		// enable detection mode by default
+		await PublicStorage.keplrDetectionMode(true);
+	}
+
+	// set compatibility mode based on apps and current settings
+	await set_keplr_compatibility_mode();
+}
+
+/**
+ * Factory reset
+ */
+export async function factory_reset(): Promise<void> {
+	await SessionStorage.clear();
+	await storage_clear();
+	await reinstall(true);
 }

@@ -12,6 +12,7 @@ import {H_STORE_INITS} from './_init';
 import type {Unsubscriber} from 'svelte/store';
 import {global_receive} from '#/script/msg-global';
 import {NotAuthenticatedError} from '#/share/errors';
+import type { L, U } from 'ts-toolbelt';
 
 type StorageValue = JsonObject | JsonValue[];
 
@@ -117,6 +118,26 @@ export class WritableStoreMap<
 		return true;
 	}
 
+	async update(
+		p_res: keyof h_cache & string,
+		f_update: (g_current: h_cache[typeof p_res]) => Partial<h_cache[typeof p_res]>
+	): Promise<void> {
+		// ref existing object
+		const g_current = this._w_cache[p_res];
+
+		// object does not exist; fail
+		if(!g_current) throw new Error(`Attempted to update non-existent resource: <${p_res}>`);
+
+		// call update
+		const g_partial = f_update(g_current);
+
+		// update object
+		Object.assign(g_current, g_partial);
+
+		// save
+		await this.save();
+	}
+
 	// async put(g_info: h_cache[keyof h_cache]): Promise<void> {
 	// 	// prepare app path
 	// 	const p_app = AppsI.pathFor(g_app.host, g_app.scheme);
@@ -158,16 +179,16 @@ export type UseStore<
 	w_return extends any=void,
 > = (ks_store: InstanceType<dc_store>) => Promisable<w_return>;
 
-type StoreExtensionKey = 'array' | 'map' | 'dict';
+type StoreExtensionKey = 'array' | 'map' | 'dict' | 'filterable';
 
 export type StaticStore<
 	si_store extends StoreKey=StoreKey,
 	dc_store extends StoreClassImpl<si_store>=StoreClassImpl<si_store>,
-	s_extension extends undefined | StoreExtensionKey=undefined | StoreExtensionKey,
+	z_extends extends undefined | StoreExtensionKey | StoreExtensionKey[]=undefined | StoreExtensionKey | StoreExtensionKey[],
 > = Merge<{
 	open<w_return extends any>(fk_use: UseStore<dc_store, w_return>): Promise<w_return>;
 	read(): Promise<Instance<dc_store>>;
-}, Access<{
+}, U.Merge<Access<{
 	array: {
 		prepend(w_value: Store[si_store][Extract<number, keyof Store[si_store]>]): Promise<void>;
 
@@ -177,14 +198,21 @@ export type StaticStore<
 		at(si_key: Store.Key<si_store>): Promise<null | Store[si_store][typeof si_key]>;
 
 		delete(si_key: Store.Key<si_store>): Promise<boolean>;
+
+		update(
+			si_key: Store.Key<si_store>,
+			f_update: (g_current: Store[si_store][typeof si_key]) => Partial<Store[si_store][typeof si_key]>
+		): Promise<void>;
 	};
 	dict: {
 		get<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]>;
 
 		set(si_key: Store.Key<si_store>, w_value: Store[si_store][typeof si_key]): Promise<void>;
 	};
-}, s_extension>>;
-
+	filterable: {
+		filter(gc_filter: Partial<Store[si_store][Store.Key<si_store>]>): Promise<[Store.Key<si_store>, Store[si_store]][]>;
+	};
+}, L.UnionOf<L.Flatten<[z_extends]>>>>>;
 
 export async function fetch_cipher(): Promise<CryptoKey> {
 	// fetch the root key
@@ -202,17 +230,20 @@ export function create_store_class<
 	si_store extends StoreKey,
 	dc_store extends StoreClassImpl,
 	w_cache extends Store[si_store],
-	s_extends extends undefined | StoreExtensionKey,
+	z_extends extends undefined | StoreExtensionKey | StoreExtensionKey[],
 // >(si_store: si_store, dc_store: dc_store): StaticStore<si_store, dc_store> & dc_store {
 >({
 	store: si_store,
 	class: dc_store,
-	extension: s_extension,
+	extension: z_extensions,
 }: {
 	store: si_store;
 	class: dc_store;
-	extension?: s_extends;
-}): dc_store & StaticStore<si_store, dc_store, s_extends> {
+	extension?: z_extends;
+}): dc_store & StaticStore<si_store, dc_store, z_extends> {
+	// locally-scoped convenience types
+	type ItemPath = Store.Key<si_store>;
+
 	async function open_or_initialize(dk_cipher: CryptoKey) {
 		// checkout the store from the vault
 		const kv_store = await Vault.acquire(si_store);
@@ -253,6 +284,8 @@ export function create_store_class<
 			throw e_read;
 		}
 	}
+
+	const a_extensions = 'string' === typeof z_extensions? [z_extensions] as [string]: z_extensions;
 
 	return Object.assign(dc_store, {
 		async open<w_return extends any>(fk_use: UseStore<dc_store, w_return>): Promise<w_return> {
@@ -318,7 +351,7 @@ export function create_store_class<
 			return ks_store;
 		},
 
-		...('array' === s_extension) && {
+		...(a_extensions?.includes('array')) && {
 			async prepend(w_value: Store[si_store][Extract<number, keyof Store[si_store]>]): Promise<number> {
 				return await dc_store['open'](ks_self => ks_self.prepend(w_value));
 			},
@@ -328,35 +361,83 @@ export function create_store_class<
 			},
 		},
 
-		...('map' === s_extension) && {
-			async at<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
+		...(z_extensions?.includes('map')) && {
+			async at<si_key extends ItemPath>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
 				return (await dc_store['read']()).at(si_key);
 			},
 
-			async delete<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<boolean> {
+			async delete<si_key extends ItemPath>(si_key: si_key): Promise<boolean> {
 				return await dc_store['open'](ks_self => ks_self.delete(si_key));
 			},
+
+			async update<si_key extends ItemPath>(
+				si_key: si_key,
+				f_update: (g_current: Store[si_store][si_key]) => Partial<Store[si_store][si_key]>
+			): Promise<boolean> {
+				return await dc_store['open'](ks_self => ks_self.update(si_key, f_update));
+			}
 		},
 
-		...('dict' === s_extension) && {
-			async get<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
+		...(z_extensions?.includes('dict')) && {
+			async get<si_key extends ItemPath>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
 				return (await dc_store['read']()).get(si_key);
 			},
 
-			async set(si_key: Store.Key<si_store>, w_value: Store[si_store][typeof si_key]): Promise<void> {
+			async set(si_key: ItemPath, w_value: Store[si_store][typeof si_key]): Promise<void> {
 				return await dc_store['open'](ks_self => ks_self.set(si_key, w_value));
 			},
 		},
-	}) as StaticStore<si_store, dc_store, s_extends> & dc_store;
+
+		...(z_extensions?.includes('filterable') && {
+			async filter(gc_filter: Partial<w_cache>): Promise<[ItemPath, w_cache][]> {
+				// load cache
+				const h_cache = (await dc_store['read'])() as Record<ItemPath, w_cache>;
+
+				// no filter; return entries
+				if(!Object.keys(gc_filter).length) return ode(h_cache);
+
+				// list of apps matching given filter
+				const a_outs: [ItemPath, w_cache][] = [];
+
+				// each entry in store
+				FILTERING:
+				for(const p_item in h_cache) {
+					const g_item = h_cache[p_item]!;
+
+					// each criterion in filter
+					for(const si_key in gc_filter) {
+						const w_value = gc_filter[si_key];
+
+						// one of the filters doesn't match; skip it
+						if(g_item[si_key] !== w_value) continue FILTERING;
+					}
+
+					// app passed filter criteria; add it to list
+					a_outs.push([p_item, g_item]);
+				}
+
+				// return list
+				return a_outs;
+			},
+		}),
+	}) as StaticStore<si_store, dc_store, z_extends> & dc_store;
 }
 
 
-export function subscribe_store(si_key: StoreKey, f_callback: (b_init: boolean) => void): Unsubscriber {
-	return global_receive({
+export function subscribe_store(
+	z_key: StoreKey | StoreKey[],
+	f_callback: (b_init: boolean) => void,
+	f_destroyer?: (f: () => any) => void
+): Unsubscriber {
+	const f_unsubscribe = global_receive({
 		updateStore({key:si_store, init:b_init}) {
-			if(si_store === si_key) {
+			if(Array.isArray(z_key)? z_key.includes(si_store): si_store === z_key) {
 				f_callback(b_init);
 			}
 		},
 	});
+
+	f_destroyer?.(() => f_unsubscribe());
+
+	return f_unsubscribe;
 }

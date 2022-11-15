@@ -7,56 +7,63 @@
 		proto: SignedDoc;
 	}
 
-	export interface CompletedAminoSignature extends JsonObject {
+	export interface CompletedAminoSignature {
 		amino: AdaptedAminoResponse;
 	}
 
-	export type CompletedSignature = CompletedAminoSignature | CompletedProtoSignature;
+	export type CompletedSignature = Partial<U.Merge<CompletedAminoSignature | CompletedProtoSignature>>;
 
 </script>
 
 <script lang="ts">
 	import type {Coin} from '@cosmjs/amino';
 	
+	import type {SimulateResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
+	
 	import type {AccountStruct} from '#/meta/account';
-	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
+	import type {Dict, Explode, JsonObject, Promisable} from '#/meta/belt';
 	import type {Bech32, CoinInfo, FeeConfig, FeeConfigAmount, FeeConfigPriced} from '#/meta/chain';
 	import type {Cw} from '#/meta/cosm-wasm';
 	import type {MsgEventRegistry, TxMsg, TxPending} from '#/meta/incident';
+	import type {Vocab} from '#/meta/vocab';
 	import type {AdaptedAminoResponse, AdaptedStdSignDoc, GenericAminoMessage} from '#/schema/amino';
 	import type {Snip24PermitMsg} from '#/schema/snip-24-def';
 	
-	import {TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+	import {Fee, TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 	import BigNumber from 'bignumber.js';
+	import {onDestroy} from 'svelte';
 	import {slide} from 'svelte/transition';
 	
 	import {Screen} from './_screens';
 	import {syserr} from '../common';
 	import {JsonPreviewer} from '../helper/json-previewer';
-	import {yw_network, yw_progress} from '../mem';
+	import {yw_account, yw_network, yw_progress} from '../mem';
 	
 	import {type LoadedAppContext, load_app_context} from '#/app/svelte';
 	import {Coins} from '#/chain/coin';
-	import {type ProtoMsg, proto_to_amino, encode_proto} from '#/chain/cosmos-msgs';
+	import {type ProtoMsg, proto_to_amino, encode_proto, amino_to_base} from '#/chain/cosmos-msgs';
 	import type {DescribedMessage} from '#/chain/messages/_types';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {signAmino, type SignedDoc} from '#/chain/signing';
 	import {pubkey_to_bech32} from '#/crypto/bech32';
 	import SensitiveBytes from '#/crypto/sensitive-bytes';
-	import {global_broadcast, global_receive} from '#/script/msg-global';
+	import type {IntraExt} from '#/script/messages';
+	import {open_flow} from '#/script/msg-flow';
+	import {global_broadcast, global_receive, global_wait} from '#/script/msg-global';
+	import {NB_MAX_MEMO, X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
-	import {Apps, G_APP_STARSHELL} from '#/store/apps';
+	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Incidents} from '#/store/incidents';
-	import {forever, is_dict, ode, proper, timeout} from '#/util/belt';
-	import {buffer_to_base64, buffer_to_base93} from '#/util/data';
+	import {forever, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
+	import {base64_to_buffer, buffer_to_base64, buffer_to_base93} from '#/util/data';
 	import {format_fiat} from '#/util/format';
 	
 	import FatalError from './FatalError.svelte';
 	import SigningData from './SigningData.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
 	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
@@ -65,7 +72,9 @@
 	import Row from '../ui/Row.svelte';
 	import type {SelectOption} from '../ui/StarSelect.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
+    import type { O, U } from 'ts-toolbelt';
 	
+
 	
 	const g_context = load_app_context<CompletedSignature | null>();
 	const {
@@ -89,7 +98,7 @@
 	const g_amino = amino;
 
 	export let protoMsgs: ProtoMsg[];
-	const a_proto_msgs = protoMsgs;
+	let a_msgs_proto = protoMsgs;
 
 	export let fee: FeeConfig;
 	const gc_fee = fee;
@@ -102,10 +111,30 @@
 	// get fee coin from chain
 	const [si_coin, g_info] = Chains.feeCoin(g_chain);
 
+	let s_gas_limit_revert = '0';
 	let s_gas_limit = '0';
 	let s_gas_price = '0';
 
 	let g_fee_coin_info: CoinInfo;
+
+	/**
+	 * Datetime the last block was witnessed by the service monitor
+	 */
+	let xt_prev_block = 0;
+
+	// start monitoring service broadcasts
+	onDestroy(global_receive({
+		blockInfo(g_block_info) {
+			if(p_chain === g_block_info.chain) {
+				xt_prev_block = Date.now();
+			}
+		},
+	}));
+
+	/**
+	 * Only true if the signature is for an offline document (i.e., not a transaction)
+	 */
+	let b_no_fee = false;
 
 	let s_fee_total = '0';
 	let s_fee_total_display = '0';
@@ -131,6 +160,8 @@
 
 	const H_PRESETS: Dict<(g_value: JsonObject) => Promisable<DescribedMessage>> = {
 		'query_permit'(g_permit: Snip24PermitMsg['value']) {
+			b_no_fee = true;
+
 			return {
 				title: 'Sign Query Permit',
 				tooltip: 'Allows apps to view private data such as your token balance, ownership, etc. Scope and permissions are unique to each permit.',
@@ -323,28 +354,28 @@
 
 	(async() => {
 		// try setting to amino if defined by default
-		let a_msgs = amino?.msgs;
+		let a_msgs_amino = amino?.msgs;
 
 		// proto
-		if(a_proto_msgs?.length) {
+		if(a_msgs_proto?.length) {
 			// convert to amino
-			a_msgs = a_proto_msgs.map(g => proto_to_amino(g, g_chain.bech32s.acc));
+			a_msgs_amino = a_msgs_proto.map(g => proto_to_amino(g, g_chain.bech32s.acc));
 		}
 
 		// messages are defined
-		if(a_msgs?.length) {
+		if(a_msgs_amino?.length) {
 			// single message
-			if(1 === a_msgs.length) {
+			if(1 === a_msgs_amino.length) {
 				// ref message
 				const {
 					type: si_amino,
 					value: g_value,
-				} = a_msgs[0];
+				} = a_msgs_amino[0];
 
 				// interpret message
 				const g_overview = H_PRESETS[si_amino]
 					? await H_PRESETS[si_amino](g_value)
-					: await describe_message(a_msgs[0]);
+					: await describe_message(a_msgs_amino[0]);
 
 				// lift properties from overview
 				s_title = g_overview.title;
@@ -358,7 +389,7 @@
 				s_title = 'Sign Multi-Message Transaction';
 				s_tooltip = 'Submits multiple messages to the chain to be processed in the same block.';
 
-				a_overviews = await Promise.all(a_msgs.map(describe_message));
+				a_overviews = await Promise.all(a_msgs_amino.map(describe_message));
 			}
 		}
 
@@ -370,7 +401,107 @@
 		// }
 
 		b_loaded = true;
+
+		void simulate();
 	})();
+
+	async function simulate() {
+		// proto
+		if(a_msgs_proto?.length) {
+			// sign
+			const {
+				auth: atu8_auth,
+				signer: g_signer,
+			} = await $yw_network.authInfoDirect($yw_account, Fee.fromPartial({}));
+
+			// simulate multiple times
+			return await repeat_simulation(atu8_auth, Infinity);
+		}
+	}
+
+	let a_sims: SimulateResponse[] = [];
+	let c_samples = 0;
+	let s_gas_forecast = '';
+	let s_err_sim = '';
+
+	async function repeat_simulation(atu8_auth: Uint8Array, n_repeats: number) {
+		if(n_repeats <= 0) return;
+
+		let g_sim!: SimulateResponse;
+		try {
+			g_sim = await $yw_network.simulate($yw_account, {
+				messages: a_msgs_proto,
+				memo: ' '.repeat(NB_MAX_MEMO),
+			}, atu8_auth);
+		}
+		catch(e_sim) {
+			console.error(e_sim);
+
+			s_err_sim = e_sim.message;
+			return;
+		}
+
+		// log sim response
+		console.log(g_sim);
+
+		// add to responses
+		a_sims = a_sims.concat([g_sim]);
+
+		// gas info present
+		if(g_sim.gasInfo) {
+			// increment sample counter
+			c_samples += 1;
+
+			// update maximum returned value
+			const yg_gas_used_sim = a_sims.reduce((yg_max, g_each) => {
+				// gas info present
+				const {gasUsed:s_gas_used} = g_each.gasInfo || {};
+				if(s_gas_used) {
+					const yg_used = BigNumber(s_gas_used);
+
+					// gas used is more than previous
+					if(yg_used.gt(yg_max)) {
+						return yg_used;
+					}
+				}
+
+				// no change
+				return yg_max;
+			}, BigNumber(0));
+
+			// save
+			if(!b_show_fee_adjuster) {
+				// forecast appropriate gas limit
+				const yg_gas_forecast = yg_gas_used_sim.times(X_SIMULATION_GAS_MULTIPLIER).integerValue(BigNumber.ROUND_CEIL);
+
+				// save as string
+				s_gas_forecast = yg_gas_forecast.toString();
+
+				// privacy chain; pad gas limit
+				if(g_chain.features.secretwasm) {
+					// ref gas step paramater from chain def
+					const yg_gas_step = g_chain.features.secretwasm.gasPadding.stepSize;
+
+					// pad gas amount using step size
+					const yg_gas_padded = yg_gas_forecast.dividedBy(yg_gas_step).integerValue(BigNumber.ROUND_CEIL).times(yg_gas_step);
+
+					// save as string
+					s_gas_limit = yg_gas_padded.toString();
+				}
+				// not privacy chain, use best gas available
+				else {
+					s_gas_limit = s_gas_forecast;
+				}
+			}
+		}
+
+		// wait for certain number of blocks
+		let c_blocks_wait = c_samples < 3? 1: c_samples < 6? 2: c_samples < 12? 3: c_samples < 18? 4: 5;
+		while(c_blocks_wait-- > 0) await global_wait('blockInfo');
+
+		// repeat simulation
+		return await repeat_simulation(atu8_auth, n_repeats - 1);
+	}
 
 	function view_data() {
 		if(amino) {
@@ -384,7 +515,31 @@
 		}
 	}
 
+	function monitor_tx(si_txn: string) {
+		// open transaction monitor
+		void open_flow({
+			flow: {
+				type: 'monitorTx',
+				value: {
+					app: p_app,
+					chain: p_chain,
+					account: p_account,
+					hash: si_txn,
+				},
+				page: null,
+			},
+			open: {
+				popout: true,
+			},
+		});
+	}
+
+
+	let b_approving = false;
+
 	async function approve() {
+		b_approving = true;
+
 		const g_account = await dp_account;
 
 		if(!g_account) {
@@ -418,19 +573,6 @@
 				};
 
 				// TODO: finalize amino doc
-
-
-				// // produce transaction bytes and hash
-				// const {
-				// 	sxb16_hash,
-				// } = $yw_network.finalizeTxRaw({
-				// 	body: g_signed.doc.bodyBytes,
-				// 	auth: g_signed.doc.authInfoBytes,
-				// 	signature: ,
-				// });
-
-				
-
 			}
 			// signing error
 			catch(e_sign) {
@@ -444,14 +586,34 @@
 				// do not complete
 				return;
 			}
+
+			// attempt to convert to proto
+			try {
+				const {auth:atu8_auth} = await $yw_network.authInfoDirect(g_account, {
+					amount: g_amino.fee.amount,
+					gasLimit: g_amino.fee.gas,
+				});
+
+				const {
+					sxb16_hash,
+				} = $yw_network.packAmino(g_amino, atu8_auth, base64_to_buffer(g_completed.amino.signature.signature));
+
+				si_txn = sxb16_hash;
+				console.log(`Produced transaction hash of ${si_txn}`);
+				debugger;
+			}
+			// offline doc
+			catch(e_convert) {
+
+			}
 		}
 		// proto
-		else if(a_proto_msgs?.length) {
+		else if(a_msgs_proto?.length) {
 			// attempt to sign
 			try {
 				// encode tx body
 				const atu8_body = encode_proto(TxBody, {
-					messages: a_proto_msgs,
+					messages: a_msgs_proto,
 				});
 
 				// sign direct
@@ -483,11 +645,21 @@
 				si_txn = sxb16_hash.toUpperCase();
 
 				// produce equivalent amino messages
-				a_equivalent_amino_msgs = a_proto_msgs.map(g_proto => proto_to_amino(g_proto, g_chain.bech32s.acc));
+				a_equivalent_amino_msgs = a_msgs_proto.map(g_proto => proto_to_amino(g_proto, g_chain.bech32s.acc));
 			}
 			// signing error
 			catch(e_sign) {
-				debugger;
+				// ref error message
+				const s_error = (e_sign as Error)?.message || '';
+
+				// account not found
+				if(/^account (.+) not found$/.test(s_error)) {
+					throw syserr({
+						error: e_sign,
+						title: 'Account does not exist',
+						text: 'You need to receive gas before you can send a transaction.',
+					});
+				}
 
 				k_page.push({
 					creator: FatalError,
@@ -537,6 +709,11 @@
 
 		// transaction will be broadcast
 		if(si_txn) {
+			// convert amino messages to proto
+			if(g_amino) {
+				a_msgs_proto = a_equivalent_amino_msgs.map(g => amino_to_base(g).encode());
+			}
+
 			// record outgoing tx
 			await Incidents.record({
 				type: 'tx_out',
@@ -546,6 +723,10 @@
 					app: p_app,
 					chain: Chains.pathFrom(g_chain),
 					account: p_account,
+					msgs: a_msgs_proto.map(g => ({
+						typeUrl: g.typeUrl,
+						value: buffer_to_base93(g.value),
+					})),
 					code: 0,
 					hash: si_txn,
 					raw_log: '',
@@ -596,23 +777,49 @@
 			}, 500);
 
 			// ensure service is alive
-			global_broadcast({
-				type: 'heartbeat',
-			});
+			const d_runtime = chrome.runtime as Vocab.TypedRuntime<IntraExt.GlobalVocab>;
+			const [b_responded, xc_timeout] = await timeout_exec(1e3, () => d_runtime.sendMessage({
+				type: 'wake',
+			}));
+
+			// service is dead
+			if(xc_timeout) {
+				// begin to monitor the tx and continue
+				monitor_tx(si_txn);
+			}
+			// service not dead but it has been a while since the last block was observed
+			else if(Date.now() - xt_prev_block > 12e3) {
+				// wait for up to 6 more seconds
+				try {
+					await global_wait('blockInfo', g => p_chain === g.chain, 6e3);
+				}
+				// timed out
+				catch(e_timeout) {
+					// begin to monitor the tx and continue
+					monitor_tx(si_txn);
+				}
+			}
 		}
 		// was just for signing
 		else {
 			// TODO: save signed_json incident
 
-			// record incident
-			await Incidents.record({
-				type: 'signed_json',
-				data: {
-					app: Apps.pathFrom(g_app),
-					account: p_account,
-					events: h_events,
-				},
-			});
+			// query permit
+			if(g_chain.features.secretwasm && 1 === a_equivalent_amino_msgs.length && 'query_permit' === a_equivalent_amino_msgs[0].type) {
+				// do not record incident here
+			}
+			// some document
+			else {
+				// record incident
+				await Incidents.record({
+					type: 'signed_json',
+					data: {
+						app: Apps.pathFrom(g_app),
+						account: p_account,
+						events: h_events,
+					},
+				});
+			}
 		}
 
 		// dispatch update
@@ -648,10 +855,9 @@
 		}
 	}
 
+	// reactively compute total gas fee
+	$: yg_fee = BigNumber(s_gas_price).times(s_gas_limit);
 	$: {
-		// compute total gas fee
-		const yg_fee = BigNumber(s_gas_price).times(s_gas_limit);
-
 		// convert to integer string
 		s_fee_total = yg_fee.integerValue(BigNumber.ROUND_CEIL).toString();
 
@@ -691,7 +897,7 @@
 		// as amino doc
 		if(amino) {
 			// inherit gas limit from doc
-			s_gas_limit = amino.fee.gas;
+			s_gas_limit = s_gas_limit_revert = amino.fee.gas;
 
 			// ref amounts
 			a_amounts = amino.fee.amount;
@@ -699,7 +905,7 @@
 		// as proto doc
 		else {
 			// inherit gas limit from config
-			s_gas_limit = String(gc_fee.limit);
+			s_gas_limit = s_gas_limit_revert = String(gc_fee.limit);
 
 			// amounts provided
 			if(gc_fee?.['amount']) {
@@ -830,7 +1036,7 @@
 	function click_adjust_fee() {
 		// first time clicking
 		if(!b_show_fee_adjuster) {
-			a_original_gas_settings = [s_gas_limit, s_gas_price];
+			a_original_gas_settings = [s_gas_limit_revert, s_gas_price];
 			b_show_fee_adjuster = true;
 			s_adjust_fee_text = 'Reset fee';
 		}
@@ -852,7 +1058,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.overview {
 		position: relative;
@@ -952,53 +1158,70 @@
 	{/if}
 
 	<Field short key='gas' name='Network Fee'>
-		<div style={`
-			display: flex;
-			justify-content: space-between;
-		`}>
+		{#if b_no_fee}
 			<div>
-				<div class="fee-denom">
-					{s_fee_total_display}
+				0.0 {Chains.feeCoin(g_chain)[0]}
+			</div>
+			<div class="global_subvalue">
+				Offline signature has no fees
+			</div>
+		{:else}
+			<div style={`
+				display: flex;
+				justify-content: space-between;
+			`}>
+				<div>
+					<div class="fee-denom">
+						{s_fee_total_display}
+					</div>
+					<div class="fee-fiat global_subvalue">
+						<Load input={dp_fee_fiat} />
+					</div>
 				</div>
-				<div class="fee-fiat global_subvalue">
-					<Load input={dp_fee_fiat} />
+				<div style="text-align:right;">
+					<div class="font-variant_tiny" style="color:var(--theme-color-{s_err_sim? 'caution': 'text-med'});">
+						{#if !a_sims.length}
+							{#if s_err_sim}
+								Simulation failed
+							{:else}
+								Optimizing fee...
+							{/if}
+						{:else if s_gas_forecast}
+							✔️ Optimized fee ({
+								c_samples <= 10
+									? c_samples
+									: `>${Math.floor((c_samples-1) / 10) * 10}`
+							})
+						{:else}
+							Optimization failed
+						{/if}
+					</div>
+					<div class="link font-variant_tiny" on:click={() => click_adjust_fee()}>
+						{s_adjust_fee_text}
+					</div>
 				</div>
 			</div>
-			<span class="link font-variant_tiny" style="align-self:end;" on:click={() => click_adjust_fee()}>
-				{s_adjust_fee_text}
-			</span>
-		</div>
 
-		{#if b_show_fee_adjuster}
-			<div class="global_inline-form" style="margin-top: 6px;" transition:slide>
-				<span class="key">
-					Gas limit
-				</span>
-				<span class="value">
-					<input class="global_compact" required type="number" min="0" step="500" bind:value={s_gas_limit}>
-				</span>
-				<span class="key">
-					Gas price
-				</span>
-				<span class="value">
-					<input class="global_compact" required type="number" min="0" step="0.00125" bind:value={s_gas_price}>
-				</span>
-
-				<!-- <div class="gas-limit">
-					<Field short key="gas-limit" name="Gas limit">
-						<input class="global_compact" required type="number" min="0" step="500">
-					</Field>
+			{#if b_show_fee_adjuster}
+				<div class="global_inline-form" style="margin-top: 6px;" transition:slide>
+					<span class="key">
+						Gas limit
+					</span>
+					<span class="value">
+						<input class="global_compact" required type="number" min="0" step="500" bind:value={s_gas_limit}>
+					</span>
+					<span class="key">
+						Gas price
+					</span>
+					<span class="value">
+						<input class="global_compact" required type="number" min="0" step="0.00125" bind:value={s_gas_price}>
+					</span>
 				</div>
-				<div class="gas-price">
-					<Field short key="gas-prive" name="Gas price">
-						<input class="global_compact" required type="number" min="0" step="0.00125">
-					</Field>
-				</div> -->
-			</div>
+			{/if}
 		{/if}
 	</Field>
 
-	<ActionsLine cancel={() => cancel()} confirm={['Approve', approve, !b_loaded]} />
+	<ActionsLine cancel={() => cancel()} confirm={['Approve', approve, !b_loaded || b_approving]} />
 
 	<Curtain on:click={() => b_tooltip_showing = false} />
 </Screen>

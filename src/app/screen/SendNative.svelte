@@ -1,7 +1,20 @@
 <script lang="ts">
-	import type {Account, AccountStruct, AccountPath} from '#/meta/account';
+	import type {AccountStruct, AccountPath} from '#/meta/account';
 	import type {Bech32} from '#/meta/chain';
-	import type {Contact, ContactStruct} from '#/meta/contact';
+	import type {ContactStruct} from '#/meta/contact';
+	
+	import type {Vocab} from '#/meta/vocab';
+	
+	import BigNumber from 'bignumber.js';
+	
+	import {Screen, Header} from './_screens';
+	import {syserr} from '../common';
+	import {ThreadId} from '../def';
+	import {yw_chain, yw_navigator, yw_network, yw_provider_ref} from '../mem';
+	import { load_page_context } from '../svelte';
+
+	import {compileMemoPlaintext, ecdhNonce} from '#/crypto/privacy';
+	import type {IntraExt} from '#/script/messages';
 	import {NB_MAX_MEMO} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
@@ -9,22 +22,14 @@
 	import {CoinGecko} from '#/store/web-apis';
 	import {base93_to_buffer, buffer_to_text, text_to_buffer} from '#/util/data';
 	import {format_fiat} from '#/util/format';
-	import BigNumber from 'bignumber.js';
-
-	import {getContext} from 'svelte';
-	import {syserr} from '../common';
-	import {ThreadId} from '../def';
-	import {yw_chain, yw_navigator, yw_network, yw_provider_ref} from '../mem';
+	
 	import ActionsLine from '../ui/ActionsLine.svelte';
-	import Address from '../ui/Address.svelte';
+	import Address from '../frag/Address.svelte';
 	import Field from '../ui/Field.svelte';
-	import {Screen, Header, type Page} from './_screens';
-	import MemoReview from '../ui/MemoReview.svelte';
-	import type {Vocab} from '#/meta/vocab';
-	import type {IntraExt} from '#/script/messages';
-	import {compileMemoPlaintext, ecdhNonce} from '#/crypto/privacy';
+	import MemoReview from '../frag/MemoReview.svelte';
+	
 
-	const k_page = getContext<Page>('page');
+	const {k_page} = load_page_context();
 
 	const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
 
@@ -196,7 +201,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.title {
 

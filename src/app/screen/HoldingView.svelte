@@ -1,15 +1,7 @@
 <script lang="ts">
-	// import {definition} from '@fortawesome/free-solid-svg-icons/faRobot';
-	// const SXP_ROBOT = definition.icon[4];
-	const SXP_ROBOT = '';
-	
-	// import SX_NORTH_EAST from '@material-design-icons/svg/filled/north_east.svg?raw';
-	// import SX_EDIT from '@material-design-icons/svg/filled/edit.svg?raw';
-	// import SX_INFO from '@material-design-icons/svg/outlined/info.svg?raw';
-	
 	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 	
-	import type {ContractStruct, ContractPath, EntityPath, CoinInfo, HoldingPath} from '#/meta/chain';
+	import type {CoinInfo, HoldingPath} from '#/meta/chain';
 	import type {IncidentStruct, IncidentType} from '#/meta/incident';
 	import type {PfpTarget} from '#/meta/pfp';
 	
@@ -19,10 +11,8 @@
 	import {Header, Screen, type Page} from './_screens';
 	import {yw_chain, yw_chain_ref, yw_network} from '../mem';
 	
-	import {coin_formats, parse_coin_amount, to_fiat} from '#/chain/coin';
-	import {proto_to_amino} from '#/chain/cosmos-msgs';
-	import {fold_attrs} from '#/chain/cosmos-network';
-	import {SI_STORE_CHAINS, XT_MINUTES} from '#/share/constants';
+	import {coin_formats, parse_coin_amount,} from '#/chain/coin';
+	import {XT_MINUTES} from '#/share/constants';
 	import {Chains} from '#/store/chains';
 	import {Entities} from '#/store/entities';
 	import {Incidents} from '#/store/incidents';
@@ -30,10 +20,9 @@
 	
 	import Send from './Send.svelte';
 	import Gap from '../ui/Gap.svelte';
-	import IncidentsList from '../ui/IncidentsList.svelte';
+	import IncidentsList from '../frag/IncidentsList.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
-	import Portrait, {type Actions} from '../ui/Portrait.svelte';
-	import Row from '../ui/Row.svelte';
+	import Portrait, {type Actions} from '../frag/Portrait.svelte';
 	
 	import SX_ICON_PERSONAL from '#/icon/account_box.svg?raw';
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
@@ -129,34 +118,6 @@
 
 	load_entity();
 
-	// export const accountId = Object.values(H_ACCOUNTS).find((k) => k.address(k_chain) === holding.def.holderAddr)?.def.id || $yw_chain.def.id;
-
-	// const k_account = $yw_account;
-	// yw_account.subscribe((_k_account) => {
-	// 	if($yw_pattern.endsWith('/tokens/{tokenId}/holdings/{accountId}/view') && k_account.def.pubkey !== _k_account.def.pubkey) {
-	// 		restart();
-	// 	}
-	// });
-
-	// const H_TXN_ICONS = {
-	// 	[Txn.Type.UNKN]: Icon.BLANK,
-	// 	[Txn.Type.SEND]: Icon.fromHtml(SX_ICON_SEND, {class:'icon-20'}),
-	// 	[Txn.Type.RECV]: Icon.fromHtml(SX_ICON_RECV, {class:'icon-20'}),
-	// 	[Txn.Type.COMP]: Icon.fromHtml(`<svg><path d="${SXP_ROBOT}"/></svg>`, {class:'icon-20'}),
-	// 	[Txn.Type.SNIP20_XFER]: Icon.fromHtml(SX_ICON_RECV, {class:'icon-20'}),
-	// } as Record<Txn.Type | Txn.BankishType, Icon>;
-
-	// const H_SUMMARIZERS = {
-	// 	[Txn.Type.UNKN]: (_) => 'Unknown',
-	// 	[Txn.Type.SEND]: (k) => `Send on ${k.date()}`,
-	// 	[Txn.Type.RECV]: (k) => `Receive on ${k.date()}`,
-	// 	[Txn.Type.COMP]: (k) => `Compute on ${k.date()}`,
-	// } as Record<Txn.Type | Txn.BankishType, (k_txn: Txn) => string>;
-
-	// const H_TXN_CLASSES = {
-	// 	[Txn.Type.SEND]: 'color-icon-send',
-	// 	[Txn.Type.RECV]: 'color-icon-recv',
-	// } as Record<Txn.Type | Txn.BankishType, string>;
 
 	// the set of actions available on this asset
 	const gc_actions: Actions = {
@@ -171,57 +132,6 @@
 			},
 		},
 	};
-
-	// // home token
-	// const k_ibct_native = H_IBCTS[Ibct.refFromHomeToken(gd_token.iri)];
-	// if(k_ibct_native) {
-	// 	gc_actions.wrap = {
-	// 		label: 'Wrap',
-	// 		trigger() {
-	// 			push_screen(DeadEnd);
-	// 		},
-	// 	};
-	// }
-
-	// // colony token
-	// if(k_token.ibct) {
-	// 	gc_actions.unwrap = {
-	// 		label: 'Unwrap',
-	// 		trigger() {
-	// 			push_screen(DeadEnd);
-	// 		},
-	// 	};
-	// }
-
-	// // non-native token
-	// if(!gd_token.native) {
-	// 	Object.assign(gc_actions, {
-	// 		edit: {
-	// 			label: 'Edit',
-	// 			trigger() {
-	// 				push_screen(TokenEdit, {
-	// 					token: k_token,
-	// 				});
-	// 			},
-	// 		},
-	// 	});
-	// }
-
-	// function detail_bankish(g_bankish?: Txn.Bankish | null): {prefix:string, name:string, icon:string} {
-	// 	if(!g_bankish) return {prefix:'', name:'', icon:''};
-
-	// 	const k_contact = H_ADDR_TO_CONTACT[g_bankish.address];
-
-	// 	return {
-	// 		prefix: (Txn.BankishType.SEND === g_bankish.type? 'to': 'fr')+':',
-	// 		name: k_contact? k_contact.def.label: '',
-	// 		icon: k_contact
-	// 			? Contact.Type.PERSON === k_contact.def.type
-	// 				? SX_ICON_PERSONAL
-	// 				: SX_ICON_CONTRACT
-	// 			: '',
-	// 	};
-	// }
 
 	
 	// const a_allowances = gd_token.allowances.map((g_allowance) => {
@@ -262,12 +172,6 @@
 	// 	};
 	// });
 
-	// if(Tasks.VERIFY === $yw_task && 'ATOM' === gd_token.symbol && gd_token.native && '2' === $yw_account.def.id) {
-	// 	setTimeout(() => {
-	// 		$yw_task = -$yw_task;
-	// 	}, 1400);
-	// }
-
 	const AS_TXN_TYPES = new Set<IncidentType>(['tx_in', 'tx_out']);
 
 	async function load_incidents() {
@@ -296,7 +200,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.txns {
 		.row .icon {

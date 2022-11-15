@@ -1,11 +1,9 @@
 <script lang="ts">
-	import {
-		yw_popup,
-	} from '##/mem';
+	import {yw_popup} from '##/mem';
 </script>
 
 <style lang="less">
-	@import '../../../style/util.less';
+	@import '../../_base.less';
 
 	.popup {
 		pointer-events: none;

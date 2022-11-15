@@ -1,47 +1,9 @@
-import {timeout} from '#/util/belt';
-import {tick} from 'svelte';
 import type {NavigatorConfig} from './navigator';
 
-// function finalize() {
-// 	// destroy component
-// 	kp_src.destroy();
-// }
+import {tick} from 'svelte';
 
-// // ref dom
-// const dm_src = kp_src.dom;
+import {timeout} from '#/util/belt';
 
-// // make sure transition runs first
-// function transition_run(d_event_run) {
-// 	// not the intended property
-// 	if('transform' !== d_event_run.propertyName) return;
-
-// 	// wait for transition to complete
-// 	dm_src.addEventListener('transitionend', function transition_end(d_event_end) {
-// 		// not the intended property
-// 		if('transform' !== d_event_end.propertyName) return;
-
-// 		// remove listener
-// 		dm_src.removeEventListener('transitionend', transition_end);
-
-// 		// complete
-// 		finalize();
-// 	});
-
-// 	// remove listener
-// 	dm_src.removeEventListener('transitionrun', transition_run);
-// }
-
-// // start listening
-// dm_src.addEventListener('transitionrun', transition_run);
-
-// // timeout handler if transition does not run within certain amount of time
-// setTimeout(() => {
-// 	// cancel listening for transition event
-// 	dm_src.removeEventListener('transitionrun', transition_run);
-
-// 	// complete
-// 	finalize();
-// }, 500);
 
 export function await_transition(dm_slide: HTMLElement, xt_wait: number): Promise<void> {
 	return new Promise((fk_resolve) => {

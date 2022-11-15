@@ -2,7 +2,6 @@
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 
 	export let absolute = false;
-	export let heightless = false;
 
 	export let bgColor = '';
 </script>
@@ -24,9 +23,6 @@
 		pointer-events: all;
 
 		clip-path: inset(2px);
-
-		// margin-top: calc(0px - (var(--ui-padding) * 0.75));
-		// margin-right: calc(0px - (var(--ui-padding) * 0.75));
 
 		&.absolute {
 			position: absolute;

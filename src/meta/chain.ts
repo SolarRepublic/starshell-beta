@@ -13,6 +13,8 @@ import type { Snip20 } from '#/schema/snip-20-def';
 import type { Coin } from '@cosmjs/amino';
 import type { O } from 'ts-toolbelt';
 import type { ProviderPath } from './provider';
+import type { Snip21 } from '#/schema/snip-21-def';
+import type { Snip24 } from '#/schema/snip-24-def';
 
 /**
  * Represents an address space for a certain type of accounts (e.g., a bech32 extension)
@@ -174,7 +176,10 @@ export interface ChainFeatureRegistry {
 		struct: {
 			consensusIoPubkey: string;
 			snip20GasLimits: {
-				[si_key in Snip20.AnyMessageKey]: `${bigint}`;
+				[si_key in Snip20.AnyMessageKey | Snip21.AnyMessageKey | Snip24.AnyMessageKey]: `${bigint}`;
+			};
+			gasPadding: {
+				stepSize: `${bigint}`;
 			};
 		};
 	};
@@ -246,7 +251,8 @@ export type Chain<
 
 		features: ChainFeaturesConfig;
 
-		tokenInterfaces: TokenSpecKey[];
+		fungibleTokenInterfaces: TokenSpecKey[];
+		nonFungibleTokenInterfaces: TokenSpecKey[];
 		testnet?: boolean;
 		blockExplorer: BlockExplorerConfig;
 	}, Nameable, Pfpable];

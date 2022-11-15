@@ -249,17 +249,17 @@ export const Pfps = create_store_class({
 			};
 
 			// save pfp
-			const p_pfp = await Pfps.open(ks => ks.add(g_pfp));
+			const p_pfp = await Pfps.open(ks => ks.upsert(g_pfp));
 
 			// return path and struct of new item
 			return [p_pfp, g_pfp];
 		}
 
-		static add(g_pfp: PfpStruct): Promise<PfpPath> {
-			return Pfps.open(ks => ks.add(g_pfp));
+		static upsert(g_pfp: PfpStruct): Promise<PfpPath> {
+			return Pfps.open(ks => ks.upsert(g_pfp));
 		}
 
-		async add(g_pfp: PfpStruct): Promise<PfpPath> {
+		async upsert(g_pfp: PfpStruct): Promise<PfpPath> {
 			// generate pfp path
 			const p_pfp: PfpPath = `/template.pfp/uuid.${uuid_v4()}`;
 
@@ -273,18 +273,18 @@ export const Pfps = create_store_class({
 			return p_pfp;
 		}
 
-		async update(p_pfp: PfpPath, g_pfp: PfpStruct): Promise<void> {
-			// item does not exist
-			if(!this._w_cache[p_pfp]) {
-				throw new Error(`Attempted to update a PFP item that does not exist: <${p_pfp}>`);
-			}
+		// async update(p_pfp: PfpPath, g_pfp: PfpStruct): Promise<void> {
+		// 	// item does not exist
+		// 	if(!this._w_cache[p_pfp]) {
+		// 		throw new Error(`Attempted to update a PFP item that does not exist: <${p_pfp}>`);
+		// 	}
 
-			// update cache
-			this._w_cache[p_pfp] = g_pfp;
+		// 	// update cache
+		// 	this._w_cache[p_pfp] = g_pfp;
 
-			// attempt to save
-			await this.save();
-		}
+		// 	// attempt to save
+		// 	await this.save();
+		// }
 	},
 });
 

@@ -1,28 +1,14 @@
 <script lang="ts">
-	import type {Provider, ProviderStruct} from '#/meta/provider';
-import { Chains } from '#/store/chains';
+	import type {ProviderStruct} from '#/meta/provider';
+	
+	import {Screen, Header} from './_screens';
 
-	import Portrait from '../ui/Portrait.svelte';
-
-	import {
-		Screen,
-		Header,
-	} from './_screens';
-
+	import {Chains} from '#/store/chains';
+	
+	import Portrait from '../frag/Portrait.svelte';
+	
 
 	export let provider: ProviderStruct;
-	const g_provider = provider;
-
-	// Address,
-	// 	Portrait,
-	// 	Put,
-	// 	Row,
-
-
-	// const k_chain = H_CHAINS[g_provider.chain];
-	export const networkId = network.def.id;
-	export const chainId = k_chain.def.id;
-
 </script>
 
 <style lang="less">
@@ -35,13 +21,11 @@ import { Chains } from '#/store/chains';
 	>
 	</Header>
 
-	{#await Chains.read()}
-		Loading chains....
+	{#await Chains.read()}		
+		<Portrait loading />
 	{:then ks_chains}
-		{@const g_chain = ks_chains.at(g_provider.chain)}
-
 		<Portrait
-			resource={g_provider}
+			resource={provider}
 		>
 			<!-- subtitle={g_chain.def.label} -->
 		</Portrait>

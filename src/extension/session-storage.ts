@@ -2,7 +2,7 @@ import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
 
 import type {ScreenInfo} from '#/extension/browser';
 import type {Dict, Explode, JsonObject} from '#/meta/belt';
-import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_NATIVE_IOS, G_USERAGENT, N_BROWSER_VERSION_MAJOR} from '#/share/constants';
+import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_IOS_NATIVE, G_USERAGENT, N_BROWSER_VERSION_MAJOR} from '#/share/constants';
 import type {Vocab} from '#/meta/vocab';
 import type {IcsToService} from '#/script/messages';
 import {F_NOOP} from '#/util/belt';
@@ -142,7 +142,7 @@ export const SessionStorage = {} as ExtSessionStorage;
 function resolve_storage_mechanism(b_force_background=false) {
 	let f_session!: () => Window['sessionStorage'];
 
-	if(B_NATIVE_IOS) {
+	if(B_IOS_NATIVE) {
 		f_session = () => sessionStorage;
 	}
 	else if(chrome.storage['session'] && !b_force_background && B_CHROME_SESSION_CAPABLE) {

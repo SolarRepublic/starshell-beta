@@ -27,7 +27,7 @@ import {once_store_updates} from './svelte';
 import type {CosmosNetwork} from '#/chain/cosmos-network';
 import type {Pwa} from '#/script/messages';
 import {global_receive} from '#/script/msg-global';
-import {B_FIREFOX_ANDROID, B_MOBILE, B_NATIVE_IOS, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, G_USERAGENT, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
+import {B_FIREFOX_ANDROID, B_MOBILE, B_IOS_NATIVE, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, G_USERAGENT, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
 import type {StoreRegistry} from '#/store/_registry';
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
@@ -35,12 +35,13 @@ import {Medias} from '#/store/medias';
 import {
 	type ActiveNetwork,
 	Providers,
+	ConnectionHealth,
 } from '#/store/providers';
 import {Tags} from '#/store/tags';
 import {F_NOOP, microtask, timeout} from '#/util/belt';
 
 
-import PopupReceive from './ui/PopupReceive.svelte';
+import PopupReceive from './popup/PopupReceive.svelte';
 
 
 
@@ -214,6 +215,8 @@ export const yw_network = derivedSync<CosmosNetwork>(yw_provider_ref, (p_provide
 	}
 });
 
+export const yw_connection_health = writableSync<ConnectionHealth>(ConnectionHealth.UNKNOWN);
+
 // export const yw_chain = writableSync<ChainStruct>(null! as ChainStruct);
 // yw_chain_ref.subscribe(async(p_chain) => {
 // 	const ks_chains = await Chains.read();
@@ -238,6 +241,12 @@ export const yw_account = derivedSync<AccountStruct>(yw_account_ref, (p_account,
 		});
 });
 export const yw_account_editted = writableSync(0);
+
+// react to account edits
+yw_account_editted.subscribe(() => {
+	// reload account struct
+	yw_account_ref.set(yw_account_ref.get());
+});
 
 export const yw_owner: Readable<Bech32> = derived([yw_account, yw_chain], ([g_account, g_chain], fk_set) => {
 	fk_set(Chains.addressFor(g_account.pubkey, g_chain));
@@ -699,7 +708,7 @@ if('undefined' !== typeof document) {
 				document.body.style.maxHeight = 'var(--app-window-height)';
 			}
 			// within native ios webkit view
-			else if(B_NATIVE_IOS) {
+			else if(B_IOS_NATIVE) {
 				fit_viewport();
 
 				// set body height

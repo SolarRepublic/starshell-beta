@@ -3,10 +3,9 @@
 </script>
 
 <script lang="ts">
-	import {
-		forever as f_forever,
-		type Promisable,
-	} from '#/util/belt';
+	import type {Promisable} from '#/meta/belt';
+
+	import {forever as f_forever} from '#/util/belt';
 
 	export let forever = false;
 
@@ -18,6 +17,10 @@
 
 	export let debug = false;
 
+	export let width = '';
+
+	export let height = '';
+
 	let i_self = c_global;
 	c_global += 1;
 
@@ -25,7 +28,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	@keyframes loading {
 		0% {
@@ -51,7 +54,17 @@
 </style>
 
 {#await input}
-	<span class="loading" style={`animation-delay:${x_delay}ms; ${pad? `height: 1.25em;`: ''}`}>
+	<span class="loading" style={`
+		animation-delay: ${x_delay}ms;
+		${width
+			? `width: ${width};`
+			: ''}
+		${height
+			? `height: ${height};`
+			: pad
+				? `height: 1.25em;`
+				: ''}
+	`}>
 		Loading...
 	</span>
 {:then w_resolve}

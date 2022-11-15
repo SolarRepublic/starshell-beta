@@ -1,17 +1,21 @@
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {Values, Dict, JsonObject} from '#/meta/belt';
+import type {Resource} from '#/meta/resource';
+
+import type {ResponseCache, WebApi, WebApiPath} from '#/meta/web-api';
+
 import {
 	create_store_class,
 	WritableStore,
 	WritableStoreMap,
 } from './_base';
 
-import {SI_STORE_WEB_APIS, XT_MINUTES} from '#/share/constants';
-import type {Resource} from '#/meta/resource';
-import type {ResponseCache, WebApi, WebApiPath} from '#/meta/web-api';
+import {SI_STORE_WEB_APIS, XT_HOURS, XT_MINUTES} from '#/share/constants';
+
+import {fodemtv, fold, ode, oderac} from '#/util/belt';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
-import type {Values} from '#/meta/belt';
-import type {Dict, JsonObject} from '#/meta/belt';
-import {fodemtv, ode, oderac} from '#/util/belt';
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
 
 export const A_COINGECKO_VS = [
 	'btc',
@@ -79,12 +83,8 @@ export const A_COINGECKO_VS = [
 
 export type CoinGeckoFiat = Values<typeof A_COINGECKO_VS>;
 
-const coingecko_url = (a_coins: string[], si_versus: CoinGeckoFiat) => 'https://api.coingecko.com/api/v3/simple/price?'
-	+new URLSearchParams(ode({
-		ids: a_coins.join(','),
-		vs_currencies: si_versus,
-		include_last_updated_at: 'true',
-	}));
+const P_COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+
 
 type CoinGeckoSimplePrice<
 	si_coin extends string=string,
@@ -92,6 +92,13 @@ type CoinGeckoSimplePrice<
 > = Record<si_coin, {
 	[si_v in si_versus]: number;
 }>;
+
+type CoinGeckoCoinstList = {
+	id: string;
+	symbol: string;
+	name: string;
+	platforms: Dict;
+}[];
 
 const SI_CACHE_COINGECKO = 'coingecko';
 
@@ -151,10 +158,16 @@ async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Pro
 	return await cached_fetch(p_url, xt_max_age, c_retries+1);
 }
 
+const coingecko_url = (sr_url: string, h_params: Dict) => `${P_COINGECKO_BASE}${sr_url}?`+new URLSearchParams(ode(h_params));
+
 export const CoinGecko = {
 	async coinsVersus(a_coins: string[], si_versus: CoinGeckoFiat='usd', xt_max_age=5*XT_MINUTES): Promise<Dict<number>> {
 		// fetch from api
-		const d_res = await cached_fetch(coingecko_url(a_coins, si_versus), xt_max_age);
+		const d_res = await cached_fetch(coingecko_url('/simple/price', {
+			ids: a_coins.join(','),
+			vs_currencies: si_versus,
+			include_last_updated_at: 'true',
+		}), xt_max_age);
 
 		// load response
 		const h_response = await d_res.json() as CoinGeckoSimplePrice;
@@ -162,6 +175,16 @@ export const CoinGecko = {
 		// transform by selecting the versus coin
 		return fodemtv(h_response, g_coin => g_coin[si_versus]);
 	},
+
+	async allCoins(xt_max_age=12*XT_HOURS): Promise<CoinGeckoCoinstList> {
+		// fetch from api
+		const d_res = await cached_fetch(coingecko_url('/coins/list', {
+			include_platform: 'false',
+		}), xt_max_age);
+
+		// load response
+		return await d_res.json() as CoinGeckoCoinstList;
+	}
 };
 
 export const WebApis = create_store_class({

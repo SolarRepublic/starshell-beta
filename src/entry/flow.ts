@@ -7,43 +7,46 @@ window.addEventListener('error', (d_event) => {
 	console.error(d_event.error);
 });
 
+import type {SvelteComponent} from 'svelte';
+import type {Union} from 'ts-toolbelt';
+import type {Nullable} from 'ts-toolbelt/out/Object/Nullable';
+
+import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {AppStruct, AppPath} from '#/meta/app';
+import type {JsonValue, PlainObject} from '#/meta/belt';
+import type {ChainStruct, ChainPath} from '#/meta/chain';
+import type {ParametricSvelteConstructor} from '#/meta/svelte';
+import type {Vocab} from '#/meta/vocab';
+
+import {SignDoc, TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+
+import IncidentView from '#/app/screen/IncidentView.svelte';
+import MonitorTx from '#/app/screen/MonitorTx.svelte';
+import NoticeIllegalChainsSvelte from '#/app/screen/NoticeIllegalChains.svelte';
+import PreRegister from '#/app/screen/PreRegister.svelte';
+import ReloadPage from '#/app/screen/ReloadPage.svelte';
+import RequestConnection_AccountsSvelte from '#/app/screen/RequestConnection_Accounts.svelte';
+import type {CompletedSignature} from '#/app/screen/RequestSignature.svelte';
+
+import RequestSignatureSvelte from '#/app/screen/RequestSignature.svelte';
+import ScanQrSvelte from '#/app/screen/ScanQr.svelte';
+import {Vault} from '#/crypto/vault';
+import {SessionStorage} from '#/extension/session-storage';
+import type {ErrorRegistry, IntraExt} from '#/script/messages';
+import {RegisteredFlowError} from '#/script/msg-flow';
+import {B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constants';
+import {Accounts} from '#/store/accounts';
+import {Apps} from '#/store/apps';
+import {Chains} from '#/store/chains';
+import {F_NOOP, is_dict, ode, timeout_exec} from '#/util/belt';
+import {base93_to_buffer} from '#/util/data';
+import {parse_params, qs} from '#/util/dom';
 import SystemSvelte from '##/container/System.svelte';
 import AuthenticateSvelte from '##/screen/Authenticate.svelte';
 
 import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
 import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
 
-import {Vault} from '#/crypto/vault';
-import type {Vocab} from '#/meta/vocab';
-import type {ErrorRegistry, IntraExt} from '#/script/messages';
-import {parse_params, qs} from '#/util/dom';
-import type {Union} from 'ts-toolbelt';
-import type {ParametricSvelteConstructor} from '#/meta/svelte';
-import type {JsonValue, PlainObject} from '#/meta/belt';
-import type {SvelteComponent} from 'svelte';
-import {F_NOOP, is_dict, ode, timeout, timeout_exec} from '#/util/belt';
-import PreRegister from '#/app/screen/PreRegister.svelte';
-import IncidentView from '#/app/screen/IncidentView.svelte';
-import ScanQrSvelte from '#/app/screen/ScanQr.svelte';
-import ReloadPage from '#/app/screen/ReloadPage.svelte';
-import RequestConnection_AccountsSvelte from '#/app/screen/RequestConnection_Accounts.svelte';
-import NoticeIllegalChainsSvelte from '#/app/screen/NoticeIllegalChains.svelte';
-import RequestSignatureSvelte, { CompletedAminoSignature } from '#/app/screen/RequestSignature.svelte';
-import {SignDoc, TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-import {base93_to_buffer} from '#/util/data';
-import {RegisteredFlowError} from '#/script/msg-flow';
-import {Chains} from '#/store/chains';
-import {Accounts} from '#/store/accounts';
-import type {AccountStruct, AccountPath} from '#/meta/account';
-import type {ChainStruct, ChainPath} from '#/meta/chain';
-import {Apps} from '#/store/apps';
-import type {AppStruct, AppPath} from '#/meta/app';
-import type {Nullable} from 'ts-toolbelt/out/Object/Nullable';
-import RequestSignature from '#/app/screen/RequestSignature.svelte';
-import _DebugSvelte from '#/app/screen/_Debug.svelte';
-import {B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constants';
-import { SessionStorage } from '#/extension/session-storage';
-import type { AdaptedAminoResponse } from '#/schema/amino';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -273,11 +276,13 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 
 	reloadAppTab: g_value => completed_render(ReloadPage, g_value),
 
+	monitorTx: g_value => completed_render(MonitorTx, g_value),
+
 	async signAmino(g_value, g_context) {
 		// verbose
 		domlog(`Handling 'signAmino' on ${JSON.stringify(g_value)}\n\nwith context ${JSON.stringify(g_context)}`);
 
-		const g_completed = await completed_render<CompletedAminoSignature>(RequestSignatureSvelte, g_value.props, {
+		const g_completed = await completed_render<CompletedSignature>(RequestSignatureSvelte, g_value.props, {
 			app: g_context.app,
 			chain: g_context.chain,
 			accountPath: g_value.accountPath,
@@ -323,7 +328,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 	async addSnip20s(g_value) {
 		console.log({g_value});
 		debugger;
-		return await completed_render(RequestSignature, {
+		return await completed_render(RequestSignatureSvelte, {
 			si_preset: 'snip20ViewingKey',
 		});
 	},
@@ -434,16 +439,6 @@ async function suggest_reload_page(g_page: WebPage) {
 (async function() {
 	// verbose
 	domlog('Flow script init');
-
-	// debug
-	const s_debug = h_query.debug;
-	if(s_debug) {
-		render(_DebugSvelte, {
-			preset: s_debug,
-		});
-
-		return;
-	}
 
 	// environment capture
 	const si_objective = h_query.headless;

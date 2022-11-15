@@ -12,14 +12,14 @@
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
 	
-	import ChainToken from '../ui/ChainToken.svelte';
+	import ChainToken from '../frag/ChainToken.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
 
-	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
 	import SX_ICON_DELETE from '#/icon/delete.svg?raw';
+	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
 
 	export let contract: ContractStruct;
 
@@ -92,7 +92,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 </style>
 
 

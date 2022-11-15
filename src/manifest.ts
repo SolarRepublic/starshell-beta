@@ -326,9 +326,11 @@ export const H_BROWSERS = {
 					...[
 						'githubusercontent.com',
 						'secretsaturn.net',
+						'api.trivium.network',
 						'starshell.net',
 					].flatMap(s => [`https://*.${s}`, `https://${s}`]),
 					'wss://rpc.testnet.secretsaturn.net',
+					'wss://pulsar-2.api.trivium.network',
 					'wss:',
 					'data:',
 				],

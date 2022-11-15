@@ -201,41 +201,61 @@ export function open_flow_query<
 	});
 }
 
-const h_lanes: Dict<{
+interface Lane {
 	time: number;
 	port: chrome.runtime.Port | null;
-	queue: VoidFunction[];
+	queue: [string, VoidFunction][];
 	clear: VoidFunction;
-}> = {};
+	intent: string;
+}
+
+const h_lanes: Dict<Lane> = {};
 
 export async function open_flow<
 	gc_prompt extends PromptConfig=PromptConfig,
 	w_response extends FlowResponseValue<gc_prompt>=FlowResponseValue<gc_prompt>,
 >(gc_prompt: gc_prompt): Promise<IntraExt.CompletedFlow | IntraExt.ErroredFlow> {
+	// prep lane
+	let g_lane!: Lane;
+
 	// flow originates from tab
 	const i_tab = gc_prompt.flow.page?.tabId;
-	const g_lane = i_tab? h_lanes[i_tab] = h_lanes[i_tab] || {time:0, queue:[]}: void 0;
-	if(g_lane) {
+	if('number' === typeof i_tab) {
+		// encode intent
+		const si_intent = JSON.stringify(gc_prompt.flow);
+
+		// create or update lane
+		g_lane = h_lanes[i_tab] = h_lanes[i_tab] || {
+			time: 0,
+			queue: [],
+			intent: si_intent,
+		};
+
 		// same tab already has a flow opened
 		if(g_lane.time) {
+			// ignore repeat flows
+			if(si_intent === g_lane.intent || g_lane.queue.find(([si]) => si === si_intent)) {
+				throw new Error(`Ignoring repeated flow request`);
+			}
+
 			// 
-			console.warn(`${new URL((await chrome.tabs.get(i_tab!)).url!).host} tab now has ${g_lane.queue.length+1} queued flows`);
+			console.warn(`${new URL((await chrome.tabs.get(i_tab)).url!).host} tab now has ${g_lane.queue.length+1} queued flows`);
 
 			// add to queue
 			await new Promise<void>((fk_resolve) => {
-				g_lane.queue.push(fk_resolve);
+				g_lane.queue.push([si_intent, fk_resolve]);
 			});
 		}
 
 		function tab_removed(i_removed) {
 			if(i_removed === i_tab) {
-				g_lane!.clear();
+				g_lane.clear();
 			}
 		}
 
 		function tab_update(i_updated, g_changed) {
 			if(i_updated === i_tab && (g_changed.status || g_changed.url)) {
-				g_lane!.clear();
+				g_lane.clear();
 			}
 		}
 
@@ -255,7 +275,11 @@ export async function open_flow<
 			g_lane.time = 0;
 
 			// fire up next in queue
-			g_lane.queue.shift()?.();
+			const a_next = g_lane.queue.shift();
+			if(a_next) {
+				g_lane.intent = a_next[0];
+				a_next[1]?.();
+			}
 		};
 
 		// flow is now happening

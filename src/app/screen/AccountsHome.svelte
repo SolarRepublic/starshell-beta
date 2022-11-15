@@ -14,10 +14,11 @@
 	import {Chains} from '#/store/chains';
 	import {Secrets} from '#/store/secrets';
 	
+	import AccountCreate from './AccountCreate.svelte';
 	import AccountView from './AccountView.svelte';
-	import Address from '../ui/Address.svelte';
+	import Address from '../frag/Address.svelte';
+	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-    import LoadingRows from '../ui/LoadingRows.svelte';
 	
 
 	const {
@@ -41,7 +42,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.hd-path {
 		:global(&) {
@@ -51,17 +52,17 @@
 	}
 </style>
 
-<Screen debug='Accounts' nav root>
+<Screen nav debug='Accounts' root>
 	<Header search network account
 	>
 	</Header>
 
-	<SubHeader bare
+	<SubHeader
 		title="Accounts"
-	/>
-		<!-- on:add_new={() => k_page.push({
+		on:add_new={() => k_page.push({
 			creator: AccountCreate,
-		})} -->
+		})}
+	/>
 
 	<div class="rows no-margin">
 		{#await load_accounts()}

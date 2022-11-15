@@ -54,7 +54,7 @@ export interface MessageInterpretter {
 	/**
 	 * Invoked once the message has successfully processed on-chain
 	 */
-	apply?(nl_msgs: number): Promisable<NotifyItemConfig | undefined>;
+	apply?(nl_msgs: number, si_txn: string): Promisable<NotifyItemConfig | undefined>;
 
 	/**
 	 * Invoked when the message is received to the account

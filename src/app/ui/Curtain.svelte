@@ -2,8 +2,6 @@
 	import {yw_curtain} from '../mem';
 
 	export let rootStyle = '';
-
-	let dm_curtain: HTMLDivElement;
 </script>
 
 <style lang="less">

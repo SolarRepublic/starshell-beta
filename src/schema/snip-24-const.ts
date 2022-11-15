@@ -1,16 +1,16 @@
 import type {Snip24PermitMsg, Snip24Permission, Snip24Tx} from './snip-24-def';
 
 const A_SNIP_24_PERMISSIONS: Snip24Permission[] = [
-	'allowance',
 	'balance',
 	'history',
+	'allowance',
 	'owner',
 ];
 
 export const Snip24 = {
 	PERMISSIONS: A_SNIP_24_PERMISSIONS,
 
-	construct(si_chain: string, g_permit_msg: Snip24PermitMsg): Snip24Tx {
+	query_permit(si_chain: string, g_permit_msg: Snip24PermitMsg): Snip24Tx {
 		return {
 			chain_id: si_chain,
 			account_number: '0',

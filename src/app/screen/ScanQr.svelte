@@ -1,21 +1,25 @@
 
 <script type="ts">
-
-	import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-	import {Screen} from './_screens';
-	import {timeout} from '#/util/belt';
-
 	import type {CameraDevice} from 'html5-qrcode/core';
 
-	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
-	import ActionsLine from '../ui/ActionsLine.svelte';
+	import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
+	
+	import {Screen} from './_screens';
 	import {syserr} from '../common';
-	import {R_BECH32} from '#/share/constants';
-	import DeepLink from './DeepLink.svelte';
-	import {qs} from '#/util/dom';
-	import {load_flow_context} from '../svelte';
-	import {yw_navigator} from '../mem';
+	
 	import {ThreadId} from '../def';
+	import {yw_navigator} from '../mem';
+	import {load_flow_context} from '../svelte';
+	
+	import {R_BECH32} from '#/share/constants';
+	import {timeout} from '#/util/belt';
+	import {qs} from '#/util/dom';
+	
+	import DeepLink from './DeepLink.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	
+	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
+	
 
 	const {
 		completed,
@@ -169,7 +173,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.container {
 		.absolute(100%) !important;

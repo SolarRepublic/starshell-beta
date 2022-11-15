@@ -1,23 +1,21 @@
 <script lang="ts">
-	import type {Bech32, Chain, ChainStruct, ChainNamespaceKey} from '#/meta/chain';
-	import type {Contact, ContactStruct} from '#/meta/contact';
+	import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+	
+	import type {JsonObject, Promisable} from '#/meta/belt';
+	import type {Bech32, ChainStruct, ChainNamespaceKey} from '#/meta/chain';
+	import type {ContactStruct} from '#/meta/contact';
+	
+	import {Screen} from './_screens';
+	import {syserr} from '../common';
+	import {load_app_context} from '../svelte';
+	
 	import {R_CHAIN_ID_VERSION, R_BECH32} from '#/share/constants';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
-	import {Entities} from '#/store/entities';
-	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-
-	import {getContext, onMount} from 'svelte';
-	import type {Type} from 'ts-toolbelt/out/Any/Type';
-	import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-	import {syserr} from '../common';
-	import Address from '../ui/Address.svelte';
-	import Field from '../ui/Field.svelte';
+	
 	import Header from '../ui/Header.svelte';
-	import IncidentFields from '../ui/IncidentFields.svelte';
-	import type {SimpleField} from '../ui/IncidentFields.svelte';
-	import {Screen, type Page} from './_screens';
-	import { load_app_context } from '../svelte';
+	import IncidentFields from '../frag/IncidentFields.svelte';
+	import type {SimpleField} from '../frag/IncidentFields.svelte';
 
 	const {
 		completed,

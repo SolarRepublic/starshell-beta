@@ -1,9 +1,12 @@
 <script lang="ts">	
+	import {onDestroy, onMount} from 'svelte';
+	
 	import {ThreadId} from '#/app/def';
 	import {
-		yw_menu_expanded, yw_navigator,
+		yw_menu_expanded, yw_navigator, yw_popup,
 	} from '#/app/mem';
 	
+	import PopupFactoryReset from '#/app/popup/PopupFactoryReset.svelte';
 	import {open_window, P_POPUP} from '#/extension/browser';
 	import {launch_qr_scanner} from '#/extension/sensors';
 	import {logout} from '#/share/auth';
@@ -15,18 +18,52 @@
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import SX_ICON_CUBES from '#/icon/cubes.svg?raw';
 	import SX_ICON_CHAINS from '#/icon/mediation.svg?raw';
+	import SX_ICON_NUCLEAR from '#/icon/nuclear.svg?raw';
 	import SX_ICON_POPOUT from '#/icon/pop-out.svg?raw';
 	import SX_ICON_SCAN from '#/icon/scan.svg?raw';
 	import SX_ICON_LOGOUT from '#/icon/sensor_door.svg?raw';
 	import SX_ICON_SETTINGS from '#/icon/settings.svg?raw';
 	import SX_ICON_CONTACTS from '#/icon/supervisor_account.svg?raw';
+	
 
 	interface Item {
 		click: VoidFunction;
 		label: string;
-		// icon: Icon;
 		icon: string;
 	}
+
+	// listen for keyevents
+	let b_show_reset = false;
+	{
+		function keydown(d_event: KeyboardEvent) {
+			if($yw_menu_expanded) {
+				b_show_reset = d_event.shiftKey;
+
+				if('Shift' === d_event.key) {
+					d_event.preventDefault();
+				}
+			}
+		}
+
+		function keyup(d_event: KeyboardEvent) {
+			b_show_reset = d_event.shiftKey;
+		}
+
+		onMount(() => {
+			document.addEventListener('keydown', keydown);
+			document.addEventListener('keyup', keyup);
+		});
+
+		onDestroy(() => {
+			document.removeEventListener('keydown', keydown);
+			document.removeEventListener('keyup', keyup);
+		});
+	}
+
+	// hide reset anytime menu is expanded or colapsed
+	yw_menu_expanded.subscribe(() => {
+		b_show_reset = false;
+	});
 
 	function activate(si_thread: ThreadId) {
 		$yw_menu_expanded = false;
@@ -42,7 +79,6 @@
 	const A_ITEMS = [
 		// {
 		// 	label: 'Contacts',
-		// 	// icon: Icon.fromHtml(SX_ICON_CONTACTS),
 		// 	icon: SX_ICON_CONTACTS,
 		// 	click() {
 		// 		$yw_menu_expanded = false;
@@ -58,7 +94,6 @@
 		},
 		{
 			label: 'Accounts',
-			// icon: Icon.fromHtml(SX_ICON_ACCOUNTS),
 			icon: SX_ICON_ACCOUNTS,
 			click() {
 				activate(ThreadId.ACCOUNTS);
@@ -66,7 +101,6 @@
 		},
 		{
 			label: 'Providers',
-			// icon: Icon.fromHtml(SX_ICON_CHAINS),
 			icon: SX_ICON_CHAINS,
 			click() {
 				activate(ThreadId.PROVIDERS);
@@ -74,7 +108,6 @@
 		},
 		// {
 		// 	label: 'Tags',
-		// 	// icon: Icon.fromHtml(SX_ICON_TAGS),
 		// 	icon: SX_ICON_TAGS,
 		// 	click() {
 		// 		$yw_menu_expanded = false;
@@ -133,11 +166,41 @@
 				globalThis.close();
 			},
 		},
+		{
+			label: 'Factory reset',
+			icon: SX_ICON_NUCLEAR,
+			hidden: true,
+			color: 'var(--theme-color-caution)',
+			click() {
+				$yw_popup = PopupFactoryReset;
+			},
+		},
 	];
+
+	let xt_prev = 0;
+	let c_clicks = 0;
+	let i_clicks = 0;
+	function quick_click() {
+		clearTimeout(i_clicks);
+
+		const xt_now = Date.now();
+
+		if(xt_now - xt_prev < 500) {
+			if(5 === ++c_clicks) {
+				b_show_reset = true;
+			}
+		}
+
+		xt_prev = xt_now;
+
+		i_clicks = window.setTimeout(() => {
+			c_clicks = 0;
+		}, 500);
+	}
 </script>
 
 <style lang="less">
-	@import '../../screen/_base.less';
+	@import '../../_base.less';
 
 	:root {
 		--bar-width: 78.8%;
@@ -226,6 +289,17 @@
 							padding: 0;
 							padding-right: calc(var(--item-padding) / 2);
 						}
+
+						&.hidden {
+							visibility: hidden;
+							opacity: 0;
+							transition: opacity 250ms var(--ease-out-quad);
+						}
+
+						&.showing {
+							visibility: visible;
+							opacity: 1;
+						}
 					}
 
 					&.items {
@@ -265,7 +339,8 @@
 				}
 
 				>.top {
-					padding-top: 15%;
+					// padding-top: 15%;
+					padding-top: 0px;
 				}
 			}
 		}
@@ -335,7 +410,7 @@
 		on:click={() => $yw_menu_expanded = false}
 	/>
 
-	<div class="bar">
+	<div class="bar" on:click={() => quick_click()}>
 		<div class="close icon" on:click={() => $yw_menu_expanded = false}>
 			{@html SX_ICON_CLOSE}
 		</div>
@@ -344,10 +419,9 @@
 			<div class="top">
 				<ul class="session">
 					{#each A_SESSION_ITEMS as g_item}
-						<li on:click={() => g_item.click()}>
-							<span class="icon">
+						<li on:click={() => g_item.click()} class:hidden={g_item.hidden} class:showing={b_show_reset}>
+							<span class="icon" style={g_item.color? `color:${g_item.color};`: ''}>
 								{@html g_item.icon}
-								<!-- <Put element={g_item.icon.render()} /> -->
 							</span>
 							<span class="text">
 								{g_item.label}
@@ -380,7 +454,6 @@
 						<li class="" on:click={() => g_item.click()}>
 							<span class="icon">
 								{@html g_item.icon}
-								<!-- <Put element={g_item.icon.render()} /> -->
 							</span>
 							<span class="text">
 								{g_item.label}

@@ -6,7 +6,7 @@
 	
 	import {Chains} from '#/store/chains';
 	import {Providers} from '#/store/providers';
-	import Portrait from '##/ui/Portrait.svelte';
+	import Portrait from '#/app/frag/Portrait.svelte';
 	
 	import Field from '../ui/Field.svelte';
 	import Gap from '../ui/Gap.svelte';
@@ -51,7 +51,7 @@
 </script>
 
 <style lang="less">
-	@import '_base.less';
+	@import '../_base.less';
 
 
 	.pfp-gen {

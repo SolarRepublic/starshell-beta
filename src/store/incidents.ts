@@ -1,11 +1,10 @@
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 import type {AccountPath} from '#/meta/account';
-
+import type {AppPath} from '#/meta/app';
 import type {JsonObject} from '#/meta/belt';
 import type {Bech32, ChainPath} from '#/meta/chain';
-
-import type {Incident, IncidentType, IncidentPath, TxPending} from '#/meta/incident';
+import type {Incident, IncidentType, IncidentPath} from '#/meta/incident';
 
 import {
 	create_store_class,
@@ -14,10 +13,8 @@ import {
 } from './_base';
 
 import {SI_STORE_INCIDENTS, SI_STORE_HISTORIES} from '#/share/constants';
-
 import {ode} from '#/util/belt';
-import {buffer_to_base64, buffer_to_base93, buffer_to_text, sha256_sync, text_to_buffer} from '#/util/data';
-import type { AppPath } from '#/meta/app';
+import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
 
 
 export interface IncidentFilterConfig {
@@ -45,6 +42,26 @@ class HistoriesI extends WritableStore<typeof SI_STORE_HISTORIES> {
 
 	static async syncHeight(p_chain: ChainPath, si_listen: string): Promise<bigint> {
 		return (await Histories.read()).syncHeight(p_chain, si_listen);
+	}
+
+	static async lastSeen(): Promise<number> {
+		return (await Histories.read()).lastSeen();
+	}
+
+	static markAllSeen() {
+		return Histories.open(ks => ks.markAllSeen());
+	}
+
+	async markAllSeen() {
+		// update last seen to now
+		this._w_cache.seen = Date.now();
+
+		// save to store
+		await this.save();
+	}
+
+	lastSeen(): number {
+		return this._w_cache.seen;
 	}
 
 	async updateSyncInfo(p_chain: ChainPath, si_listen: string, s_height: string): Promise<void> {

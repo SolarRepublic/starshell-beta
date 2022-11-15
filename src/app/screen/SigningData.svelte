@@ -1,22 +1,20 @@
 <script lang="ts">
-	import {F_NOOP} from '#/util/belt';
-	import {load_app_context} from '../svelte';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import {Screen} from './_screens';
-
-	import {JsonView} from '@zerodevx/svelte-json-view';
-	import type {AdaptedStdSignDoc} from '#/schema/amino';
-	import Header from '../ui/Header.svelte';
 	import type {JsonObject} from '#/meta/belt';
+	import type {AdaptedStdSignDoc} from '#/schema/amino';
+	
+	import {JsonView} from '@zerodevx/svelte-json-view';
+	
+	import {Screen} from './_screens';
+	import {load_app_context} from '../svelte';
+	
+	import {F_NOOP} from '#/util/belt';
 	import {base64_to_buffer} from '#/util/data';
+	
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import Header from '../ui/Header.svelte';
+	
 
-	const {
-		g_app,
-		g_chain,
-		p_account,
-		completed,
-		k_page,
-	} = load_app_context();
+	const {k_page} = load_app_context();
 
 	export let preset: string;
 	export let amino: AdaptedStdSignDoc | null = null;
@@ -25,7 +23,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 	
 	.code-title {
 		margin-bottom: calc(0px - (var(--ui-padding) / 2));

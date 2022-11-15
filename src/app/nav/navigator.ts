@@ -1,10 +1,20 @@
-import type { PlainObject } from '#/meta/belt';
-import { Dict, objects_might_differ, Promisable } from '#/util/belt';
-import { dd } from '#/util/dom';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import { ThreadId } from '../def';
-import { Page, PageConfig } from './page';
-import { JumpConfig, PopConfig, ResetConfig, Thread } from './thread';
+import type {PageConfig} from './page';
+import type {JumpConfig, PopConfig, ResetConfig} from './thread';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {
+	Dict,
+	PlainObject,
+	Promisable,
+} from '#/meta/belt';
+
+import {Page} from './page';
+import {Thread} from './thread';
+import {ThreadId} from '../def';
+
+import {objects_might_differ} from '#/util/belt';
+import {dd} from '#/util/dom';
+
 
 
 interface Hooks {
@@ -38,13 +48,6 @@ export interface NavigatorConfig {
 	threads: ThreadsConfig;
 
 	context: PlainObject | never;
-
-	// singleThreadMode?: boolean;
-
-	// router: Router;
-	// threads: Merge<{
-	// 	default: ThreadSpawner;
-	// }, Record<ThreadId, ThreadSpawner>>;
 }
 
 
@@ -59,8 +62,6 @@ export class Navigator {
 	protected _h_threads: Partial<Record<ThreadId, Thread>> = {};
 	protected _h_thread_spawners: ThreadsConfig;
 	protected _dm_threads: HTMLElement;
-	// protected _b_mode_single_thread?: boolean = false;
-	// protected _k_router: R;
 
 	// buffer element
 	protected _dm_buffer = dd('div');
@@ -85,8 +86,6 @@ export class Navigator {
 			threads: this._h_thread_spawners,
 			hooks: this._g_hooks,
 			context: this._h_context={},
-			// router: this._k_router,
-			// singleThreadMode: this._b_mode_single_thread=false,
 		} = _gc_navigator);
 
 		// create default thread
@@ -139,62 +138,6 @@ export class Navigator {
 	get activePage(): Page {
 		return this.activeThread.page;
 	}
-
-	// /**
-	//  * Pushes a new page to the currently active thread.
-	//  */
-	// push(gc_page: PageConfig): Page {
-	// 	// ref current (soon to be old) page
-	// 	const kp_old = this.activePage;
-
-	// 	// create new page
-	// 	const kp_new = this.activeThread.push(gc_page);
-
-	// 	// // call hooks
-	// 	// this._f_push(kp_old, kp_new);
-	// 	// this._arrive(kp_old, '', 'push');
-
-	// 	// return new page
-	// 	return kp_new;
-	// }
-
-	// /**
-	//  * Pops the active page from the stack.
-	//  */
-	// pop(gc_pop?: PopConfig): Page {
-	// 	// destructure options
-	// 	const {
-	// 		bypassAnimation: b_bypass_animation=false,
-	// 	} = gc_pop || {};
-
-	// 	// too short
-	// 	if(this.activeThread.history.length < 2) {
-	// 		throw new Error(`Failed to pop empty history`);
-	// 	}
-
-	// 	// pop from front of stack
-	// 	const kp_src = this.activeThread.pop();
-
-	// 	// // empty history
-	// 	// if(!ks_src) {
-	// 	// 	throw new Error(`Failed to pop empty history`);
-	// 	// }
-
-	// 	// // call hooks
-	// 	// this._f_pop(kp_src, this.state, b_bypass_animation);
-	// 	// this._arrive(kp_src, '', b_bypass_animation? 'pop.bypass': 'pop').then(() => {
-	// 	// 	try {
-	// 	// 		kp_src.component.$destroy();
-	// 	// 	}
-	// 	// 	catch(e_destroy) {
-	// 	// 		console.error(`Failed to destroy stale component belonging to State: ${kp_src.pattern}`);
-	// 	// 	}
-	// 	// });
-
-	// 	// return old page
-	// 	return kp_src;
-	// }
-
 
 	before_push(gc_page: PageConfig, kp_src: Page, kt_child: Thread): boolean {
 		// not active thread; deny
@@ -320,28 +263,13 @@ export class Navigator {
 
 			// place thread in front
 			this.activeThread.show();
-			this.activeThread.dom.style.zIndex = (this._c_thread_z++)+'';
-
-			// // arrive
-			// this._arrive(kp_src, si_thread_prev, 'thread').then(() => {
-			// 	// // hide previous thread
-			// 	// if(kt_dst && kt_src && kt_src !== kt_dst) {
-			// 	// 	// debugger;
-			// 	// 	// kt_src.hide();
-			// 	// }
-			// });
+			this.activeThread.dom.style.zIndex = this._c_thread_z++ +'';
 
 			// call postswitch hooks
 			await this.after_switch(kt_src, kt_dst);
 
 			return true;
 		}
-		// // same thread
-		// else {
-		// 	// thread default is previous in history
-		// 	debugger;
-		// 	console.info(k_thread?.default.path);
-		// }
 
 		return false;
 	}

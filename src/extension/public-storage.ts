@@ -1,7 +1,10 @@
-import {SI_VERSION} from '#/share/constants';
+import {B_IOS_WEBEXT, SI_VERSION} from '#/share/constants';
 import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
 import {precedes} from './semver';
 import { base93_to_buffer, buffer_to_base93 } from '#/util/data';
+import type { ExtToNative } from '#/script/messages';
+import type {Vocab} from '#/meta/vocab';
+import type { StoreKey } from '#/meta/store';
 
 interface LastSeen extends JsonObject {
 	time: number;
@@ -50,6 +53,8 @@ type StorageSchema = {
 
 type PublicStorageKey = keyof StorageSchema;
 
+const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
+
 const async_callback = (f_action: (f: () => void) => void): Promise<any> => new Promise((fk_resolve, fe_reject) => {
 	f_action(() => {
 		if(chrome.runtime.lastError) {
@@ -71,14 +76,26 @@ export function storage_get_all(): Promise<JsonObject> {
 	// });
 }
 
-export async function storage_get<w_value extends any=any>(si_key: string): Promise<w_value | null> {
-	return (await chrome.storage.local.get([si_key]))[si_key] || null;
-	// return new Promise((fk_resolve) => {
-	// 	chrome.storage.local.get([si_key], (h_gets) => {
-	// 		fk_resolve(h_gets[si_key] as w_value || null);
-	// 	});
-	// });
-}
+const B_USE_IOS_NATIVE_STORAGE = B_IOS_WEBEXT && 'function' === typeof f_runtime_ios()?.sendNativeMessage;
+
+export const storage_get = B_USE_IOS_NATIVE_STORAGE
+	? async function<w_value extends any=any>(si_key: StoreKey): Promise<w_value | null> {
+		return (await f_runtime_ios().sendNativeMessage('application.id', {
+			type: 'localStorage',
+			value: {
+				type: 'get',
+				value: si_key,
+			},
+		}) || null) as Promise<w_value | null>;
+	}
+	: async function<w_value extends any=any>(si_key: string): Promise<w_value | null> {
+		return (await chrome.storage.local.get([si_key]))[si_key] || null;
+		// return new Promise((fk_resolve) => {
+		// 	chrome.storage.local.get([si_key], (h_gets) => {
+		// 		fk_resolve(h_gets[si_key] as w_value || null);
+		// 	});
+		// });
+	}
 
 export function storage_set(h_set: JsonObject): Promise<void> {
 	return chrome.storage.local.set(h_set);

@@ -1,39 +1,22 @@
 <script lang="ts">
-	import { F_NOOP } from '#/util/belt';
-
+	import type {ChainPath, ChainStruct} from '#/meta/chain';
+	
+	import {onDestroy} from 'svelte';
+	
+	import {syserr} from '#/app/common';
+	import {global_receive} from '#/script/msg-global';
+	import {SI_VERSION} from '#/share/constants';
+	
+	import {Chains} from '#/store/chains';
+	import {ConnectionHealth, H_HEALTH_COLOR, Providers} from '#/store/providers';
 	import {
-		yw_menu_expanded,
 		yw_menu_vendor,
 		yw_chain_ref,
-		yw_chain,
-		yw_provider_ref,
 		yw_provider,
+		yw_connection_health,
+		yw_chain,
 	} from '##/mem';
-
-	import { global_receive } from '#/script/msg-global';
-	import { onDestroy } from 'svelte';
-import { SI_VERSION } from '#/share/constants';
-
-	// import {
-	// 	Icon,
-	// } from '#/objects';
-
-	// import {
-	// 	Put,
-	//  } from '#/ui';
-
-	// import SX_CONTACTS from '@material-design-icons/svg/outlined/supervisor_account.svg?raw';
-	// import SX_CHAINS from '@material-design-icons/svg/outlined/mediation.svg?raw';
-	// import SX_ACCOUNTS from '@material-design-icons/svg/outlined/account_circle.svg?raw';
-	// import SX_TAGS from '@material-design-icons/svg/outlined/bookmarks.svg?raw';
-	// import SX_CONNECTIONS from '@material-design-icons/svg/outlined/account_tree.svg?raw';
-	// import SX_SETTINGS from '@material-design-icons/svg/outlined/settings.svg?raw';
-	// import SX_LOGOUT from '@material-design-icons/svg/outlined/sensor_door.svg?raw';
-	// import SX_CLOSE from '@material-design-icons/svg/outlined/close.svg?raw';
-
-	// import SX_TITLE from '#/asset/vendor/starshell-title.svg?raw';
-
-	// $yw_menu_expanded
+    import { ode } from '#/util/belt';
 
 	interface Item {
 		click: VoidFunction;
@@ -41,42 +24,141 @@ import { SI_VERSION } from '#/share/constants';
 		// icon: Icon;
 	}
 
-	// let s_latency = '120ms';
-
-	let s_height = '';
-	let n_txs = 0;
-	let xt_when = 0;
-	let xt_avg_block_time = 0;
-
-	let s_network_status = 'Loading';
-	let p_provider = '';
-	let si_chain = '';
-
-	let s_grpcw_status = '';
-	let s_rpc_status = '';
-
-
-	// when the provider is changed
-	$: if($yw_provider) {
-		s_height = '[...]';
-		xt_when = 0;
-		xt_avg_block_time = 0;
-		s_network_status = 'Connecting';
-		p_provider = new URL($yw_provider.grpcWebUrl).host;
-		si_chain = '';
-		n_txs = 0;
+	interface ConnectionState {
+		xc_health: ConnectionHealth;
+		s_network_status: string;
+		s_height: string;
+		n_txs: number;
+		xt_when: number;
+		xt_avg_block_time: number;
+		p_provider: string;
+		g_chain: ChainStruct;
 	}
 
+	// current chain namespace and reference ids
+	$: si_namespace = $yw_chain?.namespace || '[...]';
+	$: si_reference = $yw_chain?.reference || '[...]';
+
+	// keep track of all chains
+	const h_connections: Record<ChainPath, ConnectionState> = {};
+
+	let g_connection_active: ConnectionState;
+	yw_chain_ref.subscribe((p_chain) => {
+		if(p_chain) {
+			console.log(`Chain updated: ${$yw_chain_ref}`);
+			g_connection_active = h_connections[p_chain];
+		}
+	});
+
+	let s_network_status = 'Loading';
+	let s_height = '[...]';
+	let n_txs = 0;
+	let xt_avg_block_time = 0;
+	let p_provider = '[...]';
+
+	// initialize all states
+	(async function load() {
+		const ks_chains = await Chains.read();
+
+		for(const [p_chain, g_chain] of ks_chains.entries()) {
+			const g_connection = h_connections[p_chain] = {
+				s_height: '[...]',
+				n_txs: 0,
+				xt_when: 0,
+				xt_avg_block_time: 0,
+				s_network_status: 'Loading',
+				p_provider: '[...]',
+				xc_health: ConnectionHealth.LOADING,
+				g_chain,
+			};
+
+			// current chain; trigger property update
+			if(p_chain === $yw_chain_ref) {
+				update_connection(g_connection, {});
+			}
+		}
+	})();
+
+	$: sx_health_color = H_HEALTH_COLOR[$yw_connection_health];
+
+	function update_connection(g_connection: ConnectionState, g_update: Partial<ConnectionState>) {
+		const p_chain = Chains.pathFrom(g_connection.g_chain);
+
+		Object.assign(g_connection, g_update);
+
+		// this connection is the lead for the current chain
+		if($yw_chain_ref === p_chain) {
+			// trigger reactive update if its different
+			if(g_connection_active !== g_connection) g_connection_active = g_connection;
+
+			// set connection health in mem for interaction context
+			$yw_connection_health = g_connection_active.xc_health;
+
+			// update local ui properties
+			({
+				s_network_status,
+				s_height,
+				n_txs,
+				xt_avg_block_time,
+				p_provider,
+			} = g_connection_active);
+		}
+	}
+
+	let b_unresponsive = false;
+
 	global_receive({
+		unresponsiveService() {
+			b_unresponsive = true;
+
+			// consider all chains disconnected
+			for(const [p_chain, g_connection] of ode(h_connections)) {
+				update_connection(g_connection, {
+					xc_health: ConnectionHealth.DISCONNECTED,
+					s_network_status: 'Service unresponsive',
+				});
+			}
+		},
+
 		blockInfo(g_info) {
-			if($yw_chain_ref === g_info.chain) {
-				s_network_status = 'Online';
-				si_chain = g_info.header.chain_id as string;
+			const g_connection = h_connections[g_info.chain];
 
-				s_height = g_info.header.height as string;
-				xt_when = Date.now();
+			if(g_connection) {
+				console.debug(`Received blockInfo for ${Chains.caip2From(g_connection.g_chain)} #${g_info.header.height} from <${g_connection.p_provider}>`);
 
-				n_txs = g_info.txCount;
+				// debugger;
+				update_connection(g_connection, {
+					xc_health: ConnectionHealth.CONNECTED,
+					s_network_status: 'Online',
+					s_height: g_info.header.height,
+					xt_when: Date.now(),
+					n_txs: g_info.txCount,
+				});
+
+				// overwrite supposed chain reference
+				si_reference = g_info.header.chain_id;
+
+				// chain id mismatch
+				if(si_reference !== g_connection.g_chain.reference) {
+					throw syserr({
+						title: 'Misconfigured node provider',
+						text: `Your wallet was configured to use ${g_connection.p_provider} for ${g_connection.g_chain.reference} but the remote node provider is currently operating on ${si_reference}.`,
+					});
+				}
+
+				// load provider from store
+				void Providers.at(g_info.provider).then((g_provider) => {
+					if(g_provider) {
+						update_connection(g_connection, {
+							p_provider: new URL(g_provider.grpcWebUrl).host,
+						});
+					}
+					else {
+						update_connection(g_connection, {
+							p_provider: '(unknown)',
+						});
+					}
+				});
 
 				const a_recents = g_info.recents;
 				if(a_recents.length > 1) {
@@ -85,7 +167,25 @@ import { SI_VERSION } from '#/share/constants';
 						a_gaps.push(a_recents[i_each] - a_recents[i_each-1]);
 					}
 
-					xt_avg_block_time = a_gaps.reduce((c_out, x_value) => c_out + x_value, 0) / a_gaps.length;
+					// recompute average block time
+					g_connection.xt_avg_block_time = a_gaps.reduce((c_out, x_value) => c_out + x_value, 0) / a_gaps.length;
+
+					// wait for initialization
+					if(g_connection.xt_when) {
+						// cache this cache
+						const s_last = s_height;
+
+						// wait for the twice the length of the average block time
+						setTimeout(() => {
+							// no new blocks produced; consider deliquent
+							if(s_height === s_last) {
+								update_connection(g_connection, {
+									xc_health: ConnectionHealth.DELINQUENT,
+									s_network_status: 'Delinquent',
+								});
+							}
+						}, g_connection.xt_avg_block_time * 2);
+					}
 				}
 			}
 		},
@@ -93,8 +193,8 @@ import { SI_VERSION } from '#/share/constants';
 
 	let s_long_ago = '[...]';
 	const i_long_ago = window.setInterval(() => {
-		if(xt_when > 0) {
-			const xt_ago = Date.now() - xt_when;
+		if(g_connection_active?.xt_when > 0) {
+			const xt_ago = Date.now() - g_connection_active.xt_when;
 			s_long_ago = `${Math.round(xt_ago / 1e3)} seconds ago`;
 		}
 	}, 500);
@@ -106,7 +206,7 @@ import { SI_VERSION } from '#/share/constants';
 </script>
 
 <style lang="less">
-	@import '../../../style/util.less';
+	@import '../../_base.less';
 
 	:root {
 		--bar-width: 78.8%;
@@ -123,16 +223,6 @@ import { SI_VERSION } from '#/share/constants';
 			background-color: rgba(0, 0, 0, 0.8);
 		}
 	}
-
-	// @keyframes slide {
-	// 	0% {
-	// 		left: calc(0% - var(--bar-width));
-	// 	}
-
-	// 	100% {
-	// 		left: 0%;
-	// 	}
-	// }	
 
 	@keyframes opacity {
 		0% {
@@ -255,6 +345,21 @@ import { SI_VERSION } from '#/share/constants';
 
 						.value {
 							padding-top: 4px;
+							padding-right: 6px;
+							margin-right: 6px;
+							overflow-x: scroll;
+							.hide-scrollbar();
+
+							.state {
+								display: inline-block;
+								width: 8px;
+								height: 8px;
+								border-radius: 4px;
+								vertical-align: middle;
+								margin-right: 2px;
+								margin-top: -2px;
+								border: 1px solid black;
+							}
 						}
 					}
 				}
@@ -286,40 +391,6 @@ import { SI_VERSION } from '#/share/constants';
 			border: none;
 			border-top: 1px solid var(--theme-color-border);
 		}
-
-		// .close-dark {
-		// 	position: absolute;
-		// 	top: 0;
-		// 	right: 0;
-		// 	margin: 10px;
-		// 	padding: 12px;
-		// 	cursor: pointer;
-		// 	--icon-diameter: 24px;
-		// 	--icon-color: var(--theme-color-black);
-
-		// 	outline: 1px solid var(--theme-color-border);
-		// 	border-radius: 0px;
-		// 	transition: border-radius 650ms var(--ease-out-expo);
-		// 	pointer-events: all;
-
-		// 	&::before {
-		// 		--occlusion-thickness: 4px;
-
-		// 		content: '';
-		// 		position: absolute;
-		// 		top: calc(var(--occlusion-thickness) / 2);
-		// 		left: calc(var(--occlusion-thickness) / 2);
-		// 		width: calc(100% - var(--occlusion-thickness));
-		// 		height: calc(100% - var(--occlusion-thickness));
-		// 		outline: var(--occlusion-thickness) solid var(--theme-color-primary);
-		// 		box-sizing: border-box;
-		// 		pointer-events: none;
-		// 	}
-
-		// 	&:hover {
-		// 		border-radius: 22px;
-		// 	}
-		// }
 
 		.close {
 			position: absolute;
@@ -356,6 +427,10 @@ import { SI_VERSION } from '#/share/constants';
 		}
 		
 	}
+
+	.caip2-namespace {
+		opacity: 0.5;
+	}
 </style>
 
 <div
@@ -367,29 +442,13 @@ import { SI_VERSION } from '#/share/constants';
 	/>
 
 	<div class="bar">
-		<div class="close icon" on:click={() => $yw_menu_vendor = false}>
-			<!-- <img alt="Close icon" src="/assets/media/nav/close.svg"> -->
-		</div>
-
 		<div class="menu">
 			<div class="main">
 				<div class="app">
 					<div>
-						<!-- {@html SX_TITLE} -->
-					</div>
-
-					<div>
 						v{SI_VERSION}
 					</div>
 				</div>
-
-				<!-- <div>
-					Current dApp
-				</div> -->
-
-				<!-- <div>
-					domain: secretswap.io
-				</div> -->
 
 				<div class="info">
 					<div class="name">
@@ -397,18 +456,26 @@ import { SI_VERSION } from '#/share/constants';
 					</div>
 
 					<div class="value">
-						{s_network_status}
+						<span class="state" style={`
+							background-color: ${sx_health_color};
+						`}>
+							&nbsp;
+						</span>
+						<span class="text">
+							{s_network_status}
+						</span>
 					</div>
 				</div>
 
 				<div class="info">
 					<div class="name">
-						Chain Id
+						Chain
 					</div>
 
 					<div class="value">
 						<span class="font-family_mono">
-							{si_chain}
+							<span class="caip2-namespace">{si_namespace}:</span><!--
+							--><span class="caip2-reference">{si_reference}</span>
 						</span>
 					</div>
 				</div>
@@ -419,9 +486,15 @@ import { SI_VERSION } from '#/share/constants';
 					</div>
 
 					<div class="value">
-						<span class="font-family_mono">
-							{p_provider}
-						</span>
+						{#if p_provider}
+							<span class="font-family_mono">
+								{p_provider}
+							</span>
+						{:else}
+							<span style="font-style:italic;">
+								(none)
+							</span>
+						{/if}
 					</div>
 				</div>
 
@@ -468,17 +541,6 @@ import { SI_VERSION } from '#/share/constants';
 						{n_txs} txs
 					</div>
 				</div>
-
-				<!-- <div class="info">
-					<div class="name">
-						Next block in
-					</div>
-
-					<div class="value">
-						 seconds
-					</div>
-				</div> -->
-
 			</div>
 		</div>
 	</div>

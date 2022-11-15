@@ -1,5 +1,5 @@
 import type {Snip20} from './snip-20-def';
-import type {Snip2x} from './snip-2x.def';
+import type {Snip2x} from './snip-2x-def';
 import type {AminoMsg} from '@cosmjs/amino';
 
 import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
@@ -22,6 +22,7 @@ import {Secrets} from '#/store/secrets';
 import {crypto_random_int} from '#/util/belt';
 import {base58_to_buffer, buffer_to_base58, buffer_to_text, buffer_to_uint32_be, concat, sha256_sync, text_to_buffer, uint32_to_buffer_be} from '#/util/data';
 import type { PrebuiltMessage } from '#/chain/messages/_types';
+import type { Snip24, Snip24PermitMsg } from './snip-24-def';
 
 
 
@@ -29,7 +30,7 @@ type TokenInfoResponse = Snip20.BaseQueryResponse<'token_info'>;
 
 export class ViewingKeyError extends Error {}
 
-export const Snip20Util = {
+export const Snip2xUtil = {
 	validate_token_info(g_token_info: TokenInfoResponse['token_info']): boolean | undefined | void {
 		let n_decimals: number = g_token_info.decimals;
 
@@ -124,7 +125,7 @@ export const NB_VIEWING_KEY_PREAMBLE = ATU8_VIEWING_KEY_PREAMBLE.byteLength;
 export const NB_VIEWING_KEY_STARSHELL = ATU8_VIEWING_KEY_PREAMBLE.byteLength + 4 + 32;
 
 
-export const Snip20MessageConstructor = {
+export const Snip2xMessageConstructor = {
 	async set_viewing_key(
 		g_account: AccountStruct,
 		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
@@ -148,12 +149,29 @@ export const Snip20MessageConstructor = {
 		k_network: SecretNetwork,
 		z_nonce: Uint8Array|string|null=null
 	): Promise<{amino: AminoMsg; proto: Any}> {
-		return await Snip20MessageConstructor.set_viewing_key(
+		return await Snip2xMessageConstructor.set_viewing_key(
 			g_account,
 			g_token,
 			k_network,
-			await Snip20Util.next_viewing_key(g_account, g_token, z_nonce)
+			await Snip2xUtil.next_viewing_key(g_account, g_token, z_nonce)
 		);
+	},
+
+	async revoke_permit(
+		g_account: AccountStruct,
+		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
+		k_network: SecretNetwork,
+		si_permit: string
+	): Promise<{amino: AminoMsg; proto: Any}> {
+		// prep snip-20 message
+		const g_msg: Snip24.BaseMessageParameters<'revoke_permit'> = {
+			revoke_permit: {
+				permit_name: si_permit,
+			},
+		};
+
+		// prep snip-20 exec
+		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash);
 	},
 };
 
@@ -343,12 +361,17 @@ export class Snip2xToken {
 	}
 
 	async balance(): QueryRes<'balance'> {
-		return this.query({
+		const g_balance = await this.query({
 			balance: {
 				address: this._sa_owner,
 				key: await this._viewing_key_plaintext(),
 			},
 		});
+
+		// save to query cache
+		await this._k_network.saveQueryCache(this._sa_owner, `${this._g_contract.bech32}:balance`, g_balance.balance, Date.now());
+
+		return g_balance;
 	}
 
 	async transferHistory(nl_records=Number.MAX_SAFE_INTEGER): QueryRes<'transfer_history'> {

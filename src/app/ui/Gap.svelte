@@ -1,5 +1,5 @@
 <script lang="ts">
-	let plain = false;
+	export let plain = false;
 
 	export let rootStyle = '';
 </script>

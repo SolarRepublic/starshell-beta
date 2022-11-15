@@ -125,6 +125,11 @@ type SecretTypeRegistry = {
 			 * Canonicalized (sorted) list of permissions this permit contains
 			 */
 			permissions: Snip24Permission[];
+
+			/**
+			 * Custom alias assigned by user to use in place of the permit's name
+			 */
+			alias?: string;
 		};
 	};
 
@@ -136,7 +141,7 @@ type SecretTypeRegistry = {
 
 export type SecretType = keyof SecretTypeRegistry;
 
-namespace Secret {
+export namespace Secret {
 	export type Struct<
 		si_type extends SecretType=SecretType,
 		si_security extends SecurityType=SecurityType,
@@ -150,6 +155,10 @@ namespace Secret {
 			: {}
 		>
 	}[si_type];
+
+	export type StructFromPath<
+		p_secret extends SecretPath<si_type>,
+	> = p_secret extends SecretPath<'query_permit'> ? SecretStruct<'query_permit'> : SecretStruct;
 }
 
 

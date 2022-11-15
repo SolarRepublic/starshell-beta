@@ -14,11 +14,11 @@
 	import {forever, proper} from '#/util/belt';
 	
 	import AccountEdit from './AccountEdit.svelte';
-	import AddressResourceControl from './AddressResourceControl.svelte';
+	import AddressResourceControl from '../frag/AddressResourceControl.svelte';
 	import Send from './Send.svelte';
 	import Gap from '../ui/Gap.svelte';
-	import Portrait from '../ui/Portrait.svelte';
-    import IncidentsList from '../ui/IncidentsList.svelte';
+	import IncidentsList from '../frag/IncidentsList.svelte';
+	import Portrait from '../frag/Portrait.svelte';
 	
 
 	const {k_page} = load_page_context();
@@ -79,17 +79,6 @@
 	};
 
 </script>
-
-<!-- 
-<svelte:fragment slot="pfp">
-	{#if H_ICONS[account.def.iconRef]}
-		<Put element={H_ICONS[account.def.iconRef].render()} />
-	{:else}
-		<span class="pfp-gen">
-			{account.def.label[0]}
-		</span>
-	{/if}
-</svelte:fragment> -->
 
 <Screen nav>
 	<Header pops search network

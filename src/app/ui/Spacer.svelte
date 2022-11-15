@@ -8,6 +8,6 @@
 	}
 </style>
 
-<div style={`height:${height};`}>
+<div style={`height:${height}; font-size:${height};`}>
 	&nbsp;
 </div>

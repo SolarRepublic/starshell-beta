@@ -1,12 +1,13 @@
 <script lang="ts">
+	import {Screen} from './_screens';
 	import {load_page_context} from '../svelte';
+	
+	import TokensAdd from './TokensAdd.svelte';
+	import ShieldKeyhole from '../svg/ShieldKeyhole.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Header from '../ui/Header.svelte';
-	import {Screen} from './_screens';
-	import TokensAdd from './TokensAdd.svelte';
-
+	
 	// import SX_ICON_SHIELD from '#/icon/shield-keyhole.svg?raw';
-	import ShieldKeyhole from '../svg/ShieldKeyhole.svelte';
 
 	const {
 		k_page,

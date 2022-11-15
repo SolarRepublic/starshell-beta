@@ -6,7 +6,7 @@
 	import {Accounts} from '#/store/accounts';
 	
 	import Screen from '../container/Screen.svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
 
 

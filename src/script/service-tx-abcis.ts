@@ -1,34 +1,27 @@
 import type {AminoMsg} from '@cosmjs/amino';
 
-import type {AppPath} from '#/meta/app';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
 import type {ChainStruct} from '#/meta/chain';
-
 import type {Cw} from '#/meta/cosm-wasm';
-import type {IncidentStruct, TxError, TxOutgoing, TxSynced} from '#/meta/incident';
+import type {IncidentStruct, IncidentType, TxError, TxSynced} from '#/meta/incident';
 
 import {decodeTxRaw} from '@cosmjs/proto-signing';
-import {TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 
-import {Chains} from './ics-witness-imports';
+import {global_broadcast} from './msg-global';
 
 import type {LocalAppContext} from '#/app/svelte';
 import {proto_to_amino} from '#/chain/cosmos-msgs';
 import type {CosmosNetwork} from '#/chain/cosmos-network';
 import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
-import type {SecretNetwork} from '#/chain/secret-network';
-
+import type {TmJsonRpcWebsocket} from '#/cosmos/tm-json-rpc-ws-const';
+import type {WsTxResponse, WsTxResultError} from '#/cosmos/tm-json-rpc-ws-def';
 import type {NotificationConfig, NotifyItemConfig} from '#/extension/notifications';
 import {Apps} from '#/store/apps';
-import {Histories, Incidents} from '#/store/incidents';
-import type {WsTxResponse, WsTxResultError} from '#/store/providers';
+import {Incidents} from '#/store/incidents';
 
-import {fodemtv, fold, ode, oderac} from '#/util/belt';
-import {base64_to_buffer, buffer_to_base93, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
-import type { TxResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
-import { format_amount } from '#/util/format';
-import { global_broadcast } from './msg-global';
-
+import {fodemtv, oderac} from '#/util/belt';
+import {base64_to_buffer, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
+import {format_amount} from '#/util/format';
 
 
 export interface CosmosEvents {
@@ -66,28 +59,34 @@ interface TxDataExtra extends AbciExtras {
 }
 
 export interface TxAbciConfig {
+	type: Extract<IncidentType, 'tx_out' | 'tx_in'>;
 	filter: string | string[];
 	data?(a_msgs: AminoMsg[], g_extra: TxDataExtra, g_synced?: TxSynced): Promisable<void>;
 	error?(a_msgs: AminoMsg[], g_error: WsTxResultError, si_txn: string): Promisable<void>;
 }
 
+export interface ReceiverError {
+	code: number;
+	reason: string;
+	wasClean: boolean;
+	error: Event | undefined;
+}
+
 
 export type ReceiverHooks = {
-	connect?(): Promisable<void>;
+	connect?(this: TmJsonRpcWebsocket): Promisable<void>;
 
-	error?(g_error: {
-		code: number;
-		reason: string;
-		wasClean: boolean;
-		error: Event | undefined;
-	}): Promisable<void>;
+	error?(this: TmJsonRpcWebsocket, g_error: ReceiverError): Promisable<void>;
+};
 
-	data(g_value: JsonObject, g_extras: AbciExtras): Promisable<void>;
+export type AbciHooks = {
+	data(this: TmJsonRpcWebsocket, g_data: {}, g_extras: AbciExtras): Promisable<void>;
 };
 
 export interface AbciConfig {
 	filter: string[];
-	hooks: ReceiverHooks;
+	type: Extract<IncidentType, 'tx_out' | 'tx_in'>;
+	hooks: AbciHooks;
 }
 
 const parse_date = (s_input: string | null): number => {
@@ -102,7 +101,7 @@ const parse_date = (s_input: string | null): number => {
 	}
 
 	return Date.now();
-}
+};
 
 const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<NotifyItemConfig | void>>> = {
 	sdk: {
@@ -145,11 +144,13 @@ const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<N
 			title: '❌ Transaction Too Large',
 			message: `The transaction was rejected because it is too large.`,
 		}),
-	}
+	},
 };
 
 export function tx_abcis(g_chain: ChainStruct, h_abcis: Dict<TxAbciConfig>): Dict<AbciConfig> {
 	return fodemtv(h_abcis, gc_event => ({
+		type: gc_event.type,
+
 		filter: [
 			// `tm.event='Tx'`,  // this event seems to be excluded from grpc-web TxServiceClient responses
 			...Array.isArray(gc_event.filter)? gc_event.filter: [gc_event.filter],
@@ -276,12 +277,17 @@ export function account_abcis(
 
 	return tx_abcis(_g_chain, {
 		sent: {
+			type: 'tx_out',
+
 			filter: `message.sender='${sa_agent}'`,
 
 			async error(a_msgs, g_result, si_txn) {
 				// notify tx failure
 				global_broadcast({
 					type: 'txError',
+					value: {
+						hash: si_txn,
+					},
 				});
 
 				// copy context from outer scope
@@ -366,16 +372,19 @@ export function account_abcis(
 			},
 
 			async data(a_msgs, g_extra) {
+				// transaction hash
+				const {si_txn} = g_extra;
+
 				// notify tx success
 				global_broadcast({
 					type: 'txSuccess',
+					value: {
+						hash: si_txn,
+					},
 				});
 
 				// copy context from outer scope
 				const g_context = {...g_context_vague};
-
-				// transaction hash
-				const {si_txn} = g_extra;
 
 				// fetch pending tx from history
 				const p_incident = Incidents.pathFor('tx_out', si_txn);
@@ -440,7 +449,7 @@ export function account_abcis(
 						const g_interpretted = await f_interpretter(g_msg.value as JsonObject, g_context);
 
 						// apply message
-						g_notify = await g_interpretted.apply?.(a_msgs.length);
+						g_notify = await g_interpretted.apply?.(a_msgs.length, si_txn);
 					}
 					// no interpretter
 					else {
@@ -477,6 +486,8 @@ export function account_abcis(
 		},
 
 		receive: {
+			type: 'tx_in',
+
 			filter: `transfer.recipient='${sa_agent}'`,
 
 			async data(a_msgs, g_extra) {
@@ -540,6 +551,8 @@ export function account_abcis(
 		},
 
 		granted: {
+			type: 'tx_in',
+
 			filter: `message.grantee='${sa_agent}'`,
 
 			data() {

@@ -21,16 +21,17 @@
 	import {Secrets} from '#/store/secrets';
 	import {forever, ode} from '#/util/belt';
 	
-	import AddressResourceControl from './AddressResourceControl.svelte';
+	import ContractEdit from './ContractEdit.svelte';
 	import Send from './Send.svelte';
 	import TokenAllowances from './TokenAllowances.svelte';
 	import TokensAdd from './TokensAdd.svelte';
-	import TokenViewing from './TokenViewings.svelte';
+	import TokenVisibility from './TokenVisibility.svelte';
+	import AddressResourceControl from '../frag/AddressResourceControl.svelte';
+	import IncidentsList from '../frag/IncidentsList.svelte';
+	import Portrait from '../frag/Portrait.svelte';
 	import Gap from '../ui/Gap.svelte';
 	import Header from '../ui/Header.svelte';
-	import IncidentsList from '../ui/IncidentsList.svelte';
 	import Load from '../ui/Load.svelte';
-	import Portrait from '../ui/Portrait.svelte';
 	import ResourceControl from '../ui/ResourceControl.svelte';
 	
 	import SX_ICON_CREDIT_CARD from '#/icon/credit-card.svg?raw';
@@ -119,11 +120,13 @@
 				}
 			}
 
-			// look for query permits
+			// look for active query permits
 			a_permits = await Secrets.filter({
 				type: 'query_permit',
 				owner: $yw_owner,
-				contracts: [sa_contract],
+				contracts: {
+					[sa_contract]: '',
+				},
 				chain: p_chain,
 			});
 
@@ -212,12 +215,12 @@
 		edit: {
 			label: 'Edit',
 			trigger() {
-				// k_page.push({
-				// 	creator: ContractEdit,
-				// 	props: {
-				// 		contactPath: p_contract,
-				// 	},
-				// });
+				k_page.push({
+					creator: ContractEdit,
+					props: {
+						contractPath: p_contract,
+					},
+				});
 			},
 		},
 		// delete: {
@@ -293,7 +296,7 @@
 				<!-- viewing abilities summary -->
 				<ResourceControl infoIcon={SX_ICON_EYE} actionIcon={SX_ICON_EDIT} on:click={() => {
 					k_page.push({
-						creator: TokenViewing,
+						creator: TokenVisibility,
 						props: {
 							contract: g_contract,
 						},
@@ -301,7 +304,7 @@
 				}}>
 					{#if 0 === nl_permissions + nl_vk_outlets}
 						<div>
-							No apps are currently able to <em>view</em> this token
+							No others are able to <em>view</em> this token
 						</div>
 					{:else}
 						{#if nl_vk_outlets}
@@ -332,25 +335,13 @@
 					});
 				}}>
 					<div>
-						No apps are currently able to <em>spend</em> this token
+						No others are able to <em>spend</em> this token
 					</div>
 				</ResourceControl>
 			</div>
 		{/if}
 
 		<Gap />
-
-		<!-- <Gap rootStyle={`
-			margin-top: calc(0px - var(--ui-padding));
-		`} /> -->
-
-		<!-- <Fields configs={[
-			{
-				type: 'key_value',
-				key: 'Name',
-				value: g_contract.name,
-			},
-		]} /> -->
 
 		{#if a_incidents.length}
 			<IncidentsList incidents={a_incidents} />

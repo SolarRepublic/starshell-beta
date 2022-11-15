@@ -1,25 +1,25 @@
 <script lang="ts">
 	import {onDestroy} from 'svelte';
-
-	import Log, {Logger} from '#/app/ui/Log.svelte';
-
-	import {Vault} from '#/crypto/vault';
-
-	import {
-		login,
-	} from '#/share/auth';
-
-
+	import {slide} from 'svelte/transition';
+	
 	import {Screen} from './_screens';
+	import {load_flow_context} from '../svelte';
+	
 	import ActionsLine from '#/app/ui/ActionsLine.svelte';
 	import Field from '#/app/ui/Field.svelte';
-	import {slide} from 'svelte/transition';
-	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, B_FIREFOX_ANDROID, B_MOBILE, B_WITHIN_IFRAME, B_WITHIN_WEBEXT_POPOVER} from '#/share/constants';
-	import {CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from '#/share/errors';
-	import {global_receive} from '#/script/msg-global';
+	import Log, {Logger} from '#/app/ui/Log.svelte';
+	import {Vault} from '#/crypto/vault';
+	
 	import {P_POPUP} from '#/extension/browser';
+	import {global_receive} from '#/script/msg-global';
+	import {login} from '#/share/auth';
+	
+	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, B_FIREFOX_ANDROID, B_WITHIN_WEBEXT_POPOVER} from '#/share/constants';
+	import {CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from '#/share/errors';
 	import {stringify_params} from '#/util/dom';
-	import {load_flow_context} from '../svelte';
+    import PopupFactoryReset from '../popup/PopupFactoryReset.svelte';
+    import { yw_popup } from '../mem';
+	
 
 	// will be set if part of flow
 	const {
@@ -82,7 +82,7 @@
 		if(b_busy) return 1; b_busy = true;
 
 		// prep graceful exit
-		const exit = (): 1 => (b_busy = false, 1);
+		const exit = (): 1 => (b_busy = false, 1);  // eslint-disable-line no-sequences
 
 		// reset error
 		s_err_password = '';
@@ -139,15 +139,13 @@
 		return exit();
 	}
 
-	let c_easter_clicks = 0;
-	function easter_click() {
-		if(++c_easter_clicks >= 5) {
-			chrome.runtime.sendMessage({
-				type: 'easter_notify',
-			});
+	let b_factory_reset_showing = false;
+	let c_logo_clicks = 0;
+	function logo_click() {
+		if(++c_logo_clicks >= 5) {
+			b_factory_reset_showing = true;
 		}
 	}
-
 </script>
 
 <style lang="less">
@@ -212,7 +210,7 @@
 {/if}
 
 <Screen debug='Authenticate' classNames='welcome'>
-	<div class="logo" on:click={() => easter_click()}>
+	<div class="logo" on:click={() => logo_click()}>
 		<img width="96" src="/media/vendor/logo-96px.png" srcset="/media/vendor/logo-96px.png 1x, /media/vendor/logo-192px.png 2x" alt="StarShell" />
 	</div>
 
@@ -241,6 +239,12 @@
 			{/if}
 		</Field>
 	</div>
+
+	{#if b_factory_reset_showing}
+		<ActionsLine noPrimary confirm={['Factory Rest', () => {
+			$yw_popup = PopupFactoryReset;
+		}]} />
+	{/if}
 
 	<ActionsLine confirm={['Unlock', attempt_unlock]} />
 

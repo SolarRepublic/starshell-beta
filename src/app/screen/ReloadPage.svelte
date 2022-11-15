@@ -1,17 +1,16 @@
-<!-- <script lang="ts" context="module">
-	export type ReloadPagePreset = 'keplr';
-</script> -->
-
 <script lang="ts">
+	import type {AppStruct} from '#/meta/app';
+	
 	import {Screen} from './_screens';
-
-	import type {App, AppStruct} from '#/meta/app';
-	import ActionsWall from '../ui/ActionsWall.svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
-	import type {PageInfo} from '#/script/messages';
-
-	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
 	import {load_flow_context} from '../svelte';
+	
+	import type {PageInfo} from '#/script/messages';
+	
+	import ActionsWall from '../ui/ActionsWall.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
+	
+	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
+	
 
 	// flow complete callback
 	const {

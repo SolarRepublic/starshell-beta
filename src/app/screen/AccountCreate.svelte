@@ -1,22 +1,27 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import {Screen, Header} from './_screens';
 
-	import {
-		Screen,
-		Header,
-		type Page,
-	} from './_screens';
+	import {load_page_context} from '../svelte';
+	
+	import CreateWallet from './CreateWallet.svelte';
+	import ActionsWall from '../ui/ActionsWall.svelte';
+	import { onMount } from 'svelte';
 
-	import type {AccountPath} from '#/meta/account';
-	import AccountEdit from './AccountEdit.svelte';
-import ActionsWall from '../ui/ActionsWall.svelte';
+	const {k_page} = load_page_context();
 
-	const k_page = getContext<Page>('page');
+	// TODO: remove auto-push to allow selecting between creation modes
+	onMount(() => {
+		setTimeout(() => {
+			k_page.push({
+				creator: CreateWallet,
+			});
+		}, 20);
+	});
 
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.hd-path {
 		:global(&) {
@@ -26,7 +31,7 @@ import ActionsWall from '../ui/ActionsWall.svelte';
 	}
 </style>
 
-<Screen nav slides>
+<Screen slides>
 	<Header pops
 		title="Add account"
 	>
@@ -35,16 +40,16 @@ import ActionsWall from '../ui/ActionsWall.svelte';
 	<hr>
 
 	<p>
-		Create a new account, import an existing one, or connect to a hardwarware wallet.
+		Create a new account, import an existing one, or connect to a hardware wallet.
 	</p>
 
 	<ActionsWall>
 		<button class="primary" on:click={() => k_page.push({
-			creator: AccountEdit,
+			creator: CreateWallet,
 		})}>
 			Create new StarShell account
 		</button>
-
+<!-- 
 		<button on:click={() => k_page.push({
 			creator: DeadEnd,
 		})}>
@@ -55,6 +60,6 @@ import ActionsWall from '../ui/ActionsWall.svelte';
 			creator: DeadEnd,
 		})}>
 			Connect to hardware
-		</button>
+		</button> -->
 	</ActionsWall>
 </Screen>

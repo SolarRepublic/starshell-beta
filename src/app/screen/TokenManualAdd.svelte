@@ -1,26 +1,29 @@
 <script lang="ts">
-	import type {SecretNetwork} from '#/chain/secret-network';
 	import type {Dict} from '#/meta/belt';
 	import type {Bech32, ChainPath, ContractStruct} from '#/meta/chain';
 	import type {PfpTarget} from '#/meta/pfp';
-	import {R_BECH32, R_CONTRACT_NAME, R_TOKEN_SYMBOL} from '#/share/constants';
-	import {Chains} from '#/store/chains';
-	import {Contracts} from '#/store/contracts';
-	import {timeout_exec} from '#/util/belt';
+	
 	import {fromBech32} from '@cosmjs/encoding';
+	
+	import {Screen} from './_screens';
 	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_network} from '../mem';
 	import {load_page_context} from '../svelte';
+	
+	import type {SecretNetwork} from '#/chain/secret-network';
+	import {R_BECH32, R_CONTRACT_NAME, R_TOKEN_SYMBOL} from '#/share/constants';
+	import {Chains} from '#/store/chains';
+	import {Contracts, ContractType} from '#/store/contracts';
+	import {timeout_exec} from '#/util/belt';
+	
+	import TokensAdd from './TokensAdd.svelte';
+	import IconEditor from '../frag/IconEditor.svelte';
+	import SenderSelect from '../frag/SenderSelect.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Field from '../ui/Field.svelte';
 	import Header from '../ui/Header.svelte';
-	import IconEditor from '../ui/IconEditor.svelte';
-	import SenderSelect from '../ui/SenderSelect.svelte';
-	import TokensAdd from './TokensAdd.svelte';
-	import {Screen} from './_screens';
+	
 
-	const {
-		k_page,
-	} = load_page_context();
+	const {k_page} = load_page_context();
 
 	export let staged: ContractStruct[] = [];
 
@@ -34,10 +37,6 @@
 	let s_decimals = '6';
 	let p_pfp: PfpTarget = '';
 
-	enum ContractType {
-		TOKEN = 1,
-		OTHER = 2,
-	}
 
 	// load cache of existing contracts
 	const h_exists_bech32s: Dict<[ContractType, string]> = {};
@@ -56,7 +55,7 @@
 					const g_snip20 = g_contract.interfaces.snip20;
 					if(g_snip20) {
 						// add to bech32 dict
-						h_exists_bech32s[g_contract.bech32] = [ContractType.TOKEN, g_snip20.symbol];
+						h_exists_bech32s[g_contract.bech32] = [ContractType.FUNGIBLE, g_snip20.symbol];
 
 						// add to symbols dict
 						h_exists_symbols[g_snip20.symbol.toLocaleLowerCase()] = 1;
@@ -251,6 +250,7 @@
 			// upsert contract definition
 			return await ks_contracts.merge({
 				...g_contract_exist,
+				on: 1,
 				name: s_token_name,
 				bech32: sa_token as Bech32,
 				chain: $yw_chain_ref,
@@ -283,7 +283,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.split {
 		display: flex;

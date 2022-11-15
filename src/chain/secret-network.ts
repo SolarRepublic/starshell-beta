@@ -1,25 +1,31 @@
-import {SecretWasm} from '#/crypto/secret-wasm';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {AccountStruct} from '#/meta/account';
 import type {JsonObject} from '#/meta/belt';
 import type {Bech32, ChainStruct, ContractStruct} from '#/meta/chain';
-
-import {
-	QueryClientImpl as RegistrationQueryClient,
-} from '@solar-republic/cosmos-grpc/dist/secret/registration/v1beta1/query';
+import type {Cw} from '#/meta/cosm-wasm';
 
 import {
 	QueryClientImpl as ComputeQueryClient,
 	CodeInfoResponse,
 	ContractInfoWithAddress,
 } from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/query';
+import {
+	QueryClientImpl as RegistrationQueryClient,
+} from '@solar-republic/cosmos-grpc/dist/secret/registration/v1beta1/query';
+
+
 
 import {CosmosNetwork} from './cosmos-network';
-import type {AccountStruct} from '#/meta/account';
+
+
 import {syserr} from '#/app/common';
-import {base64_to_buffer, base93_to_buffer, buffer_to_json, buffer_to_text} from '#/util/data';
+import {SecretWasm} from '#/crypto/secret-wasm';
+import {Chains} from '#/store/chains';
 import {Secrets} from '#/store/secrets';
-import type {Cw} from '#/meta/cosm-wasm';
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import { Chains } from '#/store/chains';
+import {base64_to_buffer, base93_to_buffer, buffer_to_json, buffer_to_text} from '#/util/data';
+
+
 
 interface Snip20TokenInfo extends JsonObject {
 	name: Cw.String;
@@ -90,27 +96,6 @@ export class SecretNetwork extends CosmosNetwork {
 		return SecretWasm.decryptMsg(g_account, this._g_chain, atu8_msg);
 	}
 
-	async codeInfo(si_code: `${bigint}`): Promise<CodeInfoResponse | undefined> {
-		return (await new ComputeQueryClient(this._y_grpc).code({
-			codeId: si_code,
-		})).codeInfo;
-	}
-
-	async contractsByCode(si_code: `${bigint}`): Promise<ContractInfoWithAddress[]> {
-		const g_response = await new ComputeQueryClient(this._y_grpc).contractsByCodeID({
-			codeId: si_code,
-		});
-
-		return g_response.contractInfos;
-	}
-
-	async codeHashByContractAddress(sa_contract: Bech32): Promise<string> {
-		const g_response = await new ComputeQueryClient(this._y_grpc).codeHashByContractAddress({
-			contractAddress: sa_contract,
-		});
-
-		return g_response.codeHash;
-	}
 
 	async snip20Info(g_account: AccountStruct, g_contract: Queryable): Promise<Snip20TokenInfo> {
 		return await this.queryContract<Snip20TokenInfo>(g_account, g_contract, {

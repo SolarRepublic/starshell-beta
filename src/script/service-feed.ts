@@ -1,5 +1,4 @@
-import type {BlockInfoHeader} from './common';
-import type {AbciConfig, CosmosEvents, ReceiverHooks} from './service-tx-abcis';
+import type {AbciConfig, ReceiverError, ReceiverHooks} from './service-tx-abcis';
 
 import type {AccountStruct} from '#/meta/account';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
@@ -8,19 +7,26 @@ import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 
 import {Chains} from './ics-witness-imports';
 import {global_broadcast} from './msg-global';
-import {account_abcis, tx_abcis} from './service-tx-abcis';
+import {account_abcis} from './service-tx-abcis';
 
 import {syserr} from '#/app/common';
 import type {LocalAppContext} from '#/app/svelte';
 import type {CosmosNetwork} from '#/chain/cosmos-network';
+import {TmJsonRpcWebsocket} from '#/cosmos/tm-json-rpc-ws-const';
+import type {TjrwsValueNewBlock, TjrwsValueTxResult, WsTxResponse} from '#/cosmos/tm-json-rpc-ws-def';
 import type {NotificationConfig} from '#/extension/notifications';
 import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_EXTERNAL} from '#/store/apps';
-import {NetworkTimeoutError, Providers, WsTxResponse} from '#/store/providers';
+import {NetworkTimeoutError, Providers} from '#/store/providers';
 
 import {ode, timeout_exec} from '#/util/belt';
-import { buffer_to_base64 } from '#/util/data';
+import {buffer_to_base64} from '#/util/data';
 
+
+const XT_ERROR_THRESHOLD_RESTART = 120e3;
+const XT_CONNECTION_TIMEOUT = 10e3;
+
+const NL_WINDOW_BLOCKS = 16;
 
 interface FeedHooks {
 	notify?(gc_notify: NotificationConfig, k_feed: NetworkFeed): Promisable<void>;
@@ -38,11 +44,14 @@ export class NetworkFeed {
 			Providers.read(),
 		]);
 
-		// 
+		// list of feed creation promises
 		const a_feeds: Promise<NetworkFeed>[] = [];
 
 		// each chain
 		for(const [p_chain, g_chain] of ks_chains.entries()) {
+			// skip cosmos
+			if('/family.cosmos/chain.theta-testnet-001' === p_chain) continue;
+
 			// list of contending providers
 			const a_contenders: [ProviderPath, ProviderStruct][] = [];
 
@@ -74,6 +83,46 @@ export class NetworkFeed {
 			// append remainders in random order so as not to bias any one
 			a_providers.push(...a_contenders.sort(() => Math.random() - 0.5).map(([, g]) => g));
 
+			// final provider selection
+			let g_selected: ProviderStruct | null = null;
+
+			// quick provider test
+			const a_failures: [ProviderStruct, Error][] = [];
+			for(let i_provider=0, nl_providers=a_providers.length; i_provider<nl_providers; i_provider++) {
+				const g_provider = a_providers[i_provider];
+
+				// perform a quick test on provider
+				try {
+					await Providers.quickTest(g_provider, g_chain);
+
+					// success, use it
+					g_selected = g_provider;
+					break;
+				}
+				// provider test failed
+				catch(e_test) {
+					a_failures.push([g_provider, e_test as Error]);
+				}
+			}
+
+			// prep failure summary
+			const s_provider_errors = `Encountered errors on providers:\n\n${a_failures.map(([g, e]) => `${g.name}: ${e.message}`).join('\n\n')}`;
+
+			// no providers passed
+			if(!g_selected) {
+				console.error('All providers failed: %o', a_failures);
+
+				throw syserr({
+					title: 'All providers offline',
+					text: s_provider_errors,
+				});
+			}
+
+			// some failures with attempted providers
+			if(a_failures.length) {
+				console.warn(s_provider_errors);
+			}
+
 			// destroy old feed
 			if(H_FEEDS[p_chain]) {
 				try {
@@ -83,15 +132,26 @@ export class NetworkFeed {
 			}
 
 			// create new feed for top chain
-			a_feeds.push(NetworkFeed.create(g_chain, a_providers[0], gc_feed));
+			a_feeds.push(NetworkFeed.create(g_chain, g_selected, gc_feed));
 		}
 
-
+		// return once they have all resolved
 		return await Promise.all(a_feeds);
 	}
 
+	/**
+	 * Creates a network feed for an individual chain+provider
+	 * @param g_chain 
+	 * @param g_provider 
+	 * @param gc_feed 
+	 * @returns 
+	 */
 	static async create(g_chain: ChainStruct, g_provider: ProviderStruct, gc_feed: FeedHooks): Promise<NetworkFeed> {
+		// instantiate feed
 		const k_feed = new NetworkFeed(g_chain, g_provider, gc_feed);
+
+		// open socket
+		await k_feed.open();
 
 		// follow blocks
 		await k_feed.followBlocks();
@@ -102,16 +162,17 @@ export class NetworkFeed {
 		return k_feed;
 	}
 
+	// path to chain resource
 	protected _p_chain: ChainPath;
+
+	// path to provider resource
 	protected _p_provider: ProviderPath;
 
+	// active network instance
 	protected _k_network: CosmosNetwork;
 
-	protected _kc_blocks: TendermintConnection;
-	protected _a_accounts: TendermintConnection[] = [];
-
-	protected _h_connections_incoming: Dict<TendermintConnection> = {};
-	protected _h_connections_outgoing: Dict<TendermintConnection> = {};
+	// active socket wrapper instance
+	protected _kc_socket: TmJsonRpcWebsocket | null = null;
 
 	constructor(protected _g_chain: ChainStruct, protected _g_provider: ProviderStruct, protected _gc_hooks: FeedHooks) {
 		// infer paths
@@ -130,34 +191,97 @@ export class NetworkFeed {
 		return this._g_provider;
 	}
 
-	/**
-	 * Subscribes to Tendermint ABCI events on the exposed Websocket port
-	 * @param a_events 
-	 * @param g_hooks 
-	 * @returns 
-	 */
-	async subscribeTendermintAbci(a_events: string[], g_hooks: ReceiverHooks): Promise<TendermintConnection> {
+	open(fe_socket?: (this: TmJsonRpcWebsocket, e_socket: ReceiverError) => Promisable<void>): Promise<void> {
 		const {
 			_g_provider,
+			_p_provider,
 		} = this;
 
-		return await TendermintConnection.connect(_g_provider, a_events, g_hooks);
-	}
+		// nil socket
+		if(this._kc_socket) throw new Error(`Websocket resource already exists on NetworkFeed instance`);
 
-	get connections(): TendermintConnection[] {
-		return [this._kc_blocks, ...this._a_accounts];
+		let xt_error_prev = 0;
+
+		function bail(k_this: TmJsonRpcWebsocket, g_error: ReceiverError) {
+			// forward error to caller
+			if(fe_socket) {
+				fe_socket.call(k_this, g_error);
+			}
+			// no handler in hook, propagate up call stack
+			else {
+				throw new Error(`Failed to heal from connection error in <${k_this.host}>: ${
+					JSON.stringify({
+						code: g_error.code,
+						reason: g_error.reason,
+						wasClean: g_error.wasClean,
+					})
+				}`);
+			}
+		}
+
+		return new Promise((fk_resolve, fe_reject) => {
+			// socket opened state
+			let b_opened = false;
+
+			this._kc_socket = new TmJsonRpcWebsocket(_g_provider, {
+				connect() {
+					// websocket opened
+					b_opened = true;
+
+					// resolve promise
+					fk_resolve();
+				},
+
+				error(g_error) {
+					// socket was never opened; reject promise
+					if(!b_opened) return fe_reject(g_error);
+
+					console.error(`Attempting to recover from connection error on <${this.host}>: %o`, g_error);
+					debugger;
+
+					// infrequent error
+					if(Date.now() - xt_error_prev > XT_ERROR_THRESHOLD_RESTART) {
+						// start waiting for connection
+						(async() => {
+							// wait for up to 10 seconds for connection to be established
+							const [, xc_timeout] = await timeout_exec(XT_CONNECTION_TIMEOUT, () => new Promise(fk_resolve => f_connected = () => {
+								// resolve promise
+								fk_resolve(1);
+							}));
+
+							// timeout
+							if(xc_timeout) {
+								// destroy the connection
+								this.destroy();
+
+								// forward original error to caller
+								bail(this, g_error);
+							}
+						})();
+
+						// attempt to restart the connection automatically
+						this.restart();
+					}
+					else {
+						bail(this, g_error);
+					}
+
+					xt_error_prev = Date.now();
+				},
+			});
+		});
 	}
 
 	/**
-	 * Performs a health check on the underlying sockets, recreating them if necessary
+	 * Performs a health check on the underlying socket, recreating it if necessary
+	 * @param xt_acceptable - max age to consider sockets still awake
+	 * @param xt_socket - amount of time to wait for ping response
 	 */
 	async wake(xt_acceptable=0, xt_socket=Infinity): Promise<void> {
-		if(this._kc_blocks) {
-			for(const kc_account of this.connections) {
-				const [, xc_timeout] = await timeout_exec(xt_socket || Infinity, () => kc_account.wake(xt_acceptable));
+		if(this._kc_socket) {
+			const [, xc_timeout] = await timeout_exec(xt_socket || Infinity, () => this._kc_socket!.wake(xt_acceptable));
 
-				if(xc_timeout) throw new NetworkTimeoutError();
-			}
+			if(xc_timeout) throw new NetworkTimeoutError();
 		}
 		else {
 			throw new Error('Network Feed was already destroyed');
@@ -172,136 +296,134 @@ export class NetworkFeed {
 		return await NetworkFeed.create(this._g_chain, this._g_provider, this._gc_hooks);
 	}
 
-	destroy() {
-		if(this._kc_blocks) {
+	/**
+	 * Destroys the underyling JSON-RPC websocket connection
+	 */
+	destroy(): void {
+		const {
+			_kc_socket,
+		} = this;
+
+		if(_kc_socket) {
 			try {
-				// destroy all connections
-				for(const kc_each of this.connections) {
-					kc_each.destroy();
-				}
+				// destroy connection
+				_kc_socket.destroy();
 
 				// mark feed destroyed
-				this._kc_blocks = null;
+				this._kc_socket = null;
 			}
 			catch(e_destroy) {}
 		}
 	}
 
+	/**
+	 * Subscribes to NewBlock events
+	 */
 	async followBlocks(): Promise<void> {
 		const {
 			_p_chain,
 			_p_provider,
+			_kc_socket,
 		} = this;
 
-		// listen for new blocks
+		// nil socket
+		if(!_kc_socket) throw new Error(`No active websocket to subcribe to Tendermint JSON-RPC connection`);
+
+		// timestamps of recent blocks
 		const a_recents: number[] = [];
-		try {
-			// assign block connection
-			this._kc_blocks = await this.subscribeTendermintAbci([
-				`tm.event='NewBlock'`,
-			], {
-				// // some error ocurred on socket
-				// error(g_error) {
-				// 	console.error(`Error on <${this._g_provider.rpcHost}> Websocket:\n%o`, g_error);
 
-				// 	// delete h_sockets[p_chain];
-				// },
+		// subscribe to new blocks
+		await _kc_socket.subscribe<TjrwsValueNewBlock>([
+			`tm.event='NewBlock'`,
+		], (g_result) => {
+			// push to recents list
+			a_recents.push(Date.now());
 
-				// response
-				data(g_value, si_txn) {
-					// push to recents list
-					a_recents.push(Date.now());
+			// prune recents
+			while(a_recents.length > NL_WINDOW_BLOCKS) {
+				a_recents.shift();
+			}
 
-					// cast-assign block struct
-					const g_block = g_value.block as {
-						header: BlockInfoHeader;
-						data: {
-							txs: [];
-						};
-					};
+			// ref block
+			const g_block = g_result.data.value.block;
 
-					// prune recents
-					while(a_recents.length > 16) {
-						a_recents.shift();
-					}
-
-					// broadcast
-					global_broadcast({
-						type: 'blockInfo',
-						value: {
-							header: g_block.header,
-							chain: _p_chain,
-							provider: _p_provider,
-							recents: a_recents,
-							txCount: g_block.data.txs.length,
-						},
-					});
+			// broadcast
+			global_broadcast({
+				type: 'blockInfo',
+				value: {
+					header: g_block.header,
+					chain: _p_chain,
+					provider: _p_provider,
+					recents: a_recents,
+					txCount: g_block.data.txs.length,
 				},
 			});
-		}
-		catch(e_listen) {
-			syserr({
-				title: 'Websocket Error',
-				error: e_listen,
-			});
-		}
+		});
 	}
 
-	async followBroadcasts() {
-		const {
-			_g_chain,
-			_g_provider,
-			_p_chain,
-			_k_network,
-		} = this;
+	// async followBroadcasts() {
+	// 	const {
+	// 		_g_chain,
+	// 		_g_provider,
+	// 		_p_chain,
+	// 		_k_network,
+	// 	} = this;
 
-		const h_abcis: Dict<AbciConfig> = {
-			...tx_abcis(_g_chain, {
-				gov: {
-					filter: `message.action='submit_proposal'`,
+	// 	// nil socket
+	// 	if(!this._kc_socket) throw new Error(`No active websocket to subcribe to Tendermint JSON-RPC connection`);
 
-					data() {
-						const s_contact = 'Someone';
-						const si_prop = '??';
-						// TODO: finish
 
-						const g_notify = {
-							title: `📄 New Governance Proposal`,
-							text: `Proposition ${si_prop}`,
-						};
-					},
-				},
-			}),
-		};
+	// 	const h_abcis: Dict<AbciConfig> = {
+	// 		...tx_abcis(_g_chain, {
+	// 			gov: {
+	// 				filter: `message.action='submit_proposal'`,
 
-		for(const [si_event, g_event] of ode(h_abcis)) {
-			await this.subscribeTendermintAbci(g_event.filter, g_event.hooks);
-		}
-	}
+	// 				data() {
+	// 					const s_contact = 'Someone';
+	// 					const si_prop = '??';
+	// 					// TODO: finish
+
+	// 					const g_notify = {
+	// 						title: `📄 New Governance Proposal`,
+	// 						text: `Proposition ${si_prop}`,
+	// 					};
+	// 				},
+	// 			},
+	// 		}),
+	// 	};
+
+	// 	const kc_socket = this._kc_socket!;
+
+	// 	await Promise.all(ode(h_abcis).map(([si_event, g_event]) => {
+	// 		kc_socket.subscribe(g_event.filter, g_event.hooks.data);
+	// 	}))
+
+	// 	for(const [si_event, g_event] of ode(h_abcis)) {
+
+	// 		await this.subscribeTendermintAbci(g_event.filter, g_event.hooks);
+	// 	}
+	// }
 
 	async followAccounts(): Promise<void> {
-		const {
-			_g_chain,
-		} = this;
-
 		// read accounts store
 		const ks_accounts = await Accounts.read();
 
 		// each account (on cosmos)
-		for(const [p_account, g_account] of ks_accounts.entries()) {
-			// follow address
-			void this.followAccount(g_account);
-		}
+		await Promise.all(ks_accounts.entries().map(([, g_account]) => this.followAccount(g_account)));
 	}
 
-	async followAccount(g_account: AccountStruct): Promise<Dict<TendermintConnection>> {
+	async followAccount(g_account: AccountStruct): Promise<Dict<TmJsonRpcWebsocket>> {
 		const {
 			_g_chain,
 			_g_provider,
 			_p_chain,
 			_k_network,
 			_gc_hooks,
+			_kc_socket,
 		} = this;
+
+		// nil socket
+		if(!_kc_socket) throw new Error(`No active websocket to subcribe to Tendermint JSON-RPC connection`);
 
 		const k_feed = this;
 
@@ -322,31 +444,35 @@ export class NetworkFeed {
 				void _gc_hooks.notify?.(gc_notify, k_feed);
 			}),
 
-			unbonding: {
-				filter: [
-					`complete_unbonding.delegator='${sa_agent}'`,
-				],
+			// unbonding: {
+			// 	type: 'tx_in',
 
-				hooks: {
-					data() {
-						debugger;
-						console.log(`<${_g_provider.rpcHost}> emitted ${si_event} event: %o`, g_data);
-					},
-				},
-			},
+			// 	filter: [
+			// 		`complete_unbonding.delegator='${sa_agent}'`,
+			// 	],
+
+			// 	hooks: {
+			// 		data() {
+			// 			debugger;
+			// 			// console.log(`<${_g_provider.rpcHost}> emitted ${si_event} event: %o`, g_data);
+			// 		},
+			// 	},
+			// },
 		};
 
-		const h_streams: Dict<TendermintConnection> = {};
+		const h_streams: Dict<TmJsonRpcWebsocket> = {};
 
-		for(const [si_event, g_event] of ode(h_abcis)) {
+		for(const [si_event, g_abci] of ode(h_abcis)) {
 			// start listening to events
-			const kc_account = await this.subscribeTendermintAbci(g_event.filter, g_event.hooks);
+			const kc_account = await _kc_socket.subscribe<TjrwsValueTxResult>(g_abci.filter, (g_result) => {
+				// call hook with destructured data
+				g_abci.hooks.data.call(this, g_result.data.value, {
+					si_txn: g_result.events['tx.hash'][0],
+				});
+			});
 
-			// add connection to list
-			this._a_accounts.push(kc_account);
-
-			// // start to synchronize all txs since previous sync height
-			const di_synchronize = this._k_network.synchronize_v2('tx_out', g_event.filter, g_context_vague.p_account);
+			// start to synchronize all txs since previous sync height
+			const di_synchronize = this._k_network.synchronize_v2(g_abci.type, g_abci.filter, g_context_vague.p_account);
 			for await(const {g_tx, g_result, g_synced} of di_synchronize) {
 				// TODO: don't imitate websocket data, make a canonicalizer for the two different data sources instead
 
@@ -364,185 +490,13 @@ export class NetworkFeed {
 				};
 
 				// apply
-				await g_event.hooks.data?.({TxResult:g_value} as unknown as JsonObject, {
+				await g_abci.hooks.data?.call(kc_account, {TxResult:g_value} as unknown as JsonObject, {
 					si_txn: g_result.txhash,
 					g_synced,
 				});
 			}
 		}
-	}
-}
 
-
-export class TendermintConnection {
-	static async connect(_g_provider: ProviderStruct, a_events: string[], g_hooks: ReceiverHooks): Promise<TendermintConnection> {
-		return new Promise((fk_connect, fe_connect) => {
-			try {
-				// create connection
-				const k_connection = new TendermintConnection(_g_provider, a_events, {
-					...g_hooks,
-
-					// intercept connect hooks
-					connect() {
-						// forward event to caller
-						void g_hooks.connect?.();
-
-						// resolve promise for static method
-						fk_connect(k_connection);
-					},
-				});
-			}
-			catch(e_create) {
-				fe_connect(e_create);
-			}
-		});
-	}
-
-	protected _d_ws: WebSocket;
-
-	protected _xt_previous = 0;
-
-	// flag for preventing double error callback
-	protected _b_closed = false;
-
-	private constructor(protected _g_provider: ProviderStruct, _a_events: string[], g_hooks: ReceiverHooks) {
-		const p_host = _g_provider.rpcHost;
-
-		if(!p_host) throw new Error('Cannot subscribe to events; no RPC host configured on network');
-
-		// init websocket
-		const d_ws = this._d_ws = new WebSocket(`wss://${p_host}/websocket`);
-
-		// handle open event
-		d_ws.onopen = (d_event) => {
-			// send Tendermint ABCI subscribe message
-			d_ws.send(JSON.stringify({
-				id: '0',
-				jsonrpc: '2.0',
-				method: 'subscribe',
-				params: {
-					query: _a_events.join(' AND '),
-				},
-			}));
-
-			// emit connect event
-			void g_hooks.connect?.();
-		};
-
-		// handle messages
-		d_ws.onmessage = (d_event: MessageEvent<string>) => {
-			// log timestamp of most recent message
-			this._xt_previous = Date.now();
-
-			// attempt to parse message
-			let g_msg: JsonObject;
-			try {
-				g_msg = JSON.parse(d_event.data || '{}');
-			}
-			// handle invalid JSON
-			catch(e_parse) {
-				console.warn(`<${p_host}> sent invalid JSON over Websocket:\n${d_event.data}`);
-				return;
-			}
-
-			// no data; exit
-			if(!Object.keys(g_msg?.result ?? {}).length) return;
-
-			// attempt to access payload
-			let g_value: JsonObject;
-			let h_events: CosmosEvents;
-			try {
-				const g_result = g_msg.result! as Dict<JsonObject>;
-				g_value = g_result.data.value as JsonObject;
-				h_events = g_result.events as unknown as CosmosEvents;
-			}
-			catch(e_destructre) {
-				console.warn(`<${p_host}> sent unrecognized JSON struct over Websocket:\n${d_event.data}`);
-				return;
-			}
-
-			// valid data; emit
-			if(g_value) {
-				void g_hooks.data(g_value, {
-					si_txn: h_events['tx.hash']?.[0] || '',
-				});
-			}
-		};
-
-		// prep error event ref
-		let d_error: Event;
-
-		// handle socket error
-		d_ws.onerror = (d_event) => {
-			d_error = d_event;
-		};
-
-		// handle socket close
-		d_ws.onclose = (d_event) => {
-			// was not initiated by caller; emit error
-			if(!this._b_closed) {
-				// closed now
-				this._b_closed = true;
-
-				// prep error struct
-				const g_error = {
-					code: d_event.code,
-					reason: d_event.reason,
-					wasClean: d_event.wasClean,
-					error: d_error,
-				};
-
-				// emit error event
-				if(g_hooks.error) {
-					void g_hooks.error(g_error);
-				}
-				// no listener, log error
-				else {
-					console.error(`Error on <${p_host}> Websocket:\n%o`, g_error);
-				}
-			}
-		};
-	}
-
-	/**
-	 * Pings the active websocket to check that it is alive
-	 * @param xt_acceptable - optionally specifies an acceptable span of time to consider the socket alive
-	 */
-	wake(xt_acceptable=0): Promise<void> {
-		if(this._b_closed) {
-			throw new Error(`Attempted to wake a websocket that was already closed`);
-		}
-
-		// go async
-		return new Promise((fk_resolve) => {
-			// no need to check; socket is considered alive
-			if(Date.now() - xt_acceptable < this._xt_previous) return;
-
-			// listen for message
-			this._d_ws.addEventListener('message', () => {
-				// resolve promise
-				fk_resolve();
-			}, {
-				once: true,
-			});
-
-			// send health check message
-			this._d_ws.send(JSON.stringify({
-				id: '0',
-				jsonrpc: '2.0',
-				method: 'health',
-			}));
-		});
-	}
-
-	// closes the socket
-	destroy(): void {
-		if(!this._b_closed) {
-			// signal that user intiated the close
-			this._b_closed = true;
-
-			// close socket
-			this._d_ws.close();
-		}
+		return h_streams;
 	}
 }

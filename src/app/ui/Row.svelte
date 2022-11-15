@@ -9,43 +9,31 @@
 	
 	import {oderom} from '#/util/belt';
 	
-	import InlineTags from './InlineTags.svelte';
 	import Load from './Load.svelte';
-	import PfpDisplay from './PfpDisplay.svelte';
-	
-	
-	// import LockOutline from 'svelte-material-icons/LockOutline.svelte';
-	
-	// import {
-	// 	H_ADDR_TO_CONTACT,
-	// 	H_ICONS,
-	// 	H_TAGS,
-	// } from '#/sim/data';
-	
-	// import Address from './Address.svelte';
+	import Address from '../frag/Address.svelte';
+	import InlineTags from '../frag/InlineTags.svelte';
+	import PfpDisplay from '../frag/PfpDisplay.svelte';
+
 
 	/**
 	 * Path to base resource to represent
 	 */
 	export let resourcePath = '';
-	const p_resource = resourcePath;
 
 	/**
 	 * Base resource to represent
 	 */
 	export let resource: (Nameable & Pfpable) = null!;
-	const g_resource = resource;
 	
 	/**
 	 * Overrides name automatically extracted from resource
 	 */
-	export let name: Promisable<string> = g_resource?.name;
+	export let name: Promisable<string> = resource?.name;
 
 	/**
 	 * Adds ` ({VALUE})` after the name in a dimmer color
 	 */
 	export let postname = '';
-	const s_postname = postname;
 
 	export let postnameTags = false;
 
@@ -54,22 +42,30 @@
 	*/
 	export let noPfp = false;
 
+	/** 
+	 * Disables tags
+	*/
+	export let noTags = false;
+
 	/**
 	 * Overrides pfp automatically extracted from resource
 	 */
-	export let pfp: PfpTarget = g_resource?.pfp;
-	const p_pfp = pfp;
+	export let pfp: PfpTarget = resource?.pfp;
 
 	/**
 	 * Sets the dimensions of the pfp icon
 	 */
 	export let pfpDim = 36;
-	const x_dim_pfp = pfpDim;
 
 	/**
 	 * Indicates the row's pfp comes from an app
 	 */
 	export let appRelated = false;
+
+	/**
+	 * Shows the row as being crossed out
+	 */
+	export let cancelled = false;
 
 	/**
 	 * Optional dict to use to create data attributes on root element
@@ -88,6 +84,8 @@
 	export let detail = '';
 	export let prefix = '';
 
+	export let embedded = false;
+
 
 	// export let tagRefs: Tag.Ref[] | null = null;
 	export let rootStyle = '';
@@ -102,14 +100,11 @@
 	}
 
 	export let rootClasses = '';
-	const s_classes = rootClasses;
 
 	export let iconClass = '';
-	// const k_icon = icon;
-	// $: a_tags = tagRefs?.length? tagRefs.map(p_tag => H_TAGS[p_tag]): [];
 
 	// load tags from resource path
-	const a_tags = $yw_store_tags?.getTagsFor(p_resource) || [];
+	const a_tags = resourcePath? $yw_store_tags?.getTagsFor(resourcePath) || []: [];
 	
 	const as_intervals = new Set<number>();
 
@@ -119,43 +114,10 @@
 		}
 	});
 
-	let s_spin = '';
-	async function start_spinner<w_value>(dp_thing: Promisable<w_value>): Promise<w_value> {
-		const A_SPIN = ['◜ ◝', ' ˉ◞', ' ˍ◝', '◟ ◞', '◜ˍ ', '◟ˉ '];
-		let i_spin = 0;
-		s_spin = A_SPIN[0];
-
-		// thing is a promise
-		if(dp_thing instanceof Promise) {
-			// start spinner
-			const i_interval = window.setInterval(() => {
-				i_spin = (i_spin + 1) % A_SPIN.length;
-				s_spin = A_SPIN[i_spin];
-			}, 125);
-
-			// add to intervals
-			as_intervals.add(i_interval);
-
-			// await thing to resolve
-			const w_value = await dp_thing;
-
-			// stop interval
-			clearInterval(i_interval);
-
-			// return value
-			return w_value;
-		}
-
-		return dp_thing;
-	}
-
-
-	// const k_contact = address? H_ADDR_TO_CONTACT[address] || null: null;
-
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.monoline() {
 		white-space: nowrap;
@@ -181,6 +143,16 @@
 
 		display: flex;
 		flex-direction: column;
+
+		&.embedded {
+			border: none;
+			padding: calc(var(--row-padding) / 2) 0;
+		}
+
+		&.cancelled {
+			text-decoration: line-through;
+			opacity: 0.6;
+		}
 
 		>.banner {
 			display: flex;
@@ -230,8 +202,9 @@
 
 		.content {
 			flex: auto;
-
+			
 			display: flex;
+			width: 0;
 			max-width: calc(var(--app-window-width) - var(--app-icon-diameter) - var(--icon-margin) - var(--row-padding) - var(--row-padding));
 
 			>.part {
@@ -346,15 +319,19 @@
 	}
 </style>
 
-<div class="row {s_classes}" style={rootStyle} {...h_data_attrs} on:click>
+<div class="row {rootClasses}"
+	class:cancelled={cancelled}
+	class:embedded={embedded}
+	style={rootStyle} {...h_data_attrs} on:click
+>
 	<div class="banner">
 		{#if !noPfp}
 			<span class="icon {iconClass}">
 				<slot name="icon">
 					{#await name}
-						<PfpDisplay path={p_pfp} name={'?'} dim={x_dim_pfp} {appRelated} />
+						<PfpDisplay path={pfp} name={'?'} dim={pfpDim} {appRelated} />
 					{:then s_name}
-						<PfpDisplay path={p_pfp} name={s_name} dim={x_dim_pfp} {appRelated} />
+						<PfpDisplay path={pfp} name={s_name} dim={pfpDim} {appRelated} />
 					{/await}
 				</slot>
 			</span>
@@ -366,16 +343,17 @@
 						<slot name="prename" />
 						<span class="text">
 							<Load input={name} />
-							{#if s_postname}
+							{#if postname}
 								<span class="postname">
-									({s_postname})
+									({postname})
 								</span>
 							{/if}
 						</span>
 					</span>
 
-					{#if postnameTags}
-						<InlineTags subtle rootStyle='margin: 0px;'
+					{#if postnameTags && resourcePath}
+						<InlineTags subtle autoCollapse
+							rootStyle='margin: 0px;'
 							{resourcePath}
 						/>
 					{/if}
@@ -407,7 +385,7 @@
 								</slot>
 							</span>
 						{:else if address}
-							<!-- <Address address={address} /> -->
+							<Address address={address} />
 						{/if}
 					</div>
 				{/if}
@@ -446,13 +424,11 @@
 	</div>
 
 	<div class="rest">
-		{#if a_tags.length || $$slots.tags}
+		{#if resourcePath && (a_tags.length || $$slots.tags) && !postnameTags && !noTags}
 			<slot name="tags">
-				<!-- <Tags tags={a_tags} collapsed /> -->
-				<!-- <InlineTags subtle rootStyle='margin: 0px;'
+				<InlineTags subtle rootStyle='margin: 0px;'
 					{resourcePath}
-				>
-				</InlineTags> -->
+				/>
 			</slot>
 		{/if}
 

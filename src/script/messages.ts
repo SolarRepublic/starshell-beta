@@ -11,6 +11,8 @@ import type {
 	JsonObject,
 	Dict,
 	OmitUnknownKeys,
+	RemoveJsonInterfaces,
+	AsJson,
 } from '#/meta/belt';
 import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ChainPath} from '#/meta/chain';
 import type {IncidentPath, TxConfirmed, TxSynced} from '#/meta/incident';
@@ -25,6 +27,7 @@ import type {ConnectionHandleConfig} from '#/provider/connection';
 
 
 import type {AppProfile} from '#/store/apps';
+import type { NotificationConfig } from '#/extension/notifications';
 
 
 
@@ -180,9 +183,9 @@ export namespace IcsToService {
 		 * Requests all available info about the _sender's_ tab and window
 		 */
 		whoami: {
-			response: Merge<{
+			response: AsJson<Merge<{
 				window: chrome.windows.Window;
-			}, chrome.runtime.MessageSender & JsonObject>;
+			}, chrome.runtime.MessageSender>>;
 		};
 
 		// forwards the request for an advertisement on the current page
@@ -234,7 +237,7 @@ export namespace IcsToService {
 
 		// 
 		proxyFlow: {
-			value: Vocab.Message<IntraExt.FlowVocab> & JsonObject;
+			value: AsJson<Vocab.Message<IntraExt.FlowVocab>>;
 		};
 	}>;
 
@@ -344,7 +347,7 @@ export namespace ServiceToIcs {
 
 	export type CommandVocab = Vocab.New<{
 		openFlow: {
-			value: IntraExt.FlowVocab;
+			value: AsJson<IntraExt.FlowVocab>;
 		};
 	}>;
 }
@@ -532,6 +535,9 @@ export namespace IntraExt {
 		// reload all UI
 		reload: {};
 
+		// service unresponsive
+		unresponsiveService: {};
+
 		// store acquired
 		acquireStore: {
 			value: {
@@ -573,7 +579,7 @@ export namespace IntraExt {
 		// block info
 		blockInfo: {
 			value: {
-				header: BlockInfoHeader;
+				header: AsJson<BlockInfoHeader>;
 				chain: ChainPath;
 				provider: ProviderPath;
 				recents: number[];
@@ -601,10 +607,18 @@ export namespace IntraExt {
 		};
 
 		// transaction error
-		txError: {};
+		txError: {
+			value: {
+				hash: string;
+			};
+		};
 
 		// transaction success
-		txSuccess: {};
+		txSuccess: {
+			value: {
+				hash: string;
+			};
+		};
 	}>;
 
 
@@ -711,6 +725,16 @@ export namespace IntraExt {
 		deepLink: {
 			value: DeepLinkMessage;
 		};
+
+		// monitor an outgoing tx
+		monitorTx: {
+			value: {
+				app: AppPath;
+				chain: ChainPath;
+				account: AccountPath;
+				hash: string;
+			};
+		};
 	}, {
 		each: {
 			message: {
@@ -778,7 +802,7 @@ export namespace IntraExt {
 	 */
 	export type WindowVocab = Vocab.New<{
 		conductFlow: {
-			value: Vocab.Message<FlowVocab>;
+			value: AsJson<Vocab.Message<FlowVocab>>;
 		};
 	}>;
 
@@ -793,32 +817,32 @@ export namespace IntraExt {
 
 		// 
 		sessionStorage: {
-			value: Vocab.Message<SessionCommand>;
-			response: Vocab.Response<SessionCommand>;
+			value: AsJson<Vocab.Message<SessionCommand>>;
+			response: AsJson<Vocab.Response<SessionCommand>>;
 		};
 
 		/**
 		 * Requests all avilable info about the _current_ tab and window, used by popups to determine which app is under.
 		 */
 		whoisit: {
-			response: {
+			response: AsJson<{
 				tab: chrome.tabs.Tab;
 				window: chrome.windows.Window;
 				app: AppStruct | null;
 				registered: boolean;
 				authenticated: boolean;
-			} & JsonObject;
+			}>;
 		};
 
 		scheduleBroadcast: {
 			value: {
 				delay?: number;
-				broadcast: Vocab.Message<GlobalVocab>;
+				broadcast: AsJson<Vocab.Message<GlobalVocab>>;
 			};
 		};
 
 		deepLink: {
-			value: DeepLinkMessage;
+			value: AsJson<DeepLinkMessage>;
 		};
 
 		bankSend: {
@@ -880,10 +904,11 @@ export namespace ExtToNative {
 		greet: {};
 
 		notify: {
-			value: {
-				title: string;
-				message: string;
-			};
+			value: AsJson<NotificationConfig>;
+		};
+
+		localStorage: {
+			value: Vocab.Message<StorageVocab>;
 		};
 	}>;
 

@@ -3,7 +3,7 @@
 	import type {SvelteComponent} from 'svelte';
 	
 	import type {ChainStruct, ChainPath} from '#/meta/chain';
-	import type { ContactPath, ContactStruct} from '#/meta/contact';
+	import type {ContactPath, ContactStruct} from '#/meta/contact';
 	import {ContactAgentType} from '#/meta/contact';
 	
 	import {getContext} from 'svelte';
@@ -13,18 +13,18 @@
 	
 	import {R_BECH32} from '#/share/constants';
 	import {Agents} from '#/store/agents';
-	
 	import {Chains} from '#/store/chains';
 	import {ode, ofe, proper} from '#/util/belt';
 	
 	import ContactView from './ContactView.svelte';
+	import Address from '../frag/Address.svelte';
+	import IconEditor from '../frag/IconEditor.svelte';
+	import InlineTags from '../frag/InlineTags.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Field from '../ui/Field.svelte';
-	import IconEditor from '../ui/IconEditor.svelte';
 	import Info from '../ui/Info.svelte';
-	
-	
-	import InlineTags from '../ui/InlineTags.svelte';
+    import type { PfpTarget } from '#/meta/pfp';
+
 
 	const k_page = getContext<Page>('page');
 
@@ -57,6 +57,7 @@
 			s_notes = g_contact.notes;
 			si_agent_type = g_contact.agentType;
 			a_chains = g_contact.chains;
+			p_pfp = g_contact.pfp;
 		});
 	}
 
@@ -67,6 +68,8 @@
 	})();
 
 	// TODO: fix all bech32 address stuff here
+
+	let p_pfp: PfpTarget = '';
 
 	let s_err_name = '';
 	let s_err_address = '';
@@ -122,36 +125,24 @@
 
 	let b_busy = false;
 
-	let y_screen: SvelteComponent;
 	async function save() {
 		if(!b_form_valid) {
 			c_show_validations++;
 
 			return;
 		}
-		else if(p_contact) {
+		else if(p_contact && g_contact) {
 			Object.assign(g_contact, {
 				name: s_name,
 				addressSpace: 'acc',
 				addressData: R_BECH32.exec(sa_bech32)![3],
 				chains: a_chains,
-				pfp: g_contact.pfp,
+				pfp: p_pfp,
 				agentType: si_agent_type,
 				notes: s_notes,
 			});
 
 			k_page.reset();
-			// setTimeout(() => {
-			// 	try {
-			// 		y_screen.$destroy();
-			// 	}
-			// 	catch(e) {}
-	
-			// 	contact = H_CONTACTS[contact.def.iri];
-			// 	push_screen(ContactView, {
-			// 		contact,
-			// 	});
-			// }, 5);
 		}
 		else {
 			g_contact = {
@@ -159,7 +150,7 @@
 				namespace: $yw_chain_namespace,
 				addressSpace: 'acc',
 				addressData: R_BECH32.exec(sa_bech32)![3],
-				pfp: g_contact.pfp,
+				pfp: p_pfp,
 				agentType: si_agent_type,
 				notes: s_notes,
 				origin: 'user',
@@ -188,12 +179,10 @@
 			b_busy = false;
 		}
 	}
-
-	// let p_icon: Icon.Ref = contact?.def.iconRef || '' as Icon.Ref;
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	#chain-namespace {
 		:global(&) {
@@ -208,18 +197,11 @@
 	}
 </style>
 
-<Screen bind:this={y_screen} leaves>
+<Screen slides leaves>
 	<Header
 		plain pops
 		title="{p_contact? 'Edit': 'Add New'} Contact"
 	/>
-
-	<Field
-		key="contact-pfp"
-		name="Profile Icon"
-	>
-		<IconEditor intent='person' pfpPath={g_contact?.pfp} name={s_name} />
-	</Field>
 
 	<Field
 		key="chain-namespace"
@@ -227,7 +209,7 @@
 	>
 		<Info key="chain-namespace">
 			<style lang="less">
-				@import './_base.less';
+				@import '../_base.less';
 
 				.title {
 					.font(regular);
@@ -249,6 +231,29 @@
 		</Info>
 	</Field>
 
+	<Field key="contact-address" name="Address">
+		{#if p_contact}
+			<Info key="address">
+				<Address address={sa_bech32} />
+			</Info>
+		{:else}
+			<input
+				type="text"
+				class="address"
+				class:invalid={s_err_address}
+				spellcheck="false"
+				placeholder="{$yw_chain.bech32s.acc}1..."
+				disabled={!!p_contact}
+				bind:value={sa_bech32}
+			>
+
+			{#if s_err_address}
+				<span class="validation-message">
+					{s_err_address}
+				</span>
+			{/if}
+		{/if}
+	</Field>
 
 	<Field
 		key="contact-name"
@@ -264,31 +269,17 @@
 	</Field>
 
 	<Field
-		key="contact-address"
-		name="Address"
-	>
-		<input
-			type="text"
-			class="address"
-			class:invalid={s_err_address}
-			spellcheck="false"
-			placeholder="{$yw_chain.bech32s.acc}1..."
-			disabled={!!p_contact}
-			bind:value={sa_bech32}
-		>
-
-		{#if s_err_address}
-			<span class="validation-message">
-				{s_err_address}
-			</span>
-		{/if}
-	</Field>
-
-	<Field
 		key="contact-notes"
 		name="Secure Notes"
 	>
 		<textarea bind:value={s_notes} placeholder=""></textarea>
+	</Field>
+
+	<Field
+		key="contact-pfp"
+		name="Profile Icon"
+	>
+		<IconEditor intent='person' bind:pfpPath={p_pfp} name={s_name} />
 	</Field>
 
 	<hr>
@@ -299,5 +290,5 @@
 
 	<InlineTags editable resourcePath={p_contact} />
 
-	<ActionsLine back confirm={[p_contact? 'Save': 'Add', save, !b_form_valid]} />
+	<ActionsLine back confirm={[p_contact? 'Save': 'Add', save, !b_form_valid || b_busy]} />
 </Screen>

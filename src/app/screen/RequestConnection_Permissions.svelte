@@ -1,24 +1,44 @@
 <script lang="ts">
-	import {slide} from 'svelte/transition';
-	import {quintOut} from 'svelte/easing';
-	import {Screen} from './_screens';
-
-	import type {Completed} from '#/entry/flow';
-	import type {AppChainConnection, AppStruct} from '#/meta/app';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import {getContext} from 'svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
-	import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
-	import {fodemtv, ode, ofe} from '#/util/belt';
-	import type {Dict} from '#/meta/belt';
-	import type {SessionRequest} from '#/meta/api';
 	import type {AccountStruct} from '#/meta/account';
-	import {Chains} from '#/store/chains';
+	import type {SessionRequest} from '#/meta/api';
+	import type {AppChainConnection, AppStruct} from '#/meta/app';
+	import type {Dict} from '#/meta/belt';
+	import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
+	import type {PfpPath, PfpTarget} from '#/meta/pfp';
+	import type {TokenStructDescriptor} from '#/meta/token';
+	
+	import {quintOut} from 'svelte/easing';
+	import {slide} from 'svelte/transition';
+	
+	import {Screen} from './_screens';
 	import {yw_chain, yw_provider} from '../mem';
-	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
-	import {abbreviate_addr} from '#/util/format';
-
+	
+	import {load_flow_context, s2r_slide} from '../svelte';
+	
 	import {type PermissionsRegistry, process_permissions_request} from '#/extension/permissions';
+	import {SessionStorage} from '#/extension/session-storage';
+	import {Accounts} from '#/store/accounts';
+	import {Apps} from '#/store/apps';
+	import {Chains} from '#/store/chains';
+	import {Contracts} from '#/store/contracts';
+	import {Incidents} from '#/store/incidents';
+	import {Pfps} from '#/store/pfps';
+	import {fodemtv, ode, ofe} from '#/util/belt';
+	import {abbreviate_addr} from '#/util/format';
+	
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
+	
+	import SX_ICON_BADGE from '#/icon/address-card.svg?raw';
+	import SX_ICON_DROPDOWN from '#/icon/arrow-drop-down.svg?raw';
+	import SX_ICON_TARGET from '#/icon/crosshairs.svg?raw';
+	import SX_ICON_SEND from '#/icon/paper-plane.svg?raw';
+	import SX_ICON_READ from '#/icon/search-plus.svg?raw';
+	import SX_ICON_SERVER from '#/icon/server.svg?raw';
+	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
+	import SX_ICON_X from '#/icon/tiny-x.svg?raw';
+	
 
 	interface Permission {
 		optional?: boolean;
@@ -36,26 +56,8 @@
 		justifications?: string[];
 		block?: HTMLElement;
 	}
-
+	
 	type PermissionKey = keyof PermissionsRegistry;
-
-	import SX_ICON_BADGE from '#/icon/address-card.svg?raw';
-	import SX_ICON_READ from '#/icon/search-plus.svg?raw';
-	import SX_ICON_SEND from '#/icon/paper-plane.svg?raw';
-	import SX_ICON_TARGET from '#/icon/crosshairs.svg?raw';
-	import SX_ICON_SERVER from '#/icon/server.svg?raw';
-	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
-	import SX_ICON_DROPDOWN from '#/icon/arrow-drop-down.svg?raw';
-	import SX_ICON_X from '#/icon/tiny-x.svg?raw';
-	import {Apps} from '#/store/apps';
-	import {load_flow_context, s2r_slide} from '../svelte';
-	import {Accounts} from '#/store/accounts';
-	import {Incidents} from '#/store/incidents';
-	import {Contracts} from '#/store/contracts';
-	import type {PfpPath, PfpTarget} from '#/meta/pfp';
-	import type {TokenStructDescriptor} from '#/meta/token';
-	import {Pfps} from '#/store/pfps';
-	import {SessionStorage} from '#/extension/session-storage';
 
 	const H_PERMISSIONS: {
 		[si_key in PermissionKey]: (w_value: PermissionsRegistry[si_key]) => Permission;
@@ -295,6 +297,7 @@
 			});
 		}
 
+		debugger;
 		// save incident
 		await Incidents.record({
 			type: 'app_connected',
@@ -312,7 +315,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.show-hidden {
 		margin: 0 var(--ui-padding);

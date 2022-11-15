@@ -1,4 +1,5 @@
 import type {Promisable} from '#/meta/belt';
+
 import {F_NOOP} from '#/util/belt';
 
 export interface GenericGestureConfig<

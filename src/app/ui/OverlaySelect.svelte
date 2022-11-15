@@ -39,7 +39,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.cancel {
 		position: absolute;

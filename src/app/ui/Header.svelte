@@ -18,8 +18,7 @@
 		yw_overlay_app,
 		yw_overlay_network,
 		yw_search,
-		yw_thread,
-        yw_update,
+		yw_update,
 	} from '../mem';
 	
 	import {keplr_polyfill_script_add_matches} from '#/script/scripts';
@@ -33,9 +32,9 @@
 	import Close from './Close.svelte';
 	import Load from './Load.svelte';
 	import OverlaySelect from './OverlaySelect.svelte';
-	import PfpDisplay from './PfpDisplay.svelte';
 	import Row from './Row.svelte';
 	import StarShellLogo from './StarShellLogo.svelte';
+	import PfpDisplay from '../frag/PfpDisplay.svelte';
 	
 	import AppView from '../screen/AppView.svelte';
 	
@@ -145,8 +144,6 @@
 
 	// deduce app path
 	const p_app = g_cause?.app? Apps.pathFrom(g_cause.app): null;
-
-	console.log({g_cause});
 
 
 	let dm_header: HTMLElement;
@@ -288,7 +285,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.header {
 		display: flex;
@@ -554,11 +551,11 @@
 							<!-- controls for search -->
 							<span class="controls">
 								<!-- filter control -->
-								<span class="global_svg-icon filter">
+								<!-- <span class="global_svg-icon filter">
 									{@html SX_ICON_NARROW}
 								</span>
 
-								<span class="separator">&nbsp;</span>
+								<span class="separator">&nbsp;</span> -->
 
 								<!-- cancel button -->
 								<span class="global_svg-icon cancel" on:click={cancel_search}>
@@ -705,7 +702,7 @@
 								d_event.stopPropagation();
 								$yw_overlay_account = !$yw_overlay_account;
 							}}>
-								{#key $yw_account_editted || $yw_account}
+								{#key $yw_account}
 									<PfpDisplay
 										resource={$yw_account}
 										updates={$yw_account_editted}

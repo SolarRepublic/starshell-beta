@@ -23,12 +23,26 @@ export async function create_account(
 	sxb64_pubkey: string,
 	p_pfp: PfpTarget
 ): Promise<[AccountPath, AccountStruct]> {
+	// determine by number of accounts
+	let i_citizen = (await Accounts.read()).entries().length + 1;
+
+	// find an unused name
+	for(;;) {
+		const a_accounts = await Accounts.filter({
+			name: `Citizen ${i_citizen}`,
+		});
+
+		if(!a_accounts.length) break;
+
+		i_citizen += 1;
+	}
+
 	// open accounts store and save new account
 	const p_account = await Accounts.open(ks_accounts => ks_accounts.put({
 		family: 'cosmos',
 		pubkey: sxb64_pubkey,
 		secret: p_secret,
-		name: 'Citizen 1',
+		name: `Citizen ${i_citizen}`,
 		utilityKeys: {},
 		pfp: p_pfp,
 	}));

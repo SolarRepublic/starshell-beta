@@ -1,30 +1,19 @@
 <script lang="ts">
 	import {onDestroy} from 'svelte';
 	
-	import {
-		Screen,
-		Header,
-		SubHeader,
-	} from './_screens';
+	import {Screen, Header, SubHeader} from './_screens';
 	
-	import {global_receive} from '#/script/msg-global';
+	import {subscribe_store} from '#/store/_base';
 	import {Incidents} from '#/store/incidents';
 	
-	import IncidentsList from '../ui/IncidentsList.svelte';
+	import IncidentsList from '../frag/IncidentsList.svelte';
+	import LoadingRows from '../ui/LoadingRows.svelte';
 	
 
 	let c_reloads = 1;
-	const f_unsubscribe = global_receive({
-		updateStore({key:si_store}) {
-			if('incidents' === si_store || 'histories' === si_store) {
-				c_reloads++;
-			}
-		},
-	});
-
-	onDestroy(() => {
-		f_unsubscribe();
-	});
+	subscribe_store(['incidents'], () => {
+		c_reloads++;
+	}, onDestroy);
 
 	async function load_incidents() {
 		const a_incidents = [...await Incidents.filter()];
@@ -34,7 +23,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 </style>
 
@@ -54,7 +43,7 @@
 
 	{#key c_reloads}
 		{#await load_incidents()}
-			Loading history...
+			<LoadingRows count={10} />
 		{:then a_incidents}
 			<IncidentsList
 				incidents={a_incidents}

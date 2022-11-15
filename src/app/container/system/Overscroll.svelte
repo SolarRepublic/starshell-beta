@@ -86,6 +86,4 @@
 	<circle cx="16" cy="16" r="10" class="ring" stroke-width="3" style="opacity:0.2;" />
 
 	<circle cx="16" cy="16" r="10" class="progress" stroke-width="3" style="stroke-dashoffset:{62 - (x_overscroll * 62)}" bind:this={dm_progress} />
-	
-	<!-- <path d="M16 16 A16 6 {xa_pct} {xa_pct}" class="s2r-overflow-fg" /> -->
 </svg>

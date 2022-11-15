@@ -1,12 +1,16 @@
 <script lang="ts">
+	import {getContext} from 'svelte';
+	
+	import {Screen, SubHeader, type Page} from './_screens';
+	
 	import {Chains} from '#/store/chains';
 	import {Providers} from '#/store/providers';
-	import {getContext} from 'svelte';
-	import Header from '../ui/Header.svelte';
-    import LoadingRows from '../ui/LoadingRows.svelte';
-	import Row from '../ui/Row.svelte';
+	
 	import ProviderView from './ProviderView.svelte';
-	import {Screen, SubHeader, type Page} from './_screens';
+	import Header from '../ui/Header.svelte';
+	import LoadingRows from '../ui/LoadingRows.svelte';
+	import Row from '../ui/Row.svelte';
+	
 
 	const k_page = getContext<Page>('page');
 

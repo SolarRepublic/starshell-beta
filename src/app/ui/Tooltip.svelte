@@ -1,20 +1,20 @@
 <script type="ts">
-	import {fade} from 'svelte/transition';
 	import {quintOut} from 'svelte/easing';
+	import {fade} from 'svelte/transition';
 
+	import {yw_curtain} from '../mem';
+	
 	import SX_ICON_INFO from '#/icon/info.svg?raw';
-	import {yw_blur, yw_curtain} from '../mem';
 
 	export let showing = false;
 
 	export let overlayStyle = '';
 
-	// $: $yw_blur = b_showing;
 	$: $yw_curtain = showing;
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.tooltip {
 		position: relative;

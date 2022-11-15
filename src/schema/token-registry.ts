@@ -27,6 +27,13 @@ export const TokenRegistry: Record<TokenSpecKey, TokenEntry> = {
 		},
 	},
 
+	'snip-24': {
+		extends: 'snip-20',
+		attributes: {
+			fungible: true,
+		},
+	},
+
 	'snip-721': {
 		attributes: {
 			fungible: false,

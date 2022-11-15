@@ -1,4 +1,3 @@
-
 <style lang="less">
 	.bottom {
 		display: flex;

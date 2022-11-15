@@ -1,10 +1,7 @@
 <script lang="ts">
 	import type {ContractStruct, FeeConfig} from '#/meta/chain';
-	import type {Cw} from '#/meta/cosm-wasm';
-	import type {GenericAminoMessage} from '#/schema/amino';
-	import type {Snip20} from '#/schema/snip-20-def';
 
-	import {Snip20MessageConstructor, Snip20Util} from '#/schema/snip-2x-const';
+	import {Snip2xMessageConstructor} from '#/schema/snip-2x-const';
 	
 	import Fuse from 'fuse.js';
 	
@@ -12,22 +9,19 @@
 	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_network} from '../mem';
 	import {load_page_context} from '../svelte';
 	
-	import {amino_to_base} from '#/chain/cosmos-msgs';
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {add_utility_key} from '#/share/account';
-	import {ATU8_SHA256_STARSHELL} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {G_APP_STARSHELL} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
 	import {Secrets} from '#/store/secrets';
 	import {deduplicate} from '#/util/belt';
-	import {buffer_to_base64, concat, text_to_buffer} from '#/util/data';
 	
 	import RequestSignature, {type CompletedSignature} from './RequestSignature.svelte';
 	import TokenManualAdd from './TokenManualAdd.svelte';
 	import Header from '../ui/Header.svelte';
-	import PfpDisplay from '../ui/PfpDisplay.svelte';
+	import PfpDisplay from '../frag/PfpDisplay.svelte';
 	import Row from '../ui/Row.svelte';
 	
 	import SX_ICON_ADD from '#/icon/add.svg?raw';
@@ -128,7 +122,7 @@
 		// generate viewing key messages
 		const a_msgs_proto = await Promise.all(a_staged.map(async(g_token) => {
 			// construct wasm message
-			const g_exec = await Snip20MessageConstructor.generate_viewing_key(g_account, g_token, $yw_network as SecretNetwork);
+			const g_exec = await Snip2xMessageConstructor.generate_viewing_key(g_account, g_token, $yw_network as SecretNetwork);
 
 			// as proto
 			return g_exec.proto;

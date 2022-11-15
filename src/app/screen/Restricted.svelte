@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { Screen } from './_screens';
+	import {Screen} from './_screens';
 
+	import {open_external_link} from '#/util/dom';
+	
 	import ActionsLine from '../ui/ActionsLine.svelte';
+	import Horizon from '../ui/Horizon.svelte';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
 	import StarShellTitle from '../ui/StarShellTitle.svelte';
-	import Horizon from '../ui/Horizon.svelte';
-	import { open_external_link } from '#/util/dom';
 </script>
 
 <style lang="less">

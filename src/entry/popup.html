@@ -12,40 +12,66 @@
 
 	<link data-meta="global" rel='stylesheet' href='../style/global.less'>
 
+	<script type="module" src="./factory-reset.ts"></script>
 	<script type="module" src="./popup.ts"></script>
 </head>
-<body>
+<body class="recovery">
 	<style>
-		#dom-log button {
-			padding: 0.5em 1em;
-			border: 1px solid white;
-			border-radius: 4px;
-			margin: 0.5em;
-		}
-
-		#dom-log button#reload {
-			font-family: monospace;
-			background-color: #23af00;
+		body.recovery {
+			background-color: #0f1317;
 			color: #f7f7f7;
 		}
 
-		#dom-log button#factory-reset {
+		#dom-log {
+			font-family: Poppins;
+			padding: 1.25em 0.75em;
+		}
+
+		#dom-log button {
+			padding: 0.5em 1em;
+			border: 2px solid white;
+			background-color: rgba(0, 0, 0, 0.8);
+			border-radius: 4px;
+			margin: 0.5em;
 			font-family: monospace;
-			background-color: #f85931;
-			color: black;
+			color: white;
+		}
+
+		#dom-log button[disabled] {
+			opacity: 0.5;
+		}
+
+		#dom-log button#reload {
+			border-color: #23af00;
+		}
+
+		#dom-log button#factory-reset {
+			border-color: #f85931;
+		}
+
+		#dom-log .small-title {
+			margin-top: 0.75em;
+			font-size: 13px;
+		}
+
+		#dom-log ol {
+			margin-left: -1em;
 		}
 	</style>
 	<section id="dom-log">
+		<h3 class="fallback-title">StarShell Emergency Fallback</h3>
 		<div class="recovery">
-			<div class="title">
-				Recovery Options
+			<div class="small-title">
+				Recovery Options:
 			</div>
 			<div class="actions">
 				<button id="reload">Reload</button>
-				<button id="factory-reset">Factory reset</button>
+				<button id="factory-reset" disabled>Factory reset</button>
 			</div>
 		</div>
-		<h5>StarShell Emergency Fallback DOM Log</h5>
+		<div class="small-title">
+			Startup Log:
+		</div>
 		<ol id="dom-log-list">
 			<li>
 				<pre>Loading StarShell popup script...</pre>

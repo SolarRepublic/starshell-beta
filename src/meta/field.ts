@@ -4,6 +4,7 @@ import type { AppPath, AppStruct } from './app';
 import type {Promisable} from './belt';
 import type { Bech32, ChainPath, ChainStruct } from './chain';
 import type {PfpTarget} from './pfp';
+import type { SecretPath } from './secret';
 
 export type ResourceFieldRegistry = {
 	app: {
@@ -60,6 +61,7 @@ export type FieldConfigRegistry = {
 
 	resource: Merge<{
 		label?: string;
+		short?: boolean;
 	}, {
 		[si_each in ResourceFieldKey]: Merge<{
 			resourceType: si_each;
@@ -76,11 +78,23 @@ export type FieldConfigRegistry = {
 		g_chain: ChainStruct;
 	};
 
+	accounts: {
+		label?: string;
+		paths: AccountPath[];
+		short?: boolean;
+	};
+
+	apps: {
+		paths: AppPath[];
+		label?: string;
+		short?: boolean;
+	};
+
 	contracts: {
 		label?: string;
-		bech32s: Bech32[];
-		g_app: AppStruct;
+		bech32s: Promisable<Bech32[] | Record<Bech32, any>>;
 		g_chain: ChainStruct;
+		g_app?: AppStruct;
 	};
 
 	dom: {
@@ -97,10 +111,15 @@ export type FieldConfigRegistry = {
 	gap: {};
 
 	group: {
-		fields: FieldConfig[];
+		fields: Promisable<FieldConfig[]>;
 		flex?: boolean;
 		expanded?: boolean;
 	};
+
+	query_permit: {
+		secret: SecretPath<'query_permit'>;
+	};
+
 };
 
 export type FieldConfigKey = keyof FieldConfigRegistry;

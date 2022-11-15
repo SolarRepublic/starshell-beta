@@ -1,4 +1,6 @@
-import type {A, Union} from 'ts-toolbelt';
+import type { NotificationConfig } from '#/extension/notifications';
+import type { GenericAminoMessage } from '#/schema/amino';
+import type {A, O, Union} from 'ts-toolbelt';
 import type {If} from 'ts-toolbelt/out/Any/If';
 import type {And, Or} from 'ts-toolbelt/out/Boolean/_api';
 import type {Tail} from 'ts-toolbelt/out/List/_api';
@@ -223,6 +225,11 @@ export type Dict<w_value=string> = Record<string, w_value>;
  */
 export type Promisable<w_value> = w_value | Promise<w_value>;
 
+/**
+ * Shortcut for another common type pattern
+ */
+ export type Arrayable<w_value> = w_value | Array<w_value>;
+
 
 /**
  * Root type for all objects considered to be parsed JSON objects
@@ -259,9 +266,23 @@ export type JsonValue<w_inject extends any=never> =
 	| JsonPrimitiveNullable<w_inject>
 	| JsonArray<w_inject>
 	| JsonObject<w_inject>
-	| undefined;
+	| Arrayable<undefined>;
 
 /**
  * Removes JSON interfaces from a type
  */
 export type RemoveJsonInterfaces<w_type> = Exclude<A.Compute<Exclude<Extract<w_type, object>, JsonArray>>, JsonObject>;
+
+type DerivedJsonPrimitiveNullable = Arrayable<JsonPrimitiveNullable> | Arrayable<undefined>;
+
+/**
+ * Reinterprets the given type as being JSON-compatible
+ */
+export type AsJson<
+	z_test extends JsonValue | {} | {}[],
+> = z_test extends JsonValue? z_test
+	: z_test extends Array<infer w_type>
+		? AsJson<w_type>[]
+		: {
+			[si_each in keyof z_test]: AsJson<z_test[si_each]>;
+		};

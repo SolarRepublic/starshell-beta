@@ -1,9 +1,12 @@
 <script lang="ts">
 	import {createEventDispatcher} from 'svelte';
 
-	import SX_ICON_ADD from '#/icon/add-small.svg?raw';
+	import {yw_popup} from '../mem';
+	
 	import Close from './Close.svelte';
-	import { yw_popup } from '../mem';
+	
+	import SX_ICON_ADD from '#/icon/add-small.svg?raw';
+	
 
 	export let title: string;
 

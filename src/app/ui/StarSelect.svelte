@@ -12,15 +12,19 @@
 </script>
 
 <script lang="ts">
+	import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+	
+	import type {Nameable, Pfpable} from '#/meta/able';
+	import type {Dict, JsonObject} from '#/meta/belt';
+	import type {PfpTarget} from '#/meta/pfp';
+	
 	import {onMount} from 'svelte';
 	import Select from 'svelte-select';
+	
 	import {dd} from '#/util/dom';
-
+	
 	import SX_ICON_DROPDOWN from '#/icon/drop-down.svg?raw';
-	import type {Nameable, Pfpable} from '#/meta/able';
-	import type {PfpTarget} from '#/meta/pfp';
-	import type {JsonObject} from '#/meta/belt';
-	import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+	
 
 	export let id = '';
 	export let placeholder = '';
@@ -32,7 +36,7 @@
 
 	export let disabled = false;
 
-	export let pfpMap: Record<PfpTarget, HTMLElement> | null = null;
+	export let pfpMap: Dict<HTMLElement> | null = null;
 	const h_pfps = pfpMap;
 
 	export let primaryClass = '';
@@ -68,7 +72,8 @@
 		setTimeout(() => {
 			try {
 				const x_bottom = dm_star_select.getBoundingClientRect().bottom;
-				sx_max_height = Math.min(window.innerHeight - x_bottom - 20, 500)+'px';
+				const xl_height = dm_star_select.closest('.screen')!.getBoundingClientRect().height;
+				sx_max_height = Math.max(100, Math.min(xl_height - x_bottom - 20, 500))+'px';
 			}
 			catch(e_bounds) {}
 		}, 1000);
@@ -76,7 +81,7 @@
 </script>
 
 <style lang="less">
-	@import './_base.less';
+	@import '../_base.less';
 
 	.global_select-item {
 		>.global_pfp {
@@ -154,5 +159,7 @@
 		getOptionLabel={create_label}
 		getSelectionLabel={create_label}
 		--listMaxHeight={sx_max_height}
+		on:select
+		on:clear
 	/>
 </div>

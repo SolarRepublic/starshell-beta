@@ -175,6 +175,9 @@ body {
 	}
 }
 
+.global_pulse {
+	.pulse();
+}
 
 .global_pfp {
 	display: inline-block;
@@ -303,7 +306,7 @@ body {
 	}
 
 	.dynamic-deferred-content {
-		animation: pulse 1s ease-in-out infinite;
+		.pulse();
 		background: black;
 		// background: linear-gradient(315deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.75) 100%);
 		// linear-gradient(268deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 25%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.35) 75%, rgba(0,0,0,0) 100%)
@@ -437,6 +440,14 @@ body {
 	border-top-color: black;
 }
 
+.color_primary {
+	color: var(--theme-color-primary);
+}
+
+.color_caution {
+	color: var(--theme-color-caution);
+}
+
 code {
 	.font(mono) !important;
 	color: fade(@theme-color-light, 90%);
@@ -450,7 +461,7 @@ mark {
 	background-color: var(--theme-color-text-med);
 }
 
-.text:not(button .text):not(.row .text):not(.link .text) {
+.text:not(button .text):not(.row .text):not(.link .text):not(.menu li .text) {
 	user-select: text;
 	cursor: default;
 }

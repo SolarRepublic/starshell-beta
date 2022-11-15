@@ -318,7 +318,6 @@ export const ServiceRouter = {
 
 		// go async
 		return new Promise((fk_resolve, fe_reject) => {
-			debugger;
 			// send connection requestion to service
 			f_runtime().sendMessage({
 				type: 'requestConnection',

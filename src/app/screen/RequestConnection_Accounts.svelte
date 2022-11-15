@@ -1,21 +1,23 @@
-<script lang="ts">
-	import {Screen} from './_screens';
-
-	import type {AppStruct} from '#/meta/app';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import AppBanner from '../ui/AppBanner.svelte';
-	import type {Caip2, ChainStruct} from '#/meta/chain';
-	import type {SessionRequest} from '#/meta/api';
-	import {Accounts} from '#/store/accounts';
+<script lang="ts">	
 	import type {AccountStruct, AccountPath} from '#/meta/account';
-	import Row from '../ui/Row.svelte';
-	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
-	import {fodemtv, F_NOOP, ode, oderac} from '#/util/belt';
+	import type {SessionRequest} from '#/meta/api';
+	import type {AppStruct} from '#/meta/app';
 	import type {Dict} from '#/meta/belt';
+	import type {Caip2, ChainStruct} from '#/meta/chain';
+	
+	import {Screen} from './_screens';
 	import {yw_account_ref} from '../mem';
-	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
 	import {load_flow_context} from '../svelte';
-    import LoadingRows from '../ui/LoadingRows.svelte';
+	
+	import {Accounts} from '#/store/accounts';
+	import {fodemtv, F_NOOP, ode, oderac} from '#/util/belt';
+	
+	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
+	import LoadingRows from '../ui/LoadingRows.svelte';
+	import Row from '../ui/Row.svelte';
 
 
 	const {
@@ -31,10 +33,6 @@
 	const g_single_chain = 1 === Object.keys(h_chains).length? Object.values(h_chains)[0]: null;
 
 	export let sessions: Dict<SessionRequest>;
-
-	function connect() {
-		completed(true);
-	}
 
 	type AccountMap = Record<AccountPath, AccountStruct>;
 

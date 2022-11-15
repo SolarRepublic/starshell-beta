@@ -1,13 +1,19 @@
+import type {PageInfo} from './messages';
+
+import type {AppStruct} from '#/meta/app';
+import {AppApiMode} from '#/meta/app';
+
+import {open_flow} from './msg-flow';
+
 import {Vault} from '#/crypto/vault';
 import type {PositionConfig} from '#/extension/browser';
-import {AppApiMode, AppStruct} from '#/meta/app';
 import {B_MOBILE, R_DOMAIN_LOCALHOST} from '#/share/constants';
-import {AppProfile, Apps} from '#/store/apps';
-import {AppPolicyResult, Policies} from '#/store/policies';
+import type {AppProfile} from '#/store/apps';
+import {Apps} from '#/store/apps';
+import type {AppPolicyResult} from '#/store/policies';
+import {Policies} from '#/store/policies';
 import {KeplrCompatibilityMode, Settings} from '#/store/settings';
 import AsyncLockPool from '#/util/async-lock-pool';
-import type {PageInfo} from './messages';
-import {open_flow} from './msg-flow';
 
 
 type MessageSender = chrome.runtime.MessageSender;

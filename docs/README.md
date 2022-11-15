@@ -12,14 +12,16 @@ Before diving into any of the code, please see this brief note on the [Coding Co
 
 Under the [`src/`](/src) directory:
 
- - `app` - source code for the app ui
+ - `app` - source code for the app's user interface
    - `container` - structural svelte components
      - `system` - subcomponents that augment the primary display
+   - `frag` - svelte components that encapsulate some custom, reusable app element
    - `nav` - 
-   - `screen` - standalone svelte screens
+   - `popup` - svelte components for each various popup view
+   - `screen` - svelte files that correspond to individual screens in the app
    - `style` - importable Less CSS files
-   - `svg` - 
-   - `ui` - reusable svelte components
+   - `svg` - svelte files needed to generate inline SVG elements dynamically
+   - `ui` - svelte screen elements for composing views
  - `chain` - 
  - `crypto` - functions related to cryptography and cryptocurrency protocols
  - `entry` - application entrypoint HTML files and their loader ES modules

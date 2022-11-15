@@ -1,3 +1,4 @@
+import type { JsonObject } from '#/meta/belt';
 import type {IncidentPath} from '#/meta/incident';
 
 export type NotificationRouterRegistry = {

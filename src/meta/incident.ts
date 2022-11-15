@@ -1,10 +1,11 @@
+import type { AppContext } from '#/app/svelte';
 import type { JsonMsgSend, PendingSend, TypedEvent } from '#/chain/cosmos-network';
 import type { Dict, Explode, JsonObject } from '#/meta/belt';
 import type { GenericAminoMessage } from '#/schema/amino';
 import type { Snip24Permission } from '#/schema/snip-24-def';
 import type { AminoMsg } from '@cosmjs/amino';
 import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-import type { Union } from 'ts-toolbelt';
+import type { O, Union } from 'ts-toolbelt';
 import type { Cast } from 'ts-toolbelt/out/Any/Cast';
 import type { Merge } from 'ts-toolbelt/out/Object/Merge';
 import type {Nameable, Pfpable} from './able';
@@ -174,21 +175,13 @@ export interface TxError extends TxCore, TxOutgoing {
 	log: string;
 }
 
-export interface SignedJsonEventRegistry {
-	query_permits?: {
-		secret: SecretPath<'query_permit'>;
-		action: Explode<{
-			created: {
-				app: AppPath;
-			};
-			shared: {
-				app: AppPath;
-			};
-		}>;
-	}[];
-}
-
 type TxStageKey = (TxPending | TxConfirmed | TxSynced)['stage'];
+
+interface AppChainAccount {
+	app: AppPath;
+	chain: ChainPath;
+	account: AccountPath;
+}
 
 export type IncidentRegistry = {
 	// tx_out: {
@@ -215,12 +208,22 @@ export type IncidentRegistry = {
 		deltas: [string, string, string][];
 	};
 
-	signed_json: {
-		account: AccountPath;
+	signed_json: O.Merge<AppChainAccount, {
+		json: JsonObject;
+	}>;
 
-		app: AppPath;
+	signed_query_permit: O.Merge<AppChainAccount, {
+		secret: SecretPath<'query_permit'>;
+	}>;
 
-		events: Partial<SignedJsonEventRegistry>;
+	shared_query_permit: {
+		secret: SecretPath<'query_permit'>;
+		apps: AppPath[];
+	};
+
+	shared_viewing_key: {
+		secret: SecretPath<'viewing_key'>;
+		apps: AppPath[];
 	};
 
 	app_connected: {

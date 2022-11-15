@@ -154,6 +154,9 @@ module.exports = {
 		// typescript lib
 		'svelte3/typescript': () => require('typescript'),
 		'svelte3/ignore-styles': () => true,
+		'svelte3/ignore-warnings': ({code}) => [
+			'a11y-click-events-have-key-events',
+		].includes(code),
 
 		'i/parsers': {
 			'@typescript-eslint/parser': ['.ts', '.svelte'],
@@ -259,8 +262,6 @@ module.exports = {
 					'restrict-plus-operands',
 					'ban-types',
 					'consistent-type-definitions',
-					'no-dynamic-delete',
-					'no-invalid-void-type',
 				]),
 
 				...warn([
@@ -313,6 +314,8 @@ module.exports = {
 							'empty-interface',
 							'unnecessary-condition',
 							'redeclare',
+							'dynamic-delete',
+							'invalid-void-type',
 						]),
 						
 						...warn([
@@ -327,9 +330,6 @@ module.exports = {
 							'shadow',
 						]),
 
-						'invalid-void-type': ['warn', {
-							allowInGenericTypeArguments: true,
-						}],
 
 						'floating-promises': ['warn', {
 							ignoreVoid: true,

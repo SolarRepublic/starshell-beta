@@ -15,8 +15,9 @@ import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
 
 import {storage_get_all} from '#/extension/public-storage';
-import {ode, oderac} from '#/util/belt';
+import {is_dict, ode, oderac} from '#/util/belt';
 import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
+import { ResourceNonExistentError } from '#/share/errors';
 
 type PathFrom<
 	g_secret extends Pick<SecretStruct, 'type' | 'uuid'>,
@@ -28,7 +29,7 @@ interface SecretFilterConfig {
 	chain?: ChainPath;
 	owner?: Bech32;
 	contract?: Bech32;
-	contracts?: Bech32[];
+	contracts?: Bech32[] | Record<Bech32, string>;
 	name?: string;
 	bip44?: Bip44Path;
 	permissions?: Snip24Permission[];
@@ -57,7 +58,7 @@ export const Secrets = {
 		return `:${buffer_to_base93(sha256_sync(text_to_buffer(p_secret)))}`;
 	},
 
-	async put<g_secret extends SecretStruct>(atu8_data: Uint8Array, g_secret: g_secret): Promise<PathFrom<typeof g_secret>> {
+	async put<g_secret extends SecretStruct>(atu8_data: Uint8Array, g_secret: g_secret): Promise<PathFrom<g_secret>> {
 		// prepare path
 		const [p_res, si_secret] = Secrets.pathAndKeyFrom(g_secret);
 
@@ -86,6 +87,14 @@ export const Secrets = {
 		return p_res as PathFrom<typeof g_secret>;
 	},
 
+	async update<g_secret extends SecretStruct>(g_secret: g_secret): Promise<PathFrom<g_secret>> {
+		const p_secret = Secrets.pathFrom(g_secret) as PathFrom<g_secret>;
+
+		await Secrets.borrowPlaintext(p_secret, kn => Secrets.put(kn.data, g_secret));
+
+		return p_secret;
+	},
+
 	async borrow<w_return extends any=any>(p_secret: SecretPath, fk_use: (kn_data: SensitiveBytes, g_secret: SecretStruct) => Promisable<w_return>): Promise<Awaited<w_return>> {
 		// create key from path
 		const si_secret = Secrets.keyFromPath(p_secret);
@@ -101,6 +110,11 @@ export const Secrets = {
 
 		// // parse secret data
 		// const nb_data = new DataView(atu8_secret.buffer).getUint32(atu8_secret.byteOffset, false);
+
+		// empty (non-existant)
+		if(!atu8_secret.byteLength) {
+			throw new ResourceNonExistentError(p_secret);
+		}
 
 		let nb_data: number;
 		try {
@@ -133,8 +147,23 @@ export const Secrets = {
 		return w_return;
 	},
 
-	async metadata<si_type extends SecretType=SecretType>(p_secret: SecretPath<si_type>): Promise<SecretStruct<si_type>> {
-		return await Secrets.borrow(p_secret as SecretPath, (kn, g) => g) as SecretStruct<si_type>;
+	metadata<
+		p_secret extends SecretPath,
+	>(p_secret: p_secret): Promise<
+		p_secret extends SecretPath<'mnemonic'>
+			? SecretStruct<'mnemonic'>
+			: p_secret extends SecretPath<'bip32_node'>
+				? SecretStruct<'bip32_node'>
+				: p_secret extends SecretPath<'private_key'>
+					? SecretStruct<'private_key'>
+					: p_secret extends SecretPath<'viewing_key'>
+						? SecretStruct<'viewing_key'>
+						: p_secret extends SecretPath<'query_permit'>
+							? SecretStruct<'query_permit'>
+							: SecretStruct
+	> {
+		// @ts-expect-error type system regression bug
+		return Secrets.borrow(p_secret, (kn, g) => g);
 	},
 
 	/**
@@ -264,11 +293,22 @@ export const Secrets = {
 					if('undefined' !== typeof z_expect) continue FILTERING_SECRETS;
 				}
 				// contracts
-				else if('contracts' === si_key && Array.isArray(z_expect)) {
-					// each expected contract
-					for(const sa_contract of z_expect) {
-						// non-empty string indicates the tx hash that the permit was revoked, undefined means no permit
-						if('' !== z_actual[sa_contract]) continue FILTERING_SECRETS;
+				else if('contracts' === si_key) {
+					// expectation given as array
+					if(Array.isArray(z_expect)) {
+						// each expected contract
+						for(const sa_contract of z_expect) {
+							// only reject if contract was never involved
+							if(!(sa_contract in z_actual)) continue FILTERING_SECRETS;
+						}
+					}
+					// expectation given as dict
+					else if(is_dict(z_expect)) {
+						// each expected contract
+						for(const [sa_contract, sx_expect] of ode(z_expect)) {
+							// non-empty string indicates the tx hash that the permit was revoked, undefined means no permit
+							if(sx_expect !== z_actual[sa_contract]) continue FILTERING_SECRETS;
+						}
 					}
 				}
 				// anything else

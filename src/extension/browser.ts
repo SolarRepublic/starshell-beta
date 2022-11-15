@@ -9,23 +9,25 @@ import {
 	B_WEBEXT_ACTION,
 	B_WEBEXT_BROWSER_ACTION,
 	B_FIREFOX_ANDROID,
-	B_NATIVE_IOS,
+	B_IOS_NATIVE,
+	B_IPHONE_IOS,
 } from '#/share/constants';
 import {do_webkit_polyfill} from '#/script/webkit-polyfill';
 
-if(B_NATIVE_IOS) {
+if(B_IOS_NATIVE) {
 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.browser: ${s}`, ...a_args));
 }
 
 import {Vault} from '#/crypto/vault';
 import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
 import type {Vocab} from '#/meta/vocab';
-import type {IntraExt, PageInfo, Pwa} from '#/script/messages';
+import type {ExtToNative, IntraExt, PageInfo, Pwa} from '#/script/messages';
 import {F_NOOP} from '#/util/belt';
 import {buffer_to_base64, text_to_buffer} from '#/util/data';
 import {open_external_link, parse_params, stringify_params} from '#/util/dom';
 import type {BrowserAction} from 'webextension-polyfill';
 import {SessionStorage} from './session-storage';
+import type { NotificationConfig } from './notifications';
 
 export type PopoutWindowHandle = {
 	window: chrome.windows.Window | null;
@@ -65,6 +67,11 @@ async function center_over_screen(): Promise<PositionConfig> {
 
 	// cannot create windows
 	if('function' !== typeof chrome.windows?.create) {
+		return {};
+	}
+
+	// no access to chrome.system.display
+	if('function' !== typeof chrome.system?.display?.getInfo) {
 		return {};
 	}
 
@@ -495,3 +502,40 @@ chrome.storage.onChanged?.addListener((h_changes, si_area) => {
 		}
 	}
 });
+
+
+const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
+
+export const system_notify = B_IPHONE_IOS
+	? function notify_user(gc_notification: NotificationConfig) {
+		const g_message: Vocab.Message<ExtToNative.MobileVocab, 'notify'> = {
+			type: 'notify',
+			value: gc_notification,
+		};
+
+		console.log(g_message);
+
+		f_runtime_ios().sendNativeMessage('application.id', g_message, (w_response) => {
+			console.debug(`Received response from native app: %o`, w_response);
+		});
+	}
+	: chrome.notifications
+		? function notify_user(gc_notification: NotificationConfig) {
+			chrome.notifications?.create(gc_notification.id || '', {
+				type: 'basic',
+				priority: 1,
+				iconUrl: '/media/vendor/logo-192px.png',
+				eventTime: Date.now(),
+				title: gc_notification.item.title || '1 New Notification',
+				message: gc_notification.item.message || ' ',
+			}, (si_notifcation) => {
+				// clear after some timeout
+				const xt_timeout = gc_notification.timeout;
+				if(Number.isFinite(xt_timeout)) {
+					setTimeout(() => {
+						chrome.notifications?.clear(si_notifcation);
+					}, xt_timeout! > 0? xt_timeout: 5e3);
+				}
+			});
+		}
+		: F_NOOP;

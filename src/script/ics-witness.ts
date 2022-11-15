@@ -1041,6 +1041,150 @@ const XT_POLYFILL_DELAY = 1.5e3;
 	}
 
 
+	async function keplr_detected_in_script(dm_script: HTMLScriptElement): Promise<{} | null> {
+		// only javascript
+		const s_type = dm_script.getAttribute('type');
+		if(!s_type || /javascript|^module$/.test(s_type)) {
+			// read script string
+			let sx_content = dm_script.textContent;
+
+			// no inline script
+			if(!sx_content) {
+				// src attribute
+				const sr_src = dm_script.getAttribute('src');
+
+				// no src either; skip
+				if(!sr_src) return null;
+
+				// parse url
+				const du_src = new URL(sr_src, location.href);
+
+				// prep response
+				let d_res: Response;
+
+				// request
+				FETCHING: {
+					// same origin
+					if(du_src.origin === location.origin) {
+						debug(`Fetching page script <${du_src.href}> from cache...`);
+
+						// use cache optimization
+						try {
+							d_res = await fetch(du_src.href, {
+								method: 'GET',
+								credentials: 'include',
+								mode: 'same-origin',
+								redirect: 'follow',
+								cache: 'only-if-cached',
+							});
+						}
+						catch(e_fetch) {
+							// // firefox content script requests initiate from different context
+							// if('Firefox' === G_USERAGENT.browser.name) {
+
+							// retry without cache
+							try {
+								d_res = await fetch(du_src.href, {
+									method: 'GET',
+									credentials: 'include',
+									mode: 'same-origin',
+									redirect: 'follow',
+								});
+
+								// do not err
+								break FETCHING;
+							}
+							// catch error and replace
+							catch(e_retry) {
+								e_fetch = e_retry;
+							}
+
+							debugger;
+							error(e_fetch as string);
+							return null;
+						}
+					}
+					// different origin
+					else {
+						// ignore
+						return null;
+
+						// // fallback to cors mode
+						// try {
+						// 	d_res = await fetch(p_src, {
+						// 		method: 'GET',
+						// 		credentials: 'include',
+						// 		mode: 'cors',
+						// 	});
+						// }
+						// catch(e_fetch) {
+						// 	debugger;
+						// 	console.error(e_fetch);
+						// 	continue;
+						// }
+					}
+				}
+
+				// response not ok; skip it
+				if(!d_res?.ok) return null;
+
+				// load script content as string
+				sx_content = await d_res.text();
+			}
+
+			// find target string
+			const b_keplr_window = /window(\.keplr|\[['"`]keplr['"`]\])/.test(sx_content);
+
+			// found
+			if(b_keplr_window) {
+				return {};
+			}
+
+			// try not to block the thread
+			await timeout(0);
+		}
+
+		return null;
+	}
+
+
+	let b_detected = false;
+
+	async function detected_keplr() {
+		// prevent redundant detection
+		if(b_detected) return;
+		b_detected = true;
+
+		debug('Keplr was detected!');
+
+		// start initialization timer
+		xt_polyfill_init = Date.now();
+
+		// attempt to create app's profile
+		if(!g_profile) {
+			try {
+				debug(`Creating app profile...`);
+				g_profile = await create_app_profile();
+			}
+			catch(e_create) {}
+		}
+
+		// give the script a chance to request advertisement
+		await timeout(Math.max(0.5e3, XT_POLYFILL_DELAY - (Date.now() - xt_polyfill_init)));
+
+		// polyfill has been disabled
+		if(b_cancel_polyfill) return;
+
+		// notify service
+		f_runtime().sendMessage({
+			type: 'detectedKeplr',
+			value: {
+				profile: g_profile || {},
+			},
+		}, F_NOOP);
+	}
+
+
 	(async function keplr_compatibility() {
 		// synchronous session storage is available
 		if(SessionStorage.synchronously) {
@@ -1134,140 +1278,56 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 			// search all scripts
 			for(const dm_script of document.getElementsByTagName('script')) {
-				// only javascript
-				const s_type = dm_script.getAttribute('type');
-				if(!s_type || /javascript|^module$/.test(s_type)) {
-					// read script string
-					let sx_content = dm_script.textContent;
-
-					// no inline script
-					if(!sx_content) {
-						// src attribute
-						const sr_src = dm_script.getAttribute('src');
-
-						// no src either; skip
-						if(!sr_src) continue;
-
-						// parse url
-						const du_src = new URL(sr_src, location.href);
-
-						// prep response
-						let d_res: Response;
-
-						// request
-						FETCHING: {
-							// same origin
-							if(du_src.origin === location.origin) {
-								// use cache optimization
-								try {
-									d_res = await fetch(du_src.href, {
-										method: 'GET',
-										credentials: 'include',
-										mode: 'same-origin',
-										redirect: 'follow',
-										cache: 'only-if-cached',
-									});
-								}
-								catch(e_fetch) {
-									// // firefox content script requests initiate from different context
-									// if('Firefox' === G_USERAGENT.browser.name) {
-
-									// retry without cache
-									try {
-										d_res = await fetch(du_src.href, {
-											method: 'GET',
-											credentials: 'include',
-											mode: 'same-origin',
-											redirect: 'follow',
-										});
-
-										// do not err
-										break FETCHING;
-									}
-									// catch error and replace
-									catch(e_retry) {
-										e_fetch = e_retry;
-									}
-
-									debugger;
-									error(e_fetch);
-									continue;
-								}
-							}
-							// different origin
-							else {
-								// ignore
-								continue;
-
-								// // fallback to cors mode
-								// try {
-								// 	d_res = await fetch(p_src, {
-								// 		method: 'GET',
-								// 		credentials: 'include',
-								// 		mode: 'cors',
-								// 	});
-								// }
-								// catch(e_fetch) {
-								// 	debugger;
-								// 	console.error(e_fetch);
-								// 	continue;
-								// }
-							}
-						}
-
-						// response not ok; skip it
-						if(!d_res?.ok) continue;
-
-						// load script content as string
-						sx_content = await d_res.text();
-					}
-
-					// find target string
-					const b_keplr_window = /window(\.keplr|\[['"`]keplr['"`]\])/.test(sx_content);
-
-					// found
-					if(b_keplr_window) {
-						x_detected = 1;
-						break;
-					}
-
-					// try not to block the thread
-					await timeout(0);
+				// attempt to detect keplr in script
+				if(await keplr_detected_in_script(dm_script)) {
+					x_detected = 1;
+					break;
 				}
 			}
 
 			// detected
 			if(x_detected) {
-				debug('Keplr was detected!');
-
-				// start initialization timer
-				xt_polyfill_init = Date.now();
-
-				// attempt to create app's profile
-				if(!g_profile) {
-					try {
-						debug(`Creating app profile...`);
-						g_profile = await create_app_profile();
-					}
-					catch(e_create) {}
-				}
-
-				// give the script a chance to request advertisement
-				await timeout(Math.max(0.5e3, XT_POLYFILL_DELAY - (Date.now() - xt_polyfill_init)));
-
-				// polyfill has been disabled
-				if(b_cancel_polyfill) break DETECT_KEPLR;
-
-				// notify service
-				f_runtime().sendMessage({
-					type: 'detectedKeplr',
-					value: {
-						profile: g_profile || {},
-					},
-				}, F_NOOP);
+				await detected_keplr();
 			}
+			// not detected
 			else {
-				debug('Keplr was not detected');
+				debug('Keplr was not detected upon document load. Attaching MutationObserver...');
+
+				// start new mutation observer
+				const d_observer = new MutationObserver(async(a_mutations: MutationRecord[]) => {
+					// each mutation
+					for(const d_mutation of a_mutations) {
+						// mutation was to DOM tree
+						if('childList' === d_mutation.type) {
+							// each node added
+							for(const dm_node of d_mutation.addedNodes) {
+								// node is a script
+								if('SCRIPT' === dm_node.nodeName) {
+									// attempt to detect keplr in script
+									const b_found = await keplr_detected_in_script(dm_node as HTMLScriptElement);
+
+									// first keplr detection
+									if(b_found) {
+										// disconnect observer
+										d_observer.disconnect();
+
+										// trigger detection
+										await detected_keplr();
+
+										// stop searching
+										return;
+									}
+								}
+							}
+						}
+					}
+				});
+
+				// start observing
+				d_observer.observe(document, {
+					childList: true,
+					subtree: true,
+				});
 			}
 		}
 	})();

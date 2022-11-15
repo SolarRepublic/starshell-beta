@@ -33,7 +33,17 @@ export function on_error(fe_report: ErrorCallback): VoidFunction {
 
 
 
-export function syserr(g_error: ErrorReport): Error {
+export function syserr(z_error: Error | ErrorReport): Error {
+	let g_error = z_error as ErrorReport;
+
+	if(z_error instanceof Error) {
+		g_error = {
+			error: z_error,
+			title: z_error['title'] || `Runtime error: ${z_error.name}`,
+			text: z_error['message'],
+		};
+	}
+
 	a_errors.push(g_error);
 
 	for(const fk_listener of a_error_listeners) {

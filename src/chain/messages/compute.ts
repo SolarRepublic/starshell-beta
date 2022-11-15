@@ -25,7 +25,6 @@ import {Secrets} from '#/store/secrets';
 import {defer_many, is_dict, proper} from '#/util/belt';
 import {base64_to_buffer, buffer_to_hex, buffer_to_text, sha256_sync} from '#/util/data';
 import {abbreviate_addr} from '#/util/format';
-import type { SignedJsonEventRegistry } from '#/meta/incident';
 
 
 
@@ -73,7 +72,7 @@ export const ComputeMessages: MessageDict = {
 							},
 						},
 					}],
-				} as SignedJsonEventRegistry;
+				};
 			},
 		};
 	},
@@ -321,12 +320,12 @@ export const ComputeMessages: MessageDict = {
 				],
 			}),
 
-			async apply() {
+			async apply(nl_msgs, si_txn) {
 				// on secret-wasm
 				if(g_secret_wasm) {
-					// contract 
+					// contract
 					const g_handled = await H_SNIP_HANDLERS[si_action]?.(h_args, g_context, g_exec);
-					const g_applied = await g_handled?.apply?.();
+					const g_applied = await g_handled?.apply?.(si_txn);
 
 					// snip token
 					if(g_applied) return g_applied;
@@ -363,7 +362,7 @@ export const ComputeMessages: MessageDict = {
 							bech32s: [sa_contract],
 							g_app,
 							g_chain,
-							label: 'Token Contract',
+							label: 'Token / Contract',
 						},
 						{
 							type: 'key_value',

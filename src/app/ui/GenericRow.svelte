@@ -1,18 +1,16 @@
 <script lang="ts">
-	import type {AccountStruct, AccountPath} from '#/meta/account';
+	import type {AccountPath} from '#/meta/account';
 	import type {Dict} from '#/meta/belt';
 	import type {ContactPath} from '#/meta/contact';
 	import type {ProviderPath} from '#/meta/provider';
 	
-	import type {ExpoundedRow, SearchItem} from '#/meta/search';
+	import type {SearchItem} from '#/meta/search';
 	
 	import {ClassType} from '../def';
 	
 	import {load_page_context} from '../svelte';
 	
 	import AccountView from '##/screen/AccountView.svelte';
-	// import ChainView from '##/screen/ChainView.svelte';
-	// import ContractView from '##/screen/ContractView.svelte';
 	import ContactView from '##/screen/ContactView.svelte';
 	import HoldingView from '##/screen/HoldingView.svelte';
 	import ProviderView from '##/screen/ProviderView.svelte';
@@ -28,6 +26,8 @@
 	export let item: SearchItem;
 
 	export let detail: HTMLElement | null | undefined = null;
+
+	export let pfpDim = 36;
 
 	const {
 		class: si_class,
@@ -160,6 +160,7 @@
 </style>
 
 <Row name={item.name} resource={g_resource} resourcePath={p_resource}
+	pfpDim={pfpDim}
 	data={{
 		path: p_resource,
 		class: item.class,

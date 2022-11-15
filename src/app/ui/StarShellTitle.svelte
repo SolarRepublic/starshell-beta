@@ -1,7 +1,6 @@
 <script lang="ts">
 	// target width
 	export let width = 180;
-	const x_width = width;
 </script>
 
 <style lang="less">
@@ -23,6 +22,6 @@
 	}
 </style>
 
-<div class="no-margin title" style="width:{x_width}px;">
+<div class="no-margin title" style="width:{width}px;">
 	<img alt="StarShell title" src="/media/vendor/title.svg" />
 </div>

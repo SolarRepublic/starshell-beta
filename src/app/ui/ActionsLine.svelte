@@ -1,12 +1,12 @@
 <script lang="ts">
+	import type {Page, PageConfig} from '../screen/_screens';
+	
+	import type {Promisable} from '#/meta/belt';
+	
 	import {getContext} from 'svelte';
 	
-	import {
-		F_NOOP,
-		type Promisable,
-	} from '#/util/belt';
-
-	import type {Page, PageConfig} from '../screen/_screens';
+	import {F_NOOP} from '#/util/belt';
+	
 
 	type PromisableIgnoreFunction = () => Promisable<any>;
 
@@ -28,6 +28,8 @@
 	 */
 	export let confirm: readonly [string, PromisableIgnoreFunction?, boolean?] = ['Done', F_NOOP, false];
 	const [s_confirm, f_confirm] = confirm;
+
+	export let allowDisabledClicks = false;
 
 	/**
 	 * Disables primary class for confirm action
@@ -86,6 +88,8 @@
 	 */
 	export let contd: PageConfig | null = null;
 	const f_continue = contd? () => k_page.push(contd!): null;
+
+	$: b_greyed_out = b_disabled || disabled || b_waiting || b_busy;
 
 
 	// get page from context
@@ -172,7 +176,11 @@
 			</button>
 		{/if}
 
-		<button disabled={b_disabled || disabled || b_waiting || b_busy} class:primary={!noPrimary} on:click={() => confirm_action()}>
+		<button
+			readonly={allowDisabledClicks? b_greyed_out: false}
+			disabled={allowDisabledClicks? false: b_greyed_out}
+			class:primary={!noPrimary} on:click={() => confirm_action()}
+		>
 			{s_confirm_final}
 		</button>
 	</slot>

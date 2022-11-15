@@ -1,11 +1,17 @@
 <script lang="ts">
-	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
+	import {slide} from 'svelte/transition';
+	
 	import {Header, Screen} from './_screens';
-
-	import AccountEdit from './AccountEdit.svelte';
-	import ActionsWall from '../ui/ActionsWall.svelte';
 	import {load_page_context} from '../svelte';
+	
 	import {create_mnemonic} from '#/share/account';
+	
+	import AccountEdit from './AccountEdit.svelte';
+	import InputBip44 from '../frag/InputBip44.svelte';
+	import ActionsWall from '../ui/ActionsWall.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
+	import Field from '../ui/Field.svelte';
+	import Collapsable from '../ui/Collapsable.svelte';
 
 
 	const {k_page} = load_page_context();
@@ -103,10 +109,13 @@
 			creator: AccountEdit,
 			props: {
 				accountPath: p_account,
+				fresh: true,
 				oneway: true,
 			},
 		});
 	}
+
+	let b_advanced_showing = false;
 </script>
 
 <style lang="less">
@@ -135,6 +144,12 @@
 	<p>
 		All transactions take place on a test network.
 	</p>
+<!-- 
+	<Collapsable bind:expanded={b_advanced_showing} title={`${b_advanced_showing? 'Hide': 'Show'} Advanced Options`}>
+		<Field key="account-path" name="Derivation path (BIP44)">
+			<InputBip44 bip44="m/44'/529'/0'/0/0" />
+		</Field>
+	</Collapsable> -->
 
 	<ActionsWall>
 		<div class="agree-tos" on:click={toggleChildCheckbox}>

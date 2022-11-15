@@ -1,8 +1,12 @@
 
 import type {AminoMsg} from '@cosmjs/amino';
+import type {Block as CosmosBlock} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/types';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 import type {BroadcastMode, GetTxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+
+import type {Block as TendermintBlock} from '@solar-republic/cosmos-grpc/dist/tendermint/types/block';
+import type {U} from 'ts-toolbelt';
 
 import type {Account, AccountPath, AccountStruct} from '#/meta/account';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
@@ -21,9 +25,10 @@ import {yw_chain} from '#/app/mem';
 import type {CosmosNetwork, IncidentTx, ModWsTxResult} from '#/chain/cosmos-network';
 
 import {SecretNetwork} from '#/chain/secret-network';
-import {SI_STORE_PROVIDERS} from '#/share/constants';
+import {SI_STORE_PROVIDERS, XT_SECONDS} from '#/share/constants';
+import {timeout_exec} from '#/util/belt';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
-import type { U } from 'ts-toolbelt';
+
 
 export type BalanceBundle = {
 	balance: Coin;
@@ -47,36 +52,6 @@ export interface Cached<g_wrapped=any> extends JsonObject {
 	block?: string;
 }
 
-export interface WsTxResultAny {
-	gas_used: string;
-	gas_wanted: string;
-	log: string;
-}
-
-export interface WsTxResultError extends WsTxResultAny {
-	code: number;
-	codespace: string;
-}
-
-export interface WsTxResultSuccess extends WsTxResultAny {
-	events: {
-		type: string;
-		attributes: {
-			key: string;
-			value: string;
-			index?: boolean;
-		};
-	}[];
-	data?: string;
-}
-
-export interface WsTxResponse {
-	code?: 0;
-	hash: string;
-	height: string;
-	tx: string;
-	result: U.Strict<WsTxResultError | WsTxResultSuccess>;
-}
 
 export interface E2eInfo {
 	sequence: string;
@@ -87,6 +62,25 @@ export interface E2eInfo {
 	// priorHash: string | null;
 	pubkey: Uint8Array;
 }
+
+export enum ConnectionHealth {
+	UNKNOWN = 0,
+	LOADING = 1,
+	CONNECTING = 2,
+	CONNECTED = 3,
+	DELINQUENT = 4,
+	DISCONNECTED = 5,
+}
+
+export const H_HEALTH_COLOR: Record<ConnectionHealth, string> = {
+	[ConnectionHealth.UNKNOWN]: 'var(--theme-color-graysoft)',
+	[ConnectionHealth.LOADING]: 'var(--theme-color-graysoft)',
+	[ConnectionHealth.CONNECTING]: 'var(--theme-color-sky)',
+	[ConnectionHealth.CONNECTED]: 'var(--theme-color-green)',
+	[ConnectionHealth.DELINQUENT]: 'var(--theme-color-caution)',
+	[ConnectionHealth.DISCONNECTED]: 'var(--theme-color-red)',
+};
+
 
 class MemoAccountError extends Error {
 	constructor(s_msg: string, private readonly _sa_owner: string, private readonly _g_chain: ChainStruct) {
@@ -123,6 +117,24 @@ export class WrongKeyTypeError extends MemoAccountError {
 export class NetworkTimeoutError extends Error {
 	constructor() {
 		super(`Network request timed out.`);
+	}
+}
+
+export class ProviderHealthError extends Error {
+	constructor() {
+		super(`Provider in poor health.`);
+	}
+}
+
+export class StaleBlockError extends Error {
+	constructor() {
+		super(`Most recent block is pretty old. Possible chain or network fault.`);
+	}
+}
+
+export class NetworkExchangeError extends Error {
+	constructor(e_original: Error) {
+		super(`Network exchange error: ${e_original.name}:: ${e_original.message}`);
 	}
 }
 
@@ -220,6 +232,36 @@ export const Providers = create_store_class({
 			}
 
 			throw new Error(`No network provider found for chain ${p_chain}`);
+		}
+
+		static async quickTest(g_provider: ProviderStruct, g_chain: ChainStruct) {
+			const k_network = ProviderI.activate(g_provider, g_chain);
+
+			try {
+				const [g_latest, xc_timeout] = await timeout_exec(15e3, () => k_network.latestBlock());
+				let g_block: TendermintBlock | CosmosBlock | undefined;
+
+				if(xc_timeout) {
+					throw new NetworkTimeoutError();
+				}
+				// cosmos-sdk >= 0.47
+				else if((g_block=g_latest?.sdkBlock || g_latest?.block) && g_block.header?.time) {
+					const g_time = g_block.header.time;
+					const xt_when = +g_time.seconds * XT_SECONDS;
+
+					// more than a minute old
+					if(Date.now() - xt_when > 60e3) {
+						throw new StaleBlockError();
+					}
+				}
+				// no block info
+				else {
+					throw new ProviderHealthError();
+				}
+			}
+			catch(e_latest) {
+				throw new NetworkExchangeError(e_latest as Error);
+			}
 		}
 	},
 });
