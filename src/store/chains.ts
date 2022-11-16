@@ -113,6 +113,11 @@ export const Chains = create_store_class({
 			return [si_coin, g_chain.coins[si_coin]];
 		}
 
+		static allFeeCoins(g_chain: ChainStruct): [string, CoinInfo][] {
+			return (g_chain.feeCoinIds || [Object.keys(g_chain.coins)[0]])
+				.map(si_coin => [si_coin, g_chain.coins[si_coin]]);
+		}
+
 		// TODO: return normalized address using `normalizeBech32()`
 		static isValidAddressFor(g_chain: ChainStruct, s_address: Chain.Bech32String, si_purpose: keyof ChainNamespace.Bech32s<typeof g_chain['namespace']>='acc') {
 			if(g_chain.bech32s) {

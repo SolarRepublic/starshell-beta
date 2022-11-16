@@ -16,18 +16,19 @@
 	import {syserr} from '../common';
 	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility} from '../mem';
 	
-	import {as_amount, to_fiat} from '#/chain/coin';
+	import {as_amount, coin_to_fiat} from '#/chain/coin';
 	import {amino_to_base} from '#/chain/cosmos-msgs';
 	import {token_balance} from '#/chain/token';
 	import {global_receive} from '#/script/msg-global';
 	import {subscribe_store} from '#/store/_base';
 	import {Accounts} from '#/store/accounts';
 	import {G_APP_STARSHELL} from '#/store/apps';
+	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
 	import {Entities} from '#/store/entities';
 	import {Incidents} from '#/store/incidents';
 	import type {BalanceBundle} from '#/store/providers';
-	import {forever, ode} from '#/util/belt';
+	import {forever, microtask, ode} from '#/util/belt';
 	import {abort_signal_timeout, open_external_link} from '#/util/dom';
 	import {format_fiat} from '#/util/format';
 	
@@ -41,89 +42,130 @@
 	import Row from '../ui/Row.svelte';
 	
 
-
 	// get page from context
 	const k_page = getContext<Page>('page');
 
-	let yg_total = new BigNumber(0);
-	let c_balances = 0;
-	const b_balances_ready = true;
+	// dict of balances for both native assets and fungible tokens
+	let h_balances: Dict<Promise<BigNumber>> = {};
+
+	// dict of fiat equivalents 
+	let h_fiats: Dict<Promise<BigNumber>> = {};
+
+	// account's total worth in selected fiat
+	let dp_total: Promisable<string> = forever('');
+
+	// when the chain changes
+	let p_best_faucet = '';
+
+	// list of coin ids that are empty and normally used as gas tokens
 	let a_no_gas: string[] = [];
 
-	let c_updates = 0;
-	subscribe_store(['chains', 'contracts', 'incidents'], () => {
-		console.info(`HoldingsHome.svelte observed store update; reloading...`);
-		c_updates++;
-	}, onDestroy);
+	// track which tokens have outgoing txs pending
+	let h_pending_txs: Dict<JsonObject> = {};
 
-	const f_unregister = global_receive({
-		transferReceive() {
+	// keep list of testnet tokens for batch minting
+	let a_zero_balance_tokens: ContractStruct[] = [];
 
-		},
-	});
+	// determine best faucet upon chain switch
+	$: if($yw_chain.testnet) {
+		// reset faucet to default
+		p_best_faucet = $yw_chain.testnet.faucets[0];
 
-	yw_doc_visibility.subscribe((s_state) => {
-		if('visible' === s_state) {
-			c_updates += 1;
-		}
-	});
-
-	onDestroy(() => {
-		f_unregister();
-	});
-
-	let fk_resolve_total: (s_total: string) => void;
-	let dp_total = new Promise<string>((fk_resolve) => {
-		fk_resolve_total = fk_resolve;
-	});
-
-	let g_chain_cached = $yw_chain;
-	$: {
-		if($yw_chain !== g_chain_cached) {
-			g_chain_cached = $yw_chain;
-			yg_total = new BigNumber(0);
-			c_balances = 0;
-			dp_total = new Promise<string>((fk_resolve) => {
-				fk_resolve_total = fk_resolve;
-			});
-			a_no_gas = [];
-		}
+		// attempt to find best faucet
+		void best_faucet().then(p => p_best_faucet = p);
 	}
 
+	// whenever the fiats dict is updated, begin awaiting for all to resolve
+	$: if(h_fiats) {
+		void navigator.locks.request('ui:holdings:total-balance', async() => {
+			// resolve all fiat promises
+			const a_fiats = await Promise.all(ode(h_fiats).map(([, dp_fiat]) => dp_fiat));
 
-	function check_total() {
-		c_balances -= 1;
-		if(b_balances_ready && !c_balances) {
-			const s_total = format_fiat(yg_total.toNumber(), 'usd');
-			fk_resolve_total(s_total);
+			// no fiats yet; wait for some to populate
+			if(!a_fiats.length) return;
+
+			// reduce to sum
+			const yg_total = a_fiats.reduce((yg_sum, yg_balance) => yg_sum.plus(yg_balance), BigNumber(0));
+
+			// format to string and resolve
+			dp_total = format_fiat(yg_total.toNumber(), 'usd');
 
 			// save to cache
 			void Accounts.update($yw_account_ref, g_account => ({
 				extra: {
 					...g_account.extra,
-					total_fiat_cache: s_total,
+					total_fiat_cache: dp_total,
 				},
 			}));
+		});
+	}
+
+	// save previous chain in order to detect actual changes
+	let g_chain_cached = $yw_chain;
+	$: {
+		// chain was changed
+		if($yw_chain !== g_chain_cached) {
+			// update cache
+			g_chain_cached = $yw_chain;
+
+			// reset no-gas tracker
+			a_no_gas = [];
 		}
 	}
 
-	type Submitter = (z_out: Promisable<BigNumber>) => Promise<BigNumber>;
 
+	let c_updates = 0;
+	{
+		subscribe_store(['chains', 'contracts', 'incidents'], () => {
+			console.info(`HoldingsHome.svelte observed store update; reloading...`);
+
+			// trigger UI update
+			c_updates++;
+
+			// reload net worth
+			// calculate_net_worth();
+		}, onDestroy);
+
+		// react to page visibility changes
+		yw_doc_visibility.subscribe((s_state) => {
+			if('visible' === s_state) {
+				c_updates += 1;
+			}
+		});
+
+		const f_unregister = global_receive({
+			transferReceive() {
+
+			},
+		});
+
+		onDestroy(() => {
+			f_unregister();
+		});
+	}
+
+	// fetch all bank balances for current account
 	async function load_native_balances() {
-		let h_balances: Dict<BalanceBundle>;
+		// attempt to load all bank balances from network
+		let h_balances_native: Dict<BalanceBundle>;
 		try {
-			h_balances = await $yw_network.bankBalances($yw_owner);
+			h_balances_native = await $yw_network.bankBalances($yw_owner);
 		}
+		// network error
 		catch(e_network) {
+			// orderly error
 			if(e_network instanceof Error) {
+				// provider offline
 				if(e_network.message.includes('Response closed without headers')) {
-					const g_provider = $yw_network.network;
+					// ref provider struct
+					const g_provider = $yw_network.provider;
 
 					syserr({
 						title: 'Network Error',
 						text: `Your network provider "${g_provider.name}" is offline: <${g_provider.grpcWebUrl}>`,
 					});
 				}
+				// other network error
 				else {
 					syserr({
 						title: 'Network Error',
@@ -131,6 +173,7 @@
 					});
 				}
 			}
+			// other
 			else {
 				syserr({
 					title: 'Unknown Error',
@@ -138,51 +181,63 @@
 				});
 			}
 
+			// no balances available
 			return [];
 		}
 
-		const a_outs: [string, CoinInfo, Coin, Submitter][] = [];
+		// prep output
+		const a_outs: [string, CoinInfo, Coin][] = [];
 
-		// reset
+		// reset no-gas tracker
 		a_no_gas.length = 0;
 
+		// each coin returned in balances
 		for(const [si_coin, g_coin] of ode($yw_chain.coins)) {
-			const g_bundle = h_balances[si_coin];
+			const g_bundle = h_balances_native[si_coin];
 
-			if(!g_bundle || '0' === g_bundle.balance.amount) {
-				a_no_gas.push(si_coin);
+			// parse balance
+			const yg_balance = BigNumber(g_bundle?.balance.amount || '0');
+
+			// save to dict
+			h_balances[si_coin] = Promise.resolve(yg_balance);
+
+			// missing or zero balance
+			if(yg_balance.eq(0)) {
+				// coin is a gas token
+				if(Chains.allFeeCoins($yw_chain).find(([si]) => si === si_coin)) {
+					a_no_gas.push(si_coin);
+				}
+
+				// set balance (no need to fetch worth of coin)
+				h_fiats[si_coin] = Promise.resolve(BigNumber(0));
+			}
+			// non-zero balance
+			else {
+				// asynchronously convert to fiat
+				h_fiats[si_coin] = coin_to_fiat(g_bundle.balance, $yw_chain.coins[si_coin]);
 			}
 
-			c_balances += 1;
-
+			// add to outputs
 			a_outs.push([
 				si_coin,
 				$yw_chain.coins[si_coin],
 				g_bundle?.balance || {amount:'0', denom:g_coin.denom},
-				async(z_out: Promisable<BigNumber>): Promise<BigNumber> => {
-					const yg_balance = await z_out;
-
-					yg_total = yg_total.plus(yg_balance);
-
-					check_total();
-					return yg_balance;
-				},
 			]);
 		}
 
-		if(!a_outs.length) {
-			c_balances += 1;
-			check_total();
-		}
-
+		// update gas
 		a_no_gas = a_no_gas;
+
+		// trigger update on balances and fiats dicts
+		h_balances = h_balances;
+		h_fiats = h_fiats;
 
 		return a_outs;
 	}
 
-	let h_pending_txs: Dict<JsonObject> = {};
-
+	// load all token defs from store belonging to current account
 	async function load_tokens() {
+		// filter store
 		const a_tokens = await Contracts.filterTokens({
 			on: 1,
 			chain: $yw_chain_ref,
@@ -191,6 +246,7 @@
 			},
 		});
 
+		// reset pending txs
 		h_pending_txs = {};
 
 		// load incidents
@@ -199,9 +255,12 @@
 			stage: 'pending',
 		});
 
+		// each pending outgoing tx
 		for(const g_pending of a_pending) {
+			// ref events
 			const h_events = (g_pending.data as TxPending).events;
 
+			// each indexed execution event; associate by contract address
 			for(const g_exec of h_events.executions || []) {
 				h_pending_txs[g_exec.contract] = g_exec.msg;
 			}
@@ -216,79 +275,35 @@
 		return a_tokens;
 	}
 
-	const H_FAUCETS: Dict<string[]> = {
-		'theta-testnet-001': [
-			'https://discord.com/channels/669268347736686612/953697793476821092',
-		],
-		'pulsar-2': [
-			'https://faucet.starshell.net/',
-			'https://faucet.pulsar.scrttestnet.com/',
-			'https://pulsar.faucet.trivium.network/',
-			'https://faucet.secrettestnet.io/',
-		],
-	};
-
-	async function best_faucet(): Promise<string> {
-		const a_faucets = H_FAUCETS[$yw_chain.reference];
-
-		// ping each faucet to find best one
-		try {
-			// bias StarShell since it gives 100 SCRT and no IP limiting
-			try {
-				const d_res_0 = await fetch(a_faucets[0], {
-					headers: {
-						accept: 'text/html',
-					},
-					method: 'HEAD',
-					credentials: 'omit',
-					cache: 'no-store',
-					referrer: '',
-					mode: 'no-cors',
-					redirect: 'error',
-					signal: abort_signal_timeout(2e3).signal,
-				});
-
-				return d_res_0.url;
-			}
-			catch(e_req) {}
-
-			// send preflight requests
-			const d_res = await Promise.any(a_faucets.map(async p => fetch(p, {
-				headers: {
-					accept: 'text/html',
-				},
-				method: 'HEAD',
-				credentials: 'omit',
-				cache: 'no-store',
-				referrer: '',
-				mode: 'no-cors',
-				redirect: 'error',
-				signal: abort_signal_timeout(6e3).signal,
-			})));
-
-			console.log(`Using best faucet: ${d_res.url}`);
-
-			// return first valid response
-			return d_res.url;
-		}
-		// ignore network errors and timeouts
-		catch(e) {}
-
-		// default to original
-		return a_faucets[0];
-	}
-
-	let a_zero_balance_tokens: ContractStruct[] = [];
-
+	// fetch an individual token's current balance
 	async function load_token_balance(g_contract: ContractStruct) {
+		// ref token address
+		const sa_token = g_contract.bech32;
+
+		// indicate that token fiat is loading
+		let fk_fiat: (yg_fiat: BigNumber) => void;
+		h_fiats[sa_token] = new Promise(fk => fk_fiat = fk);
+
+		// let other tokens create dict entry, then trigger reactive update to fiats dict
+		await microtask();
+		h_fiats = h_fiats;
+
+		// load token balance
 		const g_balance = await token_balance(g_contract, $yw_account, $yw_network);
 
 		if(g_balance) {
+			// set fiat promise
+			void g_balance.yg_fiat.then(yg => fk_fiat(yg));
+
 			if(g_balance.yg_amount.eq(0) && !a_zero_balance_tokens.find(g => g.bech32 === g_contract.bech32)) {
 				a_zero_balance_tokens = a_zero_balance_tokens.concat([g_contract]);
 			}
 
 			return g_balance;
+		}
+		// no balance; load forever
+		else {
+			// fk_balance!(BigNumber(0));
 		}
 
 		return null;
@@ -336,6 +351,56 @@
 			});
 		}
 	}
+
+	// perform tests to deduce best faucet based on availability
+	async function best_faucet(): Promise<string> {
+		const a_faucets = $yw_chain.testnet!.faucets;
+
+		// ping each faucet to find best one
+		try {
+			// bias StarShell since it gives 100 SCRT and no IP limiting
+			try {
+				const d_res_0 = await fetch(a_faucets[0], {
+					headers: {
+						accept: 'text/html',
+					},
+					method: 'HEAD',
+					credentials: 'omit',
+					cache: 'no-store',
+					referrer: '',
+					mode: 'no-cors',
+					redirect: 'error',
+					signal: abort_signal_timeout(2e3).signal,
+				});
+
+				return d_res_0.url;
+			}
+			catch(e_req) {}
+
+			// send preflight requests
+			const d_res = await Promise.any(a_faucets.map(async p => fetch(p, {
+				headers: {
+					accept: 'text/html',
+				},
+				method: 'HEAD',
+				credentials: 'omit',
+				cache: 'no-store',
+				referrer: '',
+				mode: 'no-cors',
+				redirect: 'error',
+				signal: abort_signal_timeout(6e3).signal,
+			})));
+
+			// return first valid response
+			return d_res.url;
+		}
+		// ignore network errors and timeouts
+		catch(e) {}
+
+		// default to original
+		return a_faucets[0];
+	}
+
 </script>
 
 <style lang="less">
@@ -383,8 +448,6 @@
 	{/if}
 
 	{#key c_updates}
-
-		<!-- title={format_fiat(x_usd_balance)} -->
 		<Portrait
 			noPfp
 			title={dp_total}
@@ -428,12 +491,9 @@
 					</div>
 
 					<div class="buttons">
+						<!-- chain is testnet, link to faucet -->
 						{#if $yw_chain.testnet}
-							{#await best_faucet()}
-								<button class="pill" on:click={() => open_external_link(H_FAUCETS[$yw_chain.reference][0])}>Get {a_no_gas.join(' or ')} from faucet</button>
-							{:then p_faucet}
-								<button class="pill" on:click={() => open_external_link(p_faucet)}>Get {a_no_gas.join(' or ')} from faucet</button>
-							{/await}
+							<button class="pill" on:click={() => open_external_link(p_best_faucet)}>Get {a_no_gas.join(' or ')} from faucet</button>
 						{:else}
 							<button class="pill">Buy {a_no_gas.join(' or ')}</button>
 						{/if}
@@ -473,11 +533,14 @@
 
 		{#key $yw_network}
 			<div class="rows no-margin border-top_black-8px">
-				<!-- native coin(s) -->
+				<!-- fetch native coin balances, display known properties while loading -->
 				{#await load_native_balances()}
+					<!-- each known coin -->
 					{#each ode($yw_chain.coins) as [si_coin, g_bundle]}
+						<!-- cache holding path -->
 						{@const p_entity = Entities.holdingPathFor($yw_owner, si_coin)}
-						<Row lockIcon detail='Native Coin'
+						<Row lockIcon detail='Native Coin' postnameTags
+							resourcePath={p_entity}
 							name={si_coin}
 							pfp={$yw_chain.pfp}
 							amount={forever('')}
@@ -491,20 +554,18 @@
 							}}
 						/>
 					{/each}
+				<!-- all bank balances loaded -->
 				{:then a_balances}
-					{#each a_balances as [si_coin, g_coin, g_balance, f_submit]}
-					{@const p_entity = Entities.holdingPathFor($yw_owner, si_coin)}
-						{@const g_resource = {
-							name: si_coin,
-							pfp: $yw_chain.pfp,
-						}}
-						{@const dp_worth = f_submit(to_fiat(g_balance, g_coin))}
-						<Row lockIcon detail='Native Coin'
-							postnameTags
+					<!-- each coin -->
+					{#each a_balances as [si_coin, g_coin, g_balance]}
+						<!-- cache holding path -->
+						{@const p_entity = Entities.holdingPathFor($yw_owner, si_coin)}
+						<Row lockIcon detail='Native Coin' postnameTags
 							resourcePath={p_entity}
-							resource={g_resource}
+							name={si_coin}
+							pfp={$yw_chain.pfp}
 							amount={as_amount(g_balance, g_coin)}
-							fiat={dp_worth.then(yg => format_fiat(yg.toNumber(), 'usd'))}
+							fiat={h_fiats[si_coin].then(yg => format_fiat(yg.toNumber(), 'usd'))}
 							on:click={() => {
 								k_page.push({
 									creator: HoldingView,
@@ -518,28 +579,35 @@
 					{/each}
 				{/await}
 
+				<!-- fetch fungible token defs -->
 				{#await load_tokens()}
 					<Row
 						name={forever('')}
 						amount={forever('')}
 					/>
 				{:then a_tokens}
+					<!-- each token -->
 					{#each a_tokens as g_token}
+						<!-- fetch token balance from contract state -->
 						{#await load_token_balance(g_token)}
 							<TokenRow contract={g_token} balance />
+						<!-- balance loaded -->
 						{:then g_balance}
+							<!-- outgoing tx pending on contract -->
 							{#if h_pending_txs[g_token.bech32]}
 								<TokenRow contract={g_token} pending balance />
+							<!-- fully synced with chain -->
 							{:else if g_balance}
-								{#if '0' !== g_balance.s_amount}
-									<TokenRow contract={g_token} balance={g_balance} />
-								{:else}
-									<TokenRow contract={g_token} balance={g_balance} mintable />
-								{/if}
+								<TokenRow contract={g_token} balance={g_balance}
+									mintable={'0' === g_balance.s_amount}
+								/>
+							<!-- unable to view balance -->
 							{:else}
 								<TokenRow contract={g_token} unauthorized />
 							{/if}
+						<!-- failed to fetch balance -->
 						{:catch e_load}
+							<!-- viewing key error -->
 							{#if e_load instanceof ViewingKeyError}
 								<TokenRow contract={g_token} error={'Viewing Key Error'} on:click_error={() => {
 									k_page.push({
@@ -549,8 +617,9 @@
 										},
 									});
 								}} />
+							<!-- unknown error -->
 							{:else}
-								<TokenRow contract={g_token} error={'Error'} />
+								<TokenRow contract={g_token} error={(e_load.name || e_load.message || 'Error')+''} />
 							{/if}
 						{/await}
 					{/each}

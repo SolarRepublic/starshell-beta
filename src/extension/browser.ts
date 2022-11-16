@@ -530,11 +530,11 @@ export const system_notify = B_IPHONE_IOS
 				message: gc_notification.item.message || ' ',
 			}, (si_notifcation) => {
 				// clear after some timeout
-				const xt_timeout = gc_notification.timeout;
-				if(Number.isFinite(xt_timeout)) {
+				const xt_timeout = gc_notification.timeout!;
+				if(Number.isFinite(xt_timeout) && xt_timeout > 0) {
 					setTimeout(() => {
 						chrome.notifications?.clear(si_notifcation);
-					}, xt_timeout! > 0? xt_timeout: 5e3);
+					}, xt_timeout);
 				}
 			});
 		}

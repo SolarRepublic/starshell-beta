@@ -19,6 +19,8 @@ import { ViewingKeyError } from '#/schema/snip-2x-const';
 export async function token_balance(g_contract: ContractStruct, g_account: AccountStruct, k_network: CosmosNetwork): Promise<{
 	yg_amount: BigNumber;
 	s_amount: string;
+	yg_worth: Promise<BigNumber>;
+	yg_fiat: Promise<BigNumber>;
 	s_fiat: Promise<string>;
 	s_worth: Promise<string>;
 } | null> {
@@ -65,11 +67,13 @@ export async function token_balance(g_contract: ContractStruct, g_account: Accou
 		return {
 			yg_amount: yg_amount,
 			s_amount: format_amount(yg_amount.toNumber()),
+			yg_worth: dp_worth.then(s => BigNumber(s)),
 			s_worth: (async() => {
 				const s_worth = await dp_worth;
 
 				return s_worth? format_fiat(BigNumber(s_worth).toNumber(), 'usd'): '';
 			})(),
+			yg_fiat: dp_worth.then(s => yg_amount.times(BigNumber(s || '0'))),
 			s_fiat: (async() => {
 				const s_worth = await dp_worth;
 

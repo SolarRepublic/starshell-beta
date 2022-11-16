@@ -253,7 +253,9 @@ export type Chain<
 
 		fungibleTokenInterfaces: TokenSpecKey[];
 		nonFungibleTokenInterfaces: TokenSpecKey[];
-		testnet?: boolean;
+		testnet?: {
+			faucets: string[];
+		};
 		blockExplorer: BlockExplorerConfig;
 	}, Nameable, Pfpable];
 }>;

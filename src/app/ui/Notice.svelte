@@ -1,12 +1,14 @@
 <script lang="ts">
-	import {slide} from 'svelte/transition';
 	import {createEventDispatcher} from 'svelte';
-
-	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
-	import SX_ICON_ERROR from '#/icon/error.svg?raw';
+	import {slide} from 'svelte/transition';
 
 	import {Settings, type SettingsKey} from '#/store/settings';
+	
 	import Close from './Close.svelte';
+	
+	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
+	import SX_ICON_ERROR from '#/icon/error.svg?raw';
+	
 
 	const dispatch = createEventDispatcher();
 

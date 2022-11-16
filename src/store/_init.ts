@@ -237,7 +237,14 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			validator: '/validators/{address}',
 			transaction: '/transactions/{hash}#overview',
 		},
-		testnet: true,
+		testnet: {
+			faucets: [
+				'https://faucet.starshell.net/',
+				'https://faucet.pulsar.scrttestnet.com/',
+				'https://pulsar.faucet.trivium.network/',
+				'https://faucet.secrettestnet.io/',
+			],
+		},
 		providers: [],
 	},
 	'/family.cosmos/chain.theta-testnet-001': {
@@ -281,7 +288,11 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			validator: '/validators/{address}',
 			transaction: '/transactions/{hash}',
 		},
-		testnet: true,
+		testnet: {
+			faucets: [
+				'https://discord.com/channels/669268347736686612/953697793476821092',
+			],
+		},
 		providers: [],
 	},
 });

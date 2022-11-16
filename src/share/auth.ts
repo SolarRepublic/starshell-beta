@@ -1,16 +1,15 @@
-import {NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM, XG_64_BIT_MAX} from './constants';
+import {add_utility_key} from './account';
+import {NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM} from './constants';
 import {AlreadyRegisteredError, CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from './errors';
 
 import {Vault} from '#/crypto/vault';
 import {PublicStorage, storage_clear, storage_remove} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
 import {global_broadcast} from '#/script/msg-global';
+import {set_keplr_compatibility_mode} from '#/script/scripts';
+import {Accounts} from '#/store/accounts';
 import {F_NOOP, timeout} from '#/util/belt';
 import {text_to_buffer} from '#/util/data';
-import { add_utility_key } from './account';
-import { Accounts } from '#/store/accounts';
-import { set_keplr_compatibility_mode } from '#/script/scripts';
-import { storage } from 'webextension-polyfill';
 
 
 /**
@@ -266,7 +265,7 @@ export async function reinstall(b_install=false): Promise<void> {
 		await storage_remove('chains');
 		await storage_remove('contracts');
 	}
-	else if(await PublicStorage.isUpgrading('0.6.0')) {
+	else if(await PublicStorage.isUpgrading('0.6.1')) {
 		await storage_remove('chains');
 	}
 

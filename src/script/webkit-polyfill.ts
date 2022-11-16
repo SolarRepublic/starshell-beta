@@ -1,6 +1,7 @@
-import type {WebKitMessageHandlerKey, WebKitMessageHandlerRegsitry} from '#/env';
 import type {Dict, JsonValue, Promisable} from '#/meta/belt';
 import type {Store, StoreKey} from '#/meta/store';
+
+import type {WebKitMessageHandlerKey, WebKitMessageHandlerRegsitry} from '#/env';
 
 let debug = (s: string, ...a_args: any[]) => console.debug(`StarShell?foreground: ${s}`, ...a_args);
 
@@ -44,7 +45,13 @@ export class WebKitMessenger<
 
 			debug(`[${si_msg}] Posting message to webkit '${this._si_handler}' handler: %o`, g_msg);
 
-			webkit.messageHandlers[this._si_handler].postMessage({
+			const f_handler = webkit.messageHandlers[this._si_handler];
+
+			if(!f_handler) {
+				throw new Error(`No webkit handler defined for '${this._si_handler}'`);
+			}
+
+			f_handler.postMessage({
 				id: si_msg,
 				...g_msg,
 			});
@@ -229,6 +236,17 @@ export function do_webkit_polyfill(f_debug?: typeof debug, g_extend?: Partial<ty
 				},
 
 				sendMessage(g_msg: JsonValue): Promise<any> {
+					return k_runtime.post({
+						data: g_msg,
+						sender: {
+							id: 'starshell-webkit',
+							url: location.href,
+							origin: 'null',
+						},
+					});
+				},
+
+				sendNativeMessage(g_msg: JsonValue): Promise<any> {
 					return k_runtime.post({
 						data: g_msg,
 						sender: {

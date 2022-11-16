@@ -1,22 +1,22 @@
-import type {Chain, ChainStruct, CoinInfo} from '#/meta/chain';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
+import type {ChainStruct, CoinInfo} from '#/meta/chain';
+
 import BigNumber from 'bignumber.js';
+
+import {R_TRANSFER_AMOUNT} from '#/share/constants';
 import {CoinGecko} from '#/store/web-apis';
-import { R_TRANSFER_AMOUNT } from '#/share/constants';
-import { ode } from '#/util/belt';
-import { format_amount } from '#/util/format';
+import {ode} from '#/util/belt';
+import {format_amount} from '#/util/format';
+
 
 export function as_amount(g_coin: Coin, g_info: CoinInfo): string {
 	const s_norm = g_coin.amount.padStart(g_info.decimals + 2, '0');
 
 	return s_norm.slice(0, -g_info.decimals).replace(/^0+/, '0')+'.'+s_norm.slice(-g_info.decimals);
-
-	// // g_coin.decimals
-	// return g_balance.amount;
 }
 
-export async function to_fiat(g_balance: Coin, g_coin: CoinInfo, si_versus='usd'): Promise<BigNumber> {
+export async function coin_to_fiat(g_balance: Coin, g_coin: CoinInfo, si_versus='usd'): Promise<BigNumber> {
 	// zero
 	if('0' === g_balance.amount) return new BigNumber(0);
 
@@ -58,7 +58,7 @@ export async function coin_formats(g_balance: Coin, g_coin: CoinInfo, si_versus=
 
 	const x_worth = g_versus[si_gecko];
 
-	const yg_balance = new BigNumber(g_balance.amount).shiftedBy(-g_coin.decimals).times(x_worth)
+	const yg_balance = new BigNumber(g_balance.amount).shiftedBy(-g_coin.decimals).times(x_worth);
 
 	// parse balance and multiply by value
 	return {
@@ -68,7 +68,6 @@ export async function coin_formats(g_balance: Coin, g_coin: CoinInfo, si_versus=
 		worth: x_worth,
 	};
 }
-
 
 
 
