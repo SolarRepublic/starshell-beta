@@ -1,3 +1,7 @@
+const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.service: ${s}`, ...a_args);
+
+debug(`Launched on ${Date()}`);
+
 import type Browser from 'webextension-polyfill';
 
 import {B_IPHONE_IOS, B_IOS_NATIVE, G_USERAGENT, R_CAIP_2, XT_TIMEOUT_APP_PERMISSIONS, XT_TIMEOUT_SERVICE_REQUEST} from '#/share/constants';
@@ -5,7 +9,7 @@ import {B_IPHONE_IOS, B_IOS_NATIVE, G_USERAGENT, R_CAIP_2, XT_TIMEOUT_APP_PERMIS
 import {do_webkit_polyfill} from './webkit-polyfill';
 
 if(B_IOS_NATIVE) {
-	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.background: ${s}`, ...a_args));
+	do_webkit_polyfill(debug);
 }
 
 import type {
@@ -351,7 +355,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 
 			// keplr is installed and enabled; do not interfere with it
 			if(g_keplr.enabled) {
-				console.debug(`Content Script at "${g_sender.url}" detected Keplr API but Keplr is installed and active, ignoring polyfill.`);
+				debug(`Content Script at "${g_sender.url}" detected Keplr API but Keplr is installed and active, ignoring polyfill.`);
 				return;
 			}
 		}
@@ -373,7 +377,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 			const {g_app} = g_status;
 
 			// 
-			console.log('Suggesting to reload app %o', {
+			debug('Suggesting to reload app %o', {
 				g_app,
 				g_sender,
 			});
@@ -405,7 +409,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 
 		// unknown source, silently reject
 		if(!g_sender.url) {
-			console.debug('Silently ignoring advertisement request from unknown source');
+			debug('Silently ignoring advertisement request from unknown source');
 			return;
 		}
 
@@ -434,8 +438,6 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 
 		// app is blocked; exit
 		if(await app_blocked(s_scheme, s_host, g_sender)) return;
-
-		console.info('app passed scheme check');
 
 		// prep app descriptor
 		const g_app = {
@@ -600,8 +602,6 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 	},
 
 	async scheduleFlowResponse(gc_schedule, g_sender, fk_respond) {
-		console.debug(`ServiceWorker::scheduleFlowResponse(${JSON.stringify(gc_schedule)})`);
-
 		// destructure schedule config
 		const {
 			key: si_key,
@@ -625,7 +625,7 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 	},
 
 	async scheduleBroadcast(gc_schedule, g_sender, fk_respond) {
-		console.debug(`ServiceWorker::scheduleBroadcast(${JSON.stringify(gc_schedule)})`);
+		debug(`scheduleBroadcast(${JSON.stringify(gc_schedule)})`);
 
 		// ack
 		fk_respond(true);
@@ -638,7 +638,7 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 	},
 
 	deepLink(gc_link, g_sender, fk_respond) {
-		console.debug(`ServiceWorker::deepLink(${JSON.stringify(gc_link)})`);
+		debug(`deepLink(${JSON.stringify(gc_link)})`);
 
 		// ack
 		fk_respond(true);
@@ -661,79 +661,6 @@ const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction>
 			// 	}
 			// }
 		}
-	},
-
-	async bankSend(g_value, g_sender, fk_respond) {
-		console.debug(`ServiceWorker::bankSend(${JSON.stringify(g_value)})`);
-
-		// ack
-		fk_respond(true);
-
-		// dereference provider
-		const g_provider = (await Providers.at(g_value.provider))!;
-
-		// dereference chain
-		const g_chain = (await Chains.at(g_provider.chain))!;
-
-		// activate network
-		const k_network = Providers.activate(g_provider, g_chain);
-
-		// find account that owns address
-		const [, g_account] = await Accounts.find(g_value.sender, g_chain);
-
-		// ensure websocket is listening for transfers
-		await await_transfer(`${g_provider.chain}\n${g_provider.rpcHost!}\n`, k_network, g_chain, g_account, g_value.sender, 'Send');
-
-		console.debug(`awaiting transfer on ${g_provider.chain}...`);
-
-		// execute transfer
-		const g_attempt = await k_network.bankSend(
-			g_value.sender,
-			g_value.recipient,
-			g_value.coin,
-			BigInt(g_value.amount),
-			BigInt(g_value.limit),
-			g_value.price,
-			g_value.memo,
-			BroadcastMode.BROADCAST_MODE_SYNC,
-			g_chain
-		);
-
-		console.debug(`Network received transaction`);
-
-		// notification id
-		const si_notifcation = `tx_out:${g_attempt.hash || uuid_v4()}`;
-		let s_title = '';
-		let s_message = '';
-
-		// error
-		if(0 !== g_attempt.code) {
-			s_title = '❌ Network rejected transaction';
-			s_message = `Error #${g_attempt.code}:: ${g_attempt.raw_log}`;
-		}
-		// no transaction hash
-		else if(!g_attempt.hash) {
-			s_title = '⚠️ Network issues';
-			s_message = 'Transaction was accepted but might have gotten lost';
-		}
-		// success
-		else {
-			s_title = `Transaction sent to network`;
-			s_message = `Waiting for confirmation on ${g_chain.name}...`;
-		}
-
-		// notify
-		notify(si_notifcation, {
-			title: s_title,
-			message: s_message,
-		});
-
-		// record pending transaction as incident
-		await Incidents.record({
-			id: g_attempt.hash,
-			type: 'tx_out',
-			data: g_attempt,
-		});
 	},
 };
 
@@ -908,11 +835,15 @@ chrome.runtime.onMessage?.addListener(message_router);
 
 
 chrome.runtime.onInstalled?.addListener(async(g_installed) => {
+	debug('#runtime.onInstalled');
+
 	// whether or not this is a fresh install
 	const b_install = 'install' === g_installed.reason;
 
 	// reinstall
 	await reinstall(b_install);
+
+	debug('Reinstall');
 
 	// pause for ui
 	await timeout(1e3);
@@ -945,6 +876,8 @@ chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 		}
 		catch(e_native) {}
 	}
+
+	console.log('done');
 
 	// // upon first install, walk the user through setup
 	// await flow_broadcast({
@@ -981,6 +914,8 @@ chrome.runtime.onInstalled?.addListener(async(g_installed) => {
 	// }
 });
 
+console.log('clearing alarms');
+
 chrome.alarms?.clearAll(() => {
 	console.warn('clear all');
 
@@ -1003,6 +938,8 @@ chrome.alarms?.clearAll(() => {
 });
 
 const R_NOTIFICATION_ID = /^@([a-z]+):(.*)+/;
+
+console.log('subscribing to notifications')
 
 chrome.notifications?.onClicked?.addListener((si_notif) => {
 	// dismiss notification

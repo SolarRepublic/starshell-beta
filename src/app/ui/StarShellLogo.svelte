@@ -18,6 +18,11 @@
 	export let alt = 'StarShell logo';
 	const s_alt = alt;
 
+	/**
+	 * Show the status dot
+	 */
+	export let showStatusDot = false;
+
 	const f_src = (x: number) => `/media/vendor/logo-${x}px.png`;
 
 	const sr_default = f_src(x_dim);
@@ -58,9 +63,11 @@
 		<img alt={s_alt} src="{sr_default}" />
 	</picture>
 
-	<span class="status">
-		<Dot n_border={2} b_pulsing={[ConnectionHealth.LOADING, ConnectionHealth.CONNECTING, ConnectionHealth.DELINQUENT].includes($yw_connection_health)}
-			sx_color={H_HEALTH_COLOR[$yw_connection_health]}
-		/>
-	</span>
+	{#if showStatusDot}
+		<span class="status">
+			<Dot n_border={2} b_pulsing={[ConnectionHealth.LOADING, ConnectionHealth.CONNECTING, ConnectionHealth.DELINQUENT].includes($yw_connection_health)}
+				sx_color={H_HEALTH_COLOR[$yw_connection_health]}
+			/>
+		</span>
+	{/if}
 </div>

@@ -2,7 +2,7 @@ import '#/dev';
 
 import type {Store, StoreKey} from '#/meta/store';
 import type {JsonObject, JsonValue, Dict} from '#/meta/belt';
-import {F_NOOP} from '#/util/belt';
+import {F_NOOP, timeout} from '#/util/belt';
 import {
 	base93_to_buffer,
 	buffer_to_base93,

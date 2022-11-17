@@ -305,7 +305,7 @@ export function concat(a_buffers: Uint8Array[]): Uint8Array {
 const sfcc = String.fromCharCode;
 
 /**
- * Converts the given buffer to a hex string format.
+ * Converts the given buffer to a hex string format in lowercase.
  * @param atu8_buffer input buffer
  * @returns output hex string
  */

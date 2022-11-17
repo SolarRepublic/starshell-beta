@@ -20,6 +20,8 @@
 	
 	import type {SimulateResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 	
+	import type {O, U} from 'ts-toolbelt';
+	
 	import type {AccountStruct} from '#/meta/account';
 	import type {Dict, Explode, JsonObject, Promisable} from '#/meta/belt';
 	import type {Bech32, CoinInfo, FeeConfig, FeeConfigAmount, FeeConfigPriced} from '#/meta/chain';
@@ -47,11 +49,12 @@
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {signAmino, type SignedDoc} from '#/chain/signing';
 	import {pubkey_to_bech32} from '#/crypto/bech32';
+	import {decrypt_private_memo} from '#/crypto/privacy';
 	import SensitiveBytes from '#/crypto/sensitive-bytes';
 	import type {IntraExt} from '#/script/messages';
 	import {open_flow} from '#/script/msg-flow';
 	import {global_broadcast, global_receive, global_wait} from '#/script/msg-global';
-	import {NB_MAX_MEMO, X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
+	import {X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
@@ -62,8 +65,8 @@
 	
 	import FatalError from './FatalError.svelte';
 	import SigningData from './SigningData.svelte';
-	import ActionsLine from '../ui/ActionsLine.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
@@ -72,7 +75,8 @@
 	import Row from '../ui/Row.svelte';
 	import type {SelectOption} from '../ui/StarSelect.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
-    import type { O, U } from 'ts-toolbelt';
+    import type { MsgSend } from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
+    import type { AminoMsgSend } from '#/chain/messages/bank';
 	
 
 	
@@ -102,6 +106,8 @@
 
 	export let fee: FeeConfig;
 	const gc_fee = fee;
+
+	export let memo = '';
 
 	export let broadcast: {} | null = null;
 
@@ -139,6 +145,11 @@
 	let s_fee_total = '0';
 	let s_fee_total_display = '0';
 	let dp_fee_fiat: Promise<string> = forever();
+
+	let b_memo_encrypted = false;
+	let s_memo_decrypted = 'decrypting...';
+	let b_memo_show_raw = false;
+	let b_hide_memo = false;
 
 	export let contractAddress: Bech32 | null = null;
 	export const sa_wasm = contractAddress;
@@ -360,6 +371,24 @@
 		if(a_msgs_proto?.length) {
 			// convert to amino
 			a_msgs_amino = a_msgs_proto.map(g => proto_to_amino(g, g_chain.bech32s.acc));
+
+			// memo is present
+			if(memo.length) {
+				// single message is a bank send
+				if(1 === a_msgs_proto.length && 'cosmos-sdk/MsgSend' === a_msgs_amino[0].type) {
+					const g_signer = await $yw_network.signerData(Chains.addressFor($yw_account.pubkey, g_chain));
+
+					const g_send = a_msgs_amino[0].value as AminoMsgSend;
+					try {
+						s_memo_decrypted = await decrypt_private_memo(memo, $yw_network, g_send.to_address, `${g_signer.sequence}`);
+						b_memo_encrypted = true;
+						b_memo_show_raw = true;
+
+						b_hide_memo = !s_memo_decrypted;
+					}
+					catch(e_decrypt) {}
+				}
+			}
 		}
 
 		// messages are defined
@@ -431,7 +460,7 @@
 		try {
 			g_sim = await $yw_network.simulate($yw_account, {
 				messages: a_msgs_proto,
-				memo: ' '.repeat(NB_MAX_MEMO),
+				memo: ' '.repeat(memo.length),
 			}, atu8_auth);
 		}
 		catch(e_sim) {
@@ -614,6 +643,7 @@
 				// encode tx body
 				const atu8_body = encode_proto(TxBody, {
 					messages: a_msgs_proto,
+					memo: memo,
 				});
 
 				// sign direct
@@ -1155,6 +1185,20 @@
 		<Gap />
 	{:else}
 		<hr>
+	{/if}
+
+	{#if memo && !b_hide_memo}
+		<Field key='memo' name={`${b_memo_encrypted? b_memo_show_raw? 'Decrypted': 'Raw': 'Public'} Memo`}>
+			<span slot="right">
+				{#if b_memo_encrypted}
+					<span class="link" on:click={() => b_memo_show_raw = !b_memo_show_raw}>Show {b_memo_show_raw? 'raw': 'decrypted'} form</span>
+				{/if}
+			</span>
+
+			<span style="color:var(--theme-color-graysoft)">
+				<textarea disabled>{b_memo_encrypted && b_memo_show_raw? s_memo_decrypted: memo}</textarea>
+			</span>
+		</Field>
 	{/if}
 
 	<Field short key='gas' name='Network Fee'>

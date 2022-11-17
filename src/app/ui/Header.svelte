@@ -508,7 +508,7 @@
 				{@html SX_ICON_ARROW_LEFT}
 			</span>
 		{:else if !b_exits && !b_plain}
-			<StarShellLogo dim={48} alt="Click to view general status" on:click={() => $yw_menu_vendor = true} />
+			<StarShellLogo showStatusDot dim={48} alt="Click to view general status" on:click={() => $yw_menu_vendor = true} />
 		{/if}
 
 		<!-- main title section on the left -->

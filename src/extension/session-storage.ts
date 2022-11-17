@@ -1,13 +1,14 @@
 import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
+import type {NonNullableFlat} from 'ts-toolbelt/out/Object/NonNullable';
+
+import type {Dict, Explode, JsonObject} from '#/meta/belt';
+import type {ContractStruct} from '#/meta/chain';
+import type {Vocab} from '#/meta/vocab';
 
 import type {ScreenInfo} from '#/extension/browser';
-import type {Dict, Explode, JsonObject} from '#/meta/belt';
-import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_IOS_NATIVE, G_USERAGENT, N_BROWSER_VERSION_MAJOR} from '#/share/constants';
-import type {Vocab} from '#/meta/vocab';
 import type {IcsToService} from '#/script/messages';
-import {F_NOOP} from '#/util/belt';
-import type { NonNullableFlat } from 'ts-toolbelt/out/Object/NonNullable';
-import type { ContractStruct } from '#/meta/chain';
+import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_IOS_NATIVE} from '#/share/constants';
+
 
 
 export type SessionStorageRegistry = NonNullableFlat<MergeAll<{
@@ -142,10 +143,16 @@ export const SessionStorage = {} as ExtSessionStorage;
 function resolve_storage_mechanism(b_force_background=false) {
 	let f_session!: () => Window['sessionStorage'];
 
+	console.debug(`Resolving storage mechanism (force_background=${b_force_background}); chrome session capable: ${B_CHROME_SESSION_CAPABLE}`);
+
 	if(B_IOS_NATIVE) {
+		console.debug('Using sessionStorage since on iOS Native');
+
 		f_session = () => sessionStorage;
 	}
-	else if(chrome.storage['session'] && !b_force_background && B_CHROME_SESSION_CAPABLE) {
+	else if(chrome.storage['session'] && !b_force_background) {  // B_CHROME_SESSION_CAPABLE
+		console.debug('Using chrome.storage.session since it is available');
+
 		const f_session_direct = () => (chrome.storage as unknown as {
 			session: chrome.storage.StorageArea;
 		}).session;
@@ -199,7 +206,10 @@ function resolve_storage_mechanism(b_force_background=false) {
 		return g_exports;
 	}
 	else {
+		console.debug('Falling back to using background page');
+
 		const dw_background = chrome.extension.getBackgroundPage?.();
+
 		// within popup script; able to access "background page's" sessionStorage
 		if(dw_background) {
 			f_session = () => chrome.extension.getBackgroundPage()!.sessionStorage;
@@ -215,13 +225,18 @@ function resolve_storage_mechanism(b_force_background=false) {
 			return {
 				/* eslint-disable @typescript-eslint/require-await */
 				get<si_key extends SessionStorageKey>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
-					return f_runtime().sendMessage({
-						type: 'sessionStorage',
-						value: {
-							type: 'get',
-							value: si_key,
-						},
-					}) as Promise<SessionStorage.Wrapped<si_key> | null>;
+					try {
+						return f_runtime().sendMessage({
+							type: 'sessionStorage',
+							value: {
+								type: 'get',
+								value: si_key,
+							},
+						}) as Promise<SessionStorage.Wrapped<si_key> | null>;
+					}
+					catch(e_send) {
+						console.error(`Caught failed session storage get: ${e_send.stack}`);
+					}
 					// return new Promise((fk_resolve) => {
 					// 	f_runtime().sendMessage({
 					// 		type: 'sessionStorage',

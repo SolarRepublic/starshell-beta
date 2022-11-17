@@ -143,7 +143,8 @@
 				return await g_interpretted?.review?.('pending' === g_data.stage);
 			}));
 
-			const a_fields_outbound_before: FieldConfig[] = [
+			// common outbound fields to place above
+			const a_fields_outbound_above: FieldConfig[] = [
 				{
 					type: 'transaction',
 					hash: g_data.hash,
@@ -151,7 +152,12 @@
 				},
 			];
 
-			const a_fields_outbound_after: FieldConfig[] = [
+			// common outbound fields to place below
+			const a_fields_outbound_below: FieldConfig[] = [
+				{
+					type: 'memo',
+					text: g_data.memo,
+				},
 				{
 					type: 'group',
 					flex: true,
@@ -179,9 +185,9 @@
 				return {
 					s_title: g_reviewed?.title || 'Outbound Transaction',
 					a_fields: [
-						...a_fields_outbound_before,
+						...a_fields_outbound_above,
 						...g_reviewed?.fields || [],
-						...a_fields_outbound_after,
+						...a_fields_outbound_below,
 					],
 				};
 			}
@@ -190,7 +196,7 @@
 			return {
 				s_title: `Sent Multi-Message Transaction`,
 				a_fields: [
-					...a_fields_outbound_before,
+					...a_fields_outbound_above,
 					...a_reviewed.flatMap((g, i) => [
 						{
 							type: 'gap',
@@ -205,7 +211,7 @@
 							fields: g?.fields || [],
 						},
 					]),
-					...a_fields_outbound_after,
+					...a_fields_outbound_below,
 				],
 			};
 		},

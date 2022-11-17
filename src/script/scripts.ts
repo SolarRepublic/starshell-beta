@@ -224,6 +224,8 @@ export async function keplr_polyfill_script_add_matches(a_matches: string[], b_e
  * Enables/disables Keplr compatibility mode globally
  */
 export async function set_keplr_compatibility_mode(b_enabled?: boolean): Promise<void> {
+	console.info(`${'boolean' === typeof b_enabled? b_enabled? 'Enabling': 'Disabling': 'Determining'} keplr compatibility mode`);
+
 	// compatibility mode is being set; save setting to public storage
 	if('boolean' === typeof b_enabled) {
 		await PublicStorage.keplrCompatibilityMode(b_enabled);
@@ -233,17 +235,25 @@ export async function set_keplr_compatibility_mode(b_enabled?: boolean): Promise
 		b_enabled = await PublicStorage.keplrCompatibilityMode();
 	}
 
+	console.info(`Conducting script registration in order to ${b_enabled? 'enable': 'disable'}`);
+
 	// browser is able to (unr)register content scripts
 	if(f_scripting()) {
+		console.info('Browser scripting available');
+
 		// compatibility mode is being enabled
 		if(b_enabled) {
 			// unconditional polyfill mode
 			if(await PublicStorage.keplrPolyfillMode()) {
+				console.info('Unconditional polyfill mode selected');
+
 				// ensure polyfill is enabled for all secure locations
 				await keplr_polyfill_script_add_matches(['https://*/*', 'file:///*'], true);
 			}
 			// polyfill is conditional and wallet is unlocked
 			else if(await Vault.isUnlocked()) {
+				console.info('Conditional polyfill mode and wallet is unlocked');
+
 				// get all apps that depend on Keplr API
 				const a_apps = await Apps.filter({
 					api: AppApiMode.KEPLR,
@@ -259,6 +269,8 @@ export async function set_keplr_compatibility_mode(b_enabled?: boolean): Promise
 				}
 			}
 
+			console.info('Ensuring witness script is enabled');
+
 			// ensure witness script is enabled
 			await set_script_registration(H_CONTENT_SCRIPT_DEFS.ics_witness(), true);
 		}
@@ -273,6 +285,8 @@ export async function set_keplr_compatibility_mode(b_enabled?: boolean): Promise
 	}
 	// browser cannot unregister the content scripts
 	else {
+		console.info('Browser scripting NOT available');
+
 		// set the session flags for content scripts to read from
 		return SessionStorage.set({
 			keplr_compatibility_mode_disabled: !b_enabled,

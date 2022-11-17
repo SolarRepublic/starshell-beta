@@ -9,11 +9,13 @@
 	import {syserr} from '../common';
 	import {validate_contract} from '../helper/contract-validator';
 	
+	import {yw_navigator} from '../mem';
+	
 	import {Chains} from '#/store/chains';
 	import {Contracts, ContractType} from '#/store/contracts';
 	import {CoinGecko} from '#/store/web-apis';
 	
-	import ContactView from './ContactView.svelte';
+	import ContractView from './ContractView.svelte';
 	import Address from '../frag/Address.svelte';
 	import IconEditor from '../frag/IconEditor.svelte';
 	import InlineTags from '../frag/InlineTags.svelte';
@@ -24,12 +26,12 @@
 	import Load from '../ui/Load.svelte';
 	import type {SelectOption} from '../ui/StarSelect.svelte';
 	import StarSelect from '../ui/StarSelect.svelte';
-	
+
 
 	const k_page = getContext<Page>('page');
 
 	/**
-	 * Contact resource path
+	 * Contract resource path
 	 */
 	export let contractPath: ContractPath | '' = '';
 	const p_contract = contractPath || '';
@@ -160,8 +162,6 @@
 		// contract is being updated
 		else if(p_contract && g_contract) {
 			Object.assign(g_contract, g_contract_fill);
-
-			k_page.reset();
 		}
 		// contract is being created
 		else if($yw_contract_chain) {
@@ -191,11 +191,11 @@
 			// reset thread
 			k_page.reset();
 
-			// immediately open new contact
-			k_page.push({
-				creator: ContactView,
+			// immediately open new contract
+			$yw_navigator.activePage.push({
+				creator: ContractView,
 				props: {
-					contactPath: p_contract,
+					contractPath: p_contract,
 				},
 			});
 		}
@@ -307,7 +307,7 @@
 		{/if}
 	</Field>
 
-	<Field key="contact-pfp" name="Profile Icon">
+	<Field key="contract-pfp" name="Profile Icon">
 		<IconEditor intent='token' bind:pfpPath={$yw_contract_pfp} name={$yw_contract_name} />
 	</Field>
 

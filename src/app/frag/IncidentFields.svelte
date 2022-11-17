@@ -39,7 +39,7 @@
 
 <script type="ts">
 	import {syserr} from '../common';
-	import {ecdhNonce, extractMemoCiphertext} from '#/crypto/privacy';
+	import {ecdh_nonce, extract_memo_ciphertext} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
 	import {buffer_to_text} from '#/util/data';
 	import {yw_chain} from '../mem';
@@ -100,9 +100,9 @@
 			});
 		}
 
-		const atu8_nonce = await ecdhNonce(s_sequence, s_gas_wanted);
+		const atu8_nonce = await ecdh_nonce(s_sequence, s_gas_wanted);
 
-		const atu8_ciphertext = extractMemoCiphertext(s_memo);
+		const atu8_ciphertext = extract_memo_ciphertext(s_memo);
 
 		const atu8_plaintext = await network.ecdhDecrypt(atu8_pubkey_65, atu8_ciphertext, atu8_nonce, chain, g_account);
 

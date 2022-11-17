@@ -5,6 +5,7 @@ import {
 
 import {SI_STORE_SETTINGS} from '#/share/constants';
 import type {Dict} from '#/meta/belt';
+import type { ChainPath } from '#/meta/chain';
 
 export enum KeplrCompatibilityMode {
 	DEFAULT = 0,
@@ -17,10 +18,10 @@ export type SettingsRegistry = {
 	allow_file_urls?: boolean;
 
 	// 
-	e2e_encrypted_memos?: Dict<{
+	e2e_encrypted_memos?: Partial<Record<ChainPath, {
 		enabled: boolean;
 		published: boolean;
-	}>;
+	}>>;
 
 	// 
 	notice_send_encrypted_memo?: boolean;

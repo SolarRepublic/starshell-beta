@@ -218,7 +218,7 @@
 
 					>.title {
 						display: flex;
-						gap: 16px;
+						gap: calc(var(--ui-padding) / 2);
 						align-items: center;
 						flex: 0;
 

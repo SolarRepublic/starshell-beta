@@ -845,19 +845,6 @@ export namespace IntraExt {
 			value: AsJson<DeepLinkMessage>;
 		};
 
-		bankSend: {
-			value: {
-				provider: ProviderPath;
-				sender: Bech32;
-				recipient: Bech32;
-				coin: string;
-				amount: `${bigint}`;
-				limit: `${bigint}`;
-				price: number;
-				memo: string;
-			};
-		};
-
 		reloadTab: {
 			value: {
 				tabId: number;

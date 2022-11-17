@@ -13,6 +13,11 @@ import {Chains} from '#/store/chains';
 import {ode} from '#/util/belt';
 import {format_amount} from '#/util/format';
 
+export interface AminoMsgSend {
+	from_address: Bech32;
+	to_address: Bech32;
+	amount: Coin[];
+}
 
 
 function coin_to_payload(g_amount: Coin, g_chain: ChainStruct): Cw.Amount {
@@ -36,11 +41,7 @@ export const BankMessages: MessageDict = {
 			from_address: sa_sender,
 			to_address: sa_recipient,
 			amount: a_coins,
-		} = g_msg as unknown as {
-			from_address: Bech32;
-			to_address: Bech32;
-			amount: Coin[];
-		};
+		} = g_msg as unknown as AminoMsgSend;
 
 		const a_payloads = a_coins.map(g => coin_to_payload(g, g_chain));
 

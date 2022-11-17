@@ -622,7 +622,7 @@ export class CosmosNetwork implements ActiveNetwork {
 
 				const g_value = g_msg?.result?.data?.value;
 
-				const si_txn = g_msg?.result?.events?.['tx.hash']?.[0] as string || '';
+				const si_txn = (g_msg?.result?.events?.['tx.hash']?.[0] as string || '').toUpperCase();
 
 				if(g_value) {
 					void fke_receive(null, g_value as JsonObject, si_txn);
@@ -881,87 +881,6 @@ export class CosmosNetwork implements ActiveNetwork {
 		return a_outs;
 	}
 
-	async bankSend(
-		sa_sender: Bech32,
-		sa_recipient: Bech32,
-		si_coin: string,
-		xg_amount: bigint,
-		xg_limit: bigint,
-		x_price: number,
-		s_memo='',
-		xc_mode=BroadcastMode.BROADCAST_MODE_SYNC,
-		g_chain=yw_chain.get()
-	): Promise<TxPending> {
-		const g_coin = g_chain.coins[si_coin];
-
-		const g_msg_send = MsgSend.fromPartial({
-			amount: [{
-				denom: g_coin.denom,
-				amount: xg_amount.toString(),
-			}],
-			fromAddress: sa_sender,
-			toAddress: sa_recipient,
-		});
-
-		const g_encoded: Any = {
-			typeUrl: '/cosmos.bank.v1beta1.MsgSend',
-			value: MsgSend.encode(g_msg_send).finish(),
-		};
-
-		// locate account
-		let g_account!: AccountStruct;
-		const ks_accounts = await Accounts.read();
-		for(const [, g_account_test] of ks_accounts.entries()) {
-			if(sa_sender === Chains.addressFor(g_account_test.pubkey, g_chain)) {
-				g_account = g_account_test;
-				break;
-			}
-		}
-
-		// account not found
-		if(!g_account) {
-			throw syserr({
-				title: 'Critical Error',
-				text: `Failed to locate account associated with ${sa_sender}`,
-			});
-		}
-
-		const [g_response] = await this.signDirectAndBroadcast({
-			chain: g_chain,
-			account: g_account,
-			msgs: [g_encoded],
-			memo: s_memo,
-			gasLimit: xg_limit,
-			gasFee: {
-				price: x_price,
-			},
-			mode: xc_mode,
-		});
-
-		// construct pending transaction
-		return {
-			stage: 'pending',
-			chain: Chains.pathFrom(g_chain),
-			code: g_response.code,
-			hash: g_response.txhash,
-			gas_limit: `${xg_limit}` as Cw.Uint128,
-			gas_wanted: g_response.gasWanted as Cw.Uint128,
-			gas_used: g_response.gasUsed as Cw.Uint128,
-			raw_log: g_response.rawLog,
-
-			msgs: [
-				{
-					events: {
-						transfer: {
-							sender: g_msg_send.fromAddress as Cw.Bech32,
-							recipient: g_msg_send.toAddress as Cw.Bech32,
-							amount: `${g_msg_send.amount[0].amount as Cw.Uint128}${g_msg_send.amount[0].denom}` as Cw.Amount,
-						},
-					},
-				},
-			],
-		};
-	}
 
 	// async signAmino(gc_amino: AminoTxConfig) {
 	// 	// prep gas fee data
@@ -1152,7 +1071,7 @@ export class CosmosNetwork implements ActiveNetwork {
 
 		return {
 			atu8_tx,
-			sxb16_hash: buffer_to_hex(sha256_sync_insecure(atu8_tx)),
+			sxb16_hash: buffer_to_hex(sha256_sync_insecure(atu8_tx)).toUpperCase(),
 		};
 	}
 
@@ -1366,7 +1285,7 @@ export class CosmosNetwork implements ActiveNetwork {
 				const g_result = a_results[i_txn];
 
 				// ref transaction hash
-				const si_txn = g_result.txhash;
+				const si_txn = g_result.txhash.toUpperCase();
 
 				// construct incident path
 				const p_incident = Incidents.pathFor(si_type, si_txn);

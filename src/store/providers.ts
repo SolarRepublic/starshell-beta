@@ -151,18 +151,6 @@ export interface ActiveNetwork {
 	 */
 	bankBalances(sa_owner: Bech32): Promise<Dict<BalanceBundle>>;
 
-	bankSend(
-		sa_sender: Bech32,
-		sa_recipient: Bech32,
-		si_coin: string,
-		xg_amount: bigint,
-		xg_limit: bigint,
-		x_price: number,
-		memo?: string,
-		xc_mode?: BroadcastMode,
-		g_chain?: ChainStruct
-	): Promise<TxPending>;
-
 	e2eInfoFor(sa_other: Bech32, s_max_height?: string): Promise<E2eInfo>;
 
 	ecdh(atu8_other_pubkey: Uint8Array, g_chain?: ChainStruct, g_account?: AccountStruct): Promise<CryptoKey>;

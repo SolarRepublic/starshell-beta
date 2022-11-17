@@ -3,13 +3,13 @@
 /// <reference types="vite/client" />
 /// <reference types="@solar-republic/vite-plugin-web-extension/client" />
 
+import type {Dict, JsonValue} from './meta/belt';
 import type {ImageMedia} from './meta/media';
 import type {Resource} from './meta/resource';
 import type {Store, StoreKey} from './meta/store';
+import type {Vocab} from './meta/vocab';
+import type {ExtToNative} from './script/messages';
 import type {SI_STORE_MEDIA} from './share/constants';
-import type {Dict, JsonValue} from './meta/belt';
-import type { Vocab } from './meta/vocab';
-import type { ExtToNative } from './script/messages';
 
 interface ImportMetaEnv {
 	MV3: boolean;

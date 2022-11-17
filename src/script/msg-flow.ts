@@ -1,12 +1,15 @@
 import type {IntraExt} from './messages';
-import type {Vocab} from '#/meta/vocab';
-import type {Dict, JsonObject} from '#/meta/belt';
-import type {FlowMessage} from '#/entry/flow';
 
-import {stringify_params, uuid_v4} from '#/util/dom';
-import {OpenWindowConfig, open_window, PopoutWindowHandle} from '#/extension/browser';
-import {PulseMonitor} from '#/util/pulse-monitor';
+import type {Dict, JsonObject} from '#/meta/belt';
+import type {Vocab} from '#/meta/vocab';
+
+import type {FlowMessage} from '#/entry/flow';
+import type {OpenWindowConfig, PopoutWindowHandle} from '#/extension/browser';
+
+import {open_window} from '#/extension/browser';
 import {B_MOBILE, B_WEBEXT_ACTION, B_WEBEXT_BROWSER_ACTION} from '#/share/constants';
+import {stringify_params, uuid_v4} from '#/util/dom';
+import {PulseMonitor} from '#/util/pulse-monitor';
 
 
 type FlowResponseValue<gc_prompt extends PromptConfig> = Vocab.Response<IntraExt.FlowVocab, gc_prompt['flow']['type']>;

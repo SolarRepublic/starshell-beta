@@ -1,4 +1,4 @@
-import { ATU8_SHA512_STARSHELL } from "#/share/constants";
+import {ATU8_SHA512_STARSHELL} from '#/share/constants';
 
 export class EntropyProducer {
 	static async create(n_variables: number, i_iterator: number, atu8_seed?: Uint8Array): Promise<EntropyProducer> {

@@ -18,7 +18,8 @@
 	import AssetSelect from '#/app/frag/AssetSelect.svelte';
 	import {encode_proto} from '#/chain/cosmos-msgs';
 	import type {SecretNetwork} from '#/chain/secret-network';
-	import {NB_MAX_MEMO} from '#/share/constants';
+	import {encrypt_private_memo} from '#/crypto/privacy';
+	import {NB_MAX_MEMO, XT_MINUTES, XT_SECONDS} from '#/share/constants';
 	import {subscribe_store} from '#/store/_base';
 	import {Agents} from '#/store/agents';
 	import {G_APP_STARSHELL} from '#/store/apps';
@@ -54,7 +55,6 @@
 	import SX_ICON_INFO from '#/icon/info.svg?raw';
 	import SX_ICON_SHIELD from '#/icon/shield.svg?raw';
 	import SX_ICON_VISIBILITY from '#/icon/visibility.svg?raw';
-	
 	
 
 	const G_SLIDE_IN = {
@@ -209,10 +209,35 @@
 	void reload_settings();
 	subscribe_store('settings', () => reload_settings, onDestroy);
 
+	const h_recipient_publicities: Record<Bech32, number> = {};
+
 	function check_recipient_publicity() {
-		b_private_memo_recipient_published = false;
-		$yw_network.e2eInfoFor(sa_recipient as Bech32).then((g_info) => {
-			b_private_memo_recipient_published = !!g_info.sequence;
+		// ref cached value
+		const xt_cached = h_recipient_publicities[sa_recipient];
+
+		// recipient is published
+		if(xt_cached < 0) {
+			b_private_memo_recipient_published = true;
+			return;
+		}
+		// recipient wasn't published as of 1 minute ago
+		else if(xt_cached > 0 && Date.now() - xt_cached < 1 * XT_MINUTES) {
+			b_private_memo_recipient_published = false;
+			return;
+		}
+
+		// cache selected recipient in case it changes while request is underway
+		const sa_check = sa_recipient;
+
+		// fetch recipient's account sequence
+		$yw_network.e2eInfoFor(sa_check as Bech32).then((g_info) => {
+			// parse and cache published state
+			const b_published = h_recipient_publicities[sa_check] = !!g_info.sequence;
+
+			// same recipient still selected
+			if(sa_recipient === sa_check) {
+				b_private_memo_recipient_published = b_published;
+			}
 		}).catch(() => {
 			b_memo_private = false;
 		});
@@ -252,7 +277,22 @@
 			c_show_validations++;
 			return;
 		}
-		else if(b_asset_coin) {
+
+		// prep final memo string
+		let s_memo_final = s_memo;
+
+		// private memo
+		if((b_memo_private || (!s_memo.length && b_private_memo_enabled && b_private_memo_published)) && b_private_memo_recipient_published) {
+			s_memo_final = await encrypt_private_memo(
+				s_memo,
+				$yw_chain,
+				$yw_account_ref,
+				sa_recipient as Bech32,
+				$yw_network
+			);
+		}
+
+		if(b_asset_coin) {
 			// TODO: support use max to send entire balance
 
 			g_msg = {
@@ -272,6 +312,7 @@
 				fee: {
 					limit: 15_000n,
 				} as FeeConfig,
+				memo: s_memo_final,
 			};
 
 

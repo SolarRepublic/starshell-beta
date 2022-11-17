@@ -300,6 +300,17 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold([
 	...[
 		{
+			name: 'Pulsar Secret Secret',
+			bech32: 'secret18vd8fpwxzck93qlwghaj6arh4p7c5n8978vsyg',
+			pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
+			snip20: {
+				symbol: 'sSCRT',
+				extra: {
+					coingecko_id: 'secret',
+				},
+			},
+		},
+		{
 			name: 'Pulsar USD Coin',
 			bech32: 'secret1rzz7q3us7zksy3la7hjup33gvtqxyfljpaya2r',
 			pfp: H_LOOKUP_PFP['/media/token/secret-usdc-eth.svg'],

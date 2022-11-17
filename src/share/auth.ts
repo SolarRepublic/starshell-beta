@@ -244,6 +244,8 @@ export async function reinstall(b_install=false): Promise<void> {
 	// mark event
 	await PublicStorage.installed();
 
+	console.warn(`Performing ${b_install? 'full': 'partial'} installation`);
+
 	// migration; wipe everything
 	if(await PublicStorage.isUpgrading('0.3.0')) {
 		await storage_clear();
@@ -267,10 +269,15 @@ export async function reinstall(b_install=false): Promise<void> {
 	}
 	else if(await PublicStorage.isUpgrading('0.6.1')) {
 		await storage_remove('chains');
+		await storage_remove('contracts');
 	}
+
+	console.info('Migrations complete');
 
 	// fresh install
 	if(b_install) {
+		console.info('Enabling keplr detection on fresh install');
+
 		// enable keplr compatibility mode
 		await PublicStorage.keplrCompatibilityMode(true);
 
@@ -278,8 +285,12 @@ export async function reinstall(b_install=false): Promise<void> {
 		await PublicStorage.keplrDetectionMode(true);
 	}
 
+	console.info('Updating keplr compatibility mode');
+
 	// set compatibility mode based on apps and current settings
 	await set_keplr_compatibility_mode();
+
+	console.info('Installation complete');
 }
 
 /**
