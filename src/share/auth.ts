@@ -257,19 +257,16 @@ export async function reinstall(b_install=false): Promise<void> {
 		await storage_remove('media');
 		await storage_remove('chains');
 		await storage_remove('contracts');
+		await storage_remove('providers');
 		for(const [, g_account] of (await Accounts.read()).entries()) {
 			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
 		}
 	}
 	// selective wipe
-	else if(await PublicStorage.isUpgrading('0.5.4')) {
-		await storage_remove('providers');
-		await storage_remove('chains');
-		await storage_remove('contracts');
-	}
 	else if(await PublicStorage.isUpgrading('0.6.1')) {
 		await storage_remove('chains');
 		await storage_remove('contracts');
+		await storage_remove('providers');
 	}
 
 	console.info('Migrations complete');

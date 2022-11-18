@@ -256,6 +256,9 @@ export const P_PUBLIC_SUFFIX_LIST = 'https://raw.githubusercontent.com/publicsuf
 // global decrees
 export const P_STARSHELL_DECREES = 'https://raw.githubusercontent.com/SolarRepublic/wallet-decrees/main/global.json';
 
+// defaults repo
+export const P_STARSHELL_DEFAULTS = 'https://raw.githubusercontent.com/SolarRepublic/wallet-defaults-registry/main/';
+
 // transfer amount string regex
 export const R_TRANSFER_AMOUNT = /^(\d+)(.+)/;
 
@@ -326,3 +329,4 @@ export const SI_STORE_WEB_APIS: StoreKey<'web_apis'> = 'web_apis';
 
 export {A_KEPLR_EMBEDDED_CHAINS, A_TESTNETS} from './keplr-exports';
 
+export const R_TX_ERR_ACC_SEQUENCE = /account sequence/;

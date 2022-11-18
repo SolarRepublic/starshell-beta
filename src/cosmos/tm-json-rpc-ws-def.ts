@@ -61,6 +61,7 @@ export interface WsTxResultAny {
 	gas_used: string;
 	gas_wanted: string;
 	log: string;
+	timestamp: string;
 }
 
 export interface WsTxResultError extends WsTxResultAny {

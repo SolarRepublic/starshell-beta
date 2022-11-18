@@ -22,6 +22,7 @@ import {Incidents} from '#/store/incidents';
 import {fodemtv, oderac} from '#/util/belt';
 import {base64_to_buffer, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
 import {format_amount} from '#/util/format';
+import { R_TX_ERR_ACC_SEQUENCE } from '#/share/constants';
 
 
 export interface CosmosEvents {
@@ -297,6 +298,25 @@ export function account_abcis(
 				const p_incident = Incidents.pathFor('tx_out', si_txn);
 				const g_pending = await Incidents.at(p_incident) as IncidentStruct<'tx_out'>;
 
+				// prep error incident data
+				const g_incident_data: TxError = {
+					stage: 'synced',
+					account: _p_account,
+					app: _p_app,
+					chain: _p_chain,
+					gas_limit: g_result.gas_wanted as Cw.Uint128,
+					gas_used: g_result.gas_used as Cw.Uint128,
+					gas_wanted: g_result.gas_wanted as Cw.Uint128,
+					code: g_result.code,
+					codespace: g_result.codespace,
+					timestamp: g_result.timestamp,
+					raw_log: g_result['rawLog'] as string,
+					events: {},
+					hash: g_result['txhash'],
+					msgs: [],
+					log: g_result.log,
+				};
+
 				// pending tx exists
 				if(g_pending) {
 					// set app context from pending tx record
@@ -311,6 +331,20 @@ export function account_abcis(
 							});
 						}
 					}
+
+					// update incident
+					await Incidents.mutateData(p_incident, {
+						...g_pending,
+						...g_incident_data,
+						app: p_app || _p_app,
+					});
+				}
+				// insert incident
+				else {
+					await Incidents.record({
+						data: g_incident_data,
+						type: 'tx_out',
+					});
 				}
 
 				// attempt tx error handling
@@ -341,12 +375,20 @@ export function account_abcis(
 							// apply message
 							g_notify = await g_interpretted.fail?.(a_msgs.length, g_result);
 						}
-						// no interpretter
-						else {
+
+						// not interpretted
+						if(!g_notify) {
+							let s_reason = g_result.log;
+
+							// generic errors
+							if(R_TX_ERR_ACC_SEQUENCE.test(g_result.log)) {
+								s_reason = `Previous transaction stuck in mempool on provider.\n${g_result.log}`;
+							}
+
 							// 
 							g_notify = {
 								title: '❌ Transaction Failed',
-								message: '',
+								message: s_reason,
 							};
 						}
 

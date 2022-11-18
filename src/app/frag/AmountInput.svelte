@@ -82,7 +82,7 @@
 	export let coin: CoinInfo | null = null;
 
 	// contract struct
-	export let contract: ContractStruct | null;
+	export let contract: ContractStruct | null = null;
 
 	// asset balance in lowest denomination
 	let yg_balance: BigNumber | null = null;
@@ -320,11 +320,6 @@
 			return error = 'Insufficient balance';
 		}
 	}
-
-	// updates exposed value from input
-	function capture_input(d_event: Event) {
-		value = (d_event.target as HTMLInputElement).value;
-	}
 </script>
 
 <style lang="less">
@@ -378,8 +373,7 @@
 	min=0
 	max={yg_max.toString() || '0'}
 	decimals={decimals}
-	value={value}
-	on:input={capture_input}
+	bind:value={value}
 	bind:error={error}
 	on:check={check_validity}
 >

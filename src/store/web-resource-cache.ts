@@ -1,15 +1,14 @@
 import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
 
-import SX_SUFFIXES_BUNDLED from '#/../submodules/publicsuffix-list/public_suffix_list.dat?raw';
-
+import {storage_get, storage_set} from '#/extension/public-storage';
 import {
 	P_PUBLIC_SUFFIX_LIST,
 	P_STARSHELL_DECREES,
+	P_STARSHELL_DEFAULTS,
 	XT_DAYS,
 	XT_HOURS,
 	XT_MINUTES,
 } from '#/share/constants';
-import {storage_get, storage_set} from '#/extension/public-storage';
 
 const $_EXISTING = Symbol('use-existing-cache');
 
@@ -43,6 +42,17 @@ export interface Decree extends JsonObject {
 	suggestion: 'upgrade';
 }
 
+export interface StarShellDefaults {
+	chains: Dict<{
+		providers?: {
+			name: string;
+			grpcWebUrl: string;
+			rpcHost?: string;
+			on: 0 | 1;
+		}[];
+	}>;
+}
+
 const H_REGISTRY = {
 	[P_PUBLIC_SUFFIX_LIST]: {
 		format: 'text',
@@ -69,6 +79,11 @@ const H_REGISTRY = {
 		filter(z_data: JsonValue): JsonValue {
 			return (z_data as Decree[]).filter(g_decree => true) as JsonValue;
 		},
+	},
+
+	[P_STARSHELL_DEFAULTS]: {
+		format: 'json',
+		lifespan: 30*XT_MINUTES,
 	},
 } as const;
 

@@ -6,6 +6,10 @@ import type {A, O, U} from 'ts-toolbelt';
 import type {Dict, Explode, JsonObject, Values} from '#/meta/belt';
 import type {Cwm} from '#/meta/cosm-wasm';
 
+export interface PortableMessage {
+	amino: AminoMsg;
+	proto: Any;
+}
 
 export namespace Snip2x {
 	export type AnyMessageKey = Snip20.AnyMessageKey | Snip21.AnyMessageKey | Snip24.AnyMessageKey;

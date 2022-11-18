@@ -583,12 +583,6 @@
 	.new-address {
 		margin-top: 12px;
 	}
-
-	.disabled.link {
-		color: var(--theme-color-text-med);
-		font-style: italic;
-		text-decoration: line-through;
-	}
 </style>
 
 

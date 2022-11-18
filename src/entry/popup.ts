@@ -7,7 +7,7 @@ window.addEventListener('error', (d_event) => {
 	console.error(d_event.error);
 });
 
-import {B_LOCALHOST, B_MOBILE, B_IOS_NATIVE, XT_SECONDS} from '#/share/constants';
+import {B_LOCALHOST, B_MOBILE, B_IOS_NATIVE, XT_SECONDS, P_STARSHELL_DEFAULTS, R_CAIP_2} from '#/share/constants';
 // import {
 // 	do_webkit_polyfill,
 // } from '#/script/webkit-polyfill';
@@ -33,7 +33,7 @@ import {global_broadcast, global_receive} from '#/script/msg-global';
 import {Accounts} from '#/store/accounts';
 import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
 import {factory_reset, login, register, reinstall} from '#/share/auth';
-import {check_restrictions} from '#/extension/restrictions';
+import {check_defaults, check_restrictions} from '#/extension/restrictions';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
 import type {Vocab} from '#/meta/vocab';
 import type {IntraExt} from '#/script/messages';
@@ -41,6 +41,9 @@ import type {Dict} from '#/meta/belt';
 import {Apps} from '#/store/apps';
 import {AppApiMode, AppStruct} from '#/meta/app';
 import {SessionStorage} from '#/extension/session-storage';
+import { Chains } from '#/store/chains';
+import { StarShellDefaults, WebResourceCache } from '#/store/web-resource-cache';
+import { Providers } from '#/store/providers';
 
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
 
@@ -175,6 +178,7 @@ async function reload() {
 		cause: g_cause,
 	};
 	debug('checking restrictions');
+
 	// restrictions
 	const a_restrictions = await check_restrictions();
 
@@ -223,6 +227,46 @@ async function reload() {
 
 			// launch homescreen
 			b_launch = true;
+
+			// update defaults
+			try {
+				const ks_providers = await Providers.read();
+
+				const [g_defaults, xc_timeout] = await timeout_exec(10e3, () => WebResourceCache.get(P_STARSHELL_DEFAULTS));
+
+				if(!xc_timeout) {
+					const h_chains = (g_defaults as unknown as StarShellDefaults).chains;
+					for(const si_caip2 in h_chains) {
+						const {
+							providers: a_providers,
+						} = h_chains[si_caip2];
+
+						for(const gc_provider of a_providers!) {
+							const p_provider = Providers.pathFor(gc_provider.grpcWebUrl);
+
+							// provider is defined locally
+							const g_provider = ks_providers.at(p_provider);
+							if(g_provider) {
+								// state differs; update it
+								if(g_provider.on !== gc_provider.on) {
+									await Providers.update(p_provider, () => ({on:gc_provider.on}));
+								}
+							}
+							// provider is not defined locally, adopt it
+							else {
+								const [, si_namespace, si_reference] = R_CAIP_2.exec(si_caip2)!;
+
+								await Providers.putAt(p_provider, {
+									...gc_provider,
+									chain: Chains.pathFor(si_namespace as 'cosmos', si_reference),
+									pfp: '',
+								});
+							}
+						}
+					}
+				}
+			}
+			catch(e_update) {}
 		}
 	}
 	// vault is locked

@@ -101,6 +101,11 @@ export class TmJsonRpcWebsocket {
 		d_ws.onopen = (d_event) => {
 			// emit connect event
 			void _g_hooks.connect?.call(this);
+
+			// restore all previous subscriptions
+			for(const [, g_subscription] of ode(_h_subscriptions)) {
+				void this.subscribe(g_subscription.events, g_subscription.receiver);
+			}
 		};
 
 		// handle messages
@@ -204,11 +209,6 @@ export class TmJsonRpcWebsocket {
 				}
 			}
 		};
-
-		// redo all previous subscriptions
-		for(const [, g_subscription] of ode(_h_subscriptions)) {
-			void this.subscribe(g_subscription.events, g_subscription.receiver);
-		}
 	}
 
 	subscribe<w_data extends {}>(a_events: string[], fk_data: (w_data: TjrwsResult<w_data>) => Promisable<void>): Promise<void> {

@@ -124,14 +124,13 @@ export const ATU8_VIEWING_KEY_PREAMBLE = text_to_buffer(SX_VIEWING_KEY_PREAMBLE)
 export const NB_VIEWING_KEY_PREAMBLE = ATU8_VIEWING_KEY_PREAMBLE.byteLength;
 export const NB_VIEWING_KEY_STARSHELL = ATU8_VIEWING_KEY_PREAMBLE.byteLength + 4 + 32;
 
-
 export const Snip2xMessageConstructor = {
 	async set_viewing_key(
 		g_account: AccountStruct,
 		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
 		k_network: SecretNetwork,
 		s_viewing_key: string
-	): Promise<{amino: AminoMsg; proto: Any}> {
+	): Promise<PortableMessage> {
 		// prep snip-20 message
 		const g_msg: Snip20.BaseMessageParameters<'set_viewing_key'> = {
 			set_viewing_key: {
@@ -148,7 +147,7 @@ export const Snip2xMessageConstructor = {
 		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
 		k_network: SecretNetwork,
 		z_nonce: Uint8Array|string|null=null
-	): Promise<{amino: AminoMsg; proto: Any}> {
+	): Promise<PortableMessage> {
 		return await Snip2xMessageConstructor.set_viewing_key(
 			g_account,
 			g_token,
@@ -162,7 +161,7 @@ export const Snip2xMessageConstructor = {
 		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
 		k_network: SecretNetwork,
 		si_permit: string
-	): Promise<{amino: AminoMsg; proto: Any}> {
+	): Promise<PortableMessage> {
 		// prep snip-20 message
 		const g_msg: Snip24.BaseMessageParameters<'revoke_permit'> = {
 			revoke_permit: {
@@ -173,6 +172,21 @@ export const Snip2xMessageConstructor = {
 		// prep snip-20 exec
 		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash);
 	},
+
+	async deposit(
+		g_account: AccountStruct,
+		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
+		k_network: SecretNetwork,
+		a_funds: Coin[]
+	): Promise<PortableMessage> {
+		// prep snip-20 message
+		const g_msg: Snip20.NativeMessageRegistry<'deposit'> = {
+			deposit: {},
+		};
+
+		// prep snip-20 exec
+		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash, a_funds);
+	}
 };
 
 type QueryRes<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey> = Promise<Snip2x.AnyQueryResponse<si_key>>;

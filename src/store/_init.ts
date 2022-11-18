@@ -185,6 +185,7 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 				pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
 				extra: {
 					coingecko_id: 'secret',
+					native_bech32: 'secret18vd8fpwxzck93qlwghaj6arh4p7c5n8978vsyg',
 				},
 			},
 		},
@@ -309,6 +310,7 @@ export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold
 					coingecko_id: 'secret',
 				},
 			},
+			hash: '9587D60B8E6B078ACE12014CEEEE089530B9FABCD76535D93666A6C127AD8813',
 		},
 		{
 			name: 'Pulsar USD Coin',
@@ -437,7 +439,7 @@ export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold
 			snip23: {},
 			snip24: {},
 		},
-		hash: '43eda3a25dfab766c6ad622828b4b780d5d31a77a344163358fffceaa136cfca',
+		hash: g.hash || '43EDA3A25DFAB766C6AD622828B4B780D5D31A77A344163358FFFCEAA136CFCA',
 	}) as ContractStruct),
 ], g_each => ({
 	[`${g_each.chain}/bech32.${g_each.bech32}/as.contract`]: g_each,
@@ -445,11 +447,12 @@ export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold
 
 export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold([
 	{
-		name: 'Trivium',
-		pfp: H_LOOKUP_PFP['/media/other/trivium.svg'],
+		name: 'SCRT Testnet Committee',
+		pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
 		chain: '/family.cosmos/chain.pulsar-2',
-		grpcWebUrl: 'https://pulsar-2.api.trivium.network:9091',
-		rpcHost: 'pulsar-2.api.trivium.network:26657',
+		grpcWebUrl: 'https://grpc.pulsar.scrttestnet.com',
+		rpcHost: 'rpc.pulsar.scrttestnet.com',
+		on: 1,
 	},
 	{
 		name: '𝕊ecret 𝕊aturn',
@@ -457,20 +460,15 @@ export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold
 		chain: '/family.cosmos/chain.pulsar-2',
 		grpcWebUrl: 'https://grpc.testnet.secretsaturn.net',
 		rpcHost: 'rpc.testnet.secretsaturn.net',
+		on: 0,
 	},
 	{
-		name: 'SCRT Testnet Committee',
-		pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
+		name: 'Trivium',
+		pfp: H_LOOKUP_PFP['/media/other/trivium.svg'],
 		chain: '/family.cosmos/chain.pulsar-2',
-		grpcWebUrl: 'https://grpc.pulsar.scrttestnet.com',
-		rpcHost: 'rpc.pulsar.scrttestnet.com',
-	},
-	{
-		name: 'Polypore',
-		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
-		chain: '/family.cosmos/chain.theta-testnet-001',
-		grpcWebUrl: 'https://grpc.sentry-01.theta-testnet.polypore.xyz/',
-		rpcHost: 'rpc.sentry-01.theta-testnet.polypore.xyz',
+		grpcWebUrl: 'https://pulsar-2.api.trivium.network:9091',
+		rpcHost: 'pulsar-2.api.trivium.network:26657',
+		on: 1,
 	},
 	{
 		name: 'StarShell',
@@ -478,10 +476,20 @@ export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold
 		chain: '/family.cosmos/chain.theta-testnet-001',
 		grpcWebUrl: 'https://grpc-web.tactus-1.cosmos-theta.starshell.net/',
 		rpcHost: 'rpc.tactus-1.cosmos-theta.starshell.net',
+		on: 1,
+	},
+	{
+		name: 'Polypore',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+		chain: '/family.cosmos/chain.theta-testnet-001',
+		grpcWebUrl: 'https://grpc.sentry-01.theta-testnet.polypore.xyz/',
+		rpcHost: 'rpc.sentry-01.theta-testnet.polypore.xyz',
+		on: 0,
 	},
 ], g_each => ({
-	[`/provider.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: g_each,
-	// [Provider.pathFrom(g_each as ProviderStruct)]: g_each,
+	[`/provider.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: {
+		...g_each,
+	},
 })) as Record<ProviderPath, ProviderStruct>);
 
 

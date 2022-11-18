@@ -9,6 +9,7 @@ export type Provider = Resource.New<{
 		chain: ChainPath;
 		grpcWebUrl: string;
 		rpcHost?: string;
+		on: 0 | 1;
 	}, Nameable, Pfpable];
 }>;
 

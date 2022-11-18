@@ -178,7 +178,7 @@ export function inlineRequire(gc_import: Options={}) {
 				let y_bundle: RollupBuild;
 				try {
 					y_bundle = await rollup({
-						input: si_load,
+						input: si_load.replace(/\?commonjs-entry$/, ''),
 						plugins: [
 							nodeResolve(),
 							commonjs(),

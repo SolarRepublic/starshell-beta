@@ -52,3 +52,4 @@ export async function check_restrictions(): Promise<Decree[]> {
 
 	return a_restrictions;
 }
+

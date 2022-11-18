@@ -50,6 +50,8 @@
 
 	let s_status = 'Loading resources';
 
+	let s_provider = '[...]';
+
 	// track confirmation status
 	let b_confirmed = false;
 
@@ -157,6 +159,8 @@
 
 		s_status = 'Connecting to node provider';
 
+		s_provider = k_network.provider.grpcWebUrl;
+
 		// create network feed
 		k_feed = new NetworkFeed(g_chain, k_network.provider, {
 			notify: system_notify,
@@ -215,6 +219,10 @@
 
 	<Field key='status' name='Status'>
 		{s_status}...
+	</Field>
+
+	<Field key='provider' name='Provider'>
+		{s_provider}
 	</Field>
 
 	{#if b_critical_failure}

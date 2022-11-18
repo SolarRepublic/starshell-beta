@@ -91,6 +91,9 @@ export class NetworkFeed {
 			for(let i_provider=0, nl_providers=a_providers.length; i_provider<nl_providers; i_provider++) {
 				const g_provider = a_providers[i_provider];
 
+				// skip disabled provider
+				if(!g_provider.on) continue;
+
 				// perform a quick test on provider
 				try {
 					await Providers.quickTest(g_provider, g_chain);
@@ -223,10 +226,14 @@ export class NetworkFeed {
 			// socket opened state
 			let b_opened = false;
 
+			let f_connected: VoidFunction;
+
 			this._kc_socket = new TmJsonRpcWebsocket(_g_provider, {
 				connect() {
 					// websocket opened
 					b_opened = true;
+
+					f_connected?.();
 
 					// resolve promise
 					fk_resolve();
@@ -244,9 +251,9 @@ export class NetworkFeed {
 						// start waiting for connection
 						(async() => {
 							// wait for up to 10 seconds for connection to be established
-							const [, xc_timeout] = await timeout_exec(XT_CONNECTION_TIMEOUT, () => new Promise(fk_resolve => f_connected = () => {
+							const [, xc_timeout] = await timeout_exec(XT_CONNECTION_TIMEOUT, () => new Promise(fk_resolve_connect => f_connected = () => {
 								// resolve promise
-								fk_resolve(1);
+								fk_resolve_connect(1);
 							}));
 
 							// timeout
@@ -258,6 +265,8 @@ export class NetworkFeed {
 								bail(this, g_error);
 							}
 						})();
+
+						b_opened = false;
 
 						// attempt to restart the connection automatically
 						this.restart();

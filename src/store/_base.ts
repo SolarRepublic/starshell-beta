@@ -1,18 +1,19 @@
+import type {Unsubscriber} from 'svelte/store';
+import type {L, U} from 'ts-toolbelt';
 import type {Class, Instance} from 'ts-toolbelt/out/Class/_api';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
-import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
-import {ode, oderac} from '#/util/belt';
-
-import type {Access} from '#/meta/belt';
+import type {JsonObject, JsonValue, Promisable, Access} from '#/meta/belt';
 import type {Store, StoreKey} from '#/meta/store';
 
-import {Vault, WritableVaultEntry} from '#/crypto/vault';
 import {H_STORE_INITS} from './_init';
-import type {Unsubscriber} from 'svelte/store';
+
+import type {WritableVaultEntry} from '#/crypto/vault';
+import {Vault} from '#/crypto/vault';
 import {global_receive} from '#/script/msg-global';
 import {NotAuthenticatedError} from '#/share/errors';
-import type { L, U } from 'ts-toolbelt';
+import {ode, oderac} from '#/util/belt';
+
 
 type StorageValue = JsonObject | JsonValue[];
 
@@ -138,16 +139,16 @@ export class WritableStoreMap<
 		await this.save();
 	}
 
-	// async put(g_info: h_cache[keyof h_cache]): Promise<void> {
-	// 	// prepare app path
-	// 	const p_app = AppsI.pathFor(g_app.host, g_app.scheme);
+	async putAt(
+		p_res: keyof h_cache & string,
+		g_new: h_cache[typeof p_res]
+	): Promise<void> {
+		// update cache
+		this._w_cache[p_res] = g_new;
 
-	// 	// update cache
-	// 	this._w_cache[p_app] = g_app;
-
-	// 	// attempt to save
-	// 	await this.save();
-	// }
+		// attempt to save
+		await this.save();
+	}
 }
 
 
@@ -195,19 +196,24 @@ export type StaticStore<
 		append(w_value: Store[si_store][Extract<number, keyof Store[si_store]>]): Promise<void>;
 	};
 	map: {
-		at(si_key: Store.Key<si_store>): Promise<null | Store[si_store][typeof si_key]>;
+		at(p_res: Store.Key<si_store>): Promise<null | Store[si_store][typeof p_res]>;
 
-		delete(si_key: Store.Key<si_store>): Promise<boolean>;
+		delete(p_res: Store.Key<si_store>): Promise<boolean>;
 
 		update(
-			si_key: Store.Key<si_store>,
-			f_update: (g_current: Store[si_store][typeof si_key]) => Partial<Store[si_store][typeof si_key]>
+			p_res: Store.Key<si_store>,
+			f_update: (g_current: Store[si_store][typeof p_res]) => Partial<Store[si_store][typeof p_res]>
+		): Promise<void>;
+
+		putAt(
+			p_res: Store.Key<si_store>,
+			g_new: Store[si_store][typeof p_res]
 		): Promise<void>;
 	};
 	dict: {
-		get<si_key extends Store.Key<si_store>>(si_key: si_key): Promise<null | Store[si_store][si_key]>;
+		get<p_res extends Store.Key<si_store>>(si_key: p_res): Promise<null | Store[si_store][p_res]>;
 
-		set(si_key: Store.Key<si_store>, w_value: Store[si_store][typeof si_key]): Promise<void>;
+		set(p_res: Store.Key<si_store>, w_value: Store[si_store][typeof p_res]): Promise<void>;
 	};
 	filterable: {
 		filter(gc_filter: Partial<Store[si_store][Store.Key<si_store>]>): Promise<[Store.Key<si_store>, Store[si_store]][]>;
@@ -351,7 +357,7 @@ export function create_store_class<
 			return ks_store;
 		},
 
-		...(a_extensions?.includes('array')) && {
+		...a_extensions?.includes('array') && {
 			async prepend(w_value: Store[si_store][Extract<number, keyof Store[si_store]>]): Promise<number> {
 				return await dc_store['open'](ks_self => ks_self.prepend(w_value));
 			},
@@ -361,7 +367,7 @@ export function create_store_class<
 			},
 		},
 
-		...(z_extensions?.includes('map')) && {
+		...z_extensions?.includes('map') && {
 			async at<si_key extends ItemPath>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
 				return (await dc_store['read']()).at(si_key);
 			},
@@ -375,10 +381,17 @@ export function create_store_class<
 				f_update: (g_current: Store[si_store][si_key]) => Partial<Store[si_store][si_key]>
 			): Promise<boolean> {
 				return await dc_store['open'](ks_self => ks_self.update(si_key, f_update));
-			}
+			},
+
+			async putAt(
+				p_res: keyof h_cache & string,
+				g_new: h_cache[typeof p_res]
+			): Promise<void> {
+				return await dc_store['open'](ks_self => ks_self.putAt(p_res, g_new));
+			},
 		},
 
-		...(z_extensions?.includes('dict')) && {
+		...z_extensions?.includes('dict') && {
 			async get<si_key extends ItemPath>(si_key: si_key): Promise<null | Store[si_store][si_key]> {
 				return (await dc_store['read']()).get(si_key);
 			},
@@ -388,7 +401,7 @@ export function create_store_class<
 			},
 		},
 
-		...(z_extensions?.includes('filterable') && {
+		...z_extensions?.includes('filterable') && {
 			async filter(gc_filter: Partial<w_cache>): Promise<[ItemPath, w_cache][]> {
 				// load cache
 				const h_cache = (await dc_store['read'])() as Record<ItemPath, w_cache>;
@@ -419,7 +432,7 @@ export function create_store_class<
 				// return list
 				return a_outs;
 			},
-		}),
+		},
 	}) as StaticStore<si_store, dc_store, z_extends> & dc_store;
 }
 

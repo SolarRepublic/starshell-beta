@@ -44,10 +44,14 @@ export function syserr(z_error: Error | ErrorReport): Error {
 		};
 	}
 
-	a_errors.push(g_error);
+	// prevent redundant errors
+	const si_error = JSON.stringify(g_error);
+	if(!a_errors.find(g => si_error === JSON.stringify(g))) {
+		a_errors.push(g_error);
 
-	for(const fk_listener of a_error_listeners) {
-		void fk_listener(g_error);
+		for(const fk_listener of a_error_listeners) {
+			void fk_listener(g_error);
+		}
 	}
 
 	return g_error.error || new Error(g_error.text);

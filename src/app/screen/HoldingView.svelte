@@ -28,6 +28,7 @@
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
 	import SX_ICON_RECV from '#/icon/recv.svg?raw';
 	import SX_ICON_SEND from '#/icon/send.svg?raw';
+    import HoldingWrap from './HoldingWrap.svelte';
 	
 
 	const k_page = getContext<Page>('page');
@@ -116,7 +117,7 @@
 		});
 	}
 
-	load_entity();
+	void load_entity();
 
 
 	// the set of actions available on this asset
@@ -127,6 +128,17 @@
 					creator: Send,
 					props: {
 						assetPath: p_holding,
+					},
+				});
+			},
+		},
+
+		wrap: {
+			trigger() {
+				k_page.push({
+					creator: HoldingWrap,
+					props: {
+						si_coin,
 					},
 				});
 			},

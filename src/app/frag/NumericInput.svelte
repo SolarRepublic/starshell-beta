@@ -163,16 +163,6 @@
 		value = (d_event.target as HTMLInputElement).value;
 	}
 
-
-	// // invalidate the input with an error message
-	// function invalidate(s_msg: string) {
-	// 	// set error state on input
-	// 	dm_input.setCustomValidity(s_msg);
-
-	// 	// reactively assign error text
-	// 	error = s_msg;
-	// }
-
 </script>
 
 <style lang="less">

@@ -141,6 +141,7 @@ export interface CoinInfo extends JsonObject {
 	pfp: PfpTarget;
 	extra?: {
 		coingecko_id: string;
+		native_bech32?: Bech32;
 	} & Dict;
 }
 

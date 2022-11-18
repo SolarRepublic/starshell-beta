@@ -1387,7 +1387,13 @@ export class CosmosNetwork implements ActiveNetwork {
 		return g_response.codeHash;
 	}
 
-	async encodeExecuteContract(g_account: AccountStruct, sa_contract: Bech32, g_msg: JsonObject, s_code_hash: string): Promise<{amino: AminoMsg; proto: Any}> {
+	async encodeExecuteContract(
+		g_account: AccountStruct,
+		sa_contract: Bech32,
+		g_msg: JsonObject,
+		s_code_hash: string,
+		a_funds: Coin[]=[]
+	): Promise<{amino: AminoMsg; proto: Any}> {
 		const y_client = new ExecContractClient(this._y_grpc);
 
 		if(!s_code_hash) {
@@ -1446,9 +1452,6 @@ export class CosmosNetwork implements ActiveNetwork {
 		else {
 			throw new Error(`Chain does not support CosmWasm`);
 		}
-
-		// funds to be sent with the execution
-		const a_funds: Coin[] = [];
 
 		// construct as amino message
 		const g_amino: AminoMsg = {

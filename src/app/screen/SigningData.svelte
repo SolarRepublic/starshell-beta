@@ -5,7 +5,7 @@
 	import {JsonView} from '@zerodevx/svelte-json-view';
 	
 	import {Screen} from './_screens';
-	import {load_app_context} from '../svelte';
+	import {load_page_context} from '../svelte';
 	
 	import {F_NOOP} from '#/util/belt';
 	import {base64_to_buffer} from '#/util/data';
@@ -14,9 +14,8 @@
 	import Header from '../ui/Header.svelte';
 	
 
-	const {k_page} = load_app_context();
+	const {k_page} = load_page_context();
 
-	export let preset: string;
 	export let amino: AdaptedStdSignDoc | null = null;
 
 	export let wasm: JsonObject;

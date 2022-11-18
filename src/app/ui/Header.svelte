@@ -573,7 +573,7 @@
 					</span>
 				{/if}
 
-				<!-- account/network switch cluster -->
+				<!-- app/account/network switch cluster -->
 				{#if !b_searching}
 					<span class={`cluster global_cluster-mode_${s_cluster_mode}`}>
 						<!-- current app -->
@@ -584,6 +584,7 @@
 							}}>
 								<PfpDisplay
 									resource={g_cause.app}
+									name={g_cause.app.host}
 									{...overlay_pfp_network_props('left')}
 								/>
 							</span>

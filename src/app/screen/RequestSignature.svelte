@@ -77,6 +77,7 @@
 	import Tooltip from '../ui/Tooltip.svelte';
     import type { MsgSend } from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
     import type { AminoMsgSend } from '#/chain/messages/bank';
+    import { SecretWasm } from '#/crypto/secret-wasm';
 	
 
 	
@@ -442,7 +443,7 @@
 				auth: atu8_auth,
 				signer: g_signer,
 			} = await $yw_network.authInfoDirect($yw_account, Fee.fromPartial({}));
-
+debugger;
 			// simulate multiple times
 			return await repeat_simulation(atu8_auth, Infinity);
 		}
@@ -455,7 +456,8 @@
 
 	async function repeat_simulation(atu8_auth: Uint8Array, n_repeats: number) {
 		if(n_repeats <= 0) return;
-
+		console.log(a_msgs_proto);
+debugger;
 		let g_sim!: SimulateResponse;
 		try {
 			g_sim = await $yw_network.simulate($yw_account, {
@@ -532,16 +534,24 @@
 		return await repeat_simulation(atu8_auth, n_repeats - 1);
 	}
 
-	function view_data() {
-		if(amino) {
-			k_page.push({
-				creator: SigningData,
-				props: {
-					amino,
-					wasm: h_secret_wasm_exec,
-				},
-			});
+	async function view_data() {
+		const g_amino_equiv = amino || proto_to_amino(a_msgs_proto[0], g_chain.bech32s.acc);
+
+		let h_secret_wasm_exec: {};
+
+		if('wasm/MsgExecuteContract' === g_amino_equiv.type) {
+			const g_decrypted = await SecretWasm.decodeSecretWasmAmino(p_account, g_chain, g_amino_equiv.value.msg);
+
+			h_secret_wasm_exec = JSON.parse(g_decrypted.message);
 		}
+
+		k_page.push({
+			creator: SigningData,
+			props: {
+				amino: {msgs:[g_amino_equiv]},
+				wasm: h_secret_wasm_exec,
+			},
+		});
 	}
 
 	function monitor_tx(si_txn: string) {
@@ -1187,20 +1197,6 @@
 		<hr>
 	{/if}
 
-	{#if memo && !b_hide_memo}
-		<Field key='memo' name={`${b_memo_encrypted? b_memo_show_raw? 'Decrypted': 'Raw': 'Public'} Memo`}>
-			<span slot="right">
-				{#if b_memo_encrypted}
-					<span class="link" on:click={() => b_memo_show_raw = !b_memo_show_raw}>Show {b_memo_show_raw? 'raw': 'decrypted'} form</span>
-				{/if}
-			</span>
-
-			<span style="color:var(--theme-color-graysoft)">
-				<textarea disabled>{b_memo_encrypted && b_memo_show_raw? s_memo_decrypted: memo}</textarea>
-			</span>
-		</Field>
-	{/if}
-
 	<Field short key='gas' name='Network Fee'>
 		{#if b_no_fee}
 			<div>
@@ -1264,6 +1260,20 @@
 			{/if}
 		{/if}
 	</Field>
+
+	{#if memo && !b_hide_memo}
+		<Field key='memo' name={`${b_memo_encrypted? b_memo_show_raw? 'Decrypted': 'Raw': 'Public'} Memo`}>
+			<span slot="right">
+				{#if b_memo_encrypted}
+					<span class="link" on:click={() => b_memo_show_raw = !b_memo_show_raw}>Show {b_memo_show_raw? 'raw': 'decrypted'} form</span>
+				{/if}
+			</span>
+
+			<span style="color:var(--theme-color-graysoft)">
+				<textarea disabled>{b_memo_encrypted && b_memo_show_raw? s_memo_decrypted: memo}</textarea>
+			</span>
+		</Field>
+	{/if}
 
 	<ActionsLine cancel={() => cancel()} confirm={['Approve', approve, !b_loaded || b_approving]} />
 
