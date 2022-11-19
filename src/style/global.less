@@ -474,6 +474,61 @@ input,textarea {
 	}
 }
 
+fieldset {
+	>label {
+		display: flex;
+		gap: 0.5em;
+		align-items: center;
+
+		&:focus-within {
+			// color: var(--theme-color-primary);
+		}
+	}
+}
+
+input[type="radio"] {
+	/* Add if not using autoprefixer */
+	-webkit-appearance: none;
+	appearance: none;
+	/* For iOS < 15 to remove gradient background */
+	background-color: var(--theme-color-dark);
+	/* Not removed via appearance */
+	margin: 0;
+
+	font: inherit;
+	color: var(--theme-color-graysoft);
+	width: 18px;
+	height: 18px;
+	border: 1px solid var(--theme-color-graysoft);
+	border-radius: 50%;
+	transform: translateY(-0.075em);
+
+	display: grid;
+	place-content: center;
+}
+
+input[type="radio"]::before {
+	content: "";
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	transform: scale(0);
+	transition: 120ms transform ease-in-out;
+	box-shadow: inset 1em 1em var(--theme-color-primary);
+	/* Windows High Contrast Mode */
+	background-color: CanvasText;
+}
+
+input[type="radio"]:checked::before {
+	transform: scale(1);
+}
+
+input[type="radio"]:focus {
+	outline: 1px solid var(--theme-color-input-bg);
+	outline-offset: 2px;
+}
+
+
 b {
 	font-weight: 600;
 }

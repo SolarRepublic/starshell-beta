@@ -25,8 +25,17 @@ import {Secrets} from '#/store/secrets';
 import {defer_many, is_dict, proper} from '#/util/belt';
 import {base64_to_buffer, buffer_to_hex, buffer_to_text, sha256_sync} from '#/util/data';
 import {abbreviate_addr} from '#/util/format';
+import { dd } from '#/util/dom';
+import { svelte_to_dom } from '#/app/svelte';
+import PfpDisplay from '#/app/frag/PfpDisplay.svelte';
+import type { MsgEventRegistry } from '#/meta/incident';
 
 
+interface ExecContractMsg {
+	contract: Bech32;
+	msg: string;
+	sent_funds: Coin[];
+}
 
 export const ComputeMessages: MessageDict = {
 	query_permit(g_msg, {g_chain, p_app, g_app}) {
@@ -248,7 +257,7 @@ export const ComputeMessages: MessageDict = {
 			({
 				message: sx_json,
 				nonce: atu8_nonce,
-			} = await SecretWasm.decryptMsg(g_account, g_chain, base64_to_buffer(g_exec.msg)));
+			} = await SecretWasm.decryptMsg(g_account, g_chain, base64_to_buffer(sx_json)));
 		}
 
 		let h_exec: JsonObject;
@@ -268,7 +277,6 @@ export const ComputeMessages: MessageDict = {
 			throw new AminoJsonError(sx_json);
 		}
 
-
 		const sa_contract = g_exec.contract;
 
 		const p_contract = Contracts.pathFor(g_context.p_chain, sa_contract);
@@ -277,18 +285,28 @@ export const ComputeMessages: MessageDict = {
 
 		const s_contract = g_contract?.name || abbreviate_addr(sa_contract);
 
-		return {
-			describe() {
-				// map spends
-				const a_spends: SpendInfo[] = [];
-				const a_sent_funds = g_exec.sent_funds;
-				if(a_sent_funds?.length) {
-					a_spends.push({
-						pfp: g_chain.pfp,
-						amounts: a_sent_funds.map(g_coin => Chains.summarizeAmount(g_coin, g_chain)),
-					});
-				}
+		const a_sent_funds = g_exec.sent_funds;
 
+		// map spends
+		const a_spends: SpendInfo[] = [];
+		if(a_sent_funds?.length) {
+			a_spends.push({
+				pfp: g_chain.pfp,
+				amounts: a_sent_funds.map(g_coin => Chains.summarizeAmount(g_coin, g_chain)),
+			});
+		}
+
+		return {
+			async affects(h_events) {
+				// on secret-wasm
+				if(g_secret_wasm) {
+					// contract
+					const g_handled = await H_SNIP_HANDLERS[si_action]?.(h_args, g_context, g_exec);
+					return await g_handled?.affects?.(h_events);
+				}
+			},
+
+			describe() {
 				return {
 					title: 'Execute Contract',
 					tooltip: `Asks the smart contract to perform some predefined action, given the inputs defined below.`,
@@ -308,6 +326,7 @@ export const ComputeMessages: MessageDict = {
 							unlabeled: true,
 						}),
 					],
+					spends: a_spends,
 				};
 			},
 
@@ -338,14 +357,32 @@ export const ComputeMessages: MessageDict = {
 				};
 			},
 
-			async review(b_pending) {
+			async review(b_pending, b_incoming) {
 				let g_review = {};
 
 				// on secret-wasm
 				if(g_secret_wasm) {
 					// contract 
 					const g_handled = await H_SNIP_HANDLERS[si_action]?.(h_args, g_context, g_exec);
-					g_review = await g_handled?.review?.(b_pending);
+					g_review = await g_handled?.review?.(b_pending, b_incoming);
+				}
+
+				const a_funds_dom: HTMLSpanElement[] = [];
+				if(a_spends?.length) {
+					for(const g_spend of a_spends) {
+						a_funds_dom.push(dd('span', {
+							class: 'global_flex-auto',
+							style: `
+								gap: 6px;
+							`,
+						}, [
+							await svelte_to_dom(PfpDisplay, {
+								resource: g_chain,
+								dim: 16,
+							}, 'loaded'),
+							g_spend.amounts.join(' + '),
+						]));
+					}
 				}
 
 				// merge with snip review
@@ -357,6 +394,18 @@ export const ComputeMessages: MessageDict = {
 					resource: g_contract,
 					...g_review,
 					fields: [
+						...a_spends.length? [
+							{
+								type: 'key_value',
+								key: 'Sent funds',
+								value: dd('div', {
+									class: `global_flex-auto`,
+									style: `
+										flex-direction: column;
+									`,
+								}, a_funds_dom),
+							},
+						]: [],
 						{
 							type: 'contracts',
 							bech32s: [sa_contract],

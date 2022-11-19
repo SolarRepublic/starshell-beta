@@ -1,9 +1,11 @@
 import type {Snip20} from './snip-20-def';
 import type {Snip21} from './snip-21-def';
 import type {Snip24} from './snip-24-def';
+import type {AminoMsg} from '@cosmjs/amino';
+import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
 import type {A, O, U} from 'ts-toolbelt';
 
-import type {Dict, Explode, JsonObject, Values} from '#/meta/belt';
+import type {Explode} from '#/meta/belt';
 import type {Cwm} from '#/meta/cosm-wasm';
 
 export interface PortableMessage {

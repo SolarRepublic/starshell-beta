@@ -1,8 +1,5 @@
 import type {Snip20} from './snip-20-def';
-import type {Snip2x} from './snip-2x-def';
-import type {AminoMsg} from '@cosmjs/amino';
-
-import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+import type {PortableMessage, Snip2x} from './snip-2x-def';
 
 import type {L, N, O} from 'ts-toolbelt';
 
@@ -23,6 +20,7 @@ import {crypto_random_int} from '#/util/belt';
 import {base58_to_buffer, buffer_to_base58, buffer_to_text, buffer_to_uint32_be, concat, sha256_sync, text_to_buffer, uint32_to_buffer_be} from '#/util/data';
 import type { PrebuiltMessage } from '#/chain/messages/_types';
 import type { Snip24, Snip24PermitMsg } from './snip-24-def';
+import type { Coin } from '@cosmjs/amino';
 
 
 
@@ -180,13 +178,32 @@ export const Snip2xMessageConstructor = {
 		a_funds: Coin[]
 	): Promise<PortableMessage> {
 		// prep snip-20 message
-		const g_msg: Snip20.NativeMessageRegistry<'deposit'> = {
+		const g_msg: Snip20.NativeMessageParameters<'deposit'> = {
 			deposit: {},
 		};
 
 		// prep snip-20 exec
 		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash, a_funds);
-	}
+	},
+
+	async redeem(
+		g_account: AccountStruct,
+		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
+		k_network: SecretNetwork,
+		s_amount: Cw.Uint128,
+		s_denom?: Cw.String
+	): Promise<PortableMessage> {
+		// prep snip-20 message
+		const g_msg: Snip20.NativeMessageParameters<'redeem'> = {
+			redeem: {
+				amount: s_amount,
+				...s_denom? {denom:s_denom}: {},
+			},
+		};
+
+		// prep snip-20 exec
+		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash);
+	},
 };
 
 type QueryRes<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey> = Promise<Snip2x.AnyQueryResponse<si_key>>;
@@ -426,5 +443,11 @@ export class Snip2xToken {
 
 		// prep snip-20 exec
 		return await this.execute(g_msg);
+	}
+
+	async exchangeRate(): QueryRes<'exchange_rate'> {
+		return this.query({
+			exchange_rate: {},
+		});
 	}
 }

@@ -64,7 +64,7 @@ export interface MessageInterpretter {
 	/**
 	 * Tests if the message affects the current user
 	 */
-	affects?(): Promisable<boolean>;
+	affects?(h_events: Partial<MsgEventRegistry>): Promisable<boolean>;
 
 	/**
 	 * Invoked if the transaction failed

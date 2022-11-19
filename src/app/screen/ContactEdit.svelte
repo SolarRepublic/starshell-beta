@@ -6,6 +6,8 @@
 	import type {ContactPath, ContactStruct} from '#/meta/contact';
 	import {ContactAgentType} from '#/meta/contact';
 	
+	import type {PfpTarget} from '#/meta/pfp';
+	
 	import {getContext} from 'svelte';
 	
 	import {Header, Screen} from './_screens';
@@ -23,7 +25,6 @@
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Field from '../ui/Field.svelte';
 	import Info from '../ui/Info.svelte';
-    import type { PfpTarget } from '#/meta/pfp';
 
 
 	const k_page = getContext<Page>('page');
@@ -195,6 +196,19 @@
 			text-overflow: ellipsis;
 		}
 	}
+
+	fieldset {
+		display: flex;
+		margin: 0;
+		padding: 0;
+		border: none;
+		justify-content: space-around;
+
+		>* {
+			width: max-content;
+			margin: 0 1em;
+		}
+	}
 </style>
 
 <Screen slides leaves>
@@ -255,10 +269,7 @@
 		{/if}
 	</Field>
 
-	<Field
-		key="contact-name"
-		name="Name"
-	>
+	<Field key="contact-name" name="Name">
 		<input class:invalid={s_err_name} type="text" spellcheck="false" bind:value={s_name} placeholder="Enter a name">
 
 		{#if s_err_name}
@@ -268,17 +279,24 @@
 		{/if}
 	</Field>
 
-	<Field
-		key="contact-notes"
-		name="Secure Notes"
-	>
+	<Field short key="contact-type" name="Sentience">
+		<fieldset>
+			<label>
+				<input type="radio" name="contact-type" value="human" checked>
+				Human
+			</label>
+			<label>
+				<input type="radio" name="contact-type" value="robot">
+				Robot
+			</label>
+		</fieldset>
+	</Field>
+
+	<Field key="contact-notes" name="Secure Notes">
 		<textarea bind:value={s_notes} placeholder=""></textarea>
 	</Field>
 
-	<Field
-		key="contact-pfp"
-		name="Profile Icon"
-	>
+	<Field key="contact-pfp" name="Profile Icon">
 		<IconEditor intent='person' bind:pfpPath={p_pfp} name={s_name} />
 	</Field>
 

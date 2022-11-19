@@ -17,16 +17,15 @@
 
 <script lang="ts">
 	import type {Coin} from '@cosmjs/amino';
-	
 	import type {SimulateResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 	
 	import type {O, U} from 'ts-toolbelt';
 	
 	import type {AccountStruct} from '#/meta/account';
-	import type {Dict, Explode, JsonObject, Promisable} from '#/meta/belt';
-	import type {Bech32, CoinInfo, FeeConfig, FeeConfigAmount, FeeConfigPriced} from '#/meta/chain';
+	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
+	import type {CoinInfo, FeeConfig, FeeConfigAmount, FeeConfigPriced} from '#/meta/chain';
 	import type {Cw} from '#/meta/cosm-wasm';
-	import type {MsgEventRegistry, TxMsg, TxPending} from '#/meta/incident';
+	import type {MsgEventRegistry, TxPending} from '#/meta/incident';
 	import type {Vocab} from '#/meta/vocab';
 	import type {AdaptedAminoResponse, AdaptedStdSignDoc, GenericAminoMessage} from '#/schema/amino';
 	import type {Snip24PermitMsg} from '#/schema/snip-24-def';
@@ -45,11 +44,13 @@
 	import {Coins} from '#/chain/coin';
 	import {type ProtoMsg, proto_to_amino, encode_proto, amino_to_base} from '#/chain/cosmos-msgs';
 	import type {DescribedMessage} from '#/chain/messages/_types';
+	import type {AminoMsgSend} from '#/chain/messages/bank';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {signAmino, type SignedDoc} from '#/chain/signing';
 	import {pubkey_to_bech32} from '#/crypto/bech32';
 	import {decrypt_private_memo} from '#/crypto/privacy';
+	import {SecretWasm} from '#/crypto/secret-wasm';
 	import SensitiveBytes from '#/crypto/sensitive-bytes';
 	import type {IntraExt} from '#/script/messages';
 	import {open_flow} from '#/script/msg-flow';
@@ -60,7 +61,7 @@
 	import {Chains} from '#/store/chains';
 	import {Incidents} from '#/store/incidents';
 	import {forever, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
-	import {base64_to_buffer, buffer_to_base64, buffer_to_base93} from '#/util/data';
+	import {base64_to_buffer, buffer_to_base93} from '#/util/data';
 	import {format_fiat} from '#/util/format';
 	
 	import FatalError from './FatalError.svelte';
@@ -73,12 +74,7 @@
 	import Gap from '../ui/Gap.svelte';
 	import Load from '../ui/Load.svelte';
 	import Row from '../ui/Row.svelte';
-	import type {SelectOption} from '../ui/StarSelect.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
-    import type { MsgSend } from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
-    import type { AminoMsgSend } from '#/chain/messages/bank';
-    import { SecretWasm } from '#/crypto/secret-wasm';
-	
 
 	
 	const g_context = load_app_context<CompletedSignature | null>();
@@ -152,18 +148,11 @@
 	let b_memo_show_raw = false;
 	let b_hide_memo = false;
 
-	export let contractAddress: Bech32 | null = null;
-	export const sa_wasm = contractAddress;
-
 	export let executeMessage: JsonObject | null = null;
 	const h_wasm_exec = executeMessage;
-	
-	const h_secret_wasm_exec: JsonObject | null = null;
 
 	let s_title = 'Sign Transaction';
 	let s_tooltip = '';
-
-	const a_viewing_key_items: SelectOption[] = [];
 
 	/**
 	 * Set to true once the document has completely loaded
@@ -230,29 +219,6 @@
 	} | {
 		error: string;
 	};
-
-	function autopad() {
-		if(!is_dict(h_wasm_exec)) return;
-
-		const g_main = h_wasm_exec[Object.keys(h_wasm_exec)[0]];
-
-		if(!is_dict(g_main)) return;
-
-		// start with empty padding
-		g_main.padding = '';
-
-		// estimate output message length
-		const nl_msg = JSON.stringify(h_wasm_exec).length;
-
-		// bump up to next 256-byte interval
-		const nl_gap = Math.ceil(nl_msg / 256) * 256;
-
-		// fill with noise
-		g_main.padding = buffer_to_base64(SensitiveBytes.random(nl_gap >> 1).data);
-
-		// make up for odd byte
-		if(nl_gap % 2) g_main.padding += '0';
-	}
 
 	let a_lint: Lint[] = [];
 	let s_warn = '';
@@ -443,7 +409,7 @@
 				auth: atu8_auth,
 				signer: g_signer,
 			} = await $yw_network.authInfoDirect($yw_account, Fee.fromPartial({}));
-debugger;
+
 			// simulate multiple times
 			return await repeat_simulation(atu8_auth, Infinity);
 		}
@@ -456,8 +422,7 @@ debugger;
 
 	async function repeat_simulation(atu8_auth: Uint8Array, n_repeats: number) {
 		if(n_repeats <= 0) return;
-		console.log(a_msgs_proto);
-debugger;
+	
 		let g_sim!: SimulateResponse;
 		try {
 			g_sim = await $yw_network.simulate($yw_account, {
@@ -1193,8 +1158,8 @@ debugger;
 
 	{#if a_overviews.length > 1}
 		<Gap />
-	{:else}
-		<hr>
+	<!-- {:else}
+		<hr> -->
 	{/if}
 
 	<Field short key='gas' name='Network Fee'>

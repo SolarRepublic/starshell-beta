@@ -30,6 +30,7 @@ import {fodemtv, ode, oderom, timeout_exec} from '#/util/belt';
 import {text_to_buffer} from '#/util/data';
 import {uuid_v4} from '#/util/dom';
 import {format_amount} from '#/util/format';
+import { Coins } from '../coin';
 
 
 
@@ -444,6 +445,142 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 						pfp: g_contract_loaded?.pfp || g_app?.pfp || '',
 					},
 				};
+			},
+		};
+	},
+
+	deposit: async({
+		p_app, g_app,
+		p_chain, g_chain,
+		p_account, g_account,
+		p_contract, g_contract_loaded, g_contract_pseudo,
+		g_snip20,
+		g_exec,
+	}) => {
+		const sa_contract = g_exec.contract;
+
+		const a_sent = g_exec.sent_funds;
+
+		const s_coins = Array.from(new Set(a_sent.map(g => Chains.coinFromDenom(g.denom, g_chain)))).join(' & ');
+		const a_spends = a_sent.map(g => Chains.summarizeAmount(g, g_chain));
+		const s_sent = a_spends.join(' + ');
+		const s_symbol = g_snip20!.symbol;
+		const k_network = await Providers.activateDefaultFor(g_chain);
+		const k_token = Snip2xToken.from(g_contract_pseudo, k_network as SecretNetwork, g_account);
+		const {
+			exchange_rate: g_rate,
+		} = await k_token!.exchangeRate();
+
+		const a_tokens = a_sent.map((g_sent) => {
+			const [si_coin, g_coin] = Coins.infoFromDenom(g_sent.denom, g_chain)!;
+			if(si_coin === g_rate.denom) {
+				return BigNumber(g_sent.amount).shiftedBy(-g_coin.decimals).div(g_rate.rate).toString()+' '+s_symbol;
+			}
+			else {
+				return `(${si_coin || '∅'}≠${g_rate.denom})`;
+			}
+		});
+
+		const s_tokens = a_tokens.join(' + ');
+
+		return {
+			apply() {
+				return {
+					group: nl => `Asset${1 === nl? '': 's'} Wrapped`,
+					title: `🥷 Wrapped ${s_sent}`,
+					message: `by converting it into ${s_tokens}.`,
+				};
+			},
+
+			review(b_pending) {
+				return {
+					title: `Wrapp${b_pending? 'ing': 'ed'} ${s_sent}`,
+					infos: [
+						`on ${g_contract_loaded?.name || 'Unknown Contract'}`,
+					],
+					fields: [],
+					resource: {
+						name: s_coins,
+						pfp: g_contract_loaded?.pfp || g_app?.pfp || '',
+					},
+				};
+			},
+		};
+	},
+
+	redeem: async({
+		h_args,
+		p_app, g_app,
+		p_chain, g_chain,
+		p_account, g_account,
+		p_contract, g_contract_loaded, g_contract_pseudo,
+		g_snip20,
+		g_exec,
+	}) => {
+		const k_network = await Providers.activateDefaultFor(g_chain);
+		const k_token = Snip2xToken.from(g_contract_pseudo, k_network as SecretNetwork, g_account);
+		const {
+			exchange_rate: g_rate,
+		} = await k_token!.exchangeRate();
+
+		const yg_amount = BigNumber(h_args.amount).shiftedBy(-g_contract_pseudo.interfaces.snip20!.decimals);
+
+		const s_tokens = yg_amount.toString()+' '+g_snip20!.symbol;
+
+		const si_coin = g_rate.denom;
+		const s_coin_amount = yg_amount.times(g_rate.rate).toString();
+		const s_coins = `${s_coin_amount} ${si_coin}`;
+
+		return {
+			affects: () => true,
+
+			apply() {
+				return {
+					group: nl => `Asset${1 === nl? '': 's'} Wrapped`,
+					title: `🎁 Unwrapped ${s_tokens}`,
+					message: `by converting it back to ${si_coin}.`,
+				};
+			},
+
+			review(b_pending, b_incoming) {
+				if(b_incoming) {
+					return {
+						title: `Contract sent ${s_coins}`,
+						infos: [
+							`from ${g_contract_loaded?.name || 'Unknown Contract'}`,
+						],
+						fields: [
+							{
+								type: 'key_value',
+								key: 'Amount',
+								value: `${s_coins}`,
+							},
+						],
+						resource: {
+							name: s_coins,
+							pfp: g_contract_loaded?.pfp || g_app?.pfp || '',
+						},
+					};
+				}
+				else {
+					return {
+						title: `Unwrapp${b_pending? 'ing': 'ed'} ${s_tokens}`,
+						infos: [
+							`on ${g_contract_loaded?.name || 'Unknown Contract'}`,
+						],
+						fields: [
+							{
+								type: 'key_value',
+								key: 'Amount',
+								value: `${s_tokens} → ${s_coins}`,
+							},
+						],
+						resource: {
+							name: s_coins,
+							pfp: g_contract_loaded?.pfp || g_app?.pfp || '',
+						},
+					};
+				}
 			},
 		};
 	},

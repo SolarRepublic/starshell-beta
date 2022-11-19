@@ -52,90 +52,97 @@ export class NetworkFeed {
 			// skip cosmos
 			if('/family.cosmos/chain.theta-testnet-001' === p_chain) continue;
 
-			// list of contending providers
-			const a_contenders: [ProviderPath, ProviderStruct][] = [];
+			// lock socket for chain
+			await navigator.locks.request(`net:feed:${Chains.caip2From(g_chain)}`, async() => {
+				// list of contending providers
+				const a_contenders: [ProviderPath, ProviderStruct][] = [];
 
-			// each provider
-			for(const [p_provider, g_provider] of ks_providers.entries()) {
-				// provider serves this chain
-				if(p_chain === g_provider.chain) {
-					// add to contending list
-					a_contenders.push([p_provider, g_provider]);
-				}
-			}
-
-			// filter chain provider preferences by contenders
-			const a_providers: ProviderStruct[] = g_chain.providers
-				.filter((p_provider) => {
-					// a preferred provider exists
-					const i_provider = a_contenders.findIndex(([p]) => p_provider === p);
-					if(i_provider >= 0) {
-						// remove from contender list
-						a_contenders.splice(i_provider, 1);
-
-						return true;
+				// each provider
+				for(const [p_provider, g_provider] of ks_providers.entries()) {
+					// provider serves this chain
+					if(p_chain === g_provider.chain) {
+						// add to contending list
+						a_contenders.push([p_provider, g_provider]);
 					}
-
-					return false;
-				})
-				.map(p => ks_providers.at(p)!);
-
-			// append remainders in random order so as not to bias any one
-			a_providers.push(...a_contenders.sort(() => Math.random() - 0.5).map(([, g]) => g));
-
-			// final provider selection
-			let g_selected: ProviderStruct | null = null;
-
-			// quick provider test
-			const a_failures: [ProviderStruct, Error][] = [];
-			for(let i_provider=0, nl_providers=a_providers.length; i_provider<nl_providers; i_provider++) {
-				const g_provider = a_providers[i_provider];
-
-				// skip disabled provider
-				if(!g_provider.on) continue;
-
-				// perform a quick test on provider
-				try {
-					await Providers.quickTest(g_provider, g_chain);
-
-					// success, use it
-					g_selected = g_provider;
-					break;
 				}
-				// provider test failed
-				catch(e_test) {
-					a_failures.push([g_provider, e_test as Error]);
+
+				// filter chain provider preferences by contenders
+				const a_providers: ProviderStruct[] = g_chain.providers
+					.filter((p_provider) => {
+						// a preferred provider exists
+						const i_provider = a_contenders.findIndex(([p]) => p_provider === p);
+						if(i_provider >= 0) {
+							// remove from contender list
+							a_contenders.splice(i_provider, 1);
+
+							return true;
+						}
+
+						return false;
+					})
+					.map(p => ks_providers.at(p)!);
+
+				// append remainders in random order so as not to bias any one
+				a_providers.push(...a_contenders.sort(() => Math.random() - 0.5).map(([, g]) => g));
+
+				// final provider selection
+				let g_selected: ProviderStruct | null = null;
+
+				// quick provider test
+				const a_failures: [ProviderStruct, Error][] = [];
+				for(let i_provider=0, nl_providers=a_providers.length; i_provider<nl_providers; i_provider++) {
+					const g_provider = a_providers[i_provider];
+
+					// skip disabled provider
+					if(!g_provider.on) continue;
+
+					// perform a quick test on provider
+					try {
+						await Providers.quickTest(g_provider, g_chain);
+
+						// success, use it
+						g_selected = g_provider;
+						break;
+					}
+					// provider test failed
+					catch(e_test) {
+						a_failures.push([g_provider, e_test as Error]);
+					}
 				}
-			}
 
-			// prep failure summary
-			const s_provider_errors = `Encountered errors on providers:\n\n${a_failures.map(([g, e]) => `${g.name}: ${e.message}`).join('\n\n')}`;
+				// prep failure summary
+				const s_provider_errors = `Encountered errors on providers:\n\n${a_failures.map(([g, e]) => `${g.name}: ${e.message}`).join('\n\n')}`;
 
-			// no providers passed
-			if(!g_selected) {
-				console.error('All providers failed: %o', a_failures);
+				// no providers passed
+				if(!g_selected) {
+					console.error('All providers failed: %o', a_failures);
 
-				throw syserr({
-					title: 'All providers offline',
-					text: s_provider_errors,
-				});
-			}
-
-			// some failures with attempted providers
-			if(a_failures.length) {
-				console.warn(s_provider_errors);
-			}
-
-			// destroy old feed
-			if(H_FEEDS[p_chain]) {
-				try {
-					H_FEEDS[p_chain].destroy();
+					throw syserr({
+						title: 'All providers offline',
+						text: s_provider_errors,
+					});
 				}
-				catch(e_destroy) {}
-			}
 
-			// create new feed for top chain
-			a_feeds.push(NetworkFeed.create(g_chain, g_selected, gc_feed));
+				// some failures with attempted providers
+				if(a_failures.length) {
+					console.warn(s_provider_errors);
+				}
+
+				// destroy old feed
+				if(H_FEEDS[p_chain]) {
+					try {
+						H_FEEDS[p_chain].destroy();
+					}
+					catch(e_destroy) {}
+				}
+
+				console.debug(`🌊 Creating network feed for ${Chains.caip2From(g_chain)} on <${g_selected.grpcWebUrl}>`);
+
+				// create new feed for top chain
+				const dp_feed = NetworkFeed.create(g_chain, g_selected, gc_feed);
+
+				a_feeds.push(dp_feed.then(k_feed => H_FEEDS[p_chain] = k_feed));
+			});
 		}
 
 		// return once they have all resolved

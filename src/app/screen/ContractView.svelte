@@ -5,7 +5,7 @@
 	import type {Incident, IncidentStruct} from '#/meta/incident';
 	import type {SecretStruct, SecretPath} from '#/meta/secret';
 	
-	import {Snip2xToken} from '#/schema/snip-2x-const';
+	import {Snip2xMessageConstructor, Snip2xToken} from '#/schema/snip-2x-const';
 	
 	import {Screen} from './_screens';
 	import {yw_account, yw_chain_ref, yw_network, yw_owner} from '../mem';
@@ -25,9 +25,11 @@
 	import Send from './Send.svelte';
 	import TokenAllowances from './TokenAllowances.svelte';
 	import TokensAdd from './TokensAdd.svelte';
+	import TokenUnwrap from './TokenUnwrap.svelte';
 	import TokenVisibility from './TokenVisibility.svelte';
 	import AddressResourceControl from '../frag/AddressResourceControl.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
+	import type {Actions} from '../frag/Portrait.svelte';
 	import Portrait from '../frag/Portrait.svelte';
 	import Gap from '../ui/Gap.svelte';
 	import Header from '../ui/Header.svelte';
@@ -44,6 +46,7 @@
 	const p_contract = contractPath;
 	
 	let sa_contract: Bech32;
+	let s_wrapper_for: string;
 
 	const s_header_title = 'Contract';
 	let s_header_post_title = '';
@@ -77,6 +80,43 @@
 
 	const h_apps_with_viewing_key: Dict<{}> = {};
 
+	let gc_actions: Actions = {
+		send: {
+			label: 'Transfer',
+			trigger() {
+				// ensure chain is correct
+				$yw_chain_ref = g_contract.chain;
+
+				// push send screen
+				k_page.push({
+					creator: Send,
+					props: {
+						assetPath: p_contract,
+					},
+				});
+			},
+		},
+		edit: {
+			label: 'Edit',
+			trigger() {
+				k_page.push({
+					creator: ContractEdit,
+					props: {
+						contractPath: p_contract,
+					},
+				});
+			},
+		},
+		// delete: {
+		// 	label: 'Delete',
+		// 	trigger() {
+		// 		k_page.push({
+		// 			creator: DeadEnd,
+		// 		});
+		// 	},
+		// },
+	};
+
 	(async() => {
 		const g_contract_local = (await Contracts.at(p_contract))!;
 
@@ -84,6 +124,29 @@
 
 		p_chain = g_contract_local.chain;
 		g_chain = (await Chains.at(p_chain))!;
+
+		// each coin in chain
+		for(const [si_coin, g_coin] of ode(g_chain.coins)) {
+			const sa_wrapper = g_coin.extra?.native_bech32;
+			if(sa_wrapper && sa_wrapper === sa_contract) {
+				s_wrapper_for = si_coin;
+
+				gc_actions = {
+					send: gc_actions.send!,
+					unwrap: {
+						trigger() {
+							k_page.push({
+								creator: TokenUnwrap,
+								props: {
+									g_contract: g_contract_local,
+								},
+							});
+						},
+					},
+					edit: gc_actions.edit!,
+				};
+			}
+		}
 
 		// on secret wasm chain
 		if(g_chain.features.secretwasm) {
@@ -196,42 +259,6 @@
 		k_page,
 	} = load_page_context();
 
-	const gc_actions = {
-		send: {
-			label: 'Transfer',
-			trigger() {
-				// ensure chain is correct
-				$yw_chain_ref = g_contract.chain;
-
-				// push send screen
-				k_page.push({
-					creator: Send,
-					props: {
-						assetPath: p_contract,
-					},
-				});
-			},
-		},
-		edit: {
-			label: 'Edit',
-			trigger() {
-				k_page.push({
-					creator: ContractEdit,
-					props: {
-						contractPath: p_contract,
-					},
-				});
-			},
-		},
-		// delete: {
-		// 	label: 'Delete',
-		// 	trigger() {
-		// 		k_page.push({
-		// 			creator: DeadEnd,
-		// 		});
-		// 	},
-		// },
-	};
 
 </script>
 

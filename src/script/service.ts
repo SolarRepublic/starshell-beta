@@ -832,6 +832,13 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 // bind message router listener
 chrome.runtime.onMessage?.addListener(message_router);
 
+chrome.runtime.onConnect?.addListener((d_port) => {
+	debug(`Received connection from ${d_port.name}`);
+
+	d_port.onMessage.addListener(() => {
+		
+	});
+});
 
 
 chrome.runtime.onInstalled?.addListener(async(g_installed) => {

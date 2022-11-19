@@ -29,7 +29,7 @@
 
 	import type {AccountPath} from '#/meta/account';
 	import type {AppPath} from '#/meta/app';
-	import type {JsonObject, Promisable} from '#/meta/belt';
+	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
 	import type {ChainPath} from '#/meta/chain';
 	import type {Incident, IncidentType} from '#/meta/incident';
 	
@@ -40,7 +40,7 @@
 	
 	import {yw_account, yw_account_ref} from '../mem';
 	
-	import {parse_coin_amount} from '#/chain/coin';
+	import {Coins, parse_coin_amount} from '#/chain/coin';
 	import {proto_to_amino} from '#/chain/cosmos-msgs';
 	import type {ReviewedMessage} from '#/chain/messages/_types';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
@@ -68,6 +68,7 @@
 	import SX_ICON_SIGNATURE from '#/icon/signature.svg?raw';
 	import SX_ICON_ACC_CREATED from '#/icon/user-add.svg?raw';
 	import SX_ICON_ACC_EDITED from '#/icon/user-edit.svg?raw';
+    import { oderac } from '#/util/belt';
 
 
 	type IncidentHandler<si_type extends IncidentType=IncidentType> = (
@@ -340,6 +341,7 @@
 
 			const g_app = g_context.g_app || G_APP_EXTERNAL;
 			const g_chain = g_context.g_chain!;
+			const sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
 
 			// prep context
 			const g_context_full: LocalAppContext = {
@@ -349,7 +351,7 @@
 				g_chain,
 				p_account,
 				g_account,
-				sa_owner: Chains.addressFor(g_account.pubkey, g_chain),
+				sa_owner,
 			};
 
 			const {
@@ -383,7 +385,7 @@
 					const g_interpretted = await f_interpret(g_msg_amino.value, g_context_full);
 
 					// message does not affect account; skip it
-					if(!await g_interpretted?.affects?.()) continue;
+					if(!await g_interpretted?.affects?.(h_events)) continue;
 
 					// make review
 					const g_reviewed = await g_interpretted?.review?.(false, true);
@@ -398,6 +400,22 @@
 				name: '',
 				subtitle: '',
 			};
+
+			// transfer event
+			for(const g_event of h_events.coin_received || []) {
+				const h_amounts: Dict<BigNumber> = {};
+				if(sa_owner === g_event.receiver) {
+					const [xg_amount, si_coin, g_coin] = parse_coin_amount(g_event.amount, g_chain);
+
+					h_amounts[si_coin] = (h_amounts[si_coin] || BigNumber(0))
+						.plus(BigNumber(xg_amount+'').shiftedBy(-g_coin.decimals));
+				}
+
+				const s_coins = oderac(h_amounts, (si_coin, yg_amount) => format_amount(yg_amount.toNumber())+' '+si_coin)
+					.join(' + ');
+
+				g_detail.title = `Received ${s_coins}`;
+			}
 
 			// only one message affects user
 			if(1 === a_reviews.length) {

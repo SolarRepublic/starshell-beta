@@ -3,7 +3,7 @@
   "displayName": "StarShell Wallet Beta",
   "private": true,
   "type": "module",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "A privacy-preserving, free and open-source Web3 wallet built for the Secret Network and broader Cosmos ecosystem",
   "license": "MIT",
   "author": {
@@ -69,7 +69,7 @@
     "autoprefixer": "^10.4.13",
     "crypto-js": "^4.1.1",
     "esbuild": "^0.15.14",
-    "eslint": "^8.27.0",
+    "eslint": "^8.28.0",
     "eslint-import-resolver-typescript": "^3.5.2",
     "eslint-plugin-i": "^2.26.0-2",
     "eslint-plugin-modules-newline": "^0.0.6",

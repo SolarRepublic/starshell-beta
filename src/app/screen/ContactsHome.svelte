@@ -10,10 +10,12 @@
 	
 	import {Screen, Header} from './_screens';
 	
+	import {load_page_context} from '../svelte';
+	
+	import ContactEdit from './ContactEdit.svelte';
 	import ContactList from '../frag/ContactList.svelte';
 	import SubHeader from '../ui/SubHeader.svelte';
-	import { load_page_context } from '../svelte';
-    import ContactEdit from './ContactEdit.svelte';
+	
 
 	const {k_page} = load_page_context();
 
@@ -44,10 +46,6 @@
 	<Tabs>
 		<TabList>
 			<Tab>
-				All
-			</Tab>
-
-			<Tab>
 				Humans
 			</Tab>
 
@@ -58,19 +56,23 @@
 			<Tab>
 				Bots
 			</Tab>
+
+			<Tab>
+				All
+			</Tab>
 		</TabList>
-
-
-		<!-- All -->
-		<TabPanel>
-			<ContactList />
-		</TabPanel>
-
 
 		<!-- Humans -->
 		<TabPanel>
 			<ContactList
 				filter={g_contact => ContactAgentType.PERSON === g_contact.agentType}
+			/>
+		</TabPanel>
+
+		<!-- Robots -->
+		<TabPanel>
+			<ContactList
+				filter={g_contact => ContactAgentType.ROBOT === g_contact.agentType}
 			/>
 		</TabPanel>
 		
@@ -81,11 +83,9 @@
 			/>
 		</TabPanel>
 
-		<!-- Robots -->
+		<!-- All -->
 		<TabPanel>
-			<ContactList
-				filter={g_contact => ContactAgentType.ROBOT === g_contact.agentType}
-			/>
+			<ContactList />
 		</TabPanel>
 	</Tabs>
 

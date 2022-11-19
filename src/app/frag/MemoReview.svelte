@@ -10,10 +10,14 @@
 	export let memoCiphertext: string | Promise<string> = '';
 </script>
 
-<Field
-	key='memo'
-	name='Memo'
->
+<style lang="less">
+	.empty-memo {
+		font-style: italic;
+		color: var(--theme-color-text-med);
+	}
+</style>
+
+<Field key='memo' name='Memo' short={'' === memoPlaintext && '' === memoCiphertext}>
 	{#if memoCiphertext}
 		<Tabs>
 			<TabList>

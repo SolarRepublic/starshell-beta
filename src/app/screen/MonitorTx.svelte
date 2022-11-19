@@ -166,6 +166,11 @@
 			notify: system_notify,
 		});
 
+		// open socket
+		await k_feed.open();
+
+		s_status = 'Subscribing to event stream';
+
 		// follow this account
 		try {
 			await k_feed.followAccount(g_account);
@@ -226,9 +231,9 @@
 	</Field>
 
 	{#if b_critical_failure}
-		<p>
-			Check your network connection. Then try logging out of the wallet and signing back in.
-		</p>
+		<Field key='suggestion' name='Suggestion'>
+			Wait a minute, check your network connection, then try logging out and back in.
+		</Field>
 
 		<ActionsLine confirm={['Close', () => (completed?.(false), window.close())]} />
 	{/if}
