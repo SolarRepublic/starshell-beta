@@ -50,7 +50,7 @@ export class MalforedMessageError extends Error {
 	}
 }
 
-export async function address_to_name(sa_recipient: Bech32, g_chain: ChainStruct): Promise<string> {
+export async function address_to_name(sa_recipient: Bech32, g_chain: ChainStruct, b_concise=false): Promise<string> {
 	// construct contact path
 	const p_contact = Agents.pathForContactFromAddress(sa_recipient, g_chain.namespace);
 
@@ -61,7 +61,7 @@ export async function address_to_name(sa_recipient: Bech32, g_chain: ChainStruct
 	// lookup account
 	try {
 		const [, g_account] = await Accounts.find(sa_recipient, g_chain);
-		if(g_account) return `${g_account.name}'s account`;
+		if(g_account) return b_concise? g_account.name: `${g_account.name}'s account`;
 	}
 	catch(e_account) {}
 

@@ -12,8 +12,8 @@ import {Medias} from './medias';
 
 import {SessionStorage} from '#/extension/session-storage';
 import {R_DATA_IMAGE_URL_ANY, SI_STORE_PFPS} from '#/share/constants';
-import {text_to_base64} from '#/util/data';
-import {dd, uuid_v4} from '#/util/dom';
+import {text_to_base64, uuid_v4} from '#/util/data';
+import {dd} from '#/util/dom';
 
 
 export type RenderConfig = {

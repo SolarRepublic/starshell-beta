@@ -16,7 +16,7 @@
 	import {token_balance} from '#/chain/token';
 	
 	import {Chains} from '#/store/chains';
-	import {Contracts} from '#/store/contracts';
+	import {ContractRole, Contracts} from '#/store/contracts';
 	import {Incidents} from '#/store/incidents';
 	import {Secrets} from '#/store/secrets';
 	import {forever, ode} from '#/util/belt';
@@ -80,20 +80,24 @@
 
 	const h_apps_with_viewing_key: Dict<{}> = {};
 
-	let gc_actions: Actions = {
-		send: {
-			label: 'Transfer',
-			trigger() {
-				// ensure chain is correct
-				$yw_chain_ref = g_contract.chain;
+	let xc_role = ContractRole.UNKNOWN;
 
-				// push send screen
-				k_page.push({
-					creator: Send,
-					props: {
-						assetPath: p_contract,
-					},
-				});
+	$: gc_actions = {
+		...ContractRole.FUNGIBLE & xc_role && {
+			send: {
+				label: 'Transfer',
+				trigger() {
+					// ensure chain is correct
+					$yw_chain_ref = g_contract.chain;
+
+					// push send screen
+					k_page.push({
+						creator: Send,
+						props: {
+							assetPath: p_contract,
+						},
+					});
+				},
 			},
 		},
 		edit: {
@@ -115,15 +119,18 @@
 		// 		});
 		// 	},
 		// },
-	};
+	} as Actions;
 
-	(async() => {
+	(async function load() {
 		const g_contract_local = (await Contracts.at(p_contract))!;
 
 		sa_contract = g_contract_local.bech32;
 
 		p_chain = g_contract_local.chain;
 		g_chain = (await Chains.at(p_chain))!;
+
+		// deduce contract role
+		xc_role = Contracts.roleOf(g_contract_local, g_chain);
 
 		// each coin in chain
 		for(const [si_coin, g_coin] of ode(g_chain.coins)) {
@@ -181,6 +188,11 @@
 					s_main_title = 'No Viewing Key';
 					s_main_subtitle = 'Viewing key required to see balance';
 				}
+			}
+			else {
+				s_main_title = g_contract_local.name;
+				s_main_subtitle = await Contracts.summarizeOrigin(g_contract_local.origin);
+				s_header_subtitle = g_chain.name;
 			}
 
 			// look for active query permits
@@ -353,18 +365,20 @@
 				</ResourceControl>
 
 				<!-- spending abilities summary -->
-				<ResourceControl infoIcon={SX_ICON_CREDIT_CARD} actionIcon={SX_ICON_EDIT} on:click={() => {
-					k_page.push({
-						creator: TokenAllowances,
-						props: {
-							contract: g_contract,
-						},
-					});
-				}}>
-					<div>
-						No others are able to <em>spend</em> this token
-					</div>
-				</ResourceControl>
+				{#if ContractRole.FUNGIBLE & xc_role}
+					<ResourceControl infoIcon={SX_ICON_CREDIT_CARD} actionIcon={SX_ICON_EDIT} on:click={() => {
+						k_page.push({
+							creator: TokenAllowances,
+							props: {
+								contract: g_contract,
+							},
+						});
+					}}>
+						<div>
+							No others are able to <em>spend</em> this token
+						</div>
+					</ResourceControl>
+				{/if}
 			</div>
 		{/if}
 

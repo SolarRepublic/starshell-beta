@@ -272,6 +272,10 @@ export class SecretWasm {
 		hm_privates.set(this, g_privates);
 	}
 
+	get pubkey(): Uint8Array {
+		return hm_privates.get(this)!.atu8_pk;
+	}
+
 	destroy(): void {
 		const g_privates = hm_privates.get(this)!;
 

@@ -23,6 +23,7 @@ import {fodemtv, oderac} from '#/util/belt';
 import {base64_to_buffer, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
 import {format_amount} from '#/util/format';
 import { R_TX_ERR_ACC_SEQUENCE } from '#/share/constants';
+import { parse_date, TransactionNotFoundError } from '#/store/chains';
 
 
 export interface CosmosEvents {
@@ -90,19 +91,7 @@ export interface AbciConfig {
 	hooks: AbciHooks;
 }
 
-const parse_date = (s_input: string | null): number => {
-	if(s_input?.length) {
-		try {
-			const n_datetime = Date.parse(s_input);
-			if(Number.isInteger(n_datetime) && n_datetime > 0) {
-				return n_datetime;
-			}
-		}
-		catch(e_parse) {}
-	}
 
-	return Date.now();
-};
 
 const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<NotifyItemConfig | void>>> = {
 	sdk: {
@@ -342,8 +331,9 @@ export function account_abcis(
 				// insert incident
 				else {
 					await Incidents.record({
-						data: g_incident_data,
 						type: 'tx_out',
+						id: si_txn,
+						data: g_incident_data,
 					});
 				}
 
@@ -450,7 +440,23 @@ export function account_abcis(
 
 				// download all transaction data from chain
 				let g_synced = g_extra.g_synced;
-				if(!g_synced) g_synced = await k_network.downloadTxn(si_txn, g_context.p_account, g_context.p_app, g_pending?.data.events);
+				if(!g_synced) {
+					try {
+						g_synced = await k_network.downloadTxn(si_txn, g_context.p_account, g_context.p_app, g_pending?.data.events);
+					}
+					catch(e_download) {
+						if(e_download instanceof TransactionNotFoundError) {
+							await Incidents.mutateData(p_incident, {
+								stage: 'absent',
+							});
+						}
+						else {
+							console.error(e_download);
+						}
+
+						return;
+					}
+				}
 
 				// if(g_pending) {
 				// 	debugger;
@@ -538,7 +544,20 @@ export function account_abcis(
 
 				// ref or download tx
 				let g_synced = g_extra.g_synced as TxSynced;
-				if(!g_synced) g_synced = await k_network.downloadTxn(si_txn, g_context_vague.p_account);
+				if(!g_synced) {
+					try {
+						g_synced = await k_network.downloadTxn(si_txn, g_context_vague.p_account);
+					}
+					catch(e_download) {
+						if(e_download instanceof TransactionNotFoundError) {
+							await Incidents.mutateData(Incidents.pathFor('tx_in', si_txn), {
+								stage: 'absent',
+							});
+						}
+
+						return;
+					}
+				}
 
 				// save incident
 				const p_incident = await Incidents.record({

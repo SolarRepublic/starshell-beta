@@ -309,6 +309,10 @@ export class NetworkFeed {
 	 * @returns 
 	 */
 	async recreate(): Promise<NetworkFeed> {
+		// destroy it
+		this.destroy();
+
+		// create new feed
 		return await NetworkFeed.create(this._g_chain, this._g_provider, this._gc_hooks);
 	}
 

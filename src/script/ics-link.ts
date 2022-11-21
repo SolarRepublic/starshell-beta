@@ -1,10 +1,12 @@
+import type * as DataImport from '#/util/data';
 import type * as DomImport from '#/util/dom';
 import type * as UtilsImport from './utils';
 
 console.log(`StarShell.ics-link: Launched on <${location.href}>`);
 
 (function() {
-	const {qs, dd, uuid_v4} = inline_require('#/util/dom.ts') as typeof DomImport;
+	const {uuid_v4} = inline_require('#/util/data.ts') as typeof DataImport;
+	const {qs, dd} = inline_require('#/util/dom.ts') as typeof DomImport;
 	const {locate_script} = inline_require('./utils.ts') as typeof UtilsImport;
 
 	function init() {

@@ -118,20 +118,6 @@ export function dd<
 	return dm_node;
 }
 
-
-const S_UUID_V4 = 'xxxxxxxx_xxxx_4xxx_yxxx_xxxxxxxxxxxx';
-const R_UUID_V4 = /[xy]/g;
-
-export const uuid_v4 = crypto.randomUUID? () => crypto.randomUUID(): (): string => {
-	let xt_now = Date.now();
-	if('undefined' !== typeof performance) xt_now += performance.now();
-	return S_UUID_V4.replace(R_UUID_V4, (s) => {
-		const x_r = (xt_now + (Math.random()*16)) % 16 | 0;
-		xt_now = Math.floor(xt_now / 16);
-		return ('x' === s? x_r: (x_r & 0x3) | 0x8).toString(16);
-	});
-};
-
 export function read_cookie(): Record<string, string> {
 	return document.cookie.split(';').reduce((h_out, s_cookie) => {
 		const a_split = s_cookie.trim().split('=');

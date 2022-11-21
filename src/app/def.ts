@@ -1,11 +1,11 @@
-import BlankSvelte from './screen/Blank.svelte';
-import RegisterSvelte from './screen/Register.svelte';
-import HoldingsHomeSvelte from './screen/HoldingsHome.svelte';
 import AccountHomeSvelte from './screen/AccountsHome.svelte';
-import ContactsHomeSvelte from './screen/ContactsHome.svelte';
-import ProvidersHomeSvelte from './screen/ProvidersHome.svelte';
-import HistoryHomeSvelte from './screen/HistoryHome.svelte';
 import AppsHomeSvelte from './screen/AppsHome.svelte';
+import BalancesHomeSvelte from './screen/BalancesHome.svelte';
+import BlankSvelte from './screen/Blank.svelte';
+import ContactsHomeSvelte from './screen/ContactsHome.svelte';
+import HistoryHomeSvelte from './screen/HistoryHome.svelte';
+import ProvidersHomeSvelte from './screen/ProvidersHome.svelte';
+import RegisterSvelte from './screen/Register.svelte';
 
 export enum ThreadId {
 	DEFAULT='default',
@@ -13,7 +13,7 @@ export enum ThreadId {
 	SEARCH='search',
 	TOKENS='tokens',
 	NFTS='nfts',
-	CONTACTS='contacts',
+	AGENTS='contacts',
 	HISTORY='history',
 	PROVIDERS='providers',
 	ACCOUNTS='accounts',
@@ -31,9 +31,9 @@ export const H_THREADS = {
 	[ThreadId.DEFAULT]: BlankSvelte,
 	[ThreadId.INIT]: RegisterSvelte,
 	// [ThreadId.SEARCH]: Search,
-	[ThreadId.TOKENS]: HoldingsHomeSvelte,
+	[ThreadId.TOKENS]: BalancesHomeSvelte,
 	// [ThreadId.NFTS]: Gallery,
-	[ThreadId.CONTACTS]: ContactsHomeSvelte,
+	[ThreadId.AGENTS]: ContactsHomeSvelte,
 	[ThreadId.HISTORY]: HistoryHomeSvelte,
 	[ThreadId.PROVIDERS]: ProvidersHomeSvelte,
 	[ThreadId.ACCOUNTS]: AccountHomeSvelte,

@@ -5,6 +5,10 @@
 
 	export let infoIcon = '';
 	export let actionIcon = '';
+
+	export let s_icon_dim = '16px';
+
+	export let b_hr_less = false;
 </script>
 
 <style lang="less">
@@ -39,11 +43,13 @@
 	}
 </style>
 
-<hr class="no-margin">
+{#if !b_hr_less}
+	<hr class="no-margin">
+{/if}
 
 <div class={`resource-control ${rootClasses}`} style={rootStyle} on:click>
 	{#if infoIcon}
-		<span class="global_svg-icon icon-diameter_16px info-icon">
+		<span class="global_svg-icon icon-diameter_{s_icon_dim} info-icon">
 			{@html infoIcon}
 		</span>
 	{/if}

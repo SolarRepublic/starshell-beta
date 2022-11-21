@@ -1,7 +1,10 @@
 <script lang="ts">
 	import type {Page} from '../screen/_screens';
 	
+	import type {O} from 'ts-toolbelt';
+	
 	import type {Dict, JsonPrimitive} from '#/meta/belt';
+	import type {ContractPath, ContractStruct} from '#/meta/chain';
 	import type {ContactStruct, ContactPath, ContactAgentType} from '#/meta/contact';
 	
 	import {getContext} from 'svelte';
@@ -9,6 +12,7 @@
 	import {slide} from 'svelte/transition';
 	
 	import {Agents} from '#/store/agents';
+	import {Contracts, ContractRole} from '#/store/contracts';
 	import {yw_chain, yw_chain_namespace} from '##/mem';
 	
 	import ContactEdit from '##/screen/ContactEdit.svelte';
@@ -20,6 +24,7 @@
 	import Address from './Address.svelte';
 	
 	import InlineTags from './InlineTags.svelte';
+	import ContractView from '../screen/ContractView.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
 	
@@ -40,8 +45,16 @@
 	// get page from context
 	const k_page = getContext<Page>('page');
 
+	type AgentPath = ContactPath | ContractPath;
 
-	export let filter: (g_contact: ContactStruct) => boolean = g => true;
+	type AgentStruct = O.Intersect<
+		ContactStruct,
+		O.Merge<ContractStruct, {
+			agentType: ContactAgentType;
+		}>
+	>;
+
+	export let filter: (g_agent: AgentStruct) => boolean = () => true;
 
 	const H_AGENT_WEIGHTS = {
 		person: 0,
@@ -49,7 +62,7 @@
 		robot: 2,
 	};
 
-	export let sort: (g_a: ContactStruct, g_b: ContactStruct) => number = (g_a, g_b) => {
+	export let sort: (g_a: AgentStruct, g_b: AgentStruct) => number = (g_a, g_b) => {
 		if(g_a.agentType !== g_b.agentType) {
 			return H_AGENT_WEIGHTS[g_a.agentType] - H_AGENT_WEIGHTS[g_b.agentType];
 		}
@@ -61,21 +74,32 @@
 
 
 	// load all contacts for the current chain's family as a list
-	async function load_contacts(): Promise<[ContactPath, ContactStruct][]> {
+	async function load_agents(): Promise<[AgentPath, AgentStruct][]> {
 		// read from agents store
 		const ks_agents = await Agents.read();
 
+		// read from contracts store
+		const ks_contracts = await Contracts.read();
+
 		// spread iterator into array and filter
-		const a_filtered = [...ks_agents.contacts($yw_chain_namespace)].filter(([, g_contact]) => filter(g_contact));
+		const a_filtered = [
+			...[...ks_agents.contacts($yw_chain_namespace)],
+			...[
+				...await ks_contracts.filterRole(ContractRole.OTHER),
+			].map(([p_contract, g_contract]) => [p_contract, {
+				...g_contract,
+				agentType: 'contract',
+			} as AgentStruct]),
+		].filter(([, g_agent]) => filter(g_agent as AgentStruct)) as [AgentPath, AgentStruct][];
 
 		// apply sort
-		return a_filtered.sort(([, g_contact_a], [, g_contact_b]) => sort(g_contact_a, g_contact_b));
+		return a_filtered.sort(([, g_agent_a], [, g_agent_b]) => sort(g_agent_a, g_agent_b));
 	}
 
 	const hm_events = new WeakMap<Event, Dict<JsonPrimitive>>();
 
 	let si_overlay = '';
-	function activate_overlay(p_contact: string, g_contact: ContactStruct): (d: MouseEvent) => void {
+	function activate_overlay(p_contact: string, g_agent: AgentStruct): (d: MouseEvent) => void {
 		return (d_event: MouseEvent) => {
 			// prevent event from bubbling
 			d_event.stopImmediatePropagation();
@@ -235,7 +259,7 @@
 </style>
 
 <div class="rows">
-	{#await load_contacts()}
+	{#await load_agents()}
 		<LoadingRows count={3} />
 	{:then a_list}
 		{#if !a_list.length}
@@ -248,19 +272,29 @@
 				No contacts of this type yet
 			</div>
 		{:else}
-			{#each a_list as [p_contact, g_contact]}
+			{#each a_list as [p_agent, g_agent]}
 				<Row
 					--app-icon-diameter='36px'
-					resource={g_contact}
-					resourcePath={p_contact}
+					resource={g_agent}
+					resourcePath={p_agent}
 					on:click={(d_event) => {
 						if(!hm_events.get(d_event)?.cancelMenu) {
-							k_page.push({
-								creator: ContactView,
-								props: {
-									contactPath: p_contact,
-								},
-							});
+							if('contract' === g_agent.agentType) {
+								k_page.push({
+									creator: ContractView,
+									props: {
+										contractPath: p_agent,
+									},
+								});
+							}
+							else {
+								k_page.push({
+									creator: ContactView,
+									props: {
+										contactPath: p_agent,
+									},
+								});
+							}
 						}
 					}}
 				>
@@ -269,16 +303,16 @@
 						color: var(--theme-color-graymed);
 						vertical-align: text-bottom;
 					`}>
-						{@html H_AGENT_TYPE_ICONS[g_contact.agentType] }
+						{@html H_AGENT_TYPE_ICONS[g_agent.agentType] }
 					</span>
 
 					<svelte:fragment slot="detail">
-						<Address address={Agents.addressFor(g_contact, $yw_chain)} />
+						<Address address={Agents.addressFor(g_agent, $yw_chain)} />
 					</svelte:fragment>
 
 					<svelte:fragment slot="tags">
 						<InlineTags subtle rootStyle='margin: 0px;'
-							resourcePath={p_contact}
+							resourcePath={p_agent}
 						>
 						</InlineTags>
 					</svelte:fragment>
@@ -286,18 +320,18 @@
 					<svelte:fragment slot="status">
 						<span
 							class="icon more-menu"
-							class:active={si_overlay === p_contact}
-							on:click={activate_overlay(p_contact, g_contact)}
+							class:active={si_overlay === p_agent}
+							on:click={activate_overlay(p_agent, g_agent)}
 						>
 							{@html SX_ICON_DOTS}
 						</span>
 
-						{#if si_overlay === p_contact}
+						{#if si_overlay === p_agent}
 							<span class="overlay" transition:slide={{duration:300, easing:quintOut}}>
 								{#each a_overlay_actions as g_action}
 									<div class="action" on:click={(d_event) => {
 										d_event.stopPropagation();
-										g_action.click(g_contact);
+										g_action.click(g_agent);
 									}}>
 										<span class="icon">
 											{@html g_action.icon}

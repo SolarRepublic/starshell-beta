@@ -1,12 +1,11 @@
 const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.service: ${s}`, ...a_args);
-
+globalThis.debug = debug;
 debug(`Launched on ${Date()}`);
 
-import type Browser from 'webextension-polyfill';
-
-import {B_IPHONE_IOS, B_IOS_NATIVE, G_USERAGENT, R_CAIP_2, XT_TIMEOUT_APP_PERMISSIONS, XT_TIMEOUT_SERVICE_REQUEST} from '#/share/constants';
-
+/* eslint-disable i/order */
 import {do_webkit_polyfill} from './webkit-polyfill';
+import {B_IPHONE_IOS, B_IOS_NATIVE, G_USERAGENT, R_CAIP_2, XT_TIMEOUT_APP_PERMISSIONS, XT_TIMEOUT_SERVICE_REQUEST, SI_EXTENSION_ID_KEPLR} from '#/share/constants';
+/* eslint-enable */
 
 if(B_IOS_NATIVE) {
 	do_webkit_polyfill(debug);
@@ -20,9 +19,9 @@ import type {
 	SessionCommand,
 } from './messages';
 
+import type Browser from 'webextension-polyfill';
 
 import type {AccountStruct, AccountPath} from '#/meta/account';
-import {AppApiMode, type AppStruct} from '#/meta/app';
 import type {JsonObject, JsonValue} from '#/meta/belt';
 import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 import type {IncidentPath} from '#/meta/incident';
@@ -31,27 +30,31 @@ import type {Vocab} from '#/meta/vocab';
 
 import {fromBech32, toBech32} from '@cosmjs/encoding';
 import {decodeTxRaw} from '@cosmjs/proto-signing';
-import {BroadcastMode} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 import {MsgExecuteContract} from '@solar-republic/cosmos-grpc/dist/cosmwasm/wasm/v1/tx';
 import {MsgExecuteContract as SecretMsgExecuteContract} from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/msg';
+
+import BigNumber from 'bignumber.js';
 
 import IcsHost from './ics-host';
 import McsRatifier from './mcs-ratifier';
 import {open_flow} from './msg-flow';
 import {global_broadcast, global_receive} from './msg-global';
 import {set_keplr_compatibility_mode} from './scripts';
-import {app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, RetryCode, unlock_to_continue} from './service-apps';
-
+import {app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, request_keplr_decision, RetryCode, unlock_to_continue} from './service-apps';
 import {NetworkFeed} from './service-feed';
 import {H_HANDLERS_ICS_APP} from './service-handlers-ics-app';
 
+import {instruction_handlers} from './service-router-instruction';
+
 import {amino_to_base, encode_proto, proto_to_amino} from '#/chain/cosmos-msgs';
 import {pubkey_to_bech32} from '#/crypto/bech32';
+import {EntropyProducer} from '#/crypto/entropy';
 import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
-import type {NotificationConfig} from '#/extension/notifications';
+import {system_notify} from '#/extension/browser';
 import {process_permissions_request} from '#/extension/permissions';
 import {PublicStorage, storage_clear, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
+import {ServiceHost} from '#/extension/service-comms';
 import {SessionStorage} from '#/extension/session-storage';
 import type {InternalConnectionsResponse} from '#/provider/connection';
 import {add_utility_key, import_private_key} from '#/share/account';
@@ -61,15 +64,12 @@ import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
 import {Histories, Incidents} from '#/store/incidents';
-import {NetworkTimeoutError, Providers} from '#/store/providers';
+import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
+import {Settings} from '#/store/settings';
 import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
-import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, sha256_sync, text_to_base64, text_to_buffer} from '#/util/data';
-import {stringify_params, uuid_v4} from '#/util/dom';
-import { system_notify } from '#/extension/browser';
-import { EntropyProducer } from '#/crypto/entropy';
-import {Settings, type SettingsRegistry} from '#/store/settings';
-import BigNumber from 'bignumber.js';
+import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
+import {stringify_params} from '#/util/dom';
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
@@ -346,15 +346,24 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 		if('function' === typeof chrome.management?.get) {
 			let g_keplr: chrome.management.ExtensionInfo;
 			try {
-				g_keplr = await chrome.management.get('dmkamcknogkgcdfhhbddcghachkejeap');
+				g_keplr = await chrome.management.get(SI_EXTENSION_ID_KEPLR);
 			}
 			// not installed
 			catch(e_get) {
 				break CHECK_KEPLR_ENABLED;
 			}
 
-			// keplr is installed and enabled; do not interfere with it
+			// keplr is installed and enabled
 			if(g_keplr.enabled) {
+				// ask user what to do
+				const s_action = await request_keplr_decision(g_detected.profile, g_sender);
+
+				// user disabled it
+				if('disabled' === s_action) break CHECK_KEPLR_ENABLED;
+
+				// user want's to use keplr; do not interfere with it
+
+
 				debug(`Content Script at "${g_sender.url}" detected Keplr API but Keplr is installed and active, ignoring polyfill.`);
 				return;
 			}
@@ -461,208 +470,6 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 
 const a_feeds: NetworkFeed[] = [];
 
-/**
- * message handlers for service instructions from popup
- */
-const H_HANDLERS_INSTRUCTIONS: Vocab.HandlersChrome<IntraExt.ServiceInstruction> = {
-	async sessionStorage(g_msg, g_sender, fk_respond) {
-		const si_type = g_msg.type;
-		const w_response = await H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
-		fk_respond(w_response);
-	},
-
-	async wake(_ignore, g_sender, fk_respond) {
-		// ack
-		fk_respond(true);
-
-		// 
-		for(const k_feed of a_feeds) {
-			await navigator.locks.request(`net:feed:${k_feed.provider.rpcHost}`, async() => {
-				// whether to recreate the feed
-				let b_recreate = true;
-
-				// 30 seconds of tolerance, wait for up to 5 seconds per socket, for a total of up to 30 seconds
-				try {
-					const [, xc_timeout] = await timeout_exec(30e3, () => k_feed.wake(30e3, 5e3));
-
-					// feed is OK
-					if(!xc_timeout) {
-						b_recreate = false;
-					}
-				}
-				catch(e_exec) {
-					console.error(e_exec);
-				}
-
-				// recreate feed
-				if(b_recreate) {
-					console.warn(`Recreating delinquent network feed for ${k_feed.provider.rpcHost}`);
-
-					// destroy existing feed
-					k_feed.destroy();
-
-					// remove from list
-					a_feeds.splice(a_feeds.indexOf(k_feed), 1);
-
-					// replace with new feed
-					a_feeds.push(await k_feed.recreate());
-				}
-			});
-		}
-	},
-
-	async whoisit(w_ignore, g_sender, fk_respond) {
-		const a_tabs = await chrome.tabs.query({
-			active: true,
-			lastFocusedWindow: true,
-			currentWindow: true,
-		});
-
-		if(1 === a_tabs?.length) {
-			const g_tab = a_tabs[0];
-
-			// prep app struct
-			let g_app: AppStruct | null = null;
-
-			// app registration state
-			let b_registered = false;
-
-			// logged in state
-			let b_authed = false;
-
-			// page has url
-			const p_tab = g_tab.url;
-			if(p_tab) {
-				// parse page
-				const [s_scheme, s_host] = parse_sender(p_tab);
-
-				// foreign scheme
-				if(!/^(file|https?)/.test(s_scheme)) {
-					fk_respond(null);
-					return;
-				}
-
-				// logged in
-				if(await Vault.isUnlocked()) {
-					b_authed = true;
-
-					// lookup app in store
-					g_app = await Apps.get(s_host, s_scheme);
-				}
-
-				// app definition exists
-				if(g_app) {
-					// app is registered and enabled; mark it such
-					if(g_app.on) {
-						b_registered = true;
-					}
-					// app is disabled
-					else {
-						// do nothing
-					}
-				}
-				// app is not yet registered; create temporary app object in memory
-				else {
-					g_app = {
-						on: 1,
-						api: AppApiMode.UNKNOWN,
-						name: (await SessionStorage.get(`profile:${new URL(p_tab).origin}`))?.name!
-							|| g_tab.title || new URL(p_tab).host,
-						scheme: s_scheme,
-						host: s_host,
-						connections: {},
-						pfp: `pfp:${new URL(p_tab).origin}`,
-					};
-				}
-			}
-
-			const g_window = await chrome.windows?.get(g_tab.windowId) || null;
-
-			fk_respond({
-				tab: g_tab,
-				window: g_window,
-				app: g_app,
-				registered: b_registered,
-				authenticated: b_authed,
-			});
-
-			// done
-			return;
-		}
-
-		fk_respond(null);
-	},
-
-	async reloadTab(gc_reload, g_sender, fk_respond) {
-		// reload the tab
-		await chrome.tabs.reload(gc_reload.tabId);
-
-		// ack
-		fk_respond(true);
-	},
-
-	async scheduleFlowResponse(gc_schedule, g_sender, fk_respond) {
-		// destructure schedule config
-		const {
-			key: si_key,
-			response: g_response,
-		} = gc_schedule;
-
-		// ack
-		fk_respond(true);
-
-		// allow window to close
-		await timeout(500);
-
-		// broadcast
-		global_broadcast({
-			type: 'flowResponse',
-			value: {
-				key: si_key,
-				response: g_response,
-			},
-		});
-	},
-
-	async scheduleBroadcast(gc_schedule, g_sender, fk_respond) {
-		debug(`scheduleBroadcast(${JSON.stringify(gc_schedule)})`);
-
-		// ack
-		fk_respond(true);
-
-		// allow window to close
-		await timeout(gc_schedule.delay || 1e3);
-
-		// broadcast
-		global_broadcast(gc_schedule.broadcast);
-	},
-
-	deepLink(gc_link, g_sender, fk_respond) {
-		debug(`deepLink(${JSON.stringify(gc_link)})`);
-
-		// ack
-		fk_respond(true);
-
-		// parse
-		const d_url = new URL(gc_link.url);
-
-		// valid deep link location
-		if(['/qr'].includes(d_url.pathname)) {
-			// parse hash
-			const sx_hash = d_url.hash;
-
-			// split into parts
-			const a_parts = sx_hash.split('/');
-
-			// // each part
-			// switch(a_parts[0]) {
-			// 	case 'chain': {
-			// 		break;
-			// 	}
-			// }
-		}
-	},
-};
 
 /**
  * Handle messages from content scripts
@@ -688,8 +495,10 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 		// message originates from extension
 		const b_origin_verified = g_sender.url?.startsWith(chrome.runtime.getURL('')) || false;
 		if(chrome.runtime.id === g_sender.id && (b_origin_verified || 'null' === g_sender.origin)) {
-			console.debug(`Routing message from extension as instruction to '${si_type}'`);
-			h_handlers = H_HANDLERS_INSTRUCTIONS;
+			// console.debug(`Routing message from extension as instruction to '${si_type}'`);
+			// h_handlers = H_HANDLERS_INSTRUCTIONS;
+			console.error(`Need to migrate caller to service comms for '${si_type}'`);
+			return;
 		}
 		// message originates from tab (content script)
 		else if(g_sender.tab && 'number' === typeof g_sender.tab.id) {
@@ -832,12 +641,8 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 // bind message router listener
 chrome.runtime.onMessage?.addListener(message_router);
 
-chrome.runtime.onConnect?.addListener((d_port) => {
-	debug(`Received connection from ${d_port.name}`);
-
-	d_port.onMessage.addListener(() => {
-		
-	});
+ServiceHost.open({
+	self: instruction_handlers(H_SESSION_STORAGE_POLYFILL, a_feeds),
 });
 
 
@@ -926,14 +731,14 @@ console.log('clearing alarms');
 chrome.alarms?.clearAll(() => {
 	console.warn('clear all');
 
-	chrome.alarms.create('periodicChainQueries', {
-		periodInMinutes: 1,
+	chrome.alarms.create('network_feeds', {
+		periodInMinutes: 3,
 	});
 
 	chrome.alarms.onAlarm.addListener((g_alarm) => {
 		switch(g_alarm.name) {
-			case 'periodicChainQueries': {
-				// void periodic_check();
+			case 'network_feeds': {
+				void check_network_feeds();
 				break;
 			}
 
@@ -946,7 +751,7 @@ chrome.alarms?.clearAll(() => {
 
 const R_NOTIFICATION_ID = /^@([a-z]+):(.*)+/;
 
-console.log('subscribing to notifications')
+console.log('subscribing to notifications');
 
 chrome.notifications?.onClicked?.addListener((si_notif) => {
 	// dismiss notification
@@ -975,6 +780,38 @@ chrome.notifications?.onClicked?.addListener((si_notif) => {
 });
 
 
+async function check_network_feeds() {
+	// 
+	await navigator.locks.request(`net:feeds`, async() => {
+		const b_unlocked = await Vault.isUnlocked();
+		if(b_unlocked) {
+			if(a_feeds.length) {
+				console.debug(`Checking on existing feeds`);
+
+				for(const k_feed of a_feeds) {
+					try {
+						await k_feed.wake(30e3, 10e3);
+					}
+					catch(e_wake) {
+						console.warn(`Problem with existing feed; destroying and recreating`);
+						k_feed.destroy();
+
+						await k_feed.recreate();
+					}
+				}
+			}
+			else {
+				console.debug(`Creating network feeds`);
+
+				// start feeds
+				a_feeds.push(...await NetworkFeed.createAll({
+					// wire up notification hook
+					notify: system_notify,
+				}));
+			}
+		}
+	});
+}
 
 
 // global message handler
@@ -985,10 +822,7 @@ global_receive({
 		await set_keplr_compatibility_mode();
 
 		// start feeds
-		a_feeds.push(...await NetworkFeed.createAll({
-			// wire up notification hook
-			notify: system_notify,
-		}));
+		await check_network_feeds();
 	},
 
 	// user has logged out
@@ -1004,6 +838,8 @@ global_receive({
 	},
 });
 
+// init in case already unlocked
+void check_network_feeds();
 
 // set compatibility mode based on apps and current settings
 void set_keplr_compatibility_mode();

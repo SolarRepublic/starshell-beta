@@ -12,7 +12,7 @@
 	import {yw_navigator} from '../mem';
 	
 	import {Chains} from '#/store/chains';
-	import {Contracts, ContractType} from '#/store/contracts';
+	import {Contracts, ContractRole} from '#/store/contracts';
 	import {CoinGecko} from '#/store/web-apis';
 	
 	import ContractView from './ContractView.svelte';
@@ -60,7 +60,7 @@
 	} = validate_contract(p_contract as ContractPath);
 	
 	// derive token state from contract type
-	$: b_token = ContractType.TOKEN & $yw_contract_type;
+	$: b_token = ContractRole.TOKEN & $yw_contract_type;
 
 	// inherit interfaces from contract def
 	$: h_interfaces = $yw_contract?.interfaces || {};

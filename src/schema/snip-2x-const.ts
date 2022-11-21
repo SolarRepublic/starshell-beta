@@ -21,6 +21,9 @@ import {base58_to_buffer, buffer_to_base58, buffer_to_text, buffer_to_uint32_be,
 import type { PrebuiltMessage } from '#/chain/messages/_types';
 import type { Snip24, Snip24PermitMsg } from './snip-24-def';
 import type { Coin } from '@cosmjs/amino';
+import { amino_to_base } from '#/chain/cosmos-msgs';
+import BigNumber from 'bignumber.js';
+import { Fee } from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 
 
 
@@ -113,7 +116,6 @@ export const Snip2xUtil = {
 		// base58-encode to create password
 		return SX_VIEWING_KEY_PREAMBLE+buffer_to_base58(atu8_viewing_key);
 	},
-
 };
 
 
@@ -204,6 +206,25 @@ export const Snip2xMessageConstructor = {
 		// prep snip-20 exec
 		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash);
 	},
+
+
+	async mint(
+		g_account: AccountStruct,
+		g_token: {bech32: Bech32; hash: string; chain: ChainPath},
+		k_network: SecretNetwork,
+		sa_recipient: Cw.Bech32,
+		s_amount: Cw.Uint128
+	) {
+		const g_msg: Snip20.MintableMessageParameters<'mint'> = {
+			mint: {
+				amount: s_amount,
+				recipient: sa_recipient,
+			},
+		};
+
+		// prep snip-20 exec
+		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash);
+	}
 };
 
 type QueryRes<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey> = Promise<Snip2x.AnyQueryResponse<si_key>>;
@@ -348,6 +369,10 @@ export class Snip2xToken {
 		return this._g_snip20.extra?.coingecko_id || null;
 	}
 
+	get snip20(): TokenStructDescriptor['snip21'] {
+		return this._g_snip20;
+	}
+
 	get snip21(): TokenStructDescriptor['snip21'] | null {
 		return this._g_contract.interfaces.snip21 || null;
 	}
@@ -372,6 +397,39 @@ export class Snip2xToken {
 		}
 
 		return a_viewing_key[0];
+	}
+
+	async mintable(): Promise<boolean> {
+		const {
+			_g_chain,
+			_g_account,
+			_g_contract,
+			_k_network,
+		} = this;
+
+		try {
+			const sa_recipient = Chains.addressFor(_g_account.pubkey, _g_chain) as Cw.Bech32;
+			const s_amount = BigNumber('1').shiftedBy(this._g_snip20.decimals).toString() as Cw.Uint128;
+
+			const g_mint = await Snip2xMessageConstructor.mint(_g_account, _g_contract, _k_network, sa_recipient, s_amount);
+
+			// sign
+			const {
+				auth: atu8_auth,
+				signer: g_signer,
+			} = await this._k_network.authInfoDirect(_g_account, Fee.fromPartial({}));
+
+			const g_sim = await this._k_network.simulate(_g_account, {
+				messages: [
+					g_mint.proto,
+				],
+			}, atu8_auth);
+		}
+		catch(e_simulate) {
+			return false;
+		}
+
+		return true;
 	}
 
 	query<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey>(g_query: Snip2x.AnyQueryParameters<si_key>): QueryRes<si_key> {

@@ -32,6 +32,22 @@ import { pubkey_to_bech32 } from '#/crypto/bech32';
 // type wtf = test<'end'>;
 // const fff: test = <S extends number>(s: S) => s;
 
+export class TransactionNotFoundError extends Error {}
+
+export const parse_date = (s_input: string | null): number => {
+	if(s_input?.length) {
+		try {
+			const n_datetime = Date.parse(s_input);
+			if(Number.isInteger(n_datetime) && n_datetime > 0) {
+				return n_datetime;
+			}
+		}
+		catch(e_parse) {}
+	}
+
+	return Date.now();
+};
+
 class ChainLink {
 	constructor(protected _g_res: ChainStruct) {
 

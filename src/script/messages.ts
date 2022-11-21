@@ -1,20 +1,18 @@
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-
 import type {BlockInfoHeader} from './common';
 import type {PromptConfig} from './msg-flow';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 import type {AccountPath} from '#/meta/account';
 import type {SessionRequest, ConnectionManifestV1} from '#/meta/api';
-import type {App, AppChainConnection, AppStruct, AppPath} from '#/meta/app';
+import type {AppChainConnection, AppStruct, AppPath} from '#/meta/app';
 import type {
 	JsonValue,
 	JsonObject,
 	Dict,
 	OmitUnknownKeys,
-	RemoveJsonInterfaces,
 	AsJson,
 } from '#/meta/belt';
-import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ChainPath} from '#/meta/chain';
+import type {Bech32, Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 import type {IncidentPath, TxConfirmed, TxSynced} from '#/meta/incident';
 import type {ProviderPath} from '#/meta/provider';
 import type {Store, StoreKey} from '#/meta/store';
@@ -23,12 +21,12 @@ import type {Vocab} from '#/meta/vocab';
 import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
 
 import type {SloppySignDoc} from '#/schema/protobuf';
+
+import type {NotificationConfig} from '#/extension/notifications';
 import type {ConnectionHandleConfig} from '#/provider/connection';
 
 
 import type {AppProfile} from '#/store/apps';
-import type { NotificationConfig } from '#/extension/notifications';
-
 
 
 
@@ -232,7 +230,7 @@ export namespace IcsToService {
 		// 
 		sessionStorage: {
 			value: Vocab.Message<SessionCommand>;
-			response: Vocab.Response<SessionCommand>;
+			response: AsJson<Vocab.Response<SessionCommand>>;
 		};
 
 		// 
@@ -288,6 +286,18 @@ export namespace IcsToService {
 			response: AppResponse<
 				Record<Bech32, AppResponse<undefined>>
 			>;
+		};
+
+		requestSecretPubkey: {
+			value: {};
+			response: AppResponse<string>;
+		};
+
+		requestSecretEncryptionKey: {
+			value: {
+				nonce: string;
+			};
+			response: AppResponse<string>;
 		};
 
 		requestEncrypt: {
@@ -648,6 +658,14 @@ export namespace IntraExt {
 			};
 		};
 
+		requestKeplrDecision: {
+			value: {
+				page: PageInfo;
+				profile: AppProfile;
+			};
+			response: string;
+		};
+
 		illegalChains: {
 			value: {
 				app: AppStruct;
@@ -813,9 +831,38 @@ export namespace IntraExt {
 	 * Vocab for instructions to be given directly to service worker.
 	 */
 	export type ServiceInstruction = Vocab.New<{
+		// 
+		// ==== send-only messages ====
+		// 
+
+		/**
+		 * Pings the service to check resource liveliness and for ACK
+		 */
 		wake: {};
 
+		/**
+		 * Reloads the tab with the given tab id
+		 */
+		reloadTab: {
+			value: {
+				tabId: number;
+			};
+		};
+
+		/**
+		 * Routes a deep link request
+		 */
+		deepLink: {
+			value: AsJson<DeepLinkMessage>;
+		};
+
 		// 
+		// ==== request messages ====
+		// 
+
+		/**
+		 * Asynchronous session storage commands
+		 */
 		sessionStorage: {
 			value: AsJson<Vocab.Message<SessionCommand>>;
 			response: AsJson<Vocab.Response<SessionCommand>>;
@@ -831,23 +878,13 @@ export namespace IntraExt {
 				app: AppStruct | null;
 				registered: boolean;
 				authenticated: boolean;
-			}>;
+			} | null>;
 		};
 
 		scheduleBroadcast: {
 			value: {
 				delay?: number;
 				broadcast: AsJson<Vocab.Message<GlobalVocab>>;
-			};
-		};
-
-		deepLink: {
-			value: AsJson<DeepLinkMessage>;
-		};
-
-		reloadTab: {
-			value: {
-				tabId: number;
 			};
 		};
 	}>;

@@ -263,7 +263,9 @@ export async function reinstall(b_install=false): Promise<void> {
 		}
 	}
 	// selective wipe
-	else if(await PublicStorage.isUpgrading('0.6.1')) {
+	else if(await PublicStorage.isUpgrading('0.6.4')) {
+		await storage_remove('apps');
+		await storage_remove('histories');
 		await storage_remove('chains');
 		await storage_remove('contracts');
 		await storage_remove('providers');

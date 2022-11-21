@@ -52,6 +52,10 @@ class HistoriesI extends WritableStore<typeof SI_STORE_HISTORIES> {
 		return Histories.open(ks => ks.markAllSeen());
 	}
 
+	static resetSyncInfo(p_chain?: ChainPath) {
+		return Histories.open(ks => ks.resetSyncInfo(p_chain));
+	}
+
 	async markAllSeen() {
 		// update last seen to now
 		this._w_cache.seen = Date.now();
@@ -62,6 +66,17 @@ class HistoriesI extends WritableStore<typeof SI_STORE_HISTORIES> {
 
 	lastSeen(): number {
 		return this._w_cache.seen;
+	}
+
+	async resetSyncInfo(p_chain?: ChainPath) {
+		if(p_chain) {
+			delete this._w_cache.syncs[p_chain];
+		}
+		else {
+			this._w_cache.syncs = {};
+		}
+
+		await this.save();
 	}
 
 	async updateSyncInfo(p_chain: ChainPath, si_listen: string, s_height: string): Promise<void> {
@@ -204,8 +219,11 @@ export const Incidents = create_store_class({
 		static record(g_incident: IncidentDescriptor, ks_histories?: HistoriesI): Promise<IncidentPath> {
 			if(!g_incident.id) {
 				delete g_incident.id;
-				const atu8_hash = sha256_sync(text_to_buffer(JSON.stringify(g_incident)));
-				g_incident.id = `${g_incident.type}:${buffer_to_base64(atu8_hash.subarray(0, 9)).replace(/\//g, '-')}`;
+
+				if(!(g_incident.id = g_incident.data?.['hash'] as string || '')) {
+					const atu8_hash = sha256_sync(text_to_buffer(JSON.stringify(g_incident)));
+					g_incident.id = `${g_incident.type}:${buffer_to_base64(atu8_hash.subarray(0, 9)).replace(/\//g, '-')}`;
+				}
 			}
 
 			if(!g_incident.time) g_incident.time = Date.now();

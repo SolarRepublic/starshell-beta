@@ -1,23 +1,22 @@
-import path from 'path';
-
-import {
-	rollup, RollupBuild, RollupOutput,
-} from 'rollup';
-
+import type {ModuleFormat} from '@sveltejs/vite-plugin-svelte';
+import type {CallExpression, Identifier} from 'estree';
+import type {RollupBuild, RollupOutput} from 'rollup';
 import type {
 	Plugin,
 	ResolvedConfig,
 } from 'vite';
 
-import * as walk from 'acorn-walk';
+import path from 'path';
 
-import {createFilter} from '@rollup/pluginutils';
-import type {ModuleFormat} from '@sveltejs/vite-plugin-svelte';
-import type {CallExpression, Identifier} from 'estree';
-import MagicString from 'magic-string';
-import nodeResolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
+import nodeResolve from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
+import {createFilter} from '@rollup/pluginutils';
+import * as walk from 'acorn-walk';
+import MagicString from 'magic-string';
+import {
+	rollup,
+} from 'rollup';
 
 interface Options {
 	include?: string[];

@@ -5,7 +5,8 @@ import type {FieldConfig} from '#/meta/field';
 import {RT_UINT, RT_URI_LIKELY, R_BECH32} from '#/share/constants';
 import {Chains} from '#/store/chains';
 import {is_dict_es} from '#/util/belt';
-import {dd, uuid_v4} from '#/util/dom';
+import {uuid_v4} from '#/util/data';
+import {dd} from '#/util/dom';
 
 export interface PreviewerConfig {
 	chain?: ChainStruct;

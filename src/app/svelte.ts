@@ -1,5 +1,5 @@
 import type {Readable} from 'svelte/store';
-import type { AppProfile } from '#/store/apps';
+import { AppProfile, G_APP_EXTERNAL } from '#/store/apps';
 import type {Nameable, Pfpable} from '#/meta/able';
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {AppStruct, AppPath} from '#/meta/app';
@@ -265,10 +265,70 @@ export async function load_contract(sa_contract: Bech32, g_chain: ChainStruct, g
 			bech32: sa_contract,
 			interfaces: g_contract?.interfaces || {},
 			name: g_contract?.name || `Unknown Contract${g_app? ` from ${g_app.host}`: ''}`,
-			origin: 'domain',
+			origin: `app:${Apps.pathFrom(g_app || G_APP_EXTERNAL)}`,
 			pfp: '' as PfpTarget,
 		};
 	}
 
 	return g_contract;
+}
+
+
+export async function produce_contracts(a_contracts: Bech32[], g_chain: ChainStruct, g_app: AppStruct | undefined): Promise<ContractStruct[]> {
+	// prep list of loaded contracts
+	const a_loaded: ContractStruct[] = [];
+
+	// prep app profile
+	let g_profile: AppProfile | undefined;
+
+	// each bech32
+	for(const sa_contract of a_contracts) {
+		// create contract path
+		const p_contract = Contracts.pathFor(Chains.pathFrom(g_chain), sa_contract);
+
+		// attempt to locate entity
+		let g_contract = await Contracts.at(p_contract);
+
+		// definition does not exist in store
+		if(!g_contract) {
+			// no app profile loaded
+			if(g_app && !g_profile) {
+				// acquire lock on profile
+				// eslint-disable-next-line @typescript-eslint/no-loop-func
+				await navigator.locks.request('ui:fields:profile', async() => {
+					// save profile
+					g_profile = await load_app_profile(g_app);
+				});
+			}
+
+			// find contract def in app profile
+			const h_contracts = g_profile?.contracts;
+			if(h_contracts) {
+				for(const [, g_def] of ode(h_contracts)) {
+					if(sa_contract === g_def.bech32) {
+						g_contract = g_def;
+					}
+				}
+			}
+
+			// add to list
+			a_loaded.push({
+				on: 1,
+				chain: Chains.pathFrom(g_chain),
+				hash: g_contract?.hash || '',
+				bech32: sa_contract,
+				interfaces: g_contract?.interfaces || {},
+				name: g_contract?.name || `Unknown Contract${g_app? ` from ${g_app.host}`: ''}`,
+				origin: `app:${Apps.pathFrom(g_app || G_APP_EXTERNAL)}`,
+				pfp: '' as PfpTarget,
+			});
+
+			continue;
+		}
+
+		// add to list
+		a_loaded.push(g_contract);
+	}
+
+	return a_loaded;
 }

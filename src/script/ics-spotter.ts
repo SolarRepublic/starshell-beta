@@ -256,6 +256,7 @@ import type * as ImportHelper from './ics-spotter-imports';
 			}, b_multiaccount
 				? [
 					dd('span', {
+						'data-starshell': 'account-name',
 						style: `
 							padding: 3px 3px 3px 8px;
 							flex: auto;
@@ -263,6 +264,7 @@ import type * as ImportHelper from './ics-spotter-imports';
 					}, [`${a_accounts[i_account].name}`]),
 
 					dd('span', {
+						'data-starshell': 'next',
 						style: `
 							border-left: 1px solid #ffb61a;
 							padding: 0px 11px 0px 0px;
@@ -282,10 +284,23 @@ import type * as ImportHelper from './ics-spotter-imports';
 					]),
 				]
 				: [
-					dd('span', {}, [`${a_accounts[i_account].name}`]),
+					dd('span', {
+						'data-starshell': 'account-name',
+					}, [`${a_accounts[i_account].name}`]),
 				]
 			),
 		]);
+
+		// changing account
+		dm_overlay.querySelector('[data-starshell="next"]')?.addEventListener('click', (d_event: MouseEvent) => {
+			i_account = (i_account + 1) % a_accounts.length;
+
+			for(const dm_span of dm_overlay.querySelectorAll('[data-starshell="account-name"]')) {
+				dm_span.textContent = a_accounts[i_account].name;
+			}
+
+			d_event.stopPropagation();
+		});
 
 		dm_overlay.addEventListener('click', () => {
 			const sa_owner = pubkey_to_bech32(a_accounts[i_account].pubkey, 'secret');

@@ -1,9 +1,9 @@
 import type {O} from 'ts-toolbelt';
 
-import type {AgentOrEntityOrigin, Bech32, ChainNamespaceKey, ChainPath, ContractStruct, ContractPath} from '#/meta/chain';
+import type {AgentOrEntityOrigin, Bech32, ChainNamespaceKey, ChainPath, ContractStruct, ContractPath, ChainStruct} from '#/meta/chain';
 
 import type {PfpPath} from '#/meta/pfp';
-import type {TokenStructDescriptor, TokenStructKey} from '#/meta/token';
+import type {TokenStructDescriptor} from '#/meta/token';
 
 import {
 	create_store_class,
@@ -17,9 +17,11 @@ import {Pfps} from './pfps';
 import {SI_STORE_CONTRACTS} from '#/share/constants';
 
 import {is_dict, ode} from '#/util/belt';
+import { Apps } from './apps';
+import type { AppPath } from '#/meta/app';
 
 
-export enum ContractType {
+export enum ContractRole {
 	// contract type has not yet been deduced
 	UNKNOWN = 0b000,
 
@@ -73,10 +75,41 @@ export const Contracts = create_store_class({
 			return Contracts.open(ks => ks.merge(g_contract));
 		}
 
-		filterTokens(gc_filter: TokenFilterConfig): ContractStruct[] {
-			// empty filter
-			if(!Object.keys(gc_filter)) return Object.values(this._w_cache);
+		static async summarizeOrigin(s_origin: string) {
+			if(s_origin.startsWith('app:')) {
+				const g_app = await Apps.at(s_origin.slice('app:'.length) as AppPath);
+				return g_app?.host || 'Unknown origin';
+			}
+			else if('user' === s_origin) {
+				return 'User added';
+			}
+			else if('built-in' === s_origin) {
+				return 'StarShell';
+			}
 
+			return 'Unknown origin';
+		}
+
+		static roleOf(g_contract: ContractStruct, g_chain: ChainStruct) {
+			// chain is secretwasm
+			if(g_chain.features.secretwasm) {
+				// check snip-20 interface
+				const g_snip20 = g_contract.interfaces.snip20;
+				if(g_snip20) {
+					return ContractRole.FUNGIBLE;
+				}
+
+				// check snip-721 interface
+				const g_snip721 = g_contract.interfaces.snip721;
+				if(g_snip721) {
+					return ContractRole.NONFUNGIBLE;
+				}
+			}
+
+			return ContractRole.OTHER;
+		}
+
+		filterTokens(gc_filter: TokenFilterConfig): ContractStruct[] {
 			const a_tokens: ContractStruct[] = [];
 
 			FILTERING_TOKENS:
@@ -115,6 +148,23 @@ export const Contracts = create_store_class({
 			}
 
 			return a_tokens;
+		}
+
+		async filterRole(xc_filter: ContractRole): Promise<[ContractPath, ContractStruct][]> {
+			const ks_chains = await Chains.read();
+
+			const a_filtered: [ContractPath, ContractStruct][] = [];
+
+			for(const [p_contract, g_contract] of ode(this._w_cache)) {
+				const xc_role = ContractsI.roleOf(g_contract, ks_chains.at(g_contract.chain)!);
+
+				// token passed filter role; add it to list
+				if(xc_filter === xc_role || (xc_filter & xc_role)) {
+					a_filtered.push([p_contract, g_contract]);
+				}
+			}
+
+			return a_filtered;
 		}
 
 		async merge(g_contract: ContractStruct): Promise<[ContractPath, ContractStruct]> {

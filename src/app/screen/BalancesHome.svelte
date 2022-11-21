@@ -7,7 +7,7 @@
 	import type {TxPending} from '#/meta/incident';
 	import type {Snip20} from '#/schema/snip-20-def';
 	
-	import {ViewingKeyError} from '#/schema/snip-2x-const';
+	import {Snip2xToken, ViewingKeyError} from '#/schema/snip-2x-const';
 	
 	import BigNumber from 'bignumber.js';
 	import {getContext, onDestroy} from 'svelte';
@@ -18,6 +18,7 @@
 	
 	import {as_amount, coin_to_fiat} from '#/chain/coin';
 	import {amino_to_base} from '#/chain/cosmos-msgs';
+	import type {SecretNetwork} from '#/chain/secret-network';
 	import {token_balance} from '#/chain/token';
 	import {global_receive} from '#/script/msg-global';
 	import {subscribe_store} from '#/store/_base';
@@ -28,7 +29,7 @@
 	import {Entities} from '#/store/entities';
 	import {Incidents} from '#/store/incidents';
 	import type {BalanceBundle} from '#/store/providers';
-	import {forever, microtask, ode} from '#/util/belt';
+	import {forever, microtask, ode, timeout_exec} from '#/util/belt';
 	import {abort_signal_timeout, open_external_link} from '#/util/dom';
 	import {format_fiat} from '#/util/format';
 	
@@ -64,7 +65,7 @@
 	let h_pending_txs: Dict<JsonObject> = {};
 
 	// keep list of testnet tokens for batch minting
-	let a_zero_balance_tokens: ContractStruct[] = [];
+	let a_mintable: ContractStruct[] = [];
 
 	// determine best faucet upon chain switch
 	$: if($yw_chain.testnet) {
@@ -77,7 +78,7 @@
 
 	// whenever the fiats dict is updated, begin awaiting for all to resolve
 	$: if(h_fiats) {
-		void navigator.locks.request('ui:holdings:total-balance', async() => {
+		void navigator.locks.request('ui:holdings:total-balance', () => timeout_exec(30e3, async() => {
 			// resolve all fiat promises
 			const a_fiats = await Promise.all(ode(h_fiats).map(([, dp_fiat]) => dp_fiat));
 
@@ -97,7 +98,7 @@
 					total_fiat_cache: dp_total,
 				},
 			}));
-		});
+		}));
 	}
 
 	// save previous chain in order to detect actual changes
@@ -117,7 +118,7 @@
 	let c_updates = 0;
 	{
 		subscribe_store(['chains', 'contracts', 'incidents'], () => {
-			console.info(`HoldingsHome.svelte observed store update; reloading...`);
+			console.info(`BalancesHome.svelte observed store update; reloading...`);
 
 			// trigger UI update
 			c_updates++;
@@ -269,8 +270,8 @@
 		// update pending txs
 		h_pending_txs = h_pending_txs;
 
-		// reset zero balance tokens
-		a_zero_balance_tokens = [];
+		// reset mintable tokens
+		a_mintable = [];
 
 		return a_tokens;
 	}
@@ -295,15 +296,21 @@
 			// set fiat promise
 			void g_balance.yg_fiat.then(yg => fk_fiat(yg));
 
-			if(g_balance.yg_amount.eq(0) && !a_zero_balance_tokens.find(g => g.bech32 === g_contract.bech32)) {
-				a_zero_balance_tokens = a_zero_balance_tokens.concat([g_contract]);
+			if(g_balance.yg_amount.eq(0)) {
+				// determine if it is mintable
+				const k_token = Snip2xToken.from(g_contract, $yw_network as SecretNetwork, $yw_account);
+				void k_token?.mintable().then((b_mintable) => {
+					if(b_mintable && !a_mintable.find(g => g.bech32 === g_contract.bech32)) {
+						a_mintable = a_mintable.concat([g_contract]);
+					}
+				});
 			}
 
 			return g_balance;
 		}
 		// no balance; load forever
 		else {
-			// fk_balance!(BigNumber(0));
+			// fk_fiat!(BigNumber(0));
 		}
 
 		return null;
@@ -315,7 +322,7 @@
 			const g_chain = $yw_chain;
 
 			// mint message
-			const a_msgs_proto = await Promise.all(a_zero_balance_tokens.map(async(g_contract) => {
+			const a_msgs_proto = await Promise.all(a_mintable.map(async(g_contract) => {
 				const g_msg: Snip20.MintableMessageParameters<'mint'> = {
 					mint: {
 						amount: BigNumber(1000).shiftedBy(g_contract.interfaces.snip20.decimals).toString() as Cw.Uint128,
@@ -433,7 +440,7 @@
 
 </style>
 
-<Screen debug='HoldingsHome' nav root keyed>
+<Screen debug='BalancesHome' nav root keyed>
 
 	<Header search network account on:update={() => c_updates++}>
 		<svelte:fragment slot="title">
@@ -499,7 +506,7 @@
 						{/if}
 					</div>
 				</div>
-			{:else if a_zero_balance_tokens.length > 1}
+			{:else if a_mintable.length > 1}
 				<div class="zero-balance-tokens text-align_center subinfo">
 					<div class="message">
 						Want to mint all of your testnet tokens?
@@ -507,7 +514,7 @@
 
 					<div class="buttons">
 						<button class="pill" on:click={() => mint_tokens()}>
-							Mint {a_zero_balance_tokens.length} tokens.
+							Mint {a_mintable.length} tokens.
 						</button>
 					</div>
 				</div>
@@ -518,20 +525,7 @@
 			</div>
 		{/key}
 		
-	<!-- 
-		<Gap />
-
-		<div class="rows no-margin">
-			<Row
-				name={`Staked`}
-			/>
-		</div> -->
-
-		<!-- {#key a_holdings}
-			<HoldingsList holdings={a_holdings} />
-		{/key} -->
-
-		{#key $yw_network}
+		{#key $yw_network || $yw_account}
 			<div class="rows no-margin border-top_black-8px">
 				<!-- fetch native coin balances, display known properties while loading -->
 				{#await load_native_balances()}
@@ -599,7 +593,7 @@
 							<!-- fully synced with chain -->
 							{:else if g_balance}
 								<TokenRow contract={g_token} balance={g_balance}
-									mintable={'0' === g_balance.s_amount}
+									mintable={!!a_mintable.find(g => g.bech32 === g_token.bech32)}
 								/>
 							<!-- unable to view balance -->
 							{:else}

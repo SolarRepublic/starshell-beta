@@ -175,6 +175,10 @@ export interface TxError extends TxCore, TxOutgoing {
 	log: string;
 }
 
+export interface TxAbsent extends TxCore, TxOutgoing {
+	stage: 'absent';
+}
+
 type TxStageKey = (TxPending | TxConfirmed | TxSynced)['stage'];
 
 interface AppChainAccount {
@@ -191,7 +195,7 @@ export type IncidentRegistry = {
 	// 	// [si_each in TxStageKey]: TxPending | TxConfirmed | TxSynced;
 	// }[TxStageKey];
 
-	tx_out: TxPending | TxSynced | TxError;
+	tx_out: TxPending | TxSynced | TxError | TxAbsent;
 
 	tx_in: TxSynced;
 

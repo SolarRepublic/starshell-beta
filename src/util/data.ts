@@ -10,6 +10,22 @@ import {is_dict} from './belt';
 import {Ripemd160 as Ripemd160Js} from '#/crypto/ripemd160';
 import SensitiveBytes from '#/crypto/sensitive-bytes';
 
+
+const S_UUID_V4 = 'xxxxxxxx_xxxx_4xxx_yxxx_xxxxxxxxxxxx';
+const R_UUID_V4 = /[xy]/g;
+
+// @ts-expect-error in case crypto global is not defined
+export const uuid_v4 = globalThis.crypto?.randomUUID? () => crypto.randomUUID(): (): string => {
+	let xt_now = Date.now();
+	if('undefined' !== typeof performance) xt_now += performance.now();
+	return S_UUID_V4.replace(R_UUID_V4, (s) => {
+		const x_r = (xt_now + (Math.random()*16)) % 16 | 0;
+		xt_now = Math.floor(xt_now / 16);
+		return ('x' === s? x_r: (x_r & 0x3) | 0x8).toString(16);
+	});
+};
+
+
 /**
  * Performs SHA-256 hash on the given data.
  * @param atu8_data data to hash

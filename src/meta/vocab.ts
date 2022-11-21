@@ -573,4 +573,66 @@ export namespace Vocab {
 			b_async_handling
 		>;
 	};
+
+
+
+
+	/**
+	 * === _**@starshell/meta**_ ===
+	 * 
+	 * ```ts
+	 * Vocab.HostHandlerChrome<
+	 * 	messageValue: JsonValue,
+	 * 	callbackData?: any,
+	 * 	extraArgs?: any[],
+	 * 	asyncHandling?: boolean,
+	 * >
+	 * ```
+	 * 
+	 * Creates handler type for the given `messageValue` for handling `chrome.runtime.sendMessage()`,
+	 * optionally specifying `callbackData` type for responses and `extraArgs` for injecting into the
+	 * handler signature.
+	 */
+	export type HostHandlerChrome<
+		w_value extends JsonValue=JsonValue,
+		w_callback_data extends any=any,
+		a_args extends any[]=[],
+	> = Handler<
+		w_value,
+		a_args,
+		w_callback_data
+	>;
+
+	/**
+	 * === _**@starshell/meta**_ ===
+	 * 
+	 * ```ts
+	 * Vocab.HostHandlersChrome<
+	 * 	vocab: Vocab,
+	 * 	callbackData?: any,
+	 * 	extraArgs?: any[],
+	 * 	asyncHandling?: boolean,
+	 * >
+	 * ```
+	 * 
+	 * Adds typings to chrome extension message handler dict, optionally specifying `callbackData`
+	 * for responses and `extraArgs` for injecting into the handler signature.
+	 */
+	export type HostHandlersChrome<
+		h_vocab extends Vocab,
+		w_callback_data extends any=any,
+		a_args extends any[]=[],
+	> = {
+		[si_msg in keyof h_vocab]: HostHandlerChrome<
+			MessageValue<h_vocab, si_msg>,
+			any extends w_callback_data
+				? Response<h_vocab, si_msg> extends infer z_response
+					? z_response extends object
+						? OmitUnknownKeys<z_response>
+						: z_response
+					: never
+				: w_callback_data,
+			a_args
+		>;
+	};
 }

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import {slide as svelte_slide} from 'svelte/transition';
 	
-	import {uuid_v4} from '#/util/dom';
+	import {uuid_v4} from '#/util/data';
+	
 	
 
 	export let name = '';

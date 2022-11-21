@@ -418,7 +418,7 @@ body {
 
 .produce(@prefix: '', @suffix: '', @from, @to, @by, @rule) {
 	each(range(@from, @to, @by), {
-		@selector: ~"@{prefix}@{value}@{suffix}";
+		@selector: replace(~"@{prefix}@{value}@{suffix}", "%", "\%");
 		@{selector} {
 			@{rule}: @value;
 		}
@@ -435,6 +435,8 @@ body {
 
 .produce(@prefix: '.border-top_black-', @from: 1px, @to: 12px, @by: 1px, @rule: border-top-width);
 
+.produce(@prefix: '.opacity_', @from: 0%, @to: 100%, @by: 1%, @rule: opacity);
+
 [class*="border-top_black-"] {
 	border-top-style: solid;
 	border-top-color: black;
@@ -446,6 +448,10 @@ body {
 
 .color_caution {
 	color: var(--theme-color-caution);
+}
+
+.filter_desaturate {
+	filter: grayscale(1);
 }
 
 code {

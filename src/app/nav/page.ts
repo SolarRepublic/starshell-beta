@@ -4,7 +4,8 @@ import type {Dict, PlainObject, Promisable} from '#/meta/belt';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
 
 import {objects_might_differ, ode} from '#/util/belt';
-import {dd, uuid_v4} from '#/util/dom';
+import {uuid_v4} from '#/util/data';
+import {dd} from '#/util/dom';
 
 
 export interface PageConfig<

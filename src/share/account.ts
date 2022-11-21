@@ -14,8 +14,7 @@ import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 import {Secrets} from '#/store/secrets';
-import {buffer_to_base64, buffer_to_base93, buffer_to_text, serialize_private_key, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
-import {uuid_v4} from '#/util/dom';
+import {buffer_to_base64, buffer_to_base93, buffer_to_text, serialize_private_key, sha256_sync, text_to_buffer, uuid_v4, zero_out} from '#/util/data';
 
 
 export async function create_account(

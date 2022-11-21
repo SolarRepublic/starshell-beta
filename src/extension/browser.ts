@@ -131,14 +131,14 @@ export interface OpenWindowConfig extends JsonObject {
 	/**
 	 * Creates a standalone window in order to escape the popover
 	 */
-	popout?: boolean;
+	popout?: boolean | undefined;
 
-	position?: PositionConfig;
+	position?: PositionConfig | undefined;
 
 	/**
 	 * If set to non-zero integer, describes the tab id to open a popover above
 	 */
-	popover?: PageInfo;
+	popover?: PageInfo | undefined;
 }
 
 /**
@@ -208,6 +208,9 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 				});
 
 				await (chrome.browserAction as BrowserAction.Static).openPopup();
+			}
+			else {
+				throw new Error('no action available');
 			}
 
 			// popover is not referencable

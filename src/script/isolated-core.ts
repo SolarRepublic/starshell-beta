@@ -1,22 +1,28 @@
-import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
-import {ode, timeout} from '#/util/belt';
-import {is_dict} from '#/util/belt';
+import type {IcsToService} from './messages';
 
 import type {ConnectionManifestV1, ContractDescriptor, SessionRequest} from '#/meta/api';
+import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
+
 import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ContractStruct} from '#/meta/chain';
 
-import {A_CHAIN_NAMESPACES, B_SAFARI_MOBILE, G_USERAGENT, N_PX_DIM_ICON, RT_CAIP_2_NAMESPACE, RT_CAIP_2_REFERENCE, R_BECH32, R_CAIP_10, R_CAIP_19, R_CAIP_2, R_CHAIN_ID_VERSION, R_CHAIN_NAME, R_CONTRACT_NAME, R_DATA_IMAGE_URL_WEB, R_TOKEN_SYMBOL} from '#/share/constants';
-import type {Vocab} from '#/meta/vocab';
-import type {IcsToService} from './messages';
 import type {PfpTarget} from '#/meta/pfp';
-import type {AppProfile} from '#/store/apps';
-import {load_icon_data} from './utils';
-import {qs, qsa, uuid_v4} from '#/util/dom';
-// import {Chains} from '#/store/chains';
+import type {TokenSpecKey} from '#/meta/token';
+import type {Vocab} from '#/meta/vocab';
+
 import toml from 'toml';
-import type { TokenSpecKey } from '#/meta/token';
-import { concat, sha256, sha256_sync, text_to_buffer } from '#/util/data';
-import { SessionStorage } from '#/extension/session-storage';
+
+import {load_icon_data} from './utils';
+
+import {SessionStorage} from '#/extension/session-storage';
+import {A_CHAIN_NAMESPACES, B_SAFARI_MOBILE, G_USERAGENT, N_PX_DIM_ICON, RT_CAIP_2_NAMESPACE, RT_CAIP_2_REFERENCE, R_BECH32, R_CAIP_10, R_CAIP_19, R_CAIP_2, R_CHAIN_ID_VERSION, R_CHAIN_NAME, R_CONTRACT_NAME, R_DATA_IMAGE_URL_WEB, R_TOKEN_SYMBOL} from '#/share/constants';
+import type {AppProfile} from '#/store/apps';
+import {ode, timeout, is_dict} from '#/util/belt';
+
+import {concat, sha256, sha256_sync, text_to_buffer, uuid_v4} from '#/util/data';
+import {qs, qsa} from '#/util/dom';
+
+// import {Chains} from '#/store/chains';
+
 
 
 // verbose

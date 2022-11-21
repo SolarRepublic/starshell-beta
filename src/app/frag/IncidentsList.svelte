@@ -16,6 +16,8 @@
 		fiat?: string;
 		pfp?: PfpTarget;
 		pending?: boolean;
+		rootClasses?: string;
+		childClasses?: string;
 		link?: null | {
 			href: string;
 			text: string;
@@ -61,14 +63,16 @@
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Put from '../ui/Put.svelte';
 	import Row from '../ui/Row.svelte';
+
+	import {oderac} from '#/util/belt';
 	
 	import SX_ICON_CONNECT from '#/icon/connect.svg?raw';
+	import SX_ICON_ERROR from '#/icon/error.svg?raw';
 	import SX_ICON_RECV from '#/icon/recv.svg?raw';
 	import SX_ICON_SEND from '#/icon/send.svg?raw';
 	import SX_ICON_SIGNATURE from '#/icon/signature.svg?raw';
 	import SX_ICON_ACC_CREATED from '#/icon/user-add.svg?raw';
 	import SX_ICON_ACC_EDITED from '#/icon/user-edit.svg?raw';
-    import { oderac } from '#/util/belt';
 
 
 	type IncidentHandler<si_type extends IncidentType=IncidentType> = (
@@ -188,6 +192,14 @@
 			// const b_confirmed = 'confirmed' === si_stage;
 			const b_synced = 'synced' === si_stage;
 
+			const b_absent = 'absent' === si_stage;
+
+			const g_common = {
+				icon: mk_icon(b_absent? SX_ICON_ERROR: SX_ICON_SEND, xt_when, b_pending),
+				childClasses: b_absent? 'filter_desaturate opacity_32%': '',
+				pending: b_pending,
+			};
+
 			// decode and convert messages to amino
 			const a_msgs_amino: AminoMsg[] = a_msgs.map((g_msg) => {
 				// destructure msg
@@ -213,9 +225,8 @@
 				// };
 
 				return {
-					icon: mk_icon(SX_ICON_SEND, xt_when, b_pending),
+					...g_common,
 					title: `Sen${b_pending? 'ding': 't'} Multi-Message Transaction${b_pending? '...': ''}`,
-					pending: b_pending,
 					subtitle: format_time_ago(xt_when)+` / ${a_msgs_amino.length} Messages`,
 					name: g_chain.name,
 					pfp: g_chain.pfp,
@@ -238,9 +249,8 @@
 					const s_infos = (g_reviewed.infos || []).map(s => ` / ${s}`).join('');
 
 					return {
-						icon: mk_icon(SX_ICON_SEND, xt_when, b_pending),
+						...g_common,
 						title: g_reviewed.title+(b_pending? '...': ''),
-						pending: b_pending,
 						subtitle: format_time_ago(xt_when)+s_infos,
 						name: g_reviewed.resource.name,
 						pfp: g_reviewed.resource.pfp || '',
@@ -262,10 +272,9 @@
 					const g_contact = await Agents.getContact(p_contact);
 
 					return {
+						...g_common,
 						title: `${b_pending? 'Sending': 'Sent'} ${g_coin.name}${b_pending? '...': ''}`,
-						pending: b_pending,
 						name: si_coin,
-						icon: mk_icon(SX_ICON_SEND, xt_when, b_pending),
 						subtitle: `${format_time_ago(xt_when)} / ${g_contact? g_contact.name: abbreviate_addr(sa_recipient)}`,
 						amount: `${format_amount(x_amount, true)} ${si_coin}`,
 						pfp: g_coin.pfp,
@@ -322,7 +331,7 @@
 				title: 'Outgoing Transaction',
 				pending: b_pending,
 				name: '',
-				icon: mk_icon(SX_ICON_SEND, xt_when, b_pending),
+				icon: mk_icon(SX_ICON_SEND, xt_when, b_pending, b_absent),
 			};
 		},
 
@@ -336,12 +345,11 @@
 				},
 			} = g_incident;
 
-			const g_account = $yw_account;
-			const p_account = $yw_account_ref;
+			const g_account = g_context.g_account!;
+			const sa_owner = g_context.sa_owner!;
 
 			const g_app = g_context.g_app || G_APP_EXTERNAL;
 			const g_chain = g_context.g_chain!;
-			const sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
 
 			// prep context
 			const g_context_full: LocalAppContext = {
@@ -349,10 +357,12 @@
 				g_app,
 				p_chain: g_context.p_chain!,
 				g_chain,
-				p_account,
+				p_account: g_context.p_account!,
 				g_account,
 				sa_owner,
 			};
+
+			// const sa_owner = await Accounts.g_incident.data.account;
 
 			const {
 				events: h_events,
@@ -566,10 +576,6 @@
 			g_context: PartialLocalAppContext
 		) => Promisable<Detail>)(g_incident, g_context);
 	}
-
-	function log_change() {
-		console.log('change');
-	}
 </script>
 
 <style lang="less">
@@ -630,6 +636,8 @@
 				<LoadingRows />
 			{:then g_detail}
 				<Row
+					rootClasses={g_detail.rootClasses || ''}
+					childClasses={g_detail.childClasses || ''}
 					name={g_detail.title}
 					detail={g_detail.subtitle}
 					amount={g_detail.amount || ''}
@@ -649,7 +657,7 @@
 
 					<svelte:fragment slot="right">
 						{#if 'string' === typeof g_detail.pfp}
-							<PfpDisplay dim={36} name={g_detail.name} path={g_detail.pfp} circular={'pending' === g_incident.type}
+							<PfpDisplay dim={36} name={g_detail.name} path={g_detail.pfp} circular={'pending' === g_incident.data['stage']}
 								rootStyle='margin-left: 1em;'
 							/>
 						{/if}

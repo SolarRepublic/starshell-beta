@@ -289,7 +289,7 @@ export const XT_INTERVAL_HEARTBEAT = 200;
 
 export const XG_64_BIT_MAX = (2n ** 64n) - 1n;
 
-export const X_SIMULATION_GAS_MULTIPLIER = 1.004;
+export const X_SIMULATION_GAS_MULTIPLIER = 1.01;
 
 export const XT_TIMEOUT_APP_PERMISSIONS = 5 * XT_MINUTES;
 export const XT_TIMEOUT_SERVICE_REQUEST = 5 * XT_MINUTES;
@@ -330,3 +330,5 @@ export const SI_STORE_WEB_APIS: StoreKey<'web_apis'> = 'web_apis';
 export {A_KEPLR_EMBEDDED_CHAINS, A_TESTNETS} from './keplr-exports';
 
 export const R_TX_ERR_ACC_SEQUENCE = /account sequence/;
+
+export const SI_EXTENSION_ID_KEPLR = 'dmkamcknogkgcdfhhbddcghachkejeap';

@@ -56,6 +56,14 @@ export const Agents = create_store_class({
 		 * Produces the complete bech32 address for the given agent on the given chain (otherwise defaults to src address)
 		 */
 		static addressFor(g_agent: AgentStruct | ContactStruct, g_chain_dst: ChainStruct): Bech32 {
+			// bech32 already defined
+			if(g_agent['bech32']) {
+				// wrong chain
+				if(Chains.isValidAddressFor(g_chain_dst, g_agent['bech32'] as string)) {
+					return g_agent['bech32'] as Bech32;
+				}
+			}
+
 			// decode bech32 address data (without checksum) into words
 			const a_words = decodeBech32(g_agent.addressData);
 

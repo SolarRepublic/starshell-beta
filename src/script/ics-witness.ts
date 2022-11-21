@@ -1,25 +1,32 @@
 
 import type * as ImportHelper from './ics-witness-imports';
 import type {
-	IcsToService, IntraExt,
+	IcsToService,
 } from './messages';
 
 
 // import type {Key as KeplrExportedKey} from '@keplr-wallet/types';
 import type {DirectSignResponse} from '@cosmjs/proto-signing';
 import type {ProxyRequest, ProxyRequestResponse} from '@keplr-wallet/provider';
-import type {KeplrSignOptions} from '@keplr-wallet/types';
+import type {
+	BroadcastMode,
+	Keplr,
+	Key as KeplrKey,
+	StdSignature,
+} from '@keplr-wallet/types';
 import type {KeplrGetKeyWalletCoonectV1Response as KeplrExportedKey} from '@keplr-wallet/wc-client';
-import type {Long} from 'long';
+
+import type {L} from 'ts-toolbelt';
+import type {Function} from 'ts-toolbelt/out/Function/Function';
 
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {SessionRequest} from '#/meta/api';
 import type {AppStruct, AppPermissionSet} from '#/meta/app';
-import type {Dict, Promisable, JsonObject, JsonValue} from '#/meta/belt';
+import type {Dict, Promisable, JsonValue} from '#/meta/belt';
 import type {Bech32, Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 import type {PfpTarget} from '#/meta/pfp';
 import type {Vocab} from '#/meta/vocab';
-import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
+import type {AdaptedAminoResponse} from '#/schema/amino';
 
 import type {InternalConnectionsResponse, InternalSessionResponse} from '#/provider/connection';
 import type {AppProfile} from '#/store/apps';
@@ -105,6 +112,9 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 	const buffer_to_keplr_str = (atu8: Uint8Array) => `__uint8array__${buffer_to_hex(atu8)}`;
 	const keplr_str_to_buffer = (sx_str: string) => hex_to_buffer(sx_str.replace(/^__uint8array__/, ''));
+
+	const base93_to_keplr_str = (sxb93: string) => buffer_to_keplr_str(base93_to_buffer(sxb93));
+	const keplr_str_to_base93 = (sx_str: string) => buffer_to_base93(keplr_str_to_buffer(sx_str));
 
 	let g_registered_app: AppStruct | null = null;
 
@@ -220,6 +230,14 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 		viewingKey(sa_token: Bech32) {
 			return this._kc_viewing_keys.queue(sa_token);
+		}
+
+		broadcast(sx_tx: string, xc_broadcast_mode: BroadcastMode) {
+			debugger;
+			console.log({
+				sx_tx,
+				xc_broadcast_mode,
+			});
 		}
 	}
 
@@ -566,8 +584,49 @@ const XT_POLYFILL_DELAY = 1.5e3;
 		}
 	}
 
-	const h_handlers_keplr: Record<string, (a_args: unknown[]) => Promisable<KeplrResponse>> = {
-		async enable(a_args): Promise<KeplrResponse<undefined>> {
+	type ProxiedMethods<w_keplr extends Keplr=Keplr> = Pick<w_keplr, {
+		[si_method in keyof w_keplr]-?: w_keplr[si_method] extends Function<any[], Promise<any>>
+			? si_method extends 'getOfflineSignerAuto'
+				? never
+				: si_method
+			: never;
+	}[keyof w_keplr]>;
+
+	type DeKeplrified<w_thing> = w_thing extends Uint8Array
+		? string
+		: w_thing extends any[]
+			? L.Replace<w_thing, Uint8Array, string>
+			: w_thing extends object
+				? {
+					[si_key in keyof w_thing]: w_thing[si_key] extends infer z_value
+						? z_value extends Uint8Array
+							? string
+							: z_value
+						: w_thing[si_key];
+				}
+				: w_thing;
+
+	type ImplementedProxiedMethods<w_keplr extends Keplr=Keplr> = {
+		[si_method in keyof ProxiedMethods<w_keplr>]: w_keplr[si_method] extends infer f_method
+			? f_method extends Function<any[], Promise<any>>
+				? Function<[DeKeplrified<Parameters<f_method>>], Promisable<KeplrResponse<DeKeplrified<Awaited<ReturnType<f_method>>>>>>
+				: never
+			: never;
+	};
+
+	type ProxyArgs<si_method extends keyof ImplementedProxiedMethods> = Parameters<ImplementedProxiedMethods[si_method]>[0];
+
+	/* eslint-disable class-methods-use-this */
+	class KeplrHandler implements ImplementedProxiedMethods {
+		signEthereum(): KeplrResponse<string> {
+			throw new Error(`Not supported`);
+		}
+
+		experimentalSignEIP712CosmosTx_v0(): KeplrResponse<AdaptedAminoResponse> {
+			throw new Error(`Not supported`);
+		}
+
+		async enable(a_args: ProxyArgs<'enable'>): AsyncKeplrResponse<undefined> {
 			const z_arg_0 = a_args[0];
 
 			// emulate Keplr's response
@@ -588,6 +647,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 						// emulate exact same error keplr would throw
 						const e = z_test;
 						try {
+							// @ts-expect-error intentionally inducing TypeError
 							e.split(/(.+)-([\d]+)/);
 						}
 						catch(e_runtime) {
@@ -605,9 +665,29 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 			// succeed
 			return G_RETURN_VOID;
-		},
+		}
 
-		getKey(a_args): KeplrResponse<KeplrExportedKey> {
+		async experimentalSuggestChain(a_args: ProxyArgs<'experimentalSuggestChain'>): AsyncKeplrResponse<void> {
+			const [g_suggest] = a_args;
+
+			const si_chain = g_suggest?.chainId;
+			if('string' === typeof si_chain) {
+				const p_chain = Chains.pathFor('cosmos', si_chain);
+
+				const g_chain = await Chains.at(p_chain);
+				if(g_chain) {
+					console.debug(`Approving chain suggestion since it already exists`);
+					return G_RETURN_VOID;
+				}
+
+				// let service handle denying it
+				void add_chain_req(si_chain);
+			}
+
+			throw `Refusing chain suggestion "${si_chain}" in StarShell beta`;
+		}
+
+		getKey(a_args: ProxyArgs<'getKey'>): KeplrResponse<DeKeplrified<KeplrKey>> {
 			// emulate Keplr's response (yes, it includes the "parmas" typo!)
 			if(1 !== a_args.length) throw 'Invalid parmas';
 
@@ -624,12 +704,12 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return {
 				return: k_connection.getKey(),
 			};
-		},
+		}
 
-		async signAmino(a_args): AsyncKeplrResponse<AdaptedAminoResponse> {
-			const [si_chain, sa_signer, g_doc] = a_args as [string, string, AdaptedStdSignDoc];
+		async signAmino(a_args: ProxyArgs<'signAmino'>): AsyncKeplrResponse<AdaptedAminoResponse> {
+			const [si_chain, sa_signer, g_doc] = a_args;
 
-			const gc_sign = a_args[3] as KeplrSignOptions;
+			const gc_sign = a_args[3]!;
 
 			if(!si_chain) throw 'chain id not set';
 
@@ -661,17 +741,12 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			debug(`Received cosmos amino signature response: ${JSON.stringify(g_response?.ok)}`);
 
 			return app_to_keplr(g_response);
-		},
+		}
 
-		async signDirect(a_args): AsyncKeplrResponse<DirectSignResponse> {
-			const [si_chain, sa_signer, g_doc] = a_args as [string, string, {
-				bodyBytes?: Uint8Array | null;
-				authInfoBytes?: Uint8Array | null;
-				chainId?: string | null;
-				accountNumber?: Long | null;
-			}];
+		async signDirect(a_args: ProxyArgs<'signDirect'>): AsyncKeplrResponse<DirectSignResponse> {
+			const [si_chain, sa_signer, g_doc] = a_args;
 
-			const gc_sign = a_args[3] as KeplrSignOptions;
+			const gc_sign = a_args[3]!;
 
 			if(!si_chain) throw 'chain id not set';
 
@@ -693,7 +768,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			});
 
 			// request the actual signing
-			await f_runtime_app().sendMessage({
+			const g_response = await f_runtime_app().sendMessage({
 				type: 'requestCosmosSignatureDirect',
 				value: {
 					accountPath: k_connection.accountPath,
@@ -701,29 +776,61 @@ const XT_POLYFILL_DELAY = 1.5e3;
 					doc: g_doc_serialized,
 				},
 			});
-		},
 
-		async experimentalSuggestChain(a_args): AsyncKeplrResponse<void> {
-			const [g_suggest] = a_args;
+			debug(`Received direct signature response: ${JSON.stringify(g_response?.ok)}`);
 
-			const si_chain = g_suggest?.chainId;
-			if('string' === typeof si_chain) {
-				const p_chain = Chains.pathFor('cosmos', si_chain);
+			return app_to_keplr(g_response);
+		}
 
-				const g_chain = await Chains.at(p_chain);
+		async sendTx(a_args: ProxyArgs<'sendTx'>): AsyncKeplrResponse<string> {
+			const [si_chain, sx_tx, xc_broadcast_mode] = a_args;
 
-				if(g_chain) {
-					return G_RETURN_VOID;
-				}
+			debugger;
 
-				// let service handle denying it
-				void add_chain_req(si_chain);
-			}
+			console.log({
+				si_chain,
+				sx_tx,
+				xc_broadcast_mode,
+			});
 
-			throw `Refusing chain suggestion "${si_chain}" in StarShell beta`;
-		},
+			// ensure the chain was enabled first
+			const k_connection = check_chain(si_chain);
 
-		async suggestToken(a_args): AsyncKeplrResponse<void> {
+			// check that chain exists
+			const p_chain = Chains.pathFor('cosmos', si_chain);
+			const g_chain = await Chains.at(p_chain);
+			if(!g_chain) throw `Refusing token suggestion for unknown chain "${si_chain}"`;
+
+
+			// buffer_to_keplr_str();
+			return await k_connection.broadcast(sx_tx, xc_broadcast_mode);
+		}
+
+		async signArbitrary(a_args: ProxyArgs<'signArbitrary'>): AsyncKeplrResponse<DeKeplrified<StdSignature>> {
+			const [si_chain, sa_signer, z_data] = a_args;
+
+			debugger;
+
+			console.log({
+				si_chain,
+				sa_signer,
+				z_data,
+			});
+		}
+
+		verifyArbitrary(a_args: ProxyArgs<'verifyArbitrary'>): AsyncKeplrResponse<boolean> {
+			const [si_chain, sa_signer, z_data] = a_args;
+
+			debugger;
+
+			console.log({
+				si_chain,
+				sa_signer,
+				z_data,
+			});
+		}
+
+		async suggestToken(a_args: ProxyArgs<'suggestToken'>): AsyncKeplrResponse<void> {
 			const [si_chain, sa_contract] = a_args as [string, Bech32];
 
 			// validate message format
@@ -748,9 +855,9 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			const g_suggest = await k_connection.suggestToken(sa_contract);
 
 			return app_to_keplr(g_suggest);
-		},
+		}
 
-		async getSecret20ViewingKey(a_args): AsyncKeplrResponse<string> {
+		async getSecret20ViewingKey(a_args: ProxyArgs<'getSecret20ViewingKey'>): AsyncKeplrResponse<string> {
 			const [si_chain, sa_contract] = a_args as [string, Bech32];
 
 			// validate message format
@@ -802,7 +909,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			}
 
 			// viewing key exists
-			const [s_viewing_key] = await Snip2xToken.viewingKeyFor(g_contract, g_chain, k_connection.account);
+			const [s_viewing_key] = (await Snip2xToken.viewingKeyFor(g_contract, g_chain, k_connection.account))!;
 
 			// prep success response
 			const g_approve = {
@@ -820,10 +927,74 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			if(g_key.ok) {
 				return g_approve;
 			}
-		},
+		}
 
-		async enigmaEncrypt(a_args): AsyncKeplrResponse<string> {
-			const [si_chain, s_code_hash, h_exec] = a_args as [string, string, JsonObject];
+		async getEnigmaPubKey(a_args: ProxyArgs<'getEnigmaPubKey'>): AsyncKeplrResponse<string> {
+			const [si_chain] = a_args;
+
+			// ensure the chain was enabled first
+			const k_connection = check_chain(si_chain);
+
+			// check that chain exists
+			const p_chain = Chains.pathFor('cosmos', si_chain);
+			const g_chain = await Chains.at(p_chain);
+			if(!g_chain) throw `Refusing public key request for unknown chain "${si_chain}"`;
+
+			// chain is not secretwasm compatible
+			if(!g_chain?.features.secretwasm) {
+				throw `Refusing public key request for non-secretwasm compatible chain "${si_chain}"`;
+			}
+
+			// ask service for pubkey
+			const g_response = await f_runtime_app().sendMessage({
+				type: 'requestSecretPubkey',
+				value: {
+					accountPath: k_connection.accountPath,
+					chainPath: Chains.pathFor('cosmos', si_chain),
+				},
+			});
+
+			debugger;
+			console.log({
+				g_response,
+			});
+
+			return app_to_keplr(g_response, base93_to_keplr_str);
+		}
+
+		async getEnigmaTxEncryptionKey(a_args: ProxyArgs<'getEnigmaTxEncryptionKey'>): AsyncKeplrResponse<string> {
+			const [si_chain, sx_nonce] = a_args;
+
+			// ensure the chain was enabled first
+			const k_connection = check_chain(si_chain);
+
+			// check that chain exists
+			const p_chain = Chains.pathFor('cosmos', si_chain);
+			const g_chain = await Chains.at(p_chain);
+			if(!g_chain) throw `Refusing encryption key request for unknown chain "${si_chain}"`;
+
+			// chain is not secretwasm compatible
+			if(!g_chain?.features.secretwasm) {
+				throw `Refusing encryption key request for non-secretwasm compatible chain "${si_chain}"`;
+			}
+
+			// ask service to encrypt
+			const g_response = await f_runtime_app().sendMessage({
+				type: 'requestSecretEncryptionKey',
+				value: {
+					accountPath: k_connection.accountPath,
+					chainPath: Chains.pathFor('cosmos', si_chain),
+					nonce: keplr_str_to_base93(sx_nonce),
+				},
+			});
+
+			debugger;
+
+			return app_to_keplr(g_response, base93_to_keplr_str);
+		}
+
+		async enigmaEncrypt(a_args: ProxyArgs<'enigmaEncrypt'>): AsyncKeplrResponse<string> {
+			const [si_chain, s_code_hash, h_exec] = a_args;
 
 			// ensure the chain was enabled first
 			const k_connection = check_chain(si_chain);
@@ -833,7 +1004,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			const g_chain = await Chains.at(p_chain);
 			if(!g_chain) throw `Refusing encryption request for unknown chain "${si_chain}"`;
 
-			// chain is secretwasm compatible
+			// chain is not secretwasm compatible
 			if(!g_chain?.features.secretwasm) {
 				throw `Refusing encryption request for non-secretwasm compatible chain "${si_chain}"`;
 			}
@@ -849,35 +1020,44 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				},
 			});
 
-			return app_to_keplr(g_encrypt, (sxb93: string) => buffer_to_keplr_str(base93_to_buffer(sxb93)));
-		},
+			return app_to_keplr(g_encrypt, base93_to_keplr_str);
+		}
 
-		async enigmaDecrypt(a_args): AsyncKeplrResponse<string> {
-			const [si_chain, sx_ciphertext, sx_nonce] = a_args as [string, string, string];
+		async enigmaDecrypt(a_args: ProxyArgs<'enigmaDecrypt'>): AsyncKeplrResponse<string> {
+			const [si_chain, sx_ciphertext, sx_nonce] = a_args;
 
 			// ensure the chain was enabled first
 			const k_connection = check_chain(si_chain);
 
 			// lookup chain
 			const g_chain = await Chains.at(Chains.pathFor('cosmos', si_chain));
+			if(!g_chain) throw `Refusing decryption request for unknown chain "${si_chain}"`;
 
-			// chain is secretwasm compatible
-			if(g_chain?.features.secretwasm) {
-				// ask service to dcrypt
-				const g_decrypt = await f_runtime_app().sendMessage({
-					type: 'requestDecrypt',
-					value: {
-						accountPath: k_connection.accountPath,
-						chainPath: Chains.pathFor('cosmos', si_chain),
-						ciphertext: buffer_to_base93(keplr_str_to_buffer(sx_ciphertext)),
-						nonce: buffer_to_base93(keplr_str_to_buffer(sx_nonce)),
-					},
-				});
-
-				return app_to_keplr(g_decrypt, (sxb93: string) => buffer_to_keplr_str(base93_to_buffer(sxb93)));
+			// chain is not secretwasm compatible
+			if(!g_chain?.features.secretwasm) {
+				throw `Refusing encryption request for non-secretwasm compatible chain "${si_chain}"`;
 			}
-		},
-	};
+
+			// ask service to dcrypt
+			const g_decrypt = await f_runtime_app().sendMessage({
+				type: 'requestDecrypt',
+				value: {
+					accountPath: k_connection.accountPath,
+					chainPath: Chains.pathFor('cosmos', si_chain),
+					ciphertext: keplr_str_to_base93(sx_ciphertext),
+					nonce: keplr_str_to_base93(sx_nonce),
+				},
+			});
+
+			return app_to_keplr(g_decrypt, base93_to_keplr_str);
+		}
+	}
+
+	// const h_handlers_keplr: Record<string, (a_args: unknown[]) => Promisable<KeplrResponse>> = {,
+
+	const h_handlers_keplr = new KeplrHandler();
+
+	// };
 	/* eslint-enable */
 
 	// whether to cancel polyfill after the witness has loaded
@@ -964,7 +1144,6 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 						if('signAmino' === si_method) {
 							console.log(JSON.stringify(w_result));
-							debugger;
 						}
 					}
 
@@ -1155,7 +1334,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 		if(b_detected) return;
 		b_detected = true;
 
-		debug('Keplr was detected!');
+		debug('🛰 Keplr was detected!');
 
 		// start initialization timer
 		xt_polyfill_init = Date.now();
@@ -1186,10 +1365,14 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 
 	(async function keplr_compatibility() {
+		debug('Running keplr compatibility check');
+
 		// synchronous session storage is available
 		if(SessionStorage.synchronously) {
 			// unconditional polyfill of keplr is enabled; polyfill immediately
 			if(SessionStorage.synchronously.get('keplr_polyfill_mode_enabled')) {
+				debug(`Polyfilling keplr unconditionally`);
+
 				return void inject_keplr_polyfill();
 			}
 		}
@@ -1203,6 +1386,8 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 		// wallet is unlocked
 		if(await Vault.isUnlocked()) {
+			debug('Searching for matching app');
+
 			// find matching app
 			const a_apps = await Apps.filter({
 				scheme: location.protocol.replace(/:$/, '') as 'https',
@@ -1251,14 +1436,19 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 		// attempt to detect keplr
 		DETECT_KEPLR: {
+			debug('Checking keplr detection mode');
+
 			// fetch Keplr automatic detection setting
 			const b_detect_mode = await PublicStorage.keplrDetectionMode();
+
+			debug(`Keplr detection mode is ${b_detect_mode? 'enabled': 'disabled'}`);
 
 			// detection is disabled; exit
 			if(!b_detect_mode) return;
 
 			// document not yet loaded
-			if('complete' !== document.readyState) {
+			if(!['interactive', 'complete'].includes(document.readyState)) {
+				debug(`Document not ready: ${document.readyState}`);
 				await new Promise((fk_resolve) => {
 					window.addEventListener('DOMContentLoaded', () => {
 						setTimeout(() => {
@@ -1267,6 +1457,8 @@ const XT_POLYFILL_DELAY = 1.5e3;
 					});
 				});
 			}
+
+			debug(`Document load complete, ${b_cancel_polyfill? 'but cancelling polyfill': ''}`);
 
 			// polyfill has been disabled
 			if(b_cancel_polyfill) break DETECT_KEPLR;

@@ -60,7 +60,7 @@
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Incidents} from '#/store/incidents';
-	import {forever, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
+	import {forever, F_NOOP, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
 	import {base64_to_buffer, buffer_to_base93} from '#/util/data';
 	import {format_fiat} from '#/util/format';
 	
@@ -75,6 +75,9 @@
 	import Load from '../ui/Load.svelte';
 	import Row from '../ui/Row.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
+    import type { Any } from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+    import { TxResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
+    import { ServiceClient } from '#/extension/service-comms';
 
 	
 	const g_context = load_app_context<CompletedSignature | null>();
@@ -402,8 +405,10 @@
 	})();
 
 	async function simulate() {
+		const a_msgs = a_msgs_proto?.length? a_msgs_proto: amino?.msgs.map(g => amino_to_base(g).encode());
+
 		// proto
-		if(a_msgs_proto?.length) {
+		if(a_msgs?.length) {
 			// sign
 			const {
 				auth: atu8_auth,
@@ -411,7 +416,7 @@
 			} = await $yw_network.authInfoDirect($yw_account, Fee.fromPartial({}));
 
 			// simulate multiple times
-			return await repeat_simulation(atu8_auth, Infinity);
+			return await repeat_simulation(a_msgs, atu8_auth, Infinity);
 		}
 	}
 
@@ -420,13 +425,13 @@
 	let s_gas_forecast = '';
 	let s_err_sim = '';
 
-	async function repeat_simulation(atu8_auth: Uint8Array, n_repeats: number) {
+	async function repeat_simulation(a_msgs: ProtoMsg[], atu8_auth: Uint8Array, n_repeats: number) {
 		if(n_repeats <= 0) return;
 	
 		let g_sim!: SimulateResponse;
 		try {
 			g_sim = await $yw_network.simulate($yw_account, {
-				messages: a_msgs_proto,
+				messages: a_msgs,
 				memo: ' '.repeat(memo.length),
 			}, atu8_auth);
 		}
@@ -439,6 +444,18 @@
 
 		// log sim response
 		console.log(g_sim);
+
+		// // decode data
+		// try {
+		// 	const atu8_data = g_sim.result?.data!;
+		// 	const tx_body = TxBody.decode(atu8_data);
+		// 	for(const g_msg_proto of tx_body.messages) {
+		// 		const g_msg_amino = proto_to_amino(g_msg_proto, null);
+		// 		debugger;
+		// 	}
+		// 	console.log(tx_body);
+		// }
+		// catch(e_decode) {}
 
 		// add to responses
 		a_sims = a_sims.concat([g_sim]);
@@ -465,29 +482,32 @@
 				return yg_max;
 			}, BigNumber(0));
 
-			// save
-			if(!b_show_fee_adjuster) {
-				// forecast appropriate gas limit
-				const yg_gas_forecast = yg_gas_used_sim.times(X_SIMULATION_GAS_MULTIPLIER).integerValue(BigNumber.ROUND_CEIL);
+			// forecast appropriate gas limit
+			const yg_gas_forecast = yg_gas_used_sim.times(X_SIMULATION_GAS_MULTIPLIER).integerValue(BigNumber.ROUND_CEIL);
+
+			// save as string
+			s_gas_forecast = yg_gas_forecast.toString();
+
+			// privacy chain; pad gas limit
+			if(g_chain.features.secretwasm) {
+				// ref gas step paramater from chain def
+				const yg_gas_step = g_chain.features.secretwasm.gasPadding.stepSize;
+
+				// pad gas amount using step size
+				const yg_gas_padded = yg_gas_forecast.dividedBy(yg_gas_step).integerValue(BigNumber.ROUND_CEIL).times(yg_gas_step);
 
 				// save as string
-				s_gas_forecast = yg_gas_forecast.toString();
+				s_gas_forecast = yg_gas_padded.toString();
+			}
 
-				// privacy chain; pad gas limit
-				if(g_chain.features.secretwasm) {
-					// ref gas step paramater from chain def
-					const yg_gas_step = g_chain.features.secretwasm.gasPadding.stepSize;
-
-					// pad gas amount using step size
-					const yg_gas_padded = yg_gas_forecast.dividedBy(yg_gas_step).integerValue(BigNumber.ROUND_CEIL).times(yg_gas_step);
-
-					// save as string
-					s_gas_limit = yg_gas_padded.toString();
-				}
-				// not privacy chain, use best gas available
-				else {
+			// update gas limit if user is not adjusting
+			if(!b_show_fee_adjuster) {
+				// forecast is higher than estimate provided by app; replace it
+				if(BigNumber(s_gas_forecast).gt(s_gas_limit)) {
 					s_gas_limit = s_gas_forecast;
 				}
+				// otherwise, do not risk spending below the amount
+				// TODO: leverage keplr's `preferNoSetFee`
 			}
 		}
 
@@ -496,7 +516,7 @@
 		while(c_blocks_wait-- > 0) await global_wait('blockInfo');
 
 		// repeat simulation
-		return await repeat_simulation(atu8_auth, n_repeats - 1);
+		return await repeat_simulation(a_msgs, atu8_auth, n_repeats - 1);
 	}
 
 	async function view_data() {
@@ -519,7 +539,15 @@
 		});
 	}
 
+	// cancel monitoring if [tx completes or already monitoring] and ui is still open
+	let b_cancel_monitor = false;
 	function monitor_tx(si_txn: string) {
+		// do not engage the monitor
+		if(b_cancel_monitor) return;
+
+		// do not engage again
+		b_cancel_monitor = true;
+
 		// open transaction monitor
 		void open_flow({
 			flow: {
@@ -563,6 +591,11 @@
 		if(g_amino) {
 			a_equivalent_amino_msgs = g_amino.msgs;
 
+			if(!b_no_fee) {
+				g_amino.fee.gas = s_gas_limit;
+				g_amino.fee.amount[0].amount = s_fee_total;
+			}
+
 			// attempt to sign
 			try {
 				// sign amino
@@ -591,9 +624,11 @@
 				return;
 			}
 
-			// attempt to convert to proto
+			debugger;
+
+
 			try {
-				const {auth:atu8_auth} = await $yw_network.authInfoDirect(g_account, {
+				const {auth:atu8_auth} = await $yw_network.authInfoAmino(g_account, {
 					amount: g_amino.fee.amount,
 					gasLimit: g_amino.fee.gas,
 				});
@@ -704,7 +739,6 @@
 				if(h_merge) {
 					for(const [si_event, a_events] of ode(h_merge)) {
 						if(a_events) {
-							// @ts-expect-error until better typings
 							(h_events[si_event] = h_events[si_event] || []).push(...a_events);
 						}
 					}
@@ -755,11 +789,13 @@
 			// listen for global tx events
 			const f_unbind = global_receive({
 				txError() {
+					b_cancel_monitor = true;
 					$yw_progress = [1, 100];
 					void clear_progress();
 				},
 
 				txSuccess() {
+					b_cancel_monitor = true;
 					$yw_progress = [100, 100];
 					void clear_progress();
 				},
@@ -781,29 +817,69 @@
 				clearInterval(i_interval);
 			}, 500);
 
-			// ensure service is alive
-			const d_runtime = chrome.runtime as Vocab.TypedRuntime<IntraExt.GlobalVocab>;
-			const [b_responded, xc_timeout] = await timeout_exec(1e3, () => d_runtime.sendMessage({
-				type: 'wake',
-			}));
-
-			// service is dead
-			if(xc_timeout) {
-				// begin to monitor the tx and continue
-				monitor_tx(si_txn);
-			}
-			// service not dead but it has been a while since the last block was observed
-			else if(Date.now() - xt_prev_block > 12e3) {
-				// wait for up to 6 more seconds
+			CONTACTING_BACKGROUND: {
 				try {
-					await global_wait('blockInfo', g => p_chain === g.chain, 6e3);
+					const k_client = await ServiceClient.connect('self');
+
+					const [, xc_timeout] = await timeout_exec(1e3, () => k_client.send({
+						type: 'wake',
+					}));
+
+					// service is dead
+					if(xc_timeout) throw new Error();
 				}
-				// timed out
-				catch(e_timeout) {
+				// service is dead or unreachable
+				catch(e_connect) {
 					// begin to monitor the tx and continue
 					monitor_tx(si_txn);
+
+					break CONTACTING_BACKGROUND;
 				}
+
+				// service not dead but it has been a while since the last block was observed
+				if(Date.now() - xt_prev_block > 12e3) {
+					// wait for up to 6 more seconds
+					try {
+						await global_wait('blockInfo', g => p_chain === g.chain, 6e3);
+					}
+					// timed out
+					catch(e_timeout) {
+						// begin to monitor the tx and continue
+						monitor_tx(si_txn);
+
+						break CONTACTING_BACKGROUND;
+					}
+				}
+
+				// set a timeout to make sure something happens within time limit
+				setTimeout(() => {
+					monitor_tx(si_txn);
+				}, 15e3);
 			}
+
+			// // ensure service is alive
+			// const d_runtime = chrome.runtime as Vocab.TypedRuntime<IntraExt.GlobalVocab>;
+			// const [b_responded, xc_timeout] = await timeout_exec(1e3, () => d_runtime.sendMessage({
+			// 	type: 'wake',
+			// }));
+
+			// // service is dead
+			// if(xc_timeout) {
+			// 	// begin to monitor the tx and continue
+			// 	monitor_tx(si_txn);
+			// }
+			// // service not dead but it has been a while since the last block was observed
+			// else if(Date.now() - xt_prev_block > 12e3) {
+			// 	// wait for up to 6 more seconds
+			// 	try {
+			// 		await global_wait('blockInfo', g => p_chain === g.chain, 6e3);
+			// 	}
+			// 	// timed out
+			// 	catch(e_timeout) {
+			// 		// begin to monitor the tx and continue
+			// 		monitor_tx(si_txn);
+			// 	}
+			// }
 		}
 		// was just for signing
 		else {
@@ -859,6 +935,11 @@
 			k_page.reset();
 		}
 	}
+
+	let b_show_fee_adjuster = false;
+	let s_adjust_fee_text = 'Adjust fee';
+
+	let a_original_gas_settings: string[];
 
 	// reactively compute total gas fee
 	$: yg_fee = BigNumber(s_gas_price).times(s_gas_limit);
@@ -947,96 +1028,8 @@
 		s_gas_price = yg_price_suggest.toString();
 	}
 
-	function estimate_gas(): {
-		id: string;
-		info: CoinInfo;
-		amount: string;
-		coin: Coin;
-	} {
-		if(amino) {
-			// destructure fee
-			const {
-				gas: s_gas_limit_doc,
-				amount: a_amounts,
-			} = amino.fee;
-
-			// inherit gas limit from doc
-			s_gas_limit = s_gas_limit_doc;
-
-			// start with the default gas price
-			let yg_price_suggest = BigNumber(g_chain.gasPrices.default);
-
-			// app provided gas amounts
-			if(a_amounts?.length) {
-				// collect prices from app
-				const h_prices_app: Dict<BigNumber> = {};
-
-				// each amount provided by app
-				for(const g_coin of a_amounts) {
-					if('0' !== g_coin.amount) {
-						// convert to price
-						h_prices_app[g_coin.denom] = BigNumber(g_coin.amount).dividedBy(s_gas_limit);
-					}
-				}
-
-				// a price was provided for intended coin; override suggested price
-				const yg_price = h_prices_app[g_info.denom];
-				if(yg_price) {
-					yg_price_suggest = yg_price;
-				}
-			}
-
-			// set gas price
-			s_gas_price = yg_price_suggest.toString();
-
-			g_fee_coin_info = g_info;
-
-			// // compute total gas fee
-			// const yg_fee = yg_price_suggest.times(s_gas_limit);
-
-			// // convert to integer string
-			// const sn_amount = yg_fee.integerValue(BigNumber.ROUND_CEIL).toString();
-
-			// return {
-			// 	id: si_coin,
-			// 	info: g_info,
-			// 	amount: sn_amount,
-			// 	coin: {
-			// 		denom: g_info.denom,
-			// 		amount: sn_amount,
-			// 	},
-			// };
-
-			// debugger;
-			// // attempt to simulate the tx
-			// {
-			// 	const g_account = await dp_account;
-
-			// 	await $yw_network.simulate(g_account, {
-			// 		messages: amino.msgs.map(g => amino_to_base(g).encode()),
-			// 		memo: amino.memo,
-			// 	}, {
-			// 		signerInfos: [{
-			// 			sequence: '0',
-			// 		}],
-			// 	});
-			// }
-		}
-		else {
-			throw new Error('Not yet implemented');
-		}
-	}
 
 	let b_tooltip_showing = false;
-
-	async function count_existing_contracts(si_code: string) {
-		return await ($yw_network as SecretNetwork).contractsByCode(si_code as `${bigint}`);
-	}
-
-	let b_show_fee_adjuster = false;
-	let s_adjust_fee_text = 'Adjust fee';
-
-	let a_original_gas_settings: string[];
 
 	function click_adjust_fee() {
 		// first time clicking
@@ -1050,6 +1043,9 @@
 			b_show_fee_adjuster = false;
 			s_adjust_fee_text = 'Adjust fee';
 			[s_gas_limit, s_gas_price] = a_original_gas_settings;
+
+			// update limit based on forecast data
+			if(s_gas_forecast && s_gas_forecast !== s_gas_limit) s_gas_limit = s_gas_forecast;
 		}
 	}
 
@@ -1240,7 +1236,7 @@
 		</Field>
 	{/if}
 
-	<ActionsLine cancel={() => cancel()} confirm={['Approve', approve, !b_loaded || b_approving]} />
+	<ActionsLine disabled={b_approving} cancel={() => cancel()} confirm={['Approve', approve, !b_loaded || b_approving]} />
 
 	<Curtain on:click={() => b_tooltip_showing = false} />
 </Screen>

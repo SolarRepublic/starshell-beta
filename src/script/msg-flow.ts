@@ -8,9 +8,9 @@ import type {OpenWindowConfig, PopoutWindowHandle} from '#/extension/browser';
 
 import {open_window} from '#/extension/browser';
 import {B_MOBILE, B_WEBEXT_ACTION, B_WEBEXT_BROWSER_ACTION} from '#/share/constants';
-import {stringify_params, uuid_v4} from '#/util/dom';
+import {uuid_v4} from '#/util/data';
+import {stringify_params} from '#/util/dom';
 import {PulseMonitor} from '#/util/pulse-monitor';
-
 
 type FlowResponseValue<gc_prompt extends PromptConfig> = Vocab.Response<IntraExt.FlowVocab, gc_prompt['flow']['type']>;
 
@@ -49,7 +49,7 @@ export function open_flow_query<
 	// go async
 	return new Promise(async(fk_resolve, fe_reject) => {
 		// create response key
-		const si_key = uuid_v4();
+		const si_key = `flow:${uuid_v4()}`;
 
 		// open port listener
 		const f_port_listener = (d_port: Vocab.TypedChromePort<IntraExt.FlowControlAckVocab, IntraExt.FlowControlVocab>) => {

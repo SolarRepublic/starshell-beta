@@ -11,24 +11,25 @@
 	import {Header, Screen, type Page} from './_screens';
 	import {yw_chain, yw_chain_ref, yw_network} from '../mem';
 	
-	import {coin_formats, parse_coin_amount,} from '#/chain/coin';
+	import {coin_formats, parse_coin_amount} from '#/chain/coin';
 	import {XT_MINUTES} from '#/share/constants';
 	import {Chains} from '#/store/chains';
 	import {Entities} from '#/store/entities';
 	import {Incidents} from '#/store/incidents';
 	import {format_amount, format_fiat} from '#/util/format';
 	
+	import HoldingWrap from './HoldingWrap.svelte';
 	import Send from './Send.svelte';
-	import Gap from '../ui/Gap.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
-	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Portrait, {type Actions} from '../frag/Portrait.svelte';
+	import Gap from '../ui/Gap.svelte';
+	import LoadingRows from '../ui/LoadingRows.svelte';
 	
 	import SX_ICON_PERSONAL from '#/icon/account_box.svg?raw';
 	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
 	import SX_ICON_RECV from '#/icon/recv.svg?raw';
 	import SX_ICON_SEND from '#/icon/send.svg?raw';
-    import HoldingWrap from './HoldingWrap.svelte';
+    import StakingResourceControl from '../frag/StakingResourceControl.svelte';
 	
 
 	const k_page = getContext<Page>('page');
@@ -225,8 +226,6 @@
 
 	.section {
 		margin: 0;
-		border-top: 6px solid black;
-		border-bottom: 6px solid black;
 
 		.bar {
 			display: flex;
@@ -282,23 +281,10 @@
 		circular
 	/>
 
-	<Gap />
-
-	<div class="rows">
-<!-- 		
-		<div class="section">
-			<span class="content">
-				<span class="title">
-					Stake
-				</span>
-				</span>
-			</span>
-
-			<button class="pill">
-				Stake {si_coin}
-			</button>
-		</div> -->
-	</div>
+<!-- 
+	<div class="resource-controls">
+		<StakingResourceControl si_coin={si_coin} />
+	</div> -->
 
 	<Gap />
 

@@ -44,6 +44,7 @@ import {SessionStorage} from '#/extension/session-storage';
 import { Chains } from '#/store/chains';
 import { StarShellDefaults, WebResourceCache } from '#/store/web-resource-cache';
 import { Providers } from '#/store/providers';
+import { ServiceClient } from '#/extension/service-comms';
 
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
 
@@ -140,6 +141,9 @@ let i_health = 0;
 
 // busy reloading
 let b_busy = false;
+
+// init service client
+const dp_connect = ServiceClient.connect('self');
 
 // reload the entire system
 async function reload() {
@@ -343,8 +347,11 @@ async function reload() {
 					i_service_health = window.setTimeout(async() => {
 						console.warn(`Waking idle service worker`);
 
+						let k_client!: ServiceClient;
 						const [, xc_timeout] = await timeout_exec(2e3, async() => {
-							await d_service.sendMessage({
+							k_client = await dp_connect;
+
+							await k_client.send({
 								type: 'wake',
 							});
 
@@ -352,6 +359,8 @@ async function reload() {
 						});
 
 						if(xc_timeout) {
+							console.warn(`⚠️ Service worker is unresponsive. Waiting for refresh... %O`, k_client || {});
+
 							global_broadcast({
 								type: 'unresponsiveService',
 							});

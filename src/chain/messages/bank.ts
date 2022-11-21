@@ -95,12 +95,15 @@ export const BankMessages: MessageDict = {
 
 			affects: () => sa_recipient === sa_owner,
 
-			review(b_pending, b_incoming) {
+			async review(b_pending, b_incoming) {
+				const s_recipient = await address_to_name(sa_recipient, g_chain, true);
+				const s_sender = await address_to_name(sa_sender, g_chain, true);
+
 				return {
 					title: b_incoming
 						? `Received ${s_payload}`
 						: `Sen${b_pending? 'ding': 't'} ${s_payload}`,
-					infos: [`on ${g_chain.name}`],
+					infos: [`to ${b_incoming? s_recipient: s_sender} on ${g_chain.name}`],
 					fields: [
 						{
 							type: 'key_value',

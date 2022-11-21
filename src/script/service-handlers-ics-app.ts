@@ -23,8 +23,7 @@ import {Chains} from '#/store/chains';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {is_dict, ode} from '#/util/belt';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json} from '#/util/data';
-import {uuid_v4} from '#/util/dom';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json, uuid_v4} from '#/util/data';
 
 
 interface Resolved {
@@ -459,6 +458,14 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 		else {
 			throw new Error('Request rejected');
 		}
+	},
+
+	async requestSecrePubKey(g_request, g_resolved, g_sender) {
+		throw new Error('Request rejected');
+	},
+
+	async requestSecretEncryptionKey(g_request, g_resolved, g_sender) {
+		throw new Error('Request rejected');
 	},
 
 	async requestEncrypt(g_encrypt, g_resolved, g_sender) {

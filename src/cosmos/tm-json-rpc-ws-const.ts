@@ -248,15 +248,20 @@ export class TmJsonRpcWebsocket {
 				},
 			} as CallStruct;
 
-			// send Tendermint ABCI subscribe message
-			this._d_ws.send(JSON.stringify({
-				jsonrpc: '2.0',
-				id: si_subscription,
-				method: 'subscribe',
-				params: {
-					query: a_events.join(' AND '),
-				},
-			}));
+			try {
+				// send Tendermint ABCI subscribe message
+				this._d_ws.send(JSON.stringify({
+					jsonrpc: '2.0',
+					id: si_subscription,
+					method: 'subscribe',
+					params: {
+						query: a_events.join(' AND '),
+					},
+				}));
+			}
+			catch(e_send) {
+				fe_reject(e_send);
+			}
 		});
 	}
 
@@ -270,7 +275,7 @@ export class TmJsonRpcWebsocket {
 		}
 
 		// go async
-		return new Promise((fk_resolve) => {
+		return new Promise((fk_resolve, fe_reject) => {
 			// no need to check; socket is considered alive
 			if(Date.now() - this._xt_previous < xt_acceptable) return fk_resolve();
 
@@ -290,12 +295,17 @@ export class TmJsonRpcWebsocket {
 				},
 			};
 
-			// send health check message
-			this._d_ws.send(JSON.stringify({
-				jsonrpc: '2.0',
-				id: si_health_check,
-				method: 'health',
-			}));
+			try {
+				// send health check message
+				this._d_ws.send(JSON.stringify({
+					jsonrpc: '2.0',
+					id: si_health_check,
+					method: 'health',
+				}));
+			}
+			catch(e_send) {
+				fe_reject(e_send);
+			}
 		});
 	}
 

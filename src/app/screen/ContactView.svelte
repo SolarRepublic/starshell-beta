@@ -121,7 +121,7 @@
 
 
 <Screen nav slides>
-	<Header title='Contact' pops search network account />
+	<Header title='Agent' pops search network account />
 
 	{#await dp_contact}
 		<Portrait loading

@@ -22,7 +22,7 @@ import {
 	R_CHAIN_ID_VERSION,
 	R_CHAIN_NAME,
 } from '#/share/constants';
-import {uuid_v4} from '#/util/dom';
+import {uuid_v4} from '#/util/data';
 
 interface ScriptParams {
 	session: string;

@@ -460,7 +460,7 @@ export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold
 		chain: '/family.cosmos/chain.pulsar-2',
 		grpcWebUrl: 'https://grpc.testnet.secretsaturn.net',
 		rpcHost: 'rpc.testnet.secretsaturn.net',
-		on: 0,
+		on: 1,
 	},
 	{
 		name: 'Trivium',

@@ -38,13 +38,14 @@
 	let g_chain: ChainStruct;
 	let p_chain: ChainPath;
 
-	const g_snip20 = contract.interfaces.snip20!;
-
 	let k_token = new Snip2xToken(contract, $yw_network as SecretNetwork, $yw_account);
 
-	const s_header_title: Promisable<string> = `SNIP-20`;
+
+	const b_snip20 = !!contract.interfaces.snip20;
+
+	const s_header_title: Promisable<string> = b_snip20? 'SNIP-20': 'SNIP-24';
 	const s_header_post_title: Promisable<string> = 'Visibility';
-	const s_header_subtitle: Promisable<string> = `${contract.name} token`;
+	const s_header_subtitle: Promisable<string> = `${contract.name}${b_snip20? ' token': ''}`;
 
 	const a_fields: FieldConfig[] = [];
 
@@ -59,15 +60,24 @@
 		g_chain = (await Chains.at(contract.chain))!;
 		p_chain = Chains.pathFrom(g_chain);
 
-		const a_viewing_key = await k_token.viewingKey();
-		if(!a_viewing_key) {
-			throw syserr({
-				title: 'No Viewing Key',
-				text: 'You seem to be missing a viewing key for this token.',
-			});
-		}
+		const ks_apps = await Apps.read();
 
-		[s_viewing_key, g_viewing_key] = a_viewing_key;
+		// snip-20
+		if(contract.interfaces.snip20) {
+			const a_viewing_key = await k_token.viewingKey();
+
+			// not a snip-20
+			if(!a_viewing_key) {
+				throw syserr({
+					title: 'No Viewing Key',
+					text: 'You seem to be missing a viewing key for this token.',
+				});
+			}
+
+			[s_viewing_key, g_viewing_key] = a_viewing_key;
+
+			a_outlets_vks = await Promise.all(g_viewing_key.outlets.map(p => ks_apps.at(p)));
+		}
 
 		a_permits = await Secrets.filter({
 			type: 'query_permit',
@@ -91,9 +101,6 @@
 		else {
 			s_permit_title = `${a_permits.length} permit${1 === a_permits.length? ' grants': 's grant'} ${as_apps.size} app${1 === as_apps.size? '': 's'} some query permissions`;
 		}
-
-		const ks_apps = await Apps.read();
-		a_outlets_vks = await Promise.all(g_viewing_key.outlets.map(p => ks_apps.at(p)));
 	})();
 
 	async function rotate_key() {
@@ -168,34 +175,37 @@
 		Visibility Settings
 		<Tooltip bind:showing={b_tooltip_showing}>
 			<p>
-				SNIP-20 tokens are private, meaning that only certain agents are able to view an account's balance and transaction history.
-				This screen lets you control the visibility of this token.
+				{b_snip20? 'SNIP-20 tokens': 'SNIP-24 contracts'} are private, meaning that only certain agents are able to view your {b_snip20
+					? 'account balance, transaction history.'
+					: 'private data stored in the contract.'}
+				This screen lets you control the visibility of this {b_snip20? 'token': 'contract'}.
 			</p>
 		</Tooltip>
 	</h3>
 
-
 	<ChainToken contract={contract} />
 
-	<PasswordField password={s_viewing_key} label="Viewing Key">
-		<svelte:fragment slot="right">
-			<button class="pill" on:click={() => rotate_key()}>
-				Rotate Key
-			</button>
-		</svelte:fragment>
-	</PasswordField>
+	{#if b_snip20}
+		<PasswordField password={s_viewing_key} label="Viewing Key">
+			<svelte:fragment slot="right">
+				<button class="pill" on:click={() => rotate_key()}>
+					Rotate Key
+				</button>
+			</svelte:fragment>
+		</PasswordField>
 
-	<Field key="apps-vks" name="Apps with Viewing Key">
-		<div>
-			{0 === a_outlets_vks.length? 'No': a_outlets_vks.length} app{1 === a_outlets_vks.length? ' has': 's have'} this viewing key
-		</div>
+		<Field key="apps-vks" name="Apps with Viewing Key">
+			<div>
+				{0 === a_outlets_vks.length? 'No': a_outlets_vks.length} app{1 === a_outlets_vks.length? ' has': 's have'} this viewing key
+			</div>
 
-		{#each a_outlets_vks as g_outlet}
-			<Row
-				resource={g_outlet}
-			/>
-		{/each}
-	</Field>
+			{#each a_outlets_vks as g_outlet}
+				<Row
+					resource={g_outlet}
+				/>
+			{/each}
+		</Field>
+	{/if}
 
 	<Field key="permits" name="Query Permits">
 		<svelte:fragment slot="right">

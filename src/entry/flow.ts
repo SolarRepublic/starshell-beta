@@ -46,6 +46,8 @@ import AuthenticateSvelte from '##/screen/Authenticate.svelte';
 
 import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
 import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
+import RequestExposure from '#/app/screen/RequestExposure.svelte';
+import RequestKeplrDecisionSvelte from '#/app/screen/RequestKeplrDecision.svelte';
 
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
@@ -142,12 +144,12 @@ function render<
 			yc_system.$destroy();
 		}
 		catch(e_destroy) {}
-
-		try {
-			qs(document.body, 'main')?.remove();
-		}
-		catch(e_remove) {}
 	}
+
+	try {
+		qs(document.body, 'main')?.remove();
+	}
+	catch(e_remove) {}
 
 	// create system
 	new SystemSvelte({
@@ -271,6 +273,11 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 			return completed_render(RequestConnectionSvelte, g_props);
 		}
 	},
+
+	requestKeplrDecision: (g_value) => completed_render(RequestKeplrDecisionSvelte, {
+		app: g_value.app,
+		page: g_value.page,
+	}),
 
 	illegalChains: g_value => completed_render(NoticeIllegalChainsSvelte, g_value),
 

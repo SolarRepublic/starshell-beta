@@ -12,7 +12,7 @@
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {R_BECH32, R_CONTRACT_NAME, R_TOKEN_SYMBOL} from '#/share/constants';
 	import {Chains} from '#/store/chains';
-	import {Contracts, ContractType} from '#/store/contracts';
+	import {Contracts, ContractRole} from '#/store/contracts';
 	import {timeout_exec} from '#/util/belt';
 	
 	import TokensAdd from './TokensAdd.svelte';
@@ -39,7 +39,7 @@
 
 
 	// load cache of existing contracts
-	const h_exists_bech32s: Dict<[ContractType, string]> = {};
+	const h_exists_bech32s: Dict<[ContractRole, string]> = {};
 	const h_exists_names: Dict<ChainPath[]> = {};
 	const h_exists_symbols: Dict<number> = {};
 
@@ -55,7 +55,7 @@
 					const g_snip20 = g_contract.interfaces.snip20;
 					if(g_snip20) {
 						// add to bech32 dict
-						h_exists_bech32s[g_contract.bech32] = [ContractType.FUNGIBLE, g_snip20.symbol];
+						h_exists_bech32s[g_contract.bech32] = [ContractRole.FUNGIBLE, g_snip20.symbol];
 
 						// add to symbols dict
 						h_exists_symbols[g_snip20.symbol.toLocaleLowerCase()] = 1;
@@ -63,7 +63,7 @@
 					// not yet a token
 					else {
 						// add to bech32 dict
-						h_exists_bech32s[g_contract.bech32] = [ContractType.OTHER, g_contract.name];
+						h_exists_bech32s[g_contract.bech32] = [ContractRole.OTHER, g_contract.name];
 					}
 				}
 
@@ -161,10 +161,10 @@
 			if(a_defined) {
 				const [xc_contract, s_label] = a_defined;
 
-				if(ContractType.TOKEN === xc_contract) {
+				if(ContractRole.TOKEN === xc_contract) {
 					s_err_address = `Token already defined as ${s_label}`;
 				}
-				else if(ContractType.OTHER === xc_contract) {
+				else if(ContractRole.OTHER === xc_contract) {
 					s_warn_address = `Contract already defined as non-token. Proceeding will overwrite`;
 				}
 			}

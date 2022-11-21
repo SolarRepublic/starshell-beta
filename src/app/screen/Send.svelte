@@ -387,7 +387,7 @@
 				: s_new_contact.length > 1024
 					? 'That name is way too long'
 					: 'Cannot begin with space'
-			: 'Enter a contact name to save new address'
+			: 'Enter an agent name to save new address'
 		: '';
 
 	$: {
@@ -632,7 +632,7 @@
 		{#if b_new_address}
 			<div class="new-address">
 				<CheckboxField id="save-contact" bind:checked={b_checked_save_contact} >
-					Save to contacts
+					Save to agents
 				</CheckboxField>
 			</div>
 		{/if}
@@ -641,7 +641,7 @@
 	{#if b_new_address && b_checked_save_contact}
 		<Field short slides
 			key='new-contact-name'
-			name='Contact Name'
+			name='Agent Name'
 		>
 			<input id="new-contact-name-value" type="text" on:input={input_new_contact} class:invalid={s_err_new_contact}>
 

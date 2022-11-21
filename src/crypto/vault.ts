@@ -1,7 +1,16 @@
 import '#/dev';
 
-import type {Store, StoreKey} from '#/meta/store';
 import type {JsonObject, JsonValue, Dict} from '#/meta/belt';
+import type {Store, StoreKey} from '#/meta/store';
+
+import SensitiveBytes from './sensitive-bytes';
+
+import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
+import {SessionStorage} from '#/extension/session-storage';
+import {global_broadcast} from '#/script/msg-global';
+
+import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_IS_BACKGROUND, XG_64_BIT_MAX} from '#/share/constants';
+import {NotAuthenticatedError} from '#/share/errors';
 import {F_NOOP, timeout} from '#/util/belt';
 import {
 	base93_to_buffer,
@@ -12,17 +21,9 @@ import {
 	hex_to_buffer,
 	sha256_sync,
 	text_to_buffer,
+	uuid_v4,
 	zero_out,
 } from '#/util/data';
-
-
-import SensitiveBytes from './sensitive-bytes';
-import {global_broadcast} from '#/script/msg-global';
-import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
-import {uuid_v4} from '#/util/dom';
-import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_IS_BACKGROUND, XG_64_BIT_MAX} from '#/share/constants';
-import {NotAuthenticatedError} from '#/share/errors';
-import { SessionStorage } from '#/extension/session-storage';
 
 
 // identifies the schema version of the store
@@ -374,7 +375,6 @@ export const Vault = {
 			name: 'HMAC',
 			hash: 'SHA-256',
 		}, false, a_usages))!;
-
 	},
 
 	async symmetricSign(atu8_data: Uint8Array): Promise<Uint8Array> {
@@ -858,7 +858,7 @@ export class WritableVaultEntry<
 		// neuter private fields
 		hm_privates.delete(this);
 
-console.warn(`mutex:${this._si_key}/?.${SI_FRAME_LOCAL}]: Releasing mutex`);
+		// console.warn(`mutex:${this._si_key}/?.${SI_FRAME_LOCAL}]: Releasing mutex`);
 
 		// local notify
 		if(this._si_key in h_release_waiters_local) {

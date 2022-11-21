@@ -101,6 +101,8 @@
 
 	export let rootClasses = '';
 
+	export let childClasses = '';
+
 	export let iconClass = '';
 
 	// load tags from resource path
@@ -324,7 +326,7 @@
 	class:embedded={embedded}
 	style={rootStyle} {...h_data_attrs} on:click
 >
-	<div class="banner">
+	<div class="banner {childClasses}">
 		{#if !noPfp}
 			<span class="icon {iconClass}">
 				<slot name="icon">
@@ -423,7 +425,7 @@
 		{/if}
 	</div>
 
-	<div class="rest">
+	<div class="rest {childClasses}">
 		{#if resourcePath && (a_tags.length || $$slots.tags) && !postnameTags && !noTags}
 			<slot name="tags">
 				<InlineTags subtle rootStyle='margin: 0px;'

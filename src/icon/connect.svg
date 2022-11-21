@@ -1,15 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="s2r-connect-svg" style="fill: var(--svg-color-fg,currentColor);">
-<style type="text/css">
-	.s2r-connect-svg {
-		stroke: var(--svg-color-fg, currentColor);
-		stroke-width:1.5;
-		stroke-linecap:round;
-		stroke-miterlimit:10;
-	}
-</style>
-<line style="fill:none;" x1="2.5" y1="12" x2="10.5" y2="12"/>
-<line style="fill:none; stroke-width:1.3887;" x1="22" y1="12" x2="16" y2="12"/>
-<circle cx="10.5" cy="12" r="1"/>
-<path style="fill:none" d="M15.5,12c-0.2-2.1-1.9-3.8-4-4"/>
-<path style="fill:none; stroke-width:1.75" d="M15.5,12c-0.2,2.1-1.9,3.8-4,4"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="fill: var(--svg-color-fg,currentColor);">
+	<g>
+		<path d="M20,11.8h-4.3c-0.4-2.4-2.8-4.5-5.2-4.5c-0.4,0-0.8,0.3-0.8,0.8s0.3,0.8,0.8,0.8c1.8,0,3.8,1.9,3.8,3.8s-1.9,3.8-3.8,3.8 c-0.4,0-0.8,0.3-0.8,0.8s0.3,0.8,0.8,0.8c2.4,0,4.7-2.1,5.2-4.5H20c0.4,0,0.8-0.3,0.8-0.8S20.4,11.8,20,11.8z"/>
+		<path d="M10.5,14.2c1,0,1.8-0.8,1.8-1.8s-0.8-1.8-1.8-1.8c-0.7,0-1.3,0.4-1.6,1H4c-0.4,0-0.8,0.3-0.8,0.8s0.3,0.8,0.8,0.8h4.9 C9.2,13.8,9.8,14.2,10.5,14.2z"/>
+	</g>
 </svg>

@@ -2,15 +2,15 @@
 	import type {Promisable} from '#/meta/belt';
 	import type {ChainStruct, ChainPath, ContractStruct} from '#/meta/chain';
 
+	import {Contracts} from '#/script/ics-witness-imports';
 	import {Chains} from '#/store/chains';
 	import {forever} from '#/util/belt';
-    import { slide } from 'svelte/transition';
-
+	
+	import PfpDisplay from './PfpDisplay.svelte';
 	import Field from '../ui/Field.svelte';
-    import Load from '../ui/Load.svelte';
+	import Load from '../ui/Load.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-	import PfpDisplay from './PfpDisplay.svelte';
 
 
 	export let contract: ContractStruct;
@@ -21,7 +21,7 @@
 	let p_chain: ChainPath;
 
 	let s_token_name: Promisable<string> = forever('');
-	const s_token_detail = contract.name;
+	let s_token_detail = contract.name;
 
 	(async() => {
 		g_chain = (await Chains.at(contract.chain))!;
@@ -30,6 +30,10 @@
 		const g_snip20 = contract.interfaces.snip20;
 		if(g_snip20) {
 			s_token_name = g_snip20.symbol;
+		}
+		else {
+			s_token_name = contract.name;
+			s_token_detail = await Contracts.summarizeOrigin(contract.origin);
 		}
 	})();
 </script>

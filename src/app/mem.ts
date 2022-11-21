@@ -44,7 +44,6 @@ import {F_NOOP, microtask, timeout} from '#/util/belt';
 import PopupReceive from './popup/PopupReceive.svelte';
 
 
-
 /**
  * Extended version of svelte's Writable that allows for synchronous `get()` calls.
  */
@@ -446,7 +445,6 @@ export const hm_arrivals: WeakMap<HTMLElement, VoidFunction> = new Map();
 export function arrival(dm_screen: HTMLElement, fk_arrive: VoidFunction) {
 	hm_arrivals.set(dm_screen, fk_arrive);
 }
-
 
 // ref viewport object
 const d_viewport = globalThis.visualViewport || {

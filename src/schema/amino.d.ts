@@ -9,14 +9,18 @@ export interface GenericAminoMessage {
 	value: JsonValue;
 }
 
-export interface AdaptedStdSignDoc<
+interface InternalAdaptedStdSignDoc<
 	a_msgs extends GenericAminoMessage[]=GenericAminoMessage[],
 > extends Writable<StdSignDoc, string, 'deep'> {
-	msgs: AsJson<a_msgs>;
+	msgs: a_msgs;
 }
 
-export interface AdaptedAminoResponse extends Writable<AminoSignResponse, string, 'deep'> {
+export type AdaptedStdSignDoc = AsJson<InternalAdaptedStdSignDoc>;
+
+export interface InternalAdaptedAminoResponse extends Writable<AminoSignResponse, string, 'deep'> {
 	signed: AdaptedStdSignDoc;
 }
+
+export type AdaptedAminoResponse = AsJson<InternalAdaptedAminoResponse>;
 
 export interface AdaptedStdSignature extends StdSignature {}

@@ -2,36 +2,28 @@ import type {ReviewedMessage} from './_types';
 import type {SecretNetwork} from '../secret-network';
 import type {Coin} from '@cosmjs/amino';
 
-import type {L, N} from 'ts-toolbelt';
-
 import type {Promisable, Values} from '#/meta/belt';
 import type {Bech32, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
-import type {FieldConfig} from '#/meta/field';
 import type {Snip20} from '#/schema/snip-20-def';
-import type {Snip2x} from '#/schema/snip-2x-def';
-import {Snip2xUtil, Snip2xToken} from '#/schema/snip-2x-const';
+import {Snip2xToken} from '#/schema/snip-2x-const';
 
 import BigNumber from 'bignumber.js';
 
 import {address_to_name} from './_util';
 
-import {syswarn} from '#/app/common';
-import {yw_network} from '#/app/mem';
 import type {LoadedAppContext} from '#/app/svelte';
 import type {NotifyItemConfig} from '#/extension/notifications';
 
-import {R_TRANSFER_AMOUNT, XT_SECONDS} from '#/share/constants';
-import {Apps, G_APP_STARSHELL} from '#/store/apps';
+import {G_APP_STARSHELL} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
-import {fodemtv, ode, oderom, timeout_exec} from '#/util/belt';
-import {text_to_buffer} from '#/util/data';
-import {uuid_v4} from '#/util/dom';
+import {fodemtv} from '#/util/belt';
+import {text_to_buffer, uuid_v4} from '#/util/data';
+
 import {format_amount} from '#/util/format';
 import { Coins } from '../coin';
-
 
 
 const XT_QUERY_TOKEN_INFO = 10e3;
@@ -101,10 +93,10 @@ function wrap_handlers(h_configs: Partial<SnipConfigs>): SnipHandlers {
 		const g_contract_loaded = await Contracts.at(p_contract);
 
 		// prep psuedo contract struct
-		let g_contract_pseudo = g_contract_loaded!;
+		const g_contract_pseudo = g_contract_loaded!;
 
 		// prep snip20 struct
-		let g_snip20 = g_contract_loaded?.interfaces?.snip20;
+		const g_snip20 = g_contract_loaded?.interfaces?.snip20;
 
 		// TODO: the below code attempts to detect if a contract is a SNIP-20, but this should not happen automatically
 		// // contract was not declared to be a SNIP-20

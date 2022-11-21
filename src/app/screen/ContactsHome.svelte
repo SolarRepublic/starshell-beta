@@ -36,31 +36,36 @@
 	>
 	</Header>
 
-	<SubHeader title="Contacts"
+	<SubHeader title="Agents"
 		on:add_new={() => k_page.push({
 			creator: ContactEdit,
 		})}
 	/>
 	<!-- buttons={['Export']} -->
 	
-	<Tabs>
+	<Tabs initialSelectedIndex={1}>
 		<TabList>
+			<Tab>
+				All
+			</Tab>
+
 			<Tab>
 				Humans
 			</Tab>
 
 			<Tab>
+				Robots
+			</Tab>
+
+			<Tab>
 				Contracts
 			</Tab>
-
-			<Tab>
-				Bots
-			</Tab>
-
-			<Tab>
-				All
-			</Tab>
 		</TabList>
+
+		<!-- All -->
+		<TabPanel>
+			<ContactList />
+		</TabPanel>
 
 		<!-- Humans -->
 		<TabPanel>
@@ -79,13 +84,8 @@
 		<!-- Contracts -->
 		<TabPanel>
 			<ContactList
-				filter={g_contact => ContactAgentType.CONTRACT === g_contact.agentType}
+				filter={g_agent => ContactAgentType.CONTRACT === g_agent.agentType}
 			/>
-		</TabPanel>
-
-		<!-- All -->
-		<TabPanel>
-			<ContactList />
 		</TabPanel>
 	</Tabs>
 

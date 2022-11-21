@@ -154,7 +154,7 @@
 					},
 
 					[_$_HANDLE]: ({contact:g_thing}: AugmentedContact) => ({
-						title: g_thing.name? 'Contact': 'Address',
+						title: g_thing.name? 'Agent': 'Address',
 						existing: g_thing.resolved,
 						fields: [
 							{

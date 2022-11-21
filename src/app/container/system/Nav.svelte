@@ -32,9 +32,9 @@
 			svg: SX_ICON_TOKENS,
 			label: 'Tokens',
 		},
-		[ThreadId.CONTACTS]: {
+		[ThreadId.AGENTS]: {
 			svg: SX_ICON_CONTACTS,
-			label: 'Contacts',
+			label: 'Agents',
 		},
 		// [ThreadId.NFTS]: {
 		// 	svg: SX_ICON_NFT,

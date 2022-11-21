@@ -169,6 +169,7 @@ function resolve_storage_mechanism(b_force_background=false) {
 					})[si_key];
 				}
 				catch(e_get) {
+					console.warn(`Falling back to message-based storage mechanism`);
 					return g_fallback.get(si_key);
 				}
 			},

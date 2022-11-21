@@ -15,6 +15,7 @@ import type { O } from 'ts-toolbelt';
 import type { ProviderPath } from './provider';
 import type { Snip21 } from '#/schema/snip-21-def';
 import type { Snip24 } from '#/schema/snip-24-def';
+import type { AppPath } from './app';
 
 /**
  * Represents an address space for a certain type of accounts (e.g., a bech32 extension)
@@ -356,7 +357,7 @@ export namespace KnownChain {
 
 
 
-export type AgentOrEntityOrigin = 'user' | 'built-in' | 'domain';
+export type AgentOrEntityOrigin = 'user' | 'built-in' | `app:${AppPath}`;
 	// data: string;  (for privacy, this should only come from historic records)
 
 

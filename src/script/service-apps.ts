@@ -361,3 +361,32 @@ export async function request_advertisement(g_profile: AppProfile | undefined, g
 
 	return g_check;
 }
+
+export async function request_keplr_decision(g_profile: AppProfile, g_sender: chrome.runtime.MessageSender): Promise<string> {
+	const g_page = page_info_from_sender(g_sender);
+
+	const {
+		answer: b_approved,
+		data: s_action,
+	} = await open_flow({
+		flow: {
+			type: 'requestKeplrDecision',
+			value: {
+				profile: g_profile,
+				page: g_page,
+			},
+			page: g_page,
+		},
+		open: {
+			...await position_widow_over_tab(g_page.tabId),
+			popover: B_MOBILE? g_page: void 0,
+		},
+	});
+
+	// console.log({
+	// 	b_approved,
+	// 	s_action,
+	// });
+
+	return (s_action as string) || '';
+}

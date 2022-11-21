@@ -1,10 +1,13 @@
-import {B_IOS_WEBEXT, SI_VERSION} from '#/share/constants';
 import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
-import {precedes} from './semver';
-import { base93_to_buffer, buffer_to_base93 } from '#/util/data';
-import type { ExtToNative } from '#/script/messages';
+import type {StoreKey} from '#/meta/store';
 import type {Vocab} from '#/meta/vocab';
-import type { StoreKey } from '#/meta/store';
+
+import {precedes} from './semver';
+
+import type {ExtToNative} from '#/script/messages';
+import {B_IOS_WEBEXT, SI_VERSION} from '#/share/constants';
+import {base93_to_buffer, buffer_to_base93} from '#/util/data';
+
 
 interface LastSeen extends JsonObject {
 	time: number;
@@ -95,7 +98,7 @@ export const storage_get = B_USE_IOS_NATIVE_STORAGE
 		// 		fk_resolve(h_gets[si_key] as w_value || null);
 		// 	});
 		// });
-	}
+	};
 
 export function storage_set(h_set: JsonObject): Promise<void> {
 	return chrome.storage.local.set(h_set);

@@ -8,12 +8,12 @@ import {writableSync} from '../mem';
 
 import {R_BECH32, R_CONTRACT_NAME, R_TOKEN_SYMBOL} from '#/share/constants';
 import {Chains} from '#/store/chains';
-import {Contracts, ContractType} from '#/store/contracts';
+import {Contracts, ContractRole} from '#/store/contracts';
 
 
 export function validate_contract(_p_contract: ContractPath) {
 	// prep cache of existing contracts
-	const h_exists_bech32s: Dict<[ContractType, string]> = {};
+	const h_exists_bech32s: Dict<[ContractRole, string]> = {};
 	const h_exists_names: Dict<ChainPath[]> = {};
 	const h_exists_symbols: Dict<number> = {};
 
@@ -24,7 +24,7 @@ export function validate_contract(_p_contract: ContractPath) {
 	const yw_contract_bech32 = writableSync('');
 	const yw_contract_pfp = writableSync<PfpTarget>('');
 	const yw_contract_on = writableSync<0 | 1>(0);
-	const yw_contract_type = writableSync(ContractType.UNKNOWN);
+	const yw_contract_type = writableSync(ContractRole.UNKNOWN);
 	const yw_token_symbol = writableSync('');
 	const yw_token_decimals = writableSync(0);
 	const yw_token_coingecko = writableSync('');
@@ -40,7 +40,7 @@ export function validate_contract(_p_contract: ContractPath) {
 	const yw_locked = writableSync(true);
 
 	// helper function
-	const is_token = () => 0 !== (ContractType.TOKEN & yw_contract_type.get());
+	const is_token = () => 0 !== (ContractRole.TOKEN & yw_contract_type.get());
 
 	// go async
 	(async() => {
@@ -69,7 +69,7 @@ export function validate_contract(_p_contract: ContractPath) {
 				const g_snip20 = _g_contract.interfaces.snip20;
 
 				// set contract type
-				yw_contract_type.set(ContractType.FUNGIBLE);
+				yw_contract_type.set(ContractRole.FUNGIBLE);
 
 				// populate token fields from snip-20 def
 				yw_token_symbol.set(g_snip20.symbol);
@@ -90,7 +90,7 @@ export function validate_contract(_p_contract: ContractPath) {
 					const g_snip20 = g_contract.interfaces.snip20;
 					if(g_snip20) {
 						// add to bech32 dict
-						h_exists_bech32s[g_contract.bech32] = [ContractType.FUNGIBLE, g_snip20.symbol];
+						h_exists_bech32s[g_contract.bech32] = [ContractRole.FUNGIBLE, g_snip20.symbol];
 
 						// add to symbols dict
 						h_exists_symbols[g_snip20.symbol.toLocaleLowerCase()] = 1;
@@ -98,7 +98,7 @@ export function validate_contract(_p_contract: ContractPath) {
 					// not yet a token
 					else {
 						// add to bech32 dict
-						h_exists_bech32s[g_contract.bech32] = [ContractType.UNKNOWN, g_contract.name];
+						h_exists_bech32s[g_contract.bech32] = [ContractRole.UNKNOWN, g_contract.name];
 					}
 				}
 
