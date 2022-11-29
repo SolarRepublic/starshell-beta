@@ -43,7 +43,6 @@
 		[ThreadId.HISTORY]: {
 			svg: SX_ICON_HISTORY,
 			label: 'History',
-			// disabled: true,
 		},
 		menu: {
 			svg: SX_ICON_MENU,

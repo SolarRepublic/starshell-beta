@@ -5,6 +5,9 @@
 
 	const dispatch = createEventDispatcher();
 
+	const XL_WIDTH = 640;
+	const XL_HEIGHT = 428;
+
 	const A_PLANET_RADII = [75, 100, 125];
 
 	const A_MOON_RADII = [20, 22, 25, 27, 30];
@@ -25,7 +28,12 @@
 	];
 
 	// number of variables needed
-	const N_VARIABLES = 1 + 4 + 1 + (3 * 5);
+	const N_VARIABLES = 0
+		+ 1  // background color
+		+ 4  // planet: size, start, finish, angle
+		+ 1  // number of moons
+		+ (3 * 5)  // moons: cycle, size, start, finish, angle
+		+ 90;  // stars
 
 	export let seed = crypto.getRandomValues(new Uint8Array(32));
 
@@ -51,6 +59,11 @@
 			finish: number;
 			angle: number;
 		}[];
+		stars: {
+			x: number;
+			y: number;
+			brightness: number;
+		}[];
 	}
 
 	function gradient(k_ent: EntropyProducer) {
@@ -75,10 +88,14 @@
 			dispatch('update');
 		}, 50);
 
+		const x_planet_size = k_ent.randomInt(a_planet[1], a_planet[0])
+		const xl_center_x = XL_WIDTH / 2;
+		const xl_center_y = XL_HEIGHT / 2;
+
 		return {
 			bg: k_ent.randomInt(360),
 			planet: {
-				size: k_ent.randomInt(a_planet[1], a_planet[0]),
+				size: x_planet_size,
 				angle: k_ent.randomInt(360),
 				...gradient(k_ent),
 			},
@@ -104,6 +121,24 @@
 					...gradient(k_ent),
 				};
 			}),
+			stars: new Array(k_ent.randomInt(90, 40)).fill({}).map(() => {
+				const xl_1dp = k_ent.randomInt(XL_WIDTH * XL_HEIGHT * 4);  // 4 subpixel resolution
+
+				const x_brightness = ((xl_1dp % 4) + 1) / 4;
+				const xl_index = Math.floor(xl_1dp / 4);
+				const xl_y = xl_index / XL_WIDTH;
+				const xl_x = xl_index % XL_WIDTH;
+
+				// reject those behind the planet
+				const xl_d = Math.sqrt(Math.pow(xl_x - xl_center_x, 2) + Math.pow(xl_y - xl_center_y, 2));
+				if(xl_d <= x_planet_size + 3) return null!;
+
+				return {
+					x: xl_x,
+					y: xl_y,
+					brightness: x_brightness,
+				};
+			}).filter(g => g)
 		};
 	}
 	
@@ -119,7 +154,7 @@
 	}
 </style>
 
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="428" viewBox="0 0 640 428" class="pfpg" bind:this={svgElement}>
+<svg xmlns="http://www.w3.org/2000/svg" width={XL_WIDTH} height={XL_HEIGHT} viewBox="0 0 {XL_WIDTH} {XL_HEIGHT}" class="pfpg" bind:this={svgElement}>
 	<style>
 		.background {
 			transform: scaleX(1.2);
@@ -137,6 +172,10 @@
 	
 		.moon {
 			transform-origin: 50% 50%;
+		}
+
+		.star {
+			fill: #ffffff;
 		}
 	</style>
 
@@ -163,6 +202,11 @@
 
 		<!-- background -->
 		<rect class="background" x="0" y="0" width="100%" height="100%" fill="url(#pfpg-background)" />
+
+		<!-- stars -->
+		{#each g_gen.stars as {x:xl_x, y:xl_y, brightness:x_brightness}, i_star}
+			<rect class="star" x={xl_x} y={xl_y} width={x_brightness * 2.5} height={x_brightness * 2.5} style="opacity:{x_brightness * 0.8}" />
+		{/each}
 
 		<!-- planet -->
 		<circle class="planet" cx="50%" cy="50%" r={g_gen.planet.size} fill="url(#pfpg-planet)"

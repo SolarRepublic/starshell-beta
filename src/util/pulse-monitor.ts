@@ -1,5 +1,4 @@
-import type {Dict} from '#/meta/belt';
-import { F_NOOP } from './belt';
+import {F_NOOP} from './belt';
 
 
 interface PulseMonitorConfig {
@@ -24,7 +23,7 @@ interface PulseMonitorConfig {
 	limit?: VoidFunction;
 }
 
-export class PulseMonitor<w_return extends any=any> {
+export class PulseMonitor {
 	protected readonly _xt_grace: number = 100;
 	protected readonly _xt_allot: number = Infinity;
 

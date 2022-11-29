@@ -1,6 +1,4 @@
-import type { NotificationConfig } from '#/extension/notifications';
-import type { GenericAminoMessage } from '#/schema/amino';
-import type {A, O, Union} from 'ts-toolbelt';
+import type {A, Union} from 'ts-toolbelt';
 import type {If} from 'ts-toolbelt/out/Any/If';
 import type {And, Or} from 'ts-toolbelt/out/Boolean/_api';
 import type {Tail} from 'ts-toolbelt/out/List/_api';

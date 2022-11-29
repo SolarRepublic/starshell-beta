@@ -196,7 +196,7 @@
 		},
 	});
 
-	function keydown(d_event) {
+	function keydown(d_event: KeyboardEvent) {
 		// escape key
 		if('Escape' === d_event.key) {
 			// search is active
@@ -217,12 +217,15 @@
 		// left arrow pops
 		else if('ArrowLeft' === d_event.key) {
 			// ignore on input element
-			const dm_target = d_event.target;
-			if('INPUT' === dm_target.nodeName) return;
+			const dm_target = d_event.target as HTMLElement;
+			if(['INPUT', 'TEXTAREA'].includes(dm_target?.nodeName)) return;
 
-			// page is poppable
-			if(pops && k_page) {
-				k_page.pop();
+			// shift key is being held
+			if(d_event.shiftKey) {
+				// page is poppable
+				if(pops && k_page) {
+					k_page.pop();
+				}
 			}
 		}
 	}

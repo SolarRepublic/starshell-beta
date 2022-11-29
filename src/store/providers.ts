@@ -9,7 +9,7 @@ import type {Block as TendermintBlock} from '@solar-republic/cosmos-grpc/dist/te
 import type {U} from 'ts-toolbelt';
 
 import type {Account, AccountPath, AccountStruct} from '#/meta/account';
-import type {Dict, JsonObject, Promisable} from '#/meta/belt';
+import type {AsJson, Dict, JsonObject, Promisable} from '#/meta/belt';
 import type {Bech32, ChainStruct, HoldingPath} from '#/meta/chain';
 import type {TxPending, TxSynced} from '#/meta/incident';
 import type {Provider, ProviderStruct, ProviderPath} from '#/meta/provider';
@@ -48,7 +48,7 @@ export interface Transfer {
 
 export interface Cached<g_wrapped=any> extends JsonObject {
 	timestamp: number;
-	data: g_wrapped & JsonObject;
+	data: AsJson<g_wrapped>;
 	block?: string;
 }
 
@@ -208,14 +208,14 @@ export const Providers = create_store_class({
 			return new SecretNetwork(g_provider, g_chain);
 		}
 
-		static async activateDefaultFor(g_chain: ChainStruct=yw_chain.get()): Promise<SecretNetwork | CosmosNetwork> {
+		static async activateDefaultFor<k_network extends CosmosNetwork=CosmosNetwork>(g_chain: ChainStruct=yw_chain.get()): Promise<k_network> {
 			const p_chain = Chains.pathFrom(g_chain);
 
 			const ks_providers = await Providers.read();
 
 			for(const [p_provider, g_provider] of ks_providers.entries()) {
 				if(p_chain === g_provider.chain) {
-					return ProviderI.activate(g_provider, g_chain);
+					return ProviderI.activate(g_provider, g_chain) as unknown as k_network;
 				}
 			}
 

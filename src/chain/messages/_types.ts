@@ -1,17 +1,17 @@
 import type {AminoMsg, Coin} from '@cosmjs/amino';
 
+import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+
+import type {Nameable, Pfpable} from '#/meta/able';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
 import type {ChainStruct} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
 import type {MsgEventRegistry, SignedJsonEventRegistry} from '#/meta/incident';
-import type {PfpPath, PfpTarget} from '#/meta/pfp';
+import type {PfpTarget} from '#/meta/pfp';
 
 import type {LocalAppContext} from '#/app/svelte';
+import type {WsTxResultError} from '#/cosmos/tm-json-rpc-ws-def';
 import type {NotifyItemConfig} from '#/extension/notifications';
-import type { WsTxResultError } from '#/store/providers';
-import type { Resource } from '#/meta/resource';
-import type { Nameable, Pfpable } from '#/meta/able';
-import type { Any } from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
 
 
 export interface DescribedMessage {

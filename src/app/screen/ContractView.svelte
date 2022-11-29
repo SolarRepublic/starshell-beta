@@ -19,7 +19,7 @@
 	import {ContractRole, Contracts} from '#/store/contracts';
 	import {Incidents} from '#/store/incidents';
 	import {Secrets} from '#/store/secrets';
-	import {forever, ode} from '#/util/belt';
+	import {fold, forever, ode} from '#/util/belt';
 	
 	import ContractEdit from './ContractEdit.svelte';
 	import Send from './Send.svelte';
@@ -78,7 +78,7 @@
 
 	const h_apps_by_permission: Dict<Set<AppPath>> = {};
 
-	const h_apps_with_viewing_key: Dict<{}> = {};
+	let h_apps_with_viewing_key: Dict<{}> = {};
 
 	let xc_role = ContractRole.UNKNOWN;
 
@@ -166,6 +166,16 @@
 				// viewing key exists
 				const s_viewing_key = await k_token.viewingKey();
 				if(s_viewing_key) {
+					// load all outlets of secret
+					const [g_secret] = await Secrets.filter({
+						type: 'viewing_key',
+						chain: p_chain,
+						contract: sa_contract,
+						owner: $yw_owner,
+					});
+
+					h_apps_with_viewing_key = fold(g_secret.outlets, si => ({[si]:{}}));
+
 					// load balance
 					(async() => {
 						const g_balance = await token_balance(g_contract_local, $yw_account, $yw_network);

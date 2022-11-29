@@ -1,6 +1,7 @@
+import type {Dict, JsonValue} from './meta/belt';
 import type Browser from 'webextension-polyfill';
-import type { Dict, JsonValue } from './meta/belt';
-import { B_LOCALHOST } from './share/constants';
+
+import {B_LOCALHOST} from './share/constants';
 
 import {
 	ode,

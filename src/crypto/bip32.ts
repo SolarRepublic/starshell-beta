@@ -1,7 +1,10 @@
-import {hmac, ripemd160_sync, text_to_buffer, zero_out} from '#/util/data';
-import RuntimeKey, {KeyProducer} from './runtime-key';
+import type {KeyProducer} from './runtime-key';
+
+import RuntimeKey from './runtime-key';
 import {Secp256k1Key} from './secp256k1';
 import SensitiveBytes from './sensitive-bytes';
+
+import {hmac, ripemd160_sync, text_to_buffer, zero_out} from '#/util/data';
 
 // create the master 'Bitcoin seed' hmac key
 let DK_BIP32_KEY_MASTER_GEN: CryptoKey;

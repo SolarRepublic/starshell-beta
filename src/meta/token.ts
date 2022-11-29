@@ -1,16 +1,13 @@
-import type {Bech32, Chain, Contract, KnownChain} from './chain';
+import type {Chain} from './chain';
 import type {Cw} from './cosm-wasm';
-import type {Resource} from './resource';
-import type {SecretPath} from './secret';
-import type {L, N, U} from 'ts-toolbelt';
+import type {L, N} from 'ts-toolbelt';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
-import type {Dict, JsonObject} from '#/meta/belt';
+import type {Dict} from '#/meta/belt';
 
 
 export type TokenSpecRegistry = {
 	'snip-20': {
-		// chains: KnownChain.SecretNetwork;
 		queries: {
 			balance: {
 				private: true;

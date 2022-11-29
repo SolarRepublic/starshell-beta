@@ -411,6 +411,12 @@ export class CosmosNetwork implements ActiveNetwork {
 			this._ks_cache = ks_cache;
 		});
 	}
+	
+	async readQueryCache(sa_owner: Bech32, si_key: string): Promise<Cached | null> {
+		const ks_cache = await QueryCache.read();
+	
+		return ks_cache.get(this._p_chain, sa_owner, si_key);
+	}
 
 	protected async _update_balance(
 		sa_owner: Bech32,

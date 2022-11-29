@@ -1,5 +1,5 @@
 const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.service: ${s}`, ...a_args);
-globalThis.debug = debug;
+// globalThis.debug = debug;
 debug(`Launched on ${Date()}`);
 
 /* eslint-disable i/order */
@@ -51,7 +51,7 @@ import {pubkey_to_bech32} from '#/crypto/bech32';
 import {EntropyProducer} from '#/crypto/entropy';
 import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
-import {system_notify} from '#/extension/browser';
+import {system_notify} from '#/extension/notifications';
 import {process_permissions_request} from '#/extension/permissions';
 import {PublicStorage, storage_clear, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {ServiceHost} from '#/extension/service-comms';
@@ -68,7 +68,7 @@ import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {Settings} from '#/store/settings';
 import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
-import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
+import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, ripemd160_sync, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
 import {stringify_params} from '#/util/dom';
 
 
@@ -855,7 +855,7 @@ if(import.meta.env?.DEV) {
 	});
 }
 
-Object.assign(globalThis, {
+Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
 	async decrypt(si_store: string) {
 		// fetch the root key
 		const dk_root = await Vault.getRootKey();
@@ -890,6 +890,7 @@ Object.assign(globalThis, {
 	base64_to_buffer,
 	buffer_to_base64,
 	sha256_sync,
+	ripemd160_sync,
 	hex_to_buffer,
 	buffer_to_hex,
 	text_to_base64,

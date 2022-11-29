@@ -1,17 +1,12 @@
 <script lang="ts">
-	import {slide} from 'svelte/transition';
-	
 	import {Header, Screen} from './_screens';
 	import {load_page_context} from '../svelte';
 	
 	import {create_mnemonic} from '#/share/account';
 	
 	import AccountEdit from './AccountEdit.svelte';
-	import InputBip44 from '../frag/InputBip44.svelte';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
-	import Field from '../ui/Field.svelte';
-	import Collapsable from '../ui/Collapsable.svelte';
 
 
 	const {k_page} = load_page_context();

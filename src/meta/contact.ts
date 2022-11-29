@@ -1,5 +1,5 @@
 import type {Nameable, Pfpable} from './able';
-import type {Agent, ChainPath, ChainNamespace, ChainNamespaceKey} from './chain';
+import type {Agent, ChainNamespace, ChainNamespaceKey} from './chain';
 import type {Resource} from './resource';
 
 export enum ContactAgentType {

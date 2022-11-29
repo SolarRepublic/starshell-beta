@@ -116,18 +116,20 @@
 				accountPath: $yw_account_ref,
 				app: G_APP_STARSHELL,
 				async completed(b_answer: boolean, g_completed: CompletedSignature) {
-					const p_app = Apps.pathFrom(G_APP_STARSHELL);
-					const p_chain = contract.chain;
+					if(b_answer) {
+						const p_app = Apps.pathFrom(G_APP_STARSHELL);
+						const p_chain = contract.chain;
 
-					await save_query_permit(
-						g_completed.amino! as AdaptedAminoResponse,
-						p_app,
-						p_chain,
-						$yw_account_ref,
-						si_permit,
-						a_permissions as Snip24Permission[],
-						[contract.bech32]
-					);
+						await save_query_permit(
+							g_completed.amino! as AdaptedAminoResponse,
+							p_app,
+							p_chain,
+							$yw_account_ref,
+							si_permit,
+							a_permissions as Snip24Permission[],
+							[contract.bech32]
+						);
+					}
 				},
 			},
 		});

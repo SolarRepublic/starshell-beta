@@ -8,10 +8,10 @@ import type {Snip24Permission} from '#/schema/snip-24-def';
 
 import {SecretNetwork} from './secret-network';
 
-import {system_notify} from '#/extension/browser';
 import {Accounts, Chains, fold, Secrets} from '#/script/ics-witness-imports';
 import {Incidents} from '#/store/incidents';
 import {json_to_buffer} from '#/util/data';
+import { system_notify } from '#/extension/notifications';
 
 export async function save_query_permit(
 	g_amino: AdaptedAminoResponse,

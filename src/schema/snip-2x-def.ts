@@ -13,6 +13,8 @@ export interface PortableMessage {
 	proto: Any;
 }
 
+export type TransactionHistoryItem = Snip21.BaseQueryResponse<'transaction_history'>['transaction_history']['txs'][number];
+
 export namespace Snip2x {
 	export type AnyMessageKey = Snip20.AnyMessageKey | Snip21.AnyMessageKey | Snip24.AnyMessageKey;
 

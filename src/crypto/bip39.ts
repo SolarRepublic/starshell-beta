@@ -1,7 +1,9 @@
-import AsyncLockPool from '#/util/async-lock-pool';
-import {buffer_to_text, concat, sha256, text_to_buffer, zero_out} from '#/util/data';
-import RuntimeKey, {KeyProducer} from './runtime-key';
+import type {KeyProducer} from './runtime-key';
+
+import RuntimeKey from './runtime-key';
 import SensitiveBytes from './sensitive-bytes';
+
+import {buffer_to_text, concat, sha256, text_to_buffer, zero_out} from '#/util/data';
 
 // cache unicode space value
 const XB_UNICODE_SPACE = ' '.charCodeAt(0);
@@ -31,60 +33,52 @@ function max_mnemonic_buffer_size(si_variant: WordlistVariant, nl_words=24) {
 	return nl_words * (H_WORDLIST_SUPPLEMENTALS[si_variant].max_word_length_bytes + 1);
 }
 
-// async look pool for the wordlist global
-const k_pool_wordlist = new AsyncLockPool(1);
 
 // loads the word list from disk into memory
 async function load_word_list(s_variant='english') {
 	// acquire exclusive lock
-	const f_release = await k_pool_wordlist.acquire();
+	await navigator.locks.request('io:word-list', async() => {
+		// intercept any errors in order to release the lock
+		try {
+			// request config
+			const d_req = new Request(`/data/bip-0039-${s_variant}.txt`, {
+				method: 'GET',
+				integrity: H_WORDLIST_SUPPLEMENTALS[s_variant].hash,
+			});
 
-	// intercept any errors in order to release the lock
-	try {
-		// request config
-		const d_req = new Request(`/data/bip-0039-${s_variant}.txt`, {
-			method: 'GET',
-			integrity: H_WORDLIST_SUPPLEMENTALS[s_variant].hash,
-		});
+			// attempt to load the word list
+			const s_words = await (await fetch(d_req)).text();
 
-		// attempt to load the word list
-		const s_words = await (await fetch(d_req)).text();
+			// parse list
+			const a_words = s_words.split(/\n/g);
 
-		// parse list
-		const a_words = s_words.split(/\n/g);
+			// assert it loaded correctly
+			if(2048 !== a_words.length) throw new Error('Failed to load word list');
 
-		// assert it loaded correctly
-		if(2048 !== a_words.length) throw new Error('Failed to load word list');
-
-		// update global pointer 
-		A_WORDS = a_words;
-	}
-	// intercept any errors
-	catch(e_load) {
-		// reset global pointer
-		A_WORDS = [];
-
-		// release lock
-		f_release();
-
-		// rethrow
-		throw e_load;
-	}
-
-	// return lock releaser
-	return (e_any?: Error) => {
-		// reset global pointer
-		A_WORDS = [];
-
-		// release lock
-		f_release();
-
-		// this was called as part of an error being caught
-		if(e_any) {
-			// rethrow
-			throw e_any;
+			// update global pointer 
+			A_WORDS = a_words;
 		}
-	};
+		// intercept any errors
+		catch(e_load) {
+			// reset global pointer
+			A_WORDS = [];
+
+			// rethrow
+			throw e_load;
+		}
+
+		// return lock releaser
+		return (e_any?: Error) => {
+			// reset global pointer
+			A_WORDS = [];
+
+			// this was called as part of an error being caught
+			if(e_any) {
+				// rethrow
+				throw e_any;
+			}
+		};
+	});
 }
 
 
@@ -343,7 +337,7 @@ export async function bip39EntropyToPaddedMnemonic(kn_entropy: SensitiveBytes | 
 
 export async function bip39ExpandedToPaddedMnemonic(kn_expanded: SensitiveBytes, si_variant: WordlistVariant='english'): Promise<SensitiveBytes> {
 	// load the word list
-	const f_release = await load_word_list();
+	await load_word_list();
 
 	// intercept any errors in order to release the lock
 	try {
@@ -391,15 +385,15 @@ export async function bip39ExpandedToPaddedMnemonic(kn_expanded: SensitiveBytes,
 		// zero out indicies
 		zero_out(atu8_indicies);
 
-		// release lock
-		f_release();
+		// // release lock
+		// f_release();
 
 		// return padded mnemonic
 		return new SensitiveBytes(atu8_mnemonic);
 	}
 	// intercept any errors
 	catch(e_any) {
-		f_release(e_any as Error);
+		// f_release(e_any as Error);
 		throw new Error('Unreachable code');
 	}
 }
@@ -526,15 +520,15 @@ export async function bip39MnemonicToEntropy(fk_mnemonic: KeyProducer): Promise<
 			// done with secret words, wipe mnemonic data
 			kb_mnemonic.wipe();
 
-			// release lock
-			f_release();
+			// // release lock
+			// f_release();
 
 			return atu8_entropy;
 		});
 	}
 	// intercept any errors
 	catch(e_any) {
-		f_release(e_any as Error);
+		// f_release(e_any as Error);
 		throw new Error('Unreachable code');
 	}
 }

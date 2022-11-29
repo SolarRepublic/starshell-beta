@@ -1,21 +1,15 @@
 import type Browser from 'webextension-polyfill';
 
-import {
-	locate_script,
-} from './utils';
-
-import {PublicStorage} from '#/extension/public-storage';
 import {AppApiMode} from '#/meta/app';
+
+import {locate_script} from './utils';
+
 import {Vault} from '#/crypto/vault';
+import {PublicStorage} from '#/extension/public-storage';
+import {SessionStorage} from '#/extension/session-storage';
 import {Apps} from '#/store/apps';
-import AsyncLockPool from '#/util/async-lock-pool';
-import { SessionStorage } from '#/extension/session-storage';
 
 export type ContentScript = Browser.Scripting.RegisteredContentScript;
-
-// interface ScriptDefiner {
-// 	(h_overrides?: Partial<Browser.Scripting.RegisteredContentScript>): Browser.Scripting.RegisteredContentScript;
-// }
 
 const f_scripting = () => chrome.scripting as Browser.Scripting.Static;
 
@@ -89,18 +83,12 @@ export const H_CONTENT_SCRIPT_DEFS = {
 } as const;
 
 
-// lock for registration
-const kl_registration = new AsyncLockPool(1);
-
 /**
  * Handles the (un)registration of content scripts 
  */
 export async function set_script_registration(gc_script: ContentScript, b_enabling: boolean): Promise<void> {
 	// acquire exclusive lock
-	const f_release = await kl_registration.acquire();
-
-	// be prepared for any errors to be thrown
-	try {
+	await navigator.locks.request('webext:script-registration', async() => {
 		// check the current status of the script, i.e., whether or not it is enabled
 		// zero length indicates no currently registered scripts match the given id
 		const b_registered = !!(await f_scripting().getRegisteredContentScripts({
@@ -171,11 +159,7 @@ export async function set_script_registration(gc_script: ContentScript, b_enabli
 				ids: [gc_script.id],
 			});
 		}
-	}
-	// whether an error is thrown or not, make sure to release the lock
-	finally {
-		f_release();
-	}
+	});
 }
 
 

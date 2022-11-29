@@ -7,6 +7,7 @@ import {ContactAgentType} from '#/meta/contact';
 import type {PfpStruct, PfpTarget} from '#/meta/pfp';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 import type {Store, StoreKey} from '#/meta/store';
+import { TokenInterfaceRuntimeSchema } from '#/schema/token-interface-const';
 
 import {
 	SI_STORE_ACCOUNTS,
@@ -202,6 +203,22 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 				consensusIoPubkey: '|dB)LVfX1mgQ<eeI6X*Uxq]/H-KwnPj1dPZ30;iB',
 				gasPadding: {
 					stepSize: `${10_000n}`,
+				},
+				interfaceSchemas: {
+					snip20: {
+						name: TokenInterfaceRuntimeSchema.String,
+						symbol: TokenInterfaceRuntimeSchema.String,
+						decimals: TokenInterfaceRuntimeSchema.NaturalNumber,
+					},
+					snip21: {},
+					snip22: {},
+					snip23: {},
+					snip24: {},
+					snip721: {
+						name: TokenInterfaceRuntimeSchema.String,
+						symbol: TokenInterfaceRuntimeSchema.String,
+					},
+					snip722: {},
 				},
 				// gasLimits: fodemtv({
 				// 	'cosmos-sdk/MsgSend': 13_000n,

@@ -421,6 +421,14 @@ export const Vault = {
 	},
 
 
+	/**
+	 * Derives the old/new root keys used to decrypt/encrypt storage, respectively.
+	 * @param atu8_phrase - utf-8 encoded buffer of user's plaintext passphrase
+	 * @param atu8_entropy - static, 64-bit buffer (initially crypto-randomnly generated) unique to user's machine
+	 * @param xg_nonce_old - the 64-bit nonce that was used to encrypt storage during the previous session
+	 * @param b_export_new - if true, preserves and returns ref to new root key bytes; otherwise, wipes all key material
+	 * @returns old and new: root CryptoKey object, derivation vector bytes (entropy || nonce), and the nonce as a BigInt
+	 */
 	async deriveRootKeys(atu8_phrase: Uint8Array, atu8_entropy: Uint8Array, xg_nonce_old: bigint, b_export_new=false): Promise<RootKeysData> {
 		// prep new nonce (this is intended to be reproducible in case program exits while rotating keys)
 		const xg_nonce_new = (xg_nonce_old + 1n) % (2n ** 128n);
@@ -438,31 +446,17 @@ export const Vault = {
 		const xg_nonce_old_lo = xg_nonce_old & XG_64_BIT_MAX;
 		new DataView(atu8_vector_old.buffer).setBigUint64(16, xg_nonce_old_hi, false);
 		new DataView(atu8_vector_old.buffer).setBigUint64(16+8, xg_nonce_old_lo, false);
-		// console.log({
-		// 	_hi: xg_nonce_old_hi.toString(16),
-		// 	_lo: xg_nonce_old_lo.toString(16),
-		// 	old: xg_nonce_old.toString(16),
-		// });
 
 		// set nonce into buffer at bottom 16 bytes
 		const xg_nonce_new_hi = (xg_nonce_new >> 64n) & XG_64_BIT_MAX;
 		const xg_nonce_new_lo = xg_nonce_new & XG_64_BIT_MAX;
 		new DataView(atu8_vector_new.buffer).setBigUint64(16, xg_nonce_new_hi, false);
 		new DataView(atu8_vector_new.buffer).setBigUint64(16+8, xg_nonce_new_lo, false);
-		// console.log({
-		// 	_hi: xg_nonce_new_hi.toString(16),
-		// 	_lo: xg_nonce_new_lo.toString(16),
-		// 	new: xg_nonce_new.toString(16),
-		// });
 
-		// console.log({
-		// 	vector_old: buffer_to_base64(atu8_vector_old),
-		// 	vector_new: buffer_to_base64(atu8_vector_new),
-		// });
-
+		// if a new version changes the number of iterations used, it should happen here
 		// migration
 		const x_migrate_multiplier = 0;
-		const g_last_seen = await PublicStorage.lastSeen();
+		// const g_last_seen = await PublicStorage.lastSeen();
 		// if(!g_last_seen) {
 		// 	x_migrate_multiplier = 20 / N_ITERATIONS;
 		// }
@@ -475,11 +469,6 @@ export const Vault = {
 			Vault.deriveRootBits(atu8_phrase, atu8_vector_old, x_migrate_multiplier),
 			Vault.deriveRootBits(atu8_phrase, atu8_vector_new),
 		]);
-
-		// console.log({
-		// 	root_old: buffer_to_base64(kn_root_old.data),
-		// 	root_new: buffer_to_base64(kn_root_new.data),
-		// });
 
 		// zero out passphrase data
 		zero_out(atu8_phrase);
@@ -496,9 +485,6 @@ export const Vault = {
 		// wipe root bits
 		kn_root_old.wipe();
 		if(!b_export_new) kn_root_new.wipe();
-
-		// mark as seen
-		await PublicStorage.markSeen();
 
 		return {
 			old: {

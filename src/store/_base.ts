@@ -3,7 +3,7 @@ import type {L, U} from 'ts-toolbelt';
 import type {Class, Instance} from 'ts-toolbelt/out/Class/_api';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
-import type {JsonObject, JsonValue, Promisable, Access} from '#/meta/belt';
+import type {JsonObject, JsonValue, Promisable, Access, Dict} from '#/meta/belt';
 import type {Store, StoreKey} from '#/meta/store';
 
 import {H_STORE_INITS} from './_init';
@@ -12,7 +12,7 @@ import type {WritableVaultEntry} from '#/crypto/vault';
 import {Vault} from '#/crypto/vault';
 import {global_receive} from '#/script/msg-global';
 import {NotAuthenticatedError} from '#/share/errors';
-import {ode, oderac} from '#/util/belt';
+import {is_dict, ode, oderac} from '#/util/belt';
 
 
 type StorageValue = JsonObject | JsonValue[];
@@ -453,4 +453,48 @@ export function subscribe_store(
 	f_destroyer?.(() => f_unsubscribe());
 
 	return f_unsubscribe;
+}
+
+
+export type FilterPrimitive = boolean | number | string;
+export type FilterObject = Array<FilterPrimitive> | Dict<FilterPrimitive>;
+export type FilterValue = FilterPrimitive | FilterObject;
+
+export function filter_applies(h_filter: Dict<FilterValue>, g_thing: Dict<FilterValue | Dict<any>>): boolean {
+	// each criterion in filter
+	for(const [si_key, z_expected] of ode(h_filter)) {
+		// ref actual value
+		const z_actual = g_thing[si_key];
+
+		// primitive or null; use exact comparison
+		if(['string', 'number', 'boolean'].includes(typeof z_actual) || null === z_actual) {
+			if(g_thing[si_key] !== z_expected) return false;
+		}
+		// actual is array
+		else if(Array.isArray(z_actual)) {
+			// expect was not given as array
+			if(!Array.isArray(z_expected)) {
+				throw new TypeError(`Invalid value type supplied for filter; '${si_key}' is an array`);
+			}
+
+			// every item in expect should appear in actual
+			for(const z_expect_item of z_expected) {
+				if(!z_actual.includes(z_expect_item)) return false;
+			}
+		}
+		// actual is a dict
+		else if(is_dict(z_expected)) {
+			// each entry in expected
+			for(const [si_spec, z_expect_item] of ode(z_expected)) {
+				// ref actual item
+				const z_actual_item = z_actual[si_spec];
+
+				// compare
+				if(z_actual_item !== z_expect_item) return false;
+			}
+		}
+	}
+
+	// all criteria passed
+	return true;
 }

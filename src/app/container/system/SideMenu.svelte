@@ -77,14 +77,6 @@
 	}
 
 	const A_ITEMS = [
-		// {
-		// 	label: 'Contacts',
-		// 	icon: SX_ICON_CONTACTS,
-		// 	click() {
-		// 		$yw_menu_expanded = false;
-		// 		void $yw_navigator.activateThread(ThreadId.CONTACTS);
-		// 	},
-		// },
 		{
 			label: 'Apps',
 			icon: SX_ICON_CUBES,

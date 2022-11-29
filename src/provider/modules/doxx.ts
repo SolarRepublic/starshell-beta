@@ -1,7 +1,9 @@
+import type {ConnectionChannel, ConnectionHandle, ConnectionHandleConfig, ConnectionModule} from '../connection';
+
+import type {Dict} from '#/meta/belt';
+
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
-import type {Dict} from '#/meta/belt';
-import type {ConnectionChannel, ConnectionHandle, ConnectionHandleConfig, ConnectionModule} from '../connection';
 
 
 interface DoxxFields {

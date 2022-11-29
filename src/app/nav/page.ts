@@ -146,9 +146,9 @@ export class Page<
 			&& !objects_might_differ(w_other.props || {}, this.props);
 	}
 
-	// peak(): Page {
-	// 	return this._kt_parent.peak();
-	// }
+	peak(): Page | undefined {
+		return this._kt_parent.peak();
+	}
 
 	push(gc_page: PageConfig): Page {
 		return this._kt_parent.push(gc_page, this);

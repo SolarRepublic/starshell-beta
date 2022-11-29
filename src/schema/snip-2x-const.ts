@@ -1,30 +1,37 @@
 import type {Snip20} from './snip-20-def';
-import type {PortableMessage, Snip2x} from './snip-2x-def';
+import type {Snip24} from './snip-24-def';
+import type {PortableMessage, Snip2x, TransactionHistoryItem} from './snip-2x-def';
 
-import type {L, N, O} from 'ts-toolbelt';
+import type {Coin} from '@cosmjs/amino';
+import type {L, N} from 'ts-toolbelt';
 
 import type {AccountStruct} from '#/meta/account';
-import type {Bech32, ChainPath, ChainStruct, Contract, ContractStruct} from '#/meta/chain';
+import type {Dict, JsonValue} from '#/meta/belt';
+import type {Bech32, ChainPath, ChainStruct, ContractStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 
 import type {SecretStruct} from '#/meta/secret';
 import type {TokenStructDescriptor} from '#/meta/token';
 
+import {Fee} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+import BigNumber from 'bignumber.js';
+
 import {syswarn} from '#/app/common';
+import type {PrebuiltMessage} from '#/chain/messages/_types';
+import {H_SNIP_TRANSACTION_HISTORY_HANDLER} from '#/chain/messages/snip-history';
 import type {SecretNetwork} from '#/chain/secret-network';
+import type {NotificationConfig} from '#/extension/notifications';
+import {system_notify} from '#/extension/notifications';
+
 import {ATU8_SHA256_STARSHELL} from '#/share/constants';
+import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
+import {Incidents} from '#/store/incidents';
+import type {Cached} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
-import {crypto_random_int} from '#/util/belt';
-import {base58_to_buffer, buffer_to_base58, buffer_to_text, buffer_to_uint32_be, concat, sha256_sync, text_to_buffer, uint32_to_buffer_be} from '#/util/data';
-import type { PrebuiltMessage } from '#/chain/messages/_types';
-import type { Snip24, Snip24PermitMsg } from './snip-24-def';
-import type { Coin } from '@cosmjs/amino';
-import { amino_to_base } from '#/chain/cosmos-msgs';
-import BigNumber from 'bignumber.js';
-import { Fee } from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-
+import {crypto_random_int, ode} from '#/util/belt';
+import {base58_to_buffer, buffer_to_base58, buffer_to_text, buffer_to_uint32_be, concat, json_to_buffer, ripemd160_sync, sha256_sync, text_to_buffer, uint32_to_buffer_be} from '#/util/data';
 
 
 type TokenInfoResponse = Snip20.BaseQueryResponse<'token_info'>;
@@ -163,7 +170,7 @@ export const Snip2xMessageConstructor = {
 		si_permit: string
 	): Promise<PortableMessage> {
 		// prep snip-20 message
-		const g_msg: Snip24.BaseMessageParameters<'revoke_permit'> = {
+		const g_msg: Snip24.BaseMessageParameters = {
 			revoke_permit: {
 				permit_name: si_permit,
 			},
@@ -224,7 +231,7 @@ export const Snip2xMessageConstructor = {
 
 		// prep snip-20 exec
 		return await k_network.encodeExecuteContract(g_account, g_token.bech32, g_msg, g_token.hash);
-	}
+	},
 };
 
 type QueryRes<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey> = Promise<Snip2x.AnyQueryResponse<si_key>>;
@@ -458,31 +465,194 @@ export class Snip2xToken {
 		});
 
 		// save to query cache
-		await this._k_network.saveQueryCache(this._sa_owner, `${this._g_contract.bech32}:balance`, g_balance.balance, Date.now());
+		await this.writeCache('balance', g_balance.balance);
 
 		return g_balance;
 	}
 
-	async transferHistory(nl_records=Number.MAX_SAFE_INTEGER): QueryRes<'transfer_history'> {
-		return this.query({
-			transfer_history: {
-				address: this._sa_owner,
-				key: await this._viewing_key_plaintext(),
-				page_size: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_records)) as Cw.WholeNumber,
-			},
-		});
+	readCache<w_return>(si_key: string): Promise<Cached<w_return> | null> {
+		return this._k_network.readQueryCache(this._sa_owner, `${this._g_contract.bech32}:${si_key}`);
 	}
 
-	async transactionHistory(nl_records=Number.MAX_SAFE_INTEGER): QueryRes<'transaction_history'> {
+	writeCache(si_key: string, g_data: JsonObject): Promise<void> {
+		return this._k_network.saveQueryCache(this._sa_owner, `${this._g_contract.bech32}:${si_key}`, g_data, Date.now());
+	}
+
+	async transferHistory(nl_records=Number.MAX_SAFE_INTEGER): QueryRes<'transfer_history'> {
+		// in async parallel
+		const [
+			a_txs_cached,
+			g_latest,
+		 ] = await Promise.all([
+			// read from cache
+			this.readCache<Snip2x.AnyQueryResponse<'transfer_history'>[]>('transfer_history'),
+
+			// query for latest
+			this.query({
+				transfer_history: {
+					address: this._sa_owner,
+					key: await this._viewing_key_plaintext(),
+					page_size: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_records)) as Cw.WholeNumber,
+				},
+			}),
+		]);
+
+		// number of transfers in this response
+		const a_latest = g_latest.transfer_history.txs;
+
+		// number of transfers total
+		const nl_total = g_latest.transfer_history.total;
+
+		// contract implements total
+		if('number' === typeof nl_total) {
+
+		}
+
+		// for(const g_transfer of a_latest) {
+		// 	g_transfer.
+		// }
+	}
+
+	async transactionHistory(nl_page_size=16): QueryRes<'transaction_history'> {
 		if(!this.snip22) throw new Error(`'transaction_history' not available on non SNIP-21 contract`);
 
-		return this.query({
+		type TransactionHistoryCache = Dict<TransactionHistoryItem>;
+
+		nl_page_size = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_page_size));
+
+		// read from cache
+		const g_cache = await this.readCache<TransactionHistoryCache>('transaction_history');
+
+		// new tx cache
+		const h_txs: TransactionHistoryCache = {...g_cache?.data};
+
+		// count number of new txs
+		let c_new = 0;
+
+		// page index
+		let i_page = 0;
+
+		// number of transactions total
+		let nl_total = 0;
+
+		// collect notifications
+		const a_notifs: NotificationConfig[] = [];
+
+		// loop while there are more pages
+		for(;;) {
+			// query for latest
+			const g_response = await this.query({
+				transaction_history: {
+					address: this._sa_owner,
+					key: await this._viewing_key_plaintext(),
+					page_size: nl_page_size as Cw.WholeNumber,
+					page: i_page as Cw.WholeNumber,
+				},
+			});
+
+			// destructure transaction history response
+			const g_history = (await g_response).transaction_history;
+
+			// update total
+			nl_total = g_history.total;
+
+			// each item in this response
+			for(const g_tx of g_history.txs) {
+				// hash tx
+				const si_tx = buffer_to_base58(ripemd160_sync(sha256_sync(json_to_buffer(g_tx))));
+
+				// item already exists in cache; skip
+				if(si_tx in h_txs) continue;
+
+				// new item
+				h_txs[si_tx] = g_tx;
+				c_new++;
+
+				// push to notif
+				const gc_notif = await this._handle_new_tx(g_tx, si_tx);
+				if(gc_notif) a_notifs.push(gc_notif);
+			}
+
+			// total count in cache
+			const nl_cached = Object.keys(h_txs).length;
+
+			// more items in history and result was full
+			if(nl_cached < nl_total && g_history.txs.length === nl_page_size) {
+				i_page += 1;
+				continue;
+			}
+
+			// done
+			break;
+		}
+
+		// commit cache
+		await this.writeCache('transaction_history', h_txs);
+
+		// trigger notifications
+		if(a_notifs.length) {
+			// TODO: group multiple inbound transfers
+			for(const gc_notif of a_notifs) {
+				system_notify(gc_notif);
+			}
+		}
+
+		// return complete cache
+		return {
 			transaction_history: {
-				address: this._sa_owner,
-				key: await this._viewing_key_plaintext(),
-				page_size: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_records)) as Cw.WholeNumber,
+				total: nl_total as Cw.WholeNumber,
+				txs: ode(h_txs).sort(([si_a, g_a], [si_b, g_b]) => {
+					const n_block_diff = g_b.block_height - g_a.block_height;
+					if(n_block_diff) return n_block_diff;
+
+					if('number' === typeof g_b.id && 'number' === typeof g_a.id) return g_b.id - g_a.id;
+
+					return si_a < si_b? -1: 1;
+				}).map(([, g]) => g),
 			},
-		});
+		};
+	}
+
+	async _handle_new_tx(g_tx: TransactionHistoryItem, si_tx: string): Promise<NotificationConfig | void> {
+		const {
+			_sa_owner,
+			_g_snip20,
+			_g_chain,
+			_g_account,
+			_g_contract,
+		} = this;
+
+		const g_transfer = g_tx.action.transfer;
+
+		// incoming transfer
+		if(_sa_owner === g_transfer?.recipient) {
+			const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_tx, {
+				g_snip20: _g_snip20,
+				g_contract: _g_contract,
+				g_chain: _g_chain,
+				g_account: _g_account,
+			});
+
+			const p_incident = await Incidents.record({
+				type: 'token_in',
+				data: {
+					chain: _g_contract.chain,
+					account: Accounts.pathFrom(_g_account),
+					bech32: _g_contract.bech32,
+					hash: si_tx,
+				},
+				time: g_tx.block_time,
+			});
+
+			const g_notif = await g_handled?.apply?.();
+			if(g_notif) {
+				return {
+					id: `@incident:${p_incident}`,
+					incident: p_incident,
+					item: g_notif,
+				};
+			}
+		}
 	}
 
 	execute(g_msg: Snip2x.AnyMessageParameters): Promise<PrebuiltMessage> {
@@ -509,3 +679,68 @@ export class Snip2xToken {
 		});
 	}
 }
+
+
+
+		// TODO: the below code attempts to detect if a contract is a SNIP-20, but this should not happen automatically
+		// // contract was not declared to be a SNIP-20
+		// if(!g_snip20) {
+		// 	let g_response: TokenInfoResponse | undefined;
+		// 	let xc_timeout: 0 | 1;
+
+		// 	const k_network = await Providers.activateDefaultFor(g_chain) as SecretNetwork;
+
+		// 	// fetch code hash
+		// 	const s_hash = await k_network.codeHashByContractAddress(sa_contract);
+
+		// 	// attempt to query for token info
+		// 	try {
+		// 		[g_response, xc_timeout] = await timeout_exec(XT_QUERY_TOKEN_INFO, async() => {
+		// 			const g_query: Snip20.BaseQueryParameters<'token_info'> = {
+		// 				token_info: {},
+		// 			};
+
+		// 			return await k_network.queryContract<TokenInfoResponse>(g_account, {
+		// 				bech32: sa_contract,
+		// 				hash: s_hash,
+		// 			}, g_query);
+		// 		});
+
+		// 		if(xc_timeout) {
+		// 			return syswarn({
+		// 				title: 'Token info query timed out',
+		// 				text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract} because the query took more than ${XT_QUERY_TOKEN_INFO / XT_SECONDS} seconds`,
+		// 			});
+		// 		}
+		// 	}
+		// 	catch(e_query) {
+		// 		return syswarn({
+		// 			title: 'Token info query failed',
+		// 			text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract}: ${e_query.message}`,
+		// 		});
+		// 	}
+
+		// 	const g_token_info = g_response!.token_info;
+
+		// 	// invalid token info
+		// 	if(!Snip20Util.validate_token_info(g_token_info)) {
+		// 		return;
+		// 	}
+
+		// 	g_snip20 = {
+		// 		decimals: g_token_info.decimals as L.UnionOf<N.Range<0, 18>>,
+		// 		symbol: g_token_info.symbol,
+		// 	};
+
+		// 	g_contract_pseudo = {
+		// 		bech32: sa_contract,
+		// 		chain: p_chain,
+		// 		hash: s_hash,
+		// 		interfaces: {
+		// 			snip20: g_snip20,
+		// 		},
+		// 		name: g_token_info.name,
+		// 		origin: 'domain',
+		// 		pfp: g_app.pfp,
+		// 	};
+		// }

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type {AminoMsg} from '@cosmjs/amino';
 	import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
 	
 	import type {AccountPath, AccountStruct} from '#/meta/account';
@@ -9,12 +8,13 @@
 	import type {Snip24Permission} from '#/schema/snip-24-def';
 	import {Snip2xMessageConstructor} from '#/schema/snip-2x-const';
 	
-	import {onDestroy, onMount} from 'svelte';
+	import {onDestroy} from 'svelte';
 	
 	import {Screen, Header} from './_screens';
 	import {yw_network} from '../mem';
-	import {load_contract, load_page_context} from '../svelte';
+	import {load_page_context} from '../svelte';
 	
+	import {produce_contract} from '#/chain/contract';
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {subscribe_store} from '#/store/_base';
 	import {Accounts} from '#/store/accounts';
@@ -25,19 +25,19 @@
 	import {ode} from '#/util/belt';
 	
 	import QueryPermitEdit from './QueryPermitEdit.svelte';
+	import QueryPermitShare from './QueryPermitShare.svelte';
 	import RequestSignature from './RequestSignature.svelte';
+	import type {Actions} from '../frag/Portrait.svelte';
+	import Portrait from '../frag/Portrait.svelte';
 	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
-	import type {Actions} from '../frag/Portrait.svelte';
-	import Portrait from '../frag/Portrait.svelte';
 	import Row from '../ui/Row.svelte';
 	import Spacer from '../ui/Spacer.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
 	
 	import SX_ICON_BAN from '#/icon/ban.svg?raw';
 	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
-	import QueryPermitShare from './QueryPermitShare.svelte';
 	
 	
 
@@ -83,7 +83,7 @@
 		for(const [sa_contract, si_revoked] of ode(g_secret.contracts)) {
 			const p_contract = Contracts.pathFor(p_chain, sa_contract);
 			a_contracts.push([
-				ks_contracts.at(p_contract) || await load_contract(sa_contract, g_chain),
+				ks_contracts.at(p_contract) || await produce_contract(sa_contract, g_chain),
 				si_revoked,
 			]);
 		}

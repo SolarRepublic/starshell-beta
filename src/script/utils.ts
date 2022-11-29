@@ -1,5 +1,5 @@
 import {B_FIREFOX_ANDROID, NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB} from '#/share/constants';
-import { timeout_exec } from '#/util/belt';
+import {timeout_exec} from '#/util/belt';
 
 /**
  * Locate a script asset in the extension bundle by its path prefix.

@@ -1,5 +1,6 @@
-import type { CoinGeckoFiat } from "#/store/web-apis";
-import { fold, F_IDENTITY, F_NOOP } from "./belt";
+import {fold, F_IDENTITY} from './belt';
+
+import type {CoinGeckoFiat} from '#/store/web-apis';
 
 const D_INTL_USD = new Intl.NumberFormat('en-US', {
 	style: 'currency',

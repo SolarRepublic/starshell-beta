@@ -1,4 +1,4 @@
-import type { Nameable } from './able';
+import type {Nameable} from './able';
 import type {Resource} from './resource';
 
 

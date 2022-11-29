@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
+	import type {AccountStruct} from '#/meta/account';
 	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
 	import type {ContractStruct, CoinInfo, FeeConfig} from '#/meta/chain';
 	import type {Cw} from '#/meta/cosm-wasm';
@@ -25,7 +26,7 @@
 	import {Accounts} from '#/store/accounts';
 	import {G_APP_STARSHELL} from '#/store/apps';
 	import {Chains} from '#/store/chains';
-	import {Contracts} from '#/store/contracts';
+	import {ContractRole, Contracts} from '#/store/contracts';
 	import {Entities} from '#/store/entities';
 	import {Incidents} from '#/store/incidents';
 	import type {BalanceBundle} from '#/store/providers';
@@ -76,6 +77,12 @@
 		void best_faucet().then(p => p_best_faucet = p);
 	}
 
+	// let g_account_cached: AccountStruct;
+	// $: if($yw_account && $yw_account !== g_account_cached) {
+	// 	g_account_cached = $yw_account;
+	// 	h_fiats = {};
+	// }
+
 	// whenever the fiats dict is updated, begin awaiting for all to resolve
 	$: if(h_fiats) {
 		void navigator.locks.request('ui:holdings:total-balance', () => timeout_exec(30e3, async() => {
@@ -114,7 +121,6 @@
 		}
 	}
 
-
 	let c_updates = 0;
 	{
 		subscribe_store(['chains', 'contracts', 'incidents'], () => {
@@ -144,6 +150,7 @@
 			f_unregister();
 		});
 	}
+
 
 	// fetch all bank balances for current account
 	async function load_native_balances() {
@@ -238,17 +245,25 @@
 
 	// load all token defs from store belonging to current account
 	async function load_tokens() {
-		// filter store
-		const a_tokens = await Contracts.filterTokens({
-			on: 1,
-			chain: $yw_chain_ref,
-			interfaces: {
-				snip20: {},
-			},
-		});
-
 		// reset pending txs
 		h_pending_txs = {};
+
+		// reset mintable tokens
+		a_mintable = [];
+
+		// reset fiats
+		h_fiats = {};
+
+		// 
+		const g_assets = $yw_account.assets[$yw_chain_ref];
+		if(!g_assets) return [];
+
+		const a_bech32s = g_assets.fungibleTokens;
+
+		const a_contract_paths = a_bech32s.map(sa => Contracts.pathFor($yw_chain_ref, sa));
+
+		const ks_contracts = await Contracts.read();
+		const a_tokens = a_contract_paths.map(p => ks_contracts.at(p)!);
 
 		// load incidents
 		const a_pending = await Incidents.filter({
@@ -269,9 +284,6 @@
 
 		// update pending txs
 		h_pending_txs = h_pending_txs;
-
-		// reset mintable tokens
-		a_mintable = [];
 
 		return a_tokens;
 	}
@@ -310,7 +322,7 @@
 		}
 		// no balance; load forever
 		else {
-			// fk_fiat!(BigNumber(0));
+			fk_fiat!(BigNumber(0));
 		}
 
 		return null;
@@ -525,7 +537,7 @@
 			</div>
 		{/key}
 		
-		{#key $yw_network || $yw_account}
+		{#key $yw_network || $yw_owner}
 			<div class="rows no-margin border-top_black-8px">
 				<!-- fetch native coin balances, display known properties while loading -->
 				{#await load_native_balances()}

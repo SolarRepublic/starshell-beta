@@ -1,5 +1,6 @@
-import type {Vocab} from '#/meta/vocab';
 import type {Pwa} from './messages';
+
+import type {Vocab} from '#/meta/vocab';
 
 
 (function() {

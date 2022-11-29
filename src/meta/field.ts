@@ -1,10 +1,10 @@
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import type { AccountPath, AccountStruct } from './account';
-import type { AppPath, AppStruct } from './app';
+import type {AccountPath, AccountStruct} from './account';
+import type {AppPath, AppStruct} from './app';
 import type {Promisable} from './belt';
-import type { Bech32, ChainPath, ChainStruct } from './chain';
+import type {Bech32, ChainPath, ChainStruct} from './chain';
 import type {PfpTarget} from './pfp';
-import type { SecretPath } from './secret';
+import type {SecretPath} from './secret';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 export type ResourceFieldRegistry = {
 	app: {

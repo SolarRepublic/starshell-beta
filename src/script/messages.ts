@@ -12,7 +12,7 @@ import type {
 	OmitUnknownKeys,
 	AsJson,
 } from '#/meta/belt';
-import type {Bech32, Caip2, ChainStruct, ChainPath} from '#/meta/chain';
+import type {Bech32, Caip2, ChainStruct, ChainPath, ContractPath} from '#/meta/chain';
 import type {IncidentPath, TxConfirmed, TxSynced} from '#/meta/incident';
 import type {ProviderPath} from '#/meta/provider';
 import type {Store, StoreKey} from '#/meta/store';
@@ -312,6 +312,13 @@ export namespace IcsToService {
 			value: {
 				ciphertext: string;
 				nonce: string;
+			};
+			response: AppResponse<string>;
+		};
+
+		requestBroadcast: {
+			value: {
+				sxb93_tx_raw: string;				
 			};
 			response: AppResponse<string>;
 		};
@@ -627,6 +634,15 @@ export namespace IntraExt {
 		txSuccess: {
 			value: {
 				hash: string;
+			};
+		};
+
+		// token was added
+		tokenAdded: {
+			value: {
+				p_contract: ContractPath;
+				p_chain: ChainPath;
+				p_account: AccountPath;
 			};
 		};
 	}>;

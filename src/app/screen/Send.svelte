@@ -4,6 +4,7 @@
 	import type {AccountPath} from '#/meta/account';
 	import type {Bech32, Chain, CoinInfo, ContractPath, ContractStruct, FeeConfig, HoldingPath} from '#/meta/chain';
 	import type {ContactPath} from '#/meta/contact';
+	import {ContactAgentType} from '#/meta/contact';
 	
 	import {Snip2xToken} from '#/schema/snip-2x-const';
 	
@@ -19,19 +20,19 @@
 	import {encode_proto} from '#/chain/cosmos-msgs';
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {encrypt_private_memo} from '#/crypto/privacy';
-	import {NB_MAX_MEMO, XT_MINUTES, XT_SECONDS} from '#/share/constants';
+	import {NB_MAX_MEMO, R_BECH32, XT_MINUTES, XT_SECONDS} from '#/share/constants';
 	import {subscribe_store} from '#/store/_base';
 	import {Agents} from '#/store/agents';
 	import {G_APP_STARSHELL} from '#/store/apps';
-	import {Contracts} from '#/store/contracts';
 	import {Settings} from '#/store/settings';
-	import {fold, F_NOOP} from '#/util/belt';
+	import {fold, F_NOOP, microtask} from '#/util/belt';
 	import {buffer_to_base93, text_to_buffer} from '#/util/data';
 	import {
 		yw_account,
 		yw_account_ref,
 		yw_chain,
 		yw_chain_ref,
+		yw_navigator,
 		yw_network,
 		yw_owner,
 	} from '##/mem';
@@ -55,6 +56,10 @@
 	import SX_ICON_INFO from '#/icon/info.svg?raw';
 	import SX_ICON_SHIELD from '#/icon/shield.svg?raw';
 	import SX_ICON_VISIBILITY from '#/icon/visibility.svg?raw';
+    import ContactEdit from './ContactEdit.svelte';
+    import Address from '../frag/Address.svelte';
+    import { ThreadId } from '../def';
+    import ContactsHome from './ContactsHome.svelte';
 	
 
 	const G_SLIDE_IN = {
@@ -361,6 +366,36 @@
 					chain: $yw_chain,
 					accountPath: $yw_account_ref,
 					app: G_APP_STARSHELL,
+					async completed(b_completed) {
+						if(b_completed && b_checked_save_contact) {
+							await microtask();
+
+							await $yw_navigator.activateThread(ThreadId.AGENTS);
+
+							$yw_navigator.activeThread.reset();
+
+							$yw_navigator.activePage.push({
+								creator: ContactsHome,
+							});
+
+							$yw_navigator.activePage.push({
+								creator: ContactEdit,
+								props: {
+									g_contact: {
+										addressData: sa_recipient.replace(R_BECH32, '$3'),
+										addressSpace: 'acc',
+										namespace: 'cosmos',
+										chains: [$yw_chain_ref],
+										name: s_new_contact,
+										agentType: ContactAgentType.PERSON,
+										notes: '',
+										pfp: '',
+										origin: 'user',
+									},
+								},
+							});
+						}
+					},
 				},
 			});
 		}
@@ -632,7 +667,7 @@
 		{#if b_new_address}
 			<div class="new-address">
 				<CheckboxField id="save-contact" bind:checked={b_checked_save_contact} >
-					Save to agents
+					Save new contact
 				</CheckboxField>
 			</div>
 		{/if}

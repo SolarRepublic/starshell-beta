@@ -1,27 +1,16 @@
+import type {Advertisement} from './common';
+
+import type {RelayToHost, HostToRelay} from './messages';
 import type {Union} from 'ts-toolbelt';
 import type {Merge} from 'ts-toolbelt/out/Object/_api';
 
-// import type * as ConnectionModule from '#/provider/connection';
-// import type * as Constants from './constants';
-
-// type ConnectionHandle = ConnectionModule.ConnectionHandle;
-
-import type {
-	Advertisement,
-	ConnectionManifest,
-} from './common';
-
-import type {RelayToHost, HostToRelay} from './messages';
-import type {Vocab} from '#/meta/vocab';
+import type {ConnectionManifest} from '#/meta/api';
 import type {OmitUnknownKeys} from '#/meta/belt';
+import type {Vocab} from '#/meta/vocab';
 
-import {text_to_buffer} from '#/util/data';
 import {ConnectionHandle} from '#/provider/connection';
-import {
-	N_PX_WIDTH_POPUP,
-	N_PX_HEIGHT_POPUP,
-	NB_MAX_MESSAGE,
-} from '#/share/constants';
+import {NB_MAX_MESSAGE} from '#/share/constants';
+import {text_to_buffer} from '#/util/data';
 
 
 /**

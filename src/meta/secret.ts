@@ -1,6 +1,6 @@
 import type {Nameable} from './able';
 import type {AppPath} from './app';
-import type {Bech32, ChainPath, ContractPath} from './chain';
+import type {Bech32, ChainPath} from './chain';
 import type {Resource} from './resource';
 import type {Cast} from 'ts-toolbelt/out/Any/Cast';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
@@ -8,7 +8,6 @@ import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 import type {Snip24Permission} from '#/schema/snip-24-def';
 
 import type {Bip44Path} from '#/crypto/bip44';
-import type { AccountPath } from './account';
 
 type SecurityTypeRegistry = {
 	none: {};

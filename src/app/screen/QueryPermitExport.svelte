@@ -14,7 +14,6 @@
 	
 	import {Screen, Header} from './_screens';
 	import {yw_network} from '../mem';
-	import {load_contract, load_page_context} from '../svelte';
 	
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {subscribe_store} from '#/store/_base';
@@ -29,14 +28,14 @@
 	
 	import QueryPermitEdit from './QueryPermitEdit.svelte';
 	import RequestSignature from './RequestSignature.svelte';
+	import type {Actions} from '../frag/Portrait.svelte';
+	import Portrait from '../frag/Portrait.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Copyable from '../ui/Copyable.svelte';
 	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
 	import PasswordField from '../ui/PasswordField.svelte';
-	import type {Actions} from '../frag/Portrait.svelte';
-	import Portrait from '../frag/Portrait.svelte';
 	import Row from '../ui/Row.svelte';
 	import Spacer from '../ui/Spacer.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';

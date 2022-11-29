@@ -7,8 +7,8 @@
 	import {open_external_link} from '#/util/dom';
 	
 	import AppView from './AppView.svelte';
-	import Header from '../ui/Header.svelte';
 	import InlineTags from '../frag/InlineTags.svelte';
+	import Header from '../ui/Header.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
 
@@ -39,7 +39,8 @@
 			{#each a_apps as [p_app, g_app]}
 				<Row
 					pfp={g_app.pfp}
-					name={g_app.host}
+					name={g_app.name}
+					detail={g_app.host}
 					resourcePath={p_app}
 					iconClass={'square pfp'}
 					on:click={() => {

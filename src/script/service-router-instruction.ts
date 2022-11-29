@@ -15,7 +15,7 @@ import {Apps} from '#/store/apps';
 import {timeout, timeout_exec} from '#/util/belt';
 
 const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.service: ${s}`, ...a_args);
-globalThis.debug = debug;
+// globalThis.debug = debug;
 
 
 /**

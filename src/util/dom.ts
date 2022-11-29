@@ -15,7 +15,6 @@ import {
 
 export {parse_params} from '#/share/constants';
 
-// const B_WITHIN_PWA = '?pwa' === globalThis.location?.search && window.top !== window;
 
 type Split<S extends string, D extends string> = S extends `${infer T}${D}${infer U}` ? [T, ...Split<U, D>] : [S];
 

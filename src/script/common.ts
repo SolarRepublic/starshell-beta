@@ -1,5 +1,3 @@
-import type {JsonObject, JsonValue} from '#/meta/belt';
-
 
 export interface StackProof {
 	stack: string;

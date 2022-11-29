@@ -1,11 +1,15 @@
-import type { JsonValue } from '#/meta/belt';
-import type { Bech32, ChainStruct } from '#/meta/chain';
-import type {FieldConfig} from '#/meta/field';
-import { Accounts } from '#/store/accounts';
-import { Agents } from '#/store/agents';
-import {abbreviate_addr, format_fiat} from '#/util/format';
-import {Coins} from '../coin';
 import type {AddCoinsConfig} from './_types';
+
+import type {JsonValue} from '#/meta/belt';
+import type {Bech32, ChainStruct} from '#/meta/chain';
+import type {FieldConfig} from '#/meta/field';
+
+import {Coins} from '../coin';
+
+import {Accounts} from '#/store/accounts';
+import {Agents} from '#/store/agents';
+import {abbreviate_addr, format_fiat} from '#/util/format';
+
 
 export const kv = (si_key: string, w_value: string | HTMLElement, ...a_dom: HTMLElement[]): FieldConfig<'key_value'> => ({
 	type: 'key_value',

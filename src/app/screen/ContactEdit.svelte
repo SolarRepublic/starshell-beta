@@ -1,22 +1,20 @@
 <script lang="ts">
 	import type {Page} from '../nav/page';
-	import type {SvelteComponent} from 'svelte';
 	
 	import type {ChainStruct, ChainPath} from '#/meta/chain';
 	import type {ContactPath, ContactStruct} from '#/meta/contact';
 	import {ContactAgentType} from '#/meta/contact';
-	
 	import type {PfpTarget} from '#/meta/pfp';
 	
 	import {getContext} from 'svelte';
 	
 	import {Header, Screen} from './_screens';
-	import {yw_chain, yw_chain_namespace} from '../mem';
+	import {yw_chain, yw_chain_namespace, yw_navigator} from '../mem';
 	
 	import {R_BECH32} from '#/share/constants';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
-	import {ode, ofe, proper} from '#/util/belt';
+	import {microtask, ode, ofe, proper} from '#/util/belt';
 	
 	import ContactView from './ContactView.svelte';
 	import Address from '../frag/Address.svelte';
@@ -36,7 +34,7 @@
 	const p_contact = contactPath || '';
 
 	// prep object placeholder
-	let g_contact: ContactStruct;
+	export let g_contact: ContactStruct = null as ContactStruct;
 
 	// fields
 	let s_name = '';
@@ -44,6 +42,17 @@
 	let s_notes = '';
 	let si_agent_type = ContactAgentType.PERSON;
 	let a_chains: ChainPath[] = [];
+	let p_pfp: PfpTarget = '';
+
+	function deserialize_contact() {
+		// set fields
+		s_name = g_contact.name;
+		sa_bech32 = Agents.addressFor(g_contact, $yw_chain);
+		s_notes = g_contact.notes;
+		si_agent_type = g_contact.agentType;
+		a_chains = g_contact.chains;
+		p_pfp = g_contact.pfp;
+	}
 
 	// path was given
 	if(p_contact) {
@@ -51,15 +60,12 @@
 		void Agents.getContact(p_contact).then((_g_contact) => {
 			// update contact struct
 			g_contact = _g_contact!;
-
-			// set fields
-			s_name = g_contact.name;
-			sa_bech32 = Agents.addressFor(g_contact, $yw_chain);
-			s_notes = g_contact.notes;
-			si_agent_type = g_contact.agentType;
-			a_chains = g_contact.chains;
-			p_pfp = g_contact.pfp;
+			deserialize_contact();
 		});
+	}
+	// contact struct was given
+	else if(g_contact) {
+		deserialize_contact();
 	}
 
 	// load all chains
@@ -70,13 +76,12 @@
 
 	// TODO: fix all bech32 address stuff here
 
-	let p_pfp: PfpTarget = '';
 
 	let s_err_name = '';
 	let s_err_address = '';
 
 	// TODO: handle matching multiple chains from single address
-	async function infer_address(sa_address: string, b_show_err=false): string {
+	async function infer_address(sa_address: string, b_show_err=false): Promise<string> {
 		const m_bech = R_BECH32.exec(sa_address);
 		if(!m_bech) {
 			if(b_show_err) {
@@ -142,8 +147,6 @@
 				agentType: si_agent_type,
 				notes: s_notes,
 			});
-
-			k_page.reset();
 		}
 		else {
 			g_contact = {
@@ -159,7 +162,6 @@
 			};
 		}
 
-
 		b_busy = true;
 		try {
 			await Agents.open(async(ks_agents) => {
@@ -168,11 +170,13 @@
 
 			k_page.reset();
 
+			await microtask();
+
 			// immediately open new contact
-			k_page.push({
+			$yw_navigator.activePage.push({
 				creator: ContactView,
 				props: {
-					contactPath: p_contact,
+					contactPath: Agents.pathFromContact(g_contact),
 				},
 			});
 		}

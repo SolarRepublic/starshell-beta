@@ -15,6 +15,8 @@
 
 	export let contract: ContractStruct;
 
+	export let isToken = false;
+
 	export let concise = false;
 
 	let g_chain: ChainStruct;
@@ -96,7 +98,7 @@
 			{/if}
 		</Field>
 
-		<Field key="token" name="Token" rootStyle="flex:auto;">
+		<Field key="contract" name={isToken? 'Token': 'Contract'} rootStyle="flex:auto;">
 			<Row embedded
 				resource={contract}
 				name={s_token_name}

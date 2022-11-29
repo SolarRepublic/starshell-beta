@@ -1,5 +1,6 @@
-import { ode } from "#/util/belt";
-import type { ConnectionChannel, ConnectionHandle, ConnectionModule } from "../connection";
+import type {ConnectionChannel, ConnectionHandle, ConnectionModule} from '../connection';
+
+import {ode} from '#/util/belt';
 
 const XT_DEBOUNCE = 250;
 
@@ -93,9 +94,7 @@ class StorageModuleImpl implements Storage, Map<string, string> {
 	/**
 	 * Implements {@link Map[Symbol.toStringTag]}.
 	 */
-	get [Symbol.toStringTag](): string {
-		return 'StorageModuleMap';
-	}
+	readonly [Symbol.toStringTag] = 'StorageModuleMap';
 
 
 	/**
@@ -168,7 +167,7 @@ class StorageModuleImpl implements Storage, Map<string, string> {
 		if('string' !== typeof s_value) throw new TypeError('Value must be a string');
 
 		// deletion; delete the value in the local cached map
-		if(null === s_value) {	
+		if(null === s_value) {
 			g_fields.hm_cache.delete(si_key);
 		}
 		// not deletion; set the value in the local cached map

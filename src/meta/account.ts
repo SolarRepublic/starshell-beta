@@ -1,5 +1,5 @@
 import type {Nameable, Pfpable} from './able';
-import type {ChainNamespace, ChainNamespaceKey} from './chain';
+import type {Bech32, ChainNamespace, ChainNamespaceKey, ChainPath, ContractPath} from './chain';
 import type {Resource} from './resource';
 import type {SecretPath} from './secret';
 
@@ -29,7 +29,7 @@ export type Account<
 		family: si_family;
 
 		/**
-		 * the compressed, 33-byte public key as a base64-encoded string
+		 * The compressed, 33-byte public key as a base64-encoded string
 		 */
 		pubkey: s_pubkey;
 
@@ -44,6 +44,16 @@ export type Account<
 		utilityKeys: UtilityKeys;
 
 		/**
+		 * Assets belonging to this account
+		 */
+		assets: Partial<Record<ChainPath, {
+			/**
+			 * Ordered list of fungible tokens this account wants to appear in their balance screen
+			 */
+			fungibleTokens: Bech32[];
+		}>>;
+
+		/**
 		 * Custom data extensions
 		 */
 		extra?: Dict<any>;
@@ -52,13 +62,5 @@ export type Account<
 
 export type AccountPath = Resource.Path<Account>;
 export type AccountStruct = Account['struct'];
-
-
-// export type NamedThingsMap = DataMap<Account | Chain, string>;
-
-// const NamedThings: NamedThingsMap = {
-// 	'/family.cosmos/account.0': 'Account Mars',
-
-// };
 
 

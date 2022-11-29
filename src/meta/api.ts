@@ -1,6 +1,7 @@
-import type {Dict, JsonObject} from '#/meta/belt';
+import type {Caip2, ChainStruct} from './chain';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey} from './chain';
+
+import type {Dict, JsonObject} from '#/meta/belt';
 
 export type Truthy = 1 | true | {};
 

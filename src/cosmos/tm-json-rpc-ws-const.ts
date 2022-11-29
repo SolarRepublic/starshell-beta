@@ -9,6 +9,11 @@ import {F_NOOP, ode} from '#/util/belt';
 
 interface CallStruct {
 	data(w_data: TjrwsResult): Promisable<void>;
+	error?(w_error: {
+		code: number;
+		message: string;
+		data: string;
+	}): Promisable<void>;
 }
 
 interface SubscriptionState {
@@ -150,9 +155,21 @@ export class TmJsonRpcWebsocket {
 			// lookup call struct
 			const g_call = this._h_calls[si_call];
 
-			// call struct is present; emit data
+			// call struct is present
 			if(g_call) {
-				g_call.data(g_msg.result);
+				// error
+				if(g_msg.error) {
+					if(g_call.error) {
+						void g_call.error(g_msg.error);
+					}
+					else {
+						console.error(g_msg.error);
+					}
+				}
+				// emit result as data
+				else {
+					void g_call.data(g_msg.result);
+				}
 			}
 
 			// // attempt to access payload
@@ -245,6 +262,10 @@ export class TmJsonRpcWebsocket {
 					else {
 						fe_reject(new Error(`Never receieved JSON-RPC confirmation to event subscription`));
 					}
+				},
+
+				error(g_error) {
+					fe_reject(new Error(g_error.message));
 				},
 			} as CallStruct;
 

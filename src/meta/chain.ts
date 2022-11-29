@@ -1,21 +1,23 @@
-import type { BalanceBundle } from '#/store/providers';
-import type { Dict, JsonObject } from '#/meta/belt';
-import type { Compute, ComputeRaw } from 'ts-toolbelt/out/Any/Compute';
-import type { Type } from 'ts-toolbelt/out/Any/Type';
-import type { Concat } from 'ts-toolbelt/out/List/Concat';
-import type { Tail } from 'ts-toolbelt/out/List/Tail';
-import type { MergeAll } from 'ts-toolbelt/out/Object/MergeAll';
-import type { Nameable, Pfpable } from './able';
-import type { PfpTarget } from './pfp';
-import type { Resource } from './resource';
-import type { TokenStructDescriptor, TokenStructKey, TokenSpecKey } from './token';
-import type { Snip20 } from '#/schema/snip-20-def';
-import type { Coin } from '@cosmjs/amino';
-import type { O } from 'ts-toolbelt';
-import type { ProviderPath } from './provider';
-import type { Snip21 } from '#/schema/snip-21-def';
-import type { Snip24 } from '#/schema/snip-24-def';
-import type { AppPath } from './app';
+import type {Nameable, Pfpable} from './able';
+import type {AppPath} from './app';
+import type {PfpTarget} from './pfp';
+import type {Resource} from './resource';
+import type {TokenStructDescriptor, TokenStructKey, TokenSpecKey} from './token';
+import type {Coin} from '@cosmjs/amino';
+import type {O} from 'ts-toolbelt';
+import type {Compute} from 'ts-toolbelt/out/Any/Compute';
+
+import type {Concat} from 'ts-toolbelt/out/List/Concat';
+import type {Tail} from 'ts-toolbelt/out/List/Tail';
+
+import type {Dict, JsonObject} from '#/meta/belt';
+
+import type {Snip20} from '#/schema/snip-20-def';
+import type {Snip21} from '#/schema/snip-21-def';
+import type {Snip24} from '#/schema/snip-24-def';
+import type {TokenInterfaceRuntimeSchema} from '#/schema/token-interface-const';
+
+import type {BalanceBundle} from '#/store/providers';
 
 /**
  * Represents an address space for a certain type of accounts (e.g., a bech32 extension)
@@ -183,6 +185,7 @@ export interface ChainFeatureRegistry {
 			gasPadding: {
 				stepSize: `${bigint}`;
 			};
+			interfaceSchemas: Dict<Dict<TokenInterfaceRuntimeSchema>>;
 		};
 	};
 	'ibc-go': {};
@@ -357,7 +360,9 @@ export namespace KnownChain {
 
 
 
-export type AgentOrEntityOrigin = 'user' | 'built-in' | `app:${AppPath}`;
+export type AgentOrEntityOrigin =
+	| `app:${AppPath}`
+	| 'user' | 'built-in';
 	// data: string;  (for privacy, this should only come from historic records)
 
 

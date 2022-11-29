@@ -10,6 +10,10 @@ import {set_keplr_compatibility_mode} from '#/script/scripts';
 import {Accounts} from '#/store/accounts';
 import {F_NOOP, timeout} from '#/util/belt';
 import {text_to_buffer} from '#/util/data';
+import { ContractRole, Contracts } from '#/store/contracts';
+import { Secrets } from '#/store/secrets';
+import type { AccountPath } from '#/meta/account';
+import { Chains } from '#/store/chains';
 
 
 /**
@@ -211,6 +215,9 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 		// wipe root key material
 		kn_root_new?.wipe();
 
+		// migrations
+		await run_migrations();
+
 		// fire logged in event
 		global_broadcast({
 			type: 'login',
@@ -226,6 +233,69 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 		// rethrow
 		throw e_thrown;
 	}
+}
+
+
+async function run_migrations() {
+	if(await PublicStorage.isUpgrading('0.6.6')) {
+		for(const [, g_account] of (await Accounts.read()).entries()) {
+			if(!g_account['utilityKeys']) {
+				await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
+			}
+		}
+
+		// introduce assets dict for all existing accounts
+		const ks_accounts = await Accounts.read();
+		for(const [p_account] of ks_accounts.entries()) {
+			await Accounts.update(p_account, g_account => ({
+				assets: g_account.assets || {},
+			}));
+		}
+
+		const a_contracts = await Contracts.filterRole(ContractRole.TOKEN);
+		for(const [, g_contract] of a_contracts) {
+			const h_extra = g_contract.interfaces.snip20?.extra;
+			if(h_extra) {
+				// ref chain that contract exists on
+				const p_chain = g_contract.chain;
+
+				// load chain struct
+				const g_chain = (await Chains.at(p_chain))!;
+
+				// find viewing key for the exact contract
+				const a_vks = await Secrets.filter({
+					type: 'viewing_key',
+					contract: g_contract.bech32,
+					chain: g_contract.chain,
+				});
+
+				// each result
+				for(const g_vk of a_vks) {
+					// find the associated account
+					const [p_account] = await Accounts.find(g_vk.owner, g_chain);
+
+					// update the account's asset dict
+					await Accounts.update(p_account, g_account => ({
+						assets: {
+							...g_account.assets,
+							[p_chain]: {
+								...g_account.assets[p_chain],
+								fungibleTokens: [
+									...new Set([
+										...g_account.assets[p_chain]?.fungibleTokens || [],
+										g_vk.contract,
+									]),
+								],
+							},
+						},
+					}));
+				}
+			}
+		}
+	}
+
+	// mark as seen
+	await PublicStorage.markSeen();
 }
 
 
@@ -246,32 +316,30 @@ export async function reinstall(b_install=false): Promise<void> {
 
 	console.warn(`Performing ${b_install? 'full': 'partial'} installation`);
 
-	// migration; wipe everything
-	if(await PublicStorage.isUpgrading('0.3.0')) {
-		await storage_clear();
-	}
-	// selective wipe
-	else if(await PublicStorage.isUpgrading('0.5.0')) {
-		await storage_remove('apps');
-		await storage_remove('pfps');
-		await storage_remove('media');
-		await storage_remove('chains');
-		await storage_remove('contracts');
-		await storage_remove('providers');
-		for(const [, g_account] of (await Accounts.read()).entries()) {
-			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
+	// for betas only
+	{
+		// migration; wipe everything
+		if(await PublicStorage.isUpgrading('0.3.0')) {
+			await storage_clear();
+		}
+		// selective wipe
+		else if(await PublicStorage.isUpgrading('0.5.0')) {
+			await storage_remove('apps');
+			await storage_remove('pfps');
+			await storage_remove('media');
+			await storage_remove('chains');
+			await storage_remove('contracts');
+			await storage_remove('providers');
+		}
+		// selective wipe
+		else if(await PublicStorage.isUpgrading('0.6.4')) {
+			await storage_remove('apps');
+			await storage_remove('histories');
+			await storage_remove('chains');
+			await storage_remove('contracts');
+			await storage_remove('providers');
 		}
 	}
-	// selective wipe
-	else if(await PublicStorage.isUpgrading('0.6.4')) {
-		await storage_remove('apps');
-		await storage_remove('histories');
-		await storage_remove('chains');
-		await storage_remove('contracts');
-		await storage_remove('providers');
-	}
-
-	console.info('Migrations complete');
 
 	// fresh install
 	if(b_install) {

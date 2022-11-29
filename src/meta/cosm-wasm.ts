@@ -1,6 +1,7 @@
-import type {JsonObject, JsonValue, OmitUnknownKeys} from '#/meta/belt';
-import type { A, L, N, O, U } from 'ts-toolbelt';
 import type {Bech32 as B32} from './chain';
+import type {O, U} from 'ts-toolbelt';
+
+import type {JsonValue} from '#/meta/belt';
 
 /**
  * === _**@starshell/meta**_ ===
@@ -69,7 +70,7 @@ export namespace Cw {
 	}, 'Coin'>;
 
 	export type Amount = Cw<`${Uint128}${String}`, 'Amount'>;
-	
+
 }
 
 

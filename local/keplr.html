@@ -24,6 +24,7 @@
 
 	<!-- <link rel="prefetch" as="image" href="/media/trophy-solid.svg" data-caip-10="cosmos:pulsar-2:secret1vux78y49ehf29kf7pjujvwsa2td6dyyxkkslne"> -->
 
+
 	<script type="application/toml" data-whip-2>
 		[contracts.sSCRT]
 		chain = "cosmos:secret-4"
@@ -46,7 +47,7 @@
 
 	</script>
 
-	<script type="module" >
+	<script type="module">
 		window.addEventListener('message', (d_event) => {
 			console.log(d_event.data);
 		});
@@ -61,6 +62,11 @@
 			(async() => {
 				await window.keplr.enable('pulsar-2');
 
+				const s_vk = await keplr.getSecret20ViewingKey('pulsar-2', 'secret1rzz7q3us7zksy3la7hjup33gvtqxyfljpaya2r');
+
+				debugger;
+
+
 				const y_signer = keplr.getOfflineSignerOnlyAmino('pulsar-2');
 
 				const [g_key] = await y_signer.getAccounts('pulsar-2');
@@ -73,7 +79,6 @@
 				const sa_owner = g_key.address;
 
 				const sa_contract = 'secret1pvhx4llzxa7cs05hxxf45rpss69j00p7tq9qxx';
-
 
 				const atu8_enc = await keplr.enigmaEncrypt('pulsar-2', 'e38c18f5f54245e7c31a17ecc38f8d50b18d054b6da975fe8c92579204682633', {
 					name: 'Macronesia',
@@ -93,7 +98,7 @@
 					},
 				});
 
-				await keplr.signAmino('pulsar-2', sa_owner, {
+				const {signed, signature} = await keplr.signAmino('pulsar-2', sa_owner, {
 					chain_id: 'pulsar-2',
 					account_number: '0',
 					sequence: '0',
@@ -115,6 +120,8 @@
 					],
 					memo: '',
 				});
+
+				await keplr.sendTx('pulsar-2', signed, 'async');
 
 				// const y_signer = keplr.getOfflineSignerOnlyAmino('pulsar-2');
 

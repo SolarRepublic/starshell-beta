@@ -12,7 +12,7 @@ import {SI_STORE_APPS} from '#/share/constants';
 import type {Dict, JsonObject} from '#/meta/belt';
 import {ode} from '#/util/belt';
 import type {ContractStruct} from '#/meta/chain';
-import { H_LOOKUP_PFP } from './_init';
+import {H_LOOKUP_PFP} from './_init';
 
 export interface AppFilterConfig extends Partial<AppStruct> {}
 

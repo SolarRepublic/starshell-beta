@@ -1,63 +1,19 @@
-// this script runs in a Node.js environment
-// the following imports leverage some built-in packages from Node.js
-import path, { resolve } from 'path';
+import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 
-// some information about the package itself will be read from the package.json file
-import G_PACKAGE_JSON from './package.json';
-
-
-// Vite is the build system used to compile the output packages
-// <https://vitejs.dev/>
-import {
-	defineConfig,
-	loadEnv,
-} from 'vite';
-
-// import commonjs from '@rollup/plugin-commonjs';
-// import nodeResolve from '@rollup/plugin-node-resolve';
-// import inline from 'rollup-plugin-inline-js';
-
-// Svelte is the Web App framework used to build user interfaces
-// <https://svelte.dev/>
-import {
-	svelte,
-} from '@sveltejs/vite-plugin-svelte';
-
-// import typescript from '@rollup/plugin-typescript';
-// import inlineCode from 'rollup-plugin-inline-code';
-// console.log(inlineCode.default);
-
-// import {
-// 	extension,
-// } from './vite/extension';
-
-// supports building for web extension to multiple browsers
-import webExtension from '@solar-republic/vite-plugin-web-extension';
-// import webExtension from '@samrum/vite-plugin-web-extension';
-
-import {viteSingleFile} from 'vite-plugin-singlefile';
-
-// // inlined scripts are required to reach window before page scripts
-// import { bundleImports } from 'rollup-plugin-bundle-imports';
-
-// Chrome _requires_ Manifest V3, while other browsers do not even support it yet
-import {
-	H_BROWSERS,
-} from './src/manifest';
-
-
+import {defineConfig, loadEnv} from 'vite';
 import replace from '@rollup/plugin-replace';
-
-import copy from 'rollup-plugin-copy';
-
-import analyze from 'rollup-plugin-analyzer'
-
-// proprietary plugin 
-import { inlineRequire } from './plugins/inline-require';
 import nodeResolve from '@rollup/plugin-node-resolve';
+import analyze from 'rollup-plugin-analyzer'
 import graph from 'rollup-plugin-graph';
+import {svelte} from '@sveltejs/vite-plugin-svelte';
+// import webExtension from '@solar-republic/vite-plugin-web-extension';
+import webExtension from '@samrum/vite-plugin-web-extension';
+
+import G_PACKAGE_JSON from './package.json';
+import {H_BROWSERS} from './src/manifest';
+import {inlineRequire} from './plugins/inline-require';
 
 const H_REPLACEMENTS_ENGINE = {
 	firefox: {
@@ -125,6 +81,10 @@ export default defineConfig((gc_run) => {
 
 	const SI_BROWSER = 'ios' === SI_ENGINE? 'safari': SI_ENGINE;
 
+	const srd_out = `dist/${SI_ENGINE}`;
+
+	// const sx_deep_seal = fs.readFileSync('./plugins/deep-seal/content.js');
+
 	return {
 		define: {
 			__H_MEDIA_BUILTIN: JSON.stringify(H_MEDIA_BUILTINT),
@@ -169,6 +129,25 @@ export default defineConfig((gc_run) => {
 					}),
 				],
 
+
+			// {
+			// 	name: 'deep-seal',
+
+			// 	writeBundle(g_opt, h_bundle) {
+			// 		console.debug(`@@marker`);
+
+			// 		for(const si_asset in h_bundle) {
+			// 			const g_output = h_bundle[si_asset];
+			// 			if('chunk' === g_output.type && !g_output.fileName.startsWith('assets/src/script/mcs-')) {
+			// 				const sr_output = path.join(srd_out, g_output.fileName);
+
+			// 				const sx_output = fs.readFileSync(sr_output);
+			// 				fs.writeFileSync(sr_output, `${sx_deep_seal}\n${sx_output}`)
+			// 			}
+			// 		}
+			// 	},
+			// },
+
 			graph({
 				prune: true,
 			}),
@@ -200,7 +179,7 @@ export default defineConfig((gc_run) => {
 			sourcemap: true,
 			minify: 'production' === si_mode,
 			emptyOutDir: true,
-			outDir: `dist/${SI_ENGINE}`,
+			outDir: srd_out,
 			target: 'es2020',
 
 			rollupOptions: {
@@ -212,6 +191,9 @@ export default defineConfig((gc_run) => {
 				},
 
 				output: {
+					// banner: `
+					// 	${sx_deep_seal}
+					// `,
 					...('firefox' === SI_ENGINE) && {
 						manualChunks: {
 							'html5-qrcode': ['html5-qrcode'],

@@ -10,8 +10,8 @@
 	import {Apps} from '#/store/apps';
 	import {Policies} from '#/store/policies';
 	
-	import ActionsWall from '../ui/ActionsWall.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
+	import ActionsWall from '../ui/ActionsWall.svelte';
 
 
 	const {

@@ -3,11 +3,10 @@
 	import type {AccountPath, AccountStruct} from '#/meta/account';
 	import type {AppPath, AppStruct} from '#/meta/app';
 	import type {Promisable} from '#/meta/belt';
-	import type {Bech32, ChainStruct, ChainPath, ContractStruct} from '#/meta/chain';
+	import type {Bech32, ChainStruct, ChainPath} from '#/meta/chain';
 	import type {ContactStruct} from '#/meta/contact';
 	import type {FieldConfig} from '#/meta/field';
 	import type {Incident, TxSynced} from '#/meta/incident';
-	import type {PfpTarget} from '#/meta/pfp';
 	
 	import type {SecretPath} from '#/meta/secret';
 	
@@ -15,8 +14,9 @@
 	import {classify} from '../helper/json-previewer';
 	import {yw_chain} from '../mem';
 	
-	import {load_app_profile, load_page_context, svelte_to_dom} from '../svelte';
+	import {svelte_to_dom} from '../svelte';
 	
+	import {produce_contract} from '#/chain/contract';
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import {ecdh_nonce, extract_memo_ciphertext} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
@@ -32,18 +32,18 @@
 	import {dd, open_external_link, qsa} from '#/util/dom';
 	import {phrase_to_hyphenated} from '#/util/format';
 	
-	import Address from '../frag/Address.svelte';
 	import Copyable from './Copyable.svelte';
 	import Field from './Field.svelte';
 	import Gap from './Gap.svelte';
 	import Load from './Load.svelte';
 	import LoadingRows from './LoadingRows.svelte';
-	import MemoReview from '../frag/MemoReview.svelte';
 	import PasswordField from './PasswordField.svelte';
-	import PfpDisplay from '../frag/PfpDisplay.svelte';
 	import Put from './Put.svelte';
-	import QueryPermitRow from '../frag/QueryPermitRow.svelte';
 	import Row from './Row.svelte';
+	import Address from '../frag/Address.svelte';
+	import MemoReview from '../frag/MemoReview.svelte';
+	import PfpDisplay from '../frag/PfpDisplay.svelte';
+	import QueryPermitRow from '../frag/QueryPermitRow.svelte';
 	
 	import TransactionHashField from '../frag/TransactionHashField.svelte';
 	
@@ -125,55 +125,8 @@
 	}
 
 
-	let b_profile_load_attempted = false;
+	const b_profile_load_attempted = false;
 	let g_profile: AppProfile | undefined;
-
-	async function load_contract(sa_contract: Bech32, g_chain: ChainStruct, g_app: AppStruct | undefined): Promise<ContractStruct> {
-		// create contract path
-		const p_contract = Contracts.pathFor(Chains.pathFrom(g_chain), sa_contract);
-
-		// attempt to locate entity
-		let g_contract = await Contracts.at(p_contract);
-
-		// definition does not exist in store
-		if(!g_contract) {
-			// no app profile loaded
-			if(g_app && !b_profile_load_attempted) {
-				// acquire lock on profile
-				await navigator.locks.request('ui:fields:profile', async() => {
-					if(!b_profile_load_attempted) {
-						b_profile_load_attempted = true;
-
-						// save profile
-						g_profile = await load_app_profile(g_app);
-					}
-				});
-			}
-
-			// find contract def in app profile
-			const h_contracts = g_profile?.contracts;
-			if(h_contracts) {
-				for(const [, g_def] of ode(h_contracts)) {
-					if(sa_contract === g_def.bech32) {
-						g_contract = g_def;
-					}
-				}
-			}
-
-			return {
-				on: 1,
-				chain: Chains.pathFrom(g_chain),
-				hash: g_contract?.hash || '',
-				bech32: sa_contract,
-				interfaces: g_contract?.interfaces || {},
-				name: g_contract?.name || `Unknown Contract${g_app? ` from ${g_app.host}`: ''}`,
-				origin: 'domain',
-				pfp: '' as PfpTarget,
-			};
-		}
-
-		return g_contract;
-	}
 
 
 	async function load_resource(gc_field: Awaited<FieldConfig<'resource'>>): Promise<[{
@@ -545,7 +498,7 @@
 					{@const z_bech32s = gc_field.bech32s}
 					{@const h_bech32s = Array.isArray(z_bech32s)? fold(z_bech32s, sa => ({[sa]:''})): z_bech32s}
 					{#each ode(h_bech32s) as [sa_contract, w_disabled]}
-						{#await load_contract(sa_contract, g_chain, g_app)}
+						{#await produce_contract(sa_contract, g_chain, g_app)}
 							<LoadingRows />
 						{:then g_contract} 
 							<Copyable confirmation="Address copied!" let:copy>

@@ -1,22 +1,23 @@
+import type {HotWalletModule} from './modules/host-wallet-module';
+import type {Compute} from 'ts-toolbelt/out/Any/Compute';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
+
+import type {AccountPath} from '#/meta/account';
+import type {AppChainConnection} from '#/meta/app';
 import type {
 	Dict,
 	JsonObject,
 	JsonValue,
 	Promisable,
 } from '#/meta/belt';
-
-import {oderac} from '#/util/belt';
-import type {Compute} from 'ts-toolbelt/out/Any/Compute';
-import type {HostToRelay, RelayToHost} from '#/script/messages';
+import type {ChainStruct, ChainPath} from '#/meta/chain';
 import type {Vocab} from '#/meta/vocab';
 
 import {DoxxModule} from './modules/doxx';
 import {StorageModule} from './modules/storage-module';
-import type {HotWalletModule} from './modules/host-wallet-module';
-import type {AccountPath} from '#/meta/account';
-import type {ChainStruct, ChainPath} from '#/meta/chain';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import type { AppChainConnection } from '#/meta/app';
+
+import type {HostToRelay, RelayToHost} from '#/script/messages';
+import {oderac} from '#/util/belt';
 
 
 /**

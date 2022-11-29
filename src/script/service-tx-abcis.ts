@@ -16,14 +16,14 @@ import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 import type {TmJsonRpcWebsocket} from '#/cosmos/tm-json-rpc-ws-const';
 import type {WsTxResponse, WsTxResultError} from '#/cosmos/tm-json-rpc-ws-def';
 import type {NotificationConfig, NotifyItemConfig} from '#/extension/notifications';
+import {R_TX_ERR_ACC_SEQUENCE} from '#/share/constants';
 import {Apps} from '#/store/apps';
+import {parse_date, TransactionNotFoundError} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 
 import {fodemtv, oderac} from '#/util/belt';
 import {base64_to_buffer, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
 import {format_amount} from '#/util/format';
-import { R_TX_ERR_ACC_SEQUENCE } from '#/share/constants';
-import { parse_date, TransactionNotFoundError } from '#/store/chains';
 
 
 export interface CosmosEvents {
@@ -457,22 +457,6 @@ export function account_abcis(
 						return;
 					}
 				}
-
-				// if(g_pending) {
-				// 	debugger;
-				// 	console.log(g_pending);
-
-				// 	// update incident
-				// 	await Incidents.mutateData(p_incident, {
-				// 		stage: 'synced',
-				// 		height: g_extra.s_height,
-				// 		gas_used: g_extra.s_gas_used,
-				// 		gas_wanted: g_extra.s_gas_wanted,
-				// 		// timestamp: 
-				// 	} as Partial<TxSynced>);
-				// }
-				// // create new tx
-				// else {
 
 				// create/overwrite incident
 				await Incidents.record({

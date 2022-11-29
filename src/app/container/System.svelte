@@ -111,24 +111,6 @@
 			hooks: {
 				...GC_HOOKS_DEFAULT,
 
-				// // handle a special case when popping off bottom of scratch thread
-				// after_pop(kt_context, kp_src, kp_dst, gc_pop) {
-				// 	// thread was created by transferring search result pages
-				// 	if(ThreadId.SCRATCH === kt_context.id) {
-				// 		// reached bottom of scratch thread history
-				// 		if(1 === kt_context.history.length) {
-				// 			// remove scratch thread from switch history
-				// 			const i_scratch = a_switches.indexOf(ThreadId.SCRATCH);
-				// 			if(i_scratch) a_switches.splice(i_scratch, 1);
-
-				// 			// go back to previous thread
-				// 			void $yw_navigator.activateThread(a_switches.at(-1)!);
-				// 		}
-				// 	}
-
-				// 	GC_HOOKS_DEFAULT.after_pop!(kt_context, kp_src, kp_dst, gc_pop);
-				// },
-
 				async before_switch() {
 					await initialize_mem();
 

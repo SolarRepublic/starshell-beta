@@ -1,38 +1,35 @@
 import type {IcsToService} from './messages';
 
-import type {ConnectionManifestV1, ContractDescriptor, SessionRequest} from '#/meta/api';
+import type {ConnectionManifestV1, SessionRequest} from '#/meta/api';
 import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
-
 import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ContractStruct} from '#/meta/chain';
-
 import type {PfpTarget} from '#/meta/pfp';
-import type {TokenSpecKey} from '#/meta/token';
 import type {Vocab} from '#/meta/vocab';
+
+import {TokenInterfaceRuntimeSchema} from '#/schema/token-interface-const';
 
 import toml from 'toml';
 
 import {load_icon_data} from './utils';
 
 import {SessionStorage} from '#/extension/session-storage';
-import {A_CHAIN_NAMESPACES, B_SAFARI_MOBILE, G_USERAGENT, N_PX_DIM_ICON, RT_CAIP_2_NAMESPACE, RT_CAIP_2_REFERENCE, R_BECH32, R_CAIP_10, R_CAIP_19, R_CAIP_2, R_CHAIN_ID_VERSION, R_CHAIN_NAME, R_CONTRACT_NAME, R_DATA_IMAGE_URL_WEB, R_TOKEN_SYMBOL} from '#/share/constants';
+import {A_CHAIN_NAMESPACES, N_PX_DIM_ICON, RT_CAIP_2_NAMESPACE, RT_CAIP_2_REFERENCE, RT_UINT, R_BECH32, R_CAIP_10, R_CAIP_19, R_CAIP_2, R_CHAIN_ID_VERSION, R_CHAIN_NAME, R_CONTRACT_NAME, R_DATA_IMAGE_URL_WEB, R_TOKEN_SYMBOL} from '#/share/constants';
 import type {AppProfile} from '#/store/apps';
-import {ode, timeout, is_dict} from '#/util/belt';
-
-import {concat, sha256, sha256_sync, text_to_buffer, uuid_v4} from '#/util/data';
-import {qs, qsa} from '#/util/dom';
-
-// import {Chains} from '#/store/chains';
-
+import {Chains} from '#/store/chains';
+import {ode, is_dict} from '#/util/belt';
+import {concat, sha256_sync, text_to_buffer, uuid_v4} from '#/util/data';
+import {qsa} from '#/util/dom';
 
 
 // verbose
 const logger = si_channel => (s: string, ...a_args: any[]) => console[si_channel](`StarShelll.isolated-core: ${s}`, ...a_args as unknown[]);
 const debug = logger('debug');
+const warn = logger('warn');
 const error = logger('error');
 // const debug = (s: string, ...a_args: any[]) => console.debug(`StarShell.isolated-core: ${s}`, ...a_args as unknown[]);
 // const error = (s: string, ...a_args: any[]) => console.error(`StarShell.isolated-core: ${s}`, ...a_args as unknown[]);
 
-const R_CHAIN_ID_WHITELIST = /^(kava_[1-9]\d*-|shentu-[1-9][0-9]*\.)[1-9]\d*$/;
+const R_CHAIN_ID_WHITELIST = /^(?:(kava_[1-9]\d*-|shentu-[1-9][0-9]*\.|evmos_[0-9]+-)[1-9]\d*|bostrom)$/;
 
 
 const f_runtime = () => chrome.runtime as Vocab.TypedRuntime<IcsToService.PublicVocab>;
@@ -124,7 +121,11 @@ export const ServiceRouter = {
 				}
 				// invalid chin id
 				else {
-					throw cerr(`Invalid chain id "${g_chain.reference}" for ${g_chain.namespace} family; failed to match regular expression /${R_CHAIN_ID_VERSION.source}/`);
+					// ignore it
+					creject(`Invalid chain id "${g_chain.reference}" for ${g_chain.namespace} family; failed to match regular expression /${R_CHAIN_ID_VERSION.source}/`);
+
+					// move onto next chain
+					continue;
 				}
 			}
 
@@ -135,11 +136,19 @@ export const ServiceRouter = {
 				}
 
 				if(!R_CHAIN_NAME.test(g_chain.name)) {
-					throw cerr(`Invalid chain name "${g_chain.name}"; failed to match regular expression /${R_CHAIN_NAME.source}/`);
+					// ignore it
+					creject(`Invalid chain name "${g_chain.name}"; failed to match regular expression /${R_CHAIN_NAME.source}/`);
+
+					// move onto next chain
+					continue;
 				}
 
 				if(g_chain.name.length > 64) {
-					throw cerr('Chain name too long');
+					// ignore it
+					creject('Chain name too long');
+
+					// move onto next chain
+					continue;
 				}
 			}
 
@@ -723,7 +732,14 @@ export async function create_app_profile(): Promise<AppProfile> {
 						}
 
 						// set chain property
-						g_sanitized.chain = `/family.${m_caip2[1] as ChainNamespaceKey}/chain.${m_caip2[2]}`;
+						const p_chain = g_sanitized.chain = `/family.${m_caip2[1] as ChainNamespaceKey}/chain.${m_caip2[2]}`;
+
+						// load chain definition
+						const g_chain = (await Chains.at(p_chain) || h_chains[g_sanitized.chain]) as ChainStruct;
+
+						// ref interfaces schema
+						const h_features = g_chain?.features;
+						const h_interface_schemas: Dict<Dict<TokenInterfaceRuntimeSchema>> = (h_features?.secretwasm || h_features?.['wasm'])?.interfaceSchemas || {};
 
 
 						// missing .address property
@@ -752,24 +768,124 @@ export async function create_app_profile(): Promise<AppProfile> {
 
 						// copy interfaces
 						if('interfaces' in g_contract) {
-							const a_interfaces = g_contract.interfaces as TokenSpecKey[];
-							if(Array.isArray(a_interfaces)) {
+							const h_interfaces = g_contract.interfaces as Dict<Dict>;
+							if(is_dict(h_interfaces)) {
 								// prep output
-								const a_specs: TokenSpecKey[] = g_sanitized.interfaces = [];
+								const h_specs: Dict<Dict> = g_sanitized.interfaces = {};
 
-								// create set of unique items
-								const as_interfaces = new Set(a_interfaces);
-
-								// check each value
-								for(const si_interface of as_interfaces) {
-									// not a string, ignore
-									if('string' !== typeof si_interface) {
-										error(`Ignoring non-string value in .contracts["${si_contract}"].interfaces list on WHIP-003 export: "${si_interface}"`);
+								// each declared interface
+								for(const [si_interface, h_interface] of ode(h_interfaces)) {
+									// invalid type
+									if(!is_dict(h_interface)) {
+										error(`Invalid type for optional .contracts["${si_contract}"].interfaces["${si_interface}"] property on WHIP-003 export`);
 										continue;
 									}
 
-									// valid, add to list
-									a_specs.push(si_interface);
+									// ref runtime schema
+									const h_schema = h_interface_schemas[si_interface];
+
+									// interface not recognized for chain
+									if(!h_schema) {
+										warn(`Skipping .contracts["${si_contract}"].interfaces["${si_interface}"] interface definition since it is not a recognized interface id on ${g_contract.chain}`);
+										continue;
+									}
+
+									// accepted; prep output interface
+									const g_interface_sanitized = h_specs[si_interface] = {};
+
+									// check each property value
+									for(const [si_property, z_value] of ode(h_interface)) {
+										// ref expected value type
+										const si_property_type = h_schema[si_property];
+
+										// prep property path
+										const s_property_path = `.contracts["${si_contract}"].interfaces["${si_interface}"]["${si_property}"]`;
+
+										// unexpected property value
+										if(!si_property_type) {
+											warn(`Skipping ${s_property_path} property since it is not a recognized property id for the ${si_interface} interface on ${g_contract.chain}`);
+											continue;
+										}
+
+										// not a primitive value, ignore
+										if(['boolean', 'number', 'string'].includes(typeof z_value)) {
+											error(`Invalid non-primitive value for interface property at ${s_property_path}`);
+											continue;
+										}
+
+										// prep sanitized value
+										let w_sanitized: boolean | number | string;
+
+										const s_validation_error = `Property value at ${s_property_path} does not meet the expected type criteria according to schema; `;
+
+										switch(si_property_type) {
+											// expecting string
+											case TokenInterfaceRuntimeSchema.String: {
+												w_sanitized = z_value+'';
+												break;
+											}
+
+											// expecting uint128
+											case TokenInterfaceRuntimeSchema.Uint128: {
+												if(!RT_UINT.test(z_value+'')) {
+													error(s_validation_error+`"${z_value}" should be a Uint128 string`);
+													continue;
+												}
+
+												w_sanitized = z_value+'';
+												break;
+											}
+
+											// expecting natural number
+											case TokenInterfaceRuntimeSchema.NaturalNumber: {
+												const n_parsed = 'number' === typeof z_value? z_value: 'string' === typeof z_value? parseFloat(z_value): NaN;
+												if(!Number.isInteger(n_parsed)) {
+													error(s_validation_error+`"${z_value}" should be a natural number (integer)`);
+													continue;
+												}
+
+												w_sanitized = n_parsed;
+												break;
+											}
+
+											// expecting natural number
+											case TokenInterfaceRuntimeSchema.Boolean: {
+												// string given
+												if('string' === z_value) {
+													if(/^[t1y]|true|yes$/i.test(z_value)) {
+														w_sanitized = true;
+													}
+													else if(/^[f0n]|false|no$/i.test(z_value)) {
+														w_sanitized = false;
+													}
+													else {
+														error(s_validation_error+`"${z_value}" should be true or false`);
+														continue;
+													}
+												}
+												// number or boolean given
+												else {
+													w_sanitized = !!z_value;
+												}
+
+												if(![true, false].includes(w_sanitized)) {
+													error(s_validation_error+`"${z_value}" should be a boolean`);
+													continue;
+												}
+
+												break;
+											}
+
+											// error in interface schema
+											default: {
+												error(`Unrecognized runtime schema datatype '${si_property_type}' for property value`);
+												continue;
+											}
+										}
+
+										// valid, add to interface struct
+										g_interface_sanitized[si_property] = w_sanitized;
+									}
 								}
 							}
 							else {

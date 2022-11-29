@@ -29,20 +29,6 @@
 		selected: as_preapplied.has(g_tag.index),
 	}));
 
-	// let h_tags_sel = oderom(H_TAGS, (p_tag, k_tag) => ({
-	// 	[p_tag]: {
-	// 		object: k_tag,
-	// 		selected: ($yw_popup_context!.tags as Tag[]).includes(k_tag),
-	// 	},
-	// }));
-
-	// ($yw_popup_context!.tags as Tag[]);
-
-	// function select_tag(k_tag: Tag) {
-	// 	$yw_popup_context!.tags = [...$yw_popup_context!.tags, k_tag];
-	// 	$yw_popup = null;
-	// }
-
 	function toggle_tag(i_tag: number) {
 		// find option by tag index
 		const g_option = a_tag_options.find(g => i_tag === g.tag.index)!;
@@ -117,18 +103,9 @@
 				</svelte:fragment>
 			</Row>
 		{/each}
-
-		<!-- {#each ode(h_tags_sel) as [p_tag, {object:k_tag, selected:b_selected}]}
-		{/each} -->
 	</div>
 
 	<div class="float">
 		<ActionsLine confirm={['Apply', apply_tags]} />
-
-		<!-- <div class="action-line">
-			<button class="primary" on:click={() => apply_tags()}>
-				Apply
-			</button>
-		</div> -->
 	</div>
 </section>

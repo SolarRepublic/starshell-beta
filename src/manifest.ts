@@ -1,5 +1,5 @@
-import type {ContentScripts} from 'webextension-polyfill';
 import type {Values} from './meta/belt';
+import type {ContentScripts} from 'webextension-polyfill';
 
 type ManifestV2 = chrome.runtime.ManifestV2;
 type ManifestV3 = chrome.runtime.ManifestV3;

@@ -33,12 +33,16 @@
 	import {dd} from '#/util/dom';
 	import {format_amount, format_date_long, format_time} from '#/util/format';
 	
-	import ActionsLine from '../ui/ActionsLine.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Fields from '../ui/Fields.svelte';
 	import Spacer from '../ui/Spacer.svelte';
 	
 	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
+    import { QueryCache } from '#/store/query-cache';
+    import { H_SNIP_TRANSACTION_HISTORY_HANDLER } from '#/chain/messages/snip-history';
+    import { produce_contract } from '#/chain/contract';
+    import type { TransactionHistoryItem } from '#/schema/snip-2x-def';
 	
 
 	const {
@@ -69,57 +73,6 @@
 	// determines view mode for app banner
 	const b_banner = true;
 
-	// const a_fields: SimpleField[] = [];
-	async function pretty_amount(s_input: string, p_chain: ChainPath): Promise<string> {
-			// attempt to parse amount
-		const m_amount = R_TRANSFER_AMOUNT.exec(s_input);
-		if(!m_amount) {
-			syswarn({
-				text: `Failed to parse transfer amount "${s_input}"`,
-			});
-		}
-		else {
-				// destructure into amount and denom
-			const [, s_amount, si_denom] = m_amount;
-
-			const g_chain = (await Chains.at(p_chain))!;
-
-				// locate coin
-			for(const [si_coin_test, g_coin_test] of ode(g_chain.coins)) {
-				if(si_denom === g_coin_test.denom) {
-					const x_amount = new BigNumber(s_amount).shiftedBy(-g_coin_test.decimals).toNumber();
-					return `${format_amount(x_amount, true)} ${si_coin_test}`;
-				}
-			}
-		}
-
-		return s_input;
-	}
-
-	const f_send_recv = (g_data: TxPending | TxConfirmed | TxSynced) => [
-		...'string' === typeof g_data['memo']? [{
-			type: 'memo',
-			text: g_data['memo'],
-		} as const]: [],
-		...g_data['hash'] && [{
-			type: 'links',
-			value: (async() => {
-				const g_chain = (await Chains.at(g_data.chain))!;
-				return [
-					{
-						href: Chains.blockExplorer('transaction', {
-							...g_data,
-						}, g_chain),
-						icon: SX_ICON_LAUNCH,
-						text: 'Block explorer',
-					},
-				];
-			})(),
-		}],
-	] as FieldConfig[];
-
-	const s_fiat_amount = '';
-
 	const H_RELABELS = {
 		'extra.pfpg.offset': 'pfp offset',
 	};
@@ -130,8 +83,6 @@
 		[si_type in IncidentType]: (g_data: Incident.Struct<si_type>['data'], g_context: LocalAppContext) => Promisable<EventViewConfig>;
 	} = {
 		async tx_out(g_data, g_context) {
-			const h_events = g_data.events;
-
 			// interpret raw messages
 			const a_reviewed = await Promise.all(g_data.msgs.map(async(g_msg_proto) => {
 				const g_msg_amino = proto_to_amino({
@@ -232,11 +183,18 @@
 				}
 			}
 
-			const a_fields_inbound_before: FieldConfig[] = [
+			const a_fields_inbound_above: FieldConfig[] = [
 				{
 					type: 'transaction',
 					hash: g_data.hash,
 					chain: g_context.g_chain,
+				},
+			];
+
+			const a_fields_inbound_below: FieldConfig[] = [
+				{
+					type: 'memo',
+					text: g_data.memo,
 				},
 			];
 
@@ -247,9 +205,9 @@
 				return {
 					s_title: g_reviewed?.title || 'Inbound Transaction',
 					a_fields: [
-						...a_fields_inbound_before,
+						...a_fields_inbound_above,
 						...g_reviewed?.fields || [],
-						// ...a_fields_inbound_after,
+						...a_fields_inbound_below,
 					],
 				};
 			}
@@ -294,6 +252,75 @@
 				s_title: 'Inbound Transaction',
 				a_fields: [],
 			};
+		},
+
+		token_in: async(g_data, g_context) => {
+			const {
+				account: p_account,
+				chain: p_chain,
+				bech32: sa_contract,
+				hash: si_tx,
+			} = g_data;
+
+			const {
+				g_account,
+				g_chain,
+			} = g_context;
+
+			const sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
+
+			// load from query cache
+			const g_response = await QueryCache.get(p_chain, sa_owner, `${sa_contract}:transaction_history`);
+
+			const g_contract = await produce_contract(sa_contract, g_chain);
+
+			const a_fields_inbound_above: FieldConfig[] = [
+				{
+					type: 'contracts',
+					bech32s: [sa_contract],
+					g_chain,
+					label: 'Token',
+				},
+			];
+
+			const a_fields_inbound_below: FieldConfig[] = [];
+	
+			if(g_response) {
+				const h_data = g_response.data;
+				const g_tx = h_data[si_tx] as TransactionHistoryItem;
+				const h_action = g_tx.action;
+				if(h_action.transfer) {
+					const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_tx, {
+						g_snip20: g_contract.interfaces.snip20!,
+						g_contract,
+						g_chain,
+						g_account,
+					});
+
+
+					const g_reviewed = await g_handled?.review?.();
+
+					if(g_reviewed) {
+						return {
+							s_title: g_reviewed.title,
+							a_fields: [
+								...a_fields_inbound_above,
+								...g_reviewed?.fields || [],
+								...a_fields_inbound_below,
+							],
+						};
+					}
+				}
+
+				return {
+					s_title: 'Received Transfer',
+					a_fields: [
+						...a_fields_inbound_above,
+						...[],
+						...a_fields_inbound_below,
+					],
+				};
+			}
 		},
 
 		account_created: g_data => ({

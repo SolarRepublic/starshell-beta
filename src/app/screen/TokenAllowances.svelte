@@ -103,7 +103,7 @@
 		subtitle={s_header_subtitle}
 	/>
 
-	<ChainToken contract={contract} />
+	<ChainToken isToken contract={contract} />
 
 
 	{#if g_snip20}

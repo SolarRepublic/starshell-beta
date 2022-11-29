@@ -8,7 +8,6 @@
 	import {load_flow_context} from '../svelte';
 	
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
-	import {system_notify} from '#/extension/browser';
 	import {global_wait} from '#/script/msg-global';
 	import {NetworkFeed} from '#/script/service-feed';
 	import {Accounts} from '#/store/accounts';
@@ -21,6 +20,7 @@
 	import AppBanner from '../frag/AppBanner.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Field from '../ui/Field.svelte';
+    import { system_notify } from '#/extension/notifications';
 	
 
 	// flow complete callback

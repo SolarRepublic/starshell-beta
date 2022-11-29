@@ -4,6 +4,7 @@
 
 <script lang="ts">
 	import {yw_blur} from '##/mem';
+	
 	import SX_ICON_ADD_SMALL from '#/icon/add-small.svg?raw';
 	
 	export let title: string;

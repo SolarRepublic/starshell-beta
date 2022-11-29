@@ -9,6 +9,7 @@
 	
 	import {Chains} from '#/store/chains';
 	import {ConnectionHealth, H_HEALTH_COLOR, Providers} from '#/store/providers';
+	import {ode} from '#/util/belt';
 	import {
 		yw_menu_vendor,
 		yw_chain_ref,
@@ -16,7 +17,6 @@
 		yw_connection_health,
 		yw_chain,
 	} from '##/mem';
-    import { ode } from '#/util/belt';
 
 	interface Item {
 		click: VoidFunction;

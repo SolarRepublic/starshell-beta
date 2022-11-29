@@ -14,11 +14,11 @@
 	import {forever, proper} from '#/util/belt';
 	
 	import AccountEdit from './AccountEdit.svelte';
-	import AddressResourceControl from '../frag/AddressResourceControl.svelte';
 	import Send from './Send.svelte';
-	import Gap from '../ui/Gap.svelte';
+	import AddressResourceControl from '../frag/AddressResourceControl.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
 	import Portrait from '../frag/Portrait.svelte';
+	import Gap from '../ui/Gap.svelte';
 	
 
 	const {k_page} = load_page_context();

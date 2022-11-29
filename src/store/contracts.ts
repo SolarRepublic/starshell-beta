@@ -1,24 +1,26 @@
+import type {
+	FilterPrimitive} from './_base';
 import type {O} from 'ts-toolbelt';
 
+import type {AppPath} from '#/meta/app';
+import type {Dict} from '#/meta/belt';
 import type {AgentOrEntityOrigin, Bech32, ChainNamespaceKey, ChainPath, ContractStruct, ContractPath, ChainStruct} from '#/meta/chain';
-
 import type {PfpPath} from '#/meta/pfp';
 import type {TokenStructDescriptor} from '#/meta/token';
 
 import {
 	create_store_class,
+	FilterValue,
+	filter_applies,
 	WritableStoreMap,
 } from './_base';
 
+import {Apps} from './apps';
 import {Chains} from './chains';
-
 import {Pfps} from './pfps';
 
 import {SI_STORE_CONTRACTS} from '#/share/constants';
-
 import {is_dict, ode} from '#/util/belt';
-import { Apps } from './apps';
-import type { AppPath } from '#/meta/app';
 
 
 export enum ContractRole {
@@ -109,6 +111,10 @@ export const Contracts = create_store_class({
 			return ContractRole.OTHER;
 		}
 
+		static filterRole(xc_filter: ContractRole, gc_filter_props?: ContractFilterConfig): Promise<[ContractPath, ContractStruct][]> {
+			return Contracts.open(ks => ks.filterRole(xc_filter, gc_filter_props));
+		}
+
 		filterTokens(gc_filter: TokenFilterConfig): ContractStruct[] {
 			const a_tokens: ContractStruct[] = [];
 
@@ -150,7 +156,7 @@ export const Contracts = create_store_class({
 			return a_tokens;
 		}
 
-		async filterRole(xc_filter: ContractRole): Promise<[ContractPath, ContractStruct][]> {
+		async filterRole(xc_filter: ContractRole, gc_filter_props?: ContractFilterConfig): Promise<[ContractPath, ContractStruct][]> {
 			const ks_chains = await Chains.read();
 
 			const a_filtered: [ContractPath, ContractStruct][] = [];
@@ -158,8 +164,15 @@ export const Contracts = create_store_class({
 			for(const [p_contract, g_contract] of ode(this._w_cache)) {
 				const xc_role = ContractsI.roleOf(g_contract, ks_chains.at(g_contract.chain)!);
 
-				// token passed filter role; add it to list
+				// token passed filter role
 				if(xc_filter === xc_role || (xc_filter & xc_role)) {
+					// additional criteria
+					if(gc_filter_props) {
+						// filter does not apply; skip
+						if(!filter_applies(gc_filter_props as Dict<FilterPrimitive>, g_contract)) continue;
+					}
+
+					// add it to list
 					a_filtered.push([p_contract, g_contract]);
 				}
 			}

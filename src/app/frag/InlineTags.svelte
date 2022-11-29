@@ -62,7 +62,7 @@
 	});
 
 	// cache the list of tags for this resource
-	$: a_tags = $yw_store_tags!.getTagsFor(resourcePath);
+	$: a_tags = $yw_store_tags?.getTagsFor(resourcePath) || [];
 
 	// auto-collapse
 	$: if(autoCollapse && a_tags?.length > 1) collapsed = true;

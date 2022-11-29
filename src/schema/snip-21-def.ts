@@ -35,12 +35,12 @@ export namespace Snip21 {
 	> {
 		transfer_history: Snip20.ExtendGroup<'BaseQuery', 'transfer_history', {
 			response: {
-				total: Cw.WholeNumber;
+				total?: Cw.WholeNumber | undefined;
 				txs: O.Merge<{
 					block_time?: Cw.NaturalNumber | undefined;
 					block_height?: Cw.NaturalNumber | undefined;
+					memo?: Cw.String | undefined;
 				}, Snip20.Registries['BaseQuery']['transfer_history']['response']['txs'][number]>[];
-				memo?: Cw.String | undefined;
 			};
 		}>;
 
@@ -55,7 +55,7 @@ export namespace Snip21 {
 			response: {
 				total: Cw.WholeNumber;
 				txs: {
-					id?: Cw.String | undefined;
+					id?: Cw.NaturalNumber | undefined;
 					block_time: Cw.NaturalNumber;
 					block_height: Cw.NaturalNumber;
 					coins: {
@@ -67,7 +67,7 @@ export namespace Snip21 {
 						transfer?: {
 							from: s_bech32;
 							sender: s_bech32;
-							receiver: s_bech32;
+							recipient: s_bech32;
 						};
 						mint?: {
 							minter: s_bech32;
@@ -80,7 +80,7 @@ export namespace Snip21 {
 						deposit?: {};
 						redeem?: {};
 					}
-				};
+				}[];
 			};
 		};
 	}

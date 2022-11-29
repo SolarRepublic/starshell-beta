@@ -1,12 +1,12 @@
 import type {AbciConfig, ReceiverError, ReceiverHooks} from './service-tx-abcis';
 
-import type {AccountStruct} from '#/meta/account';
+import type {AccountPath, AccountStruct} from '#/meta/account';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-import type {ChainPath, ChainStruct} from '#/meta/chain';
+import type {Bech32, ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 
 import {Chains} from './ics-witness-imports';
-import {global_broadcast} from './msg-global';
+import {global_broadcast, global_receive, global_wait} from './msg-global';
 import {account_abcis} from './service-tx-abcis';
 
 import {syserr} from '#/app/common';
@@ -17,10 +17,14 @@ import type {TjrwsValueNewBlock, TjrwsValueTxResult, WsTxResponse} from '#/cosmo
 import type {NotificationConfig} from '#/extension/notifications';
 import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_EXTERNAL} from '#/store/apps';
+import {ContractRole, Contracts} from '#/store/contracts';
 import {NetworkTimeoutError, Providers} from '#/store/providers';
+import {Snip2xToken} from '#/schema/snip-2x-const';
 
-import {ode, timeout_exec} from '#/util/belt';
+import {ode, timeout, timeout_exec} from '#/util/belt';
 import {buffer_to_base64} from '#/util/data';
+import type { SecretNetwork } from '#/chain/secret-network';
+import { Limiter } from '#/util/limiter';
 
 
 const XT_ERROR_THRESHOLD_RESTART = 120e3;
@@ -32,7 +36,12 @@ interface FeedHooks {
 	notify?(gc_notify: NotificationConfig, k_feed: NetworkFeed): Promisable<void>;
 }
 
+interface TokenState {
+	accounts: AccountStruct[];
+}
+
 const H_FEEDS: Record<ChainPath, NetworkFeed> = {};
+const H_FEEDS_TOKENS: Record<ChainPath, NetworkFeed> = {};
 export class NetworkFeed {
 	static async createAll(gc_feed: FeedHooks): Promise<NetworkFeed[]> {
 		// read from chains and providers stores
@@ -129,17 +138,23 @@ export class NetworkFeed {
 				}
 
 				// destroy old feed
-				if(H_FEEDS[p_chain]) {
-					try {
-						H_FEEDS[p_chain].destroy();
-					}
-					catch(e_destroy) {}
-				}
+				H_FEEDS[p_chain]?.destroy?.();
 
 				console.debug(`🌊 Creating network feed for ${Chains.caip2From(g_chain)} on <${g_selected.grpcWebUrl}>`);
 
 				// create new feed for top chain
 				const dp_feed = NetworkFeed.create(g_chain, g_selected, gc_feed);
+
+				// create a supplemental feed for tokens only
+				{
+					H_FEEDS_TOKENS[p_chain]?.destroy?.();
+					const k_feed = new NetworkFeed(g_chain, g_selected, gc_feed);
+					(async() => {
+						await k_feed.open();
+						await k_feed.followTokens();
+						H_FEEDS_TOKENS[p_chain] = k_feed;
+					})();
+				}
 
 				a_feeds.push(dp_feed.then(k_feed => H_FEEDS[p_chain] = k_feed));
 			});
@@ -147,6 +162,15 @@ export class NetworkFeed {
 
 		// return once they have all resolved
 		return await Promise.all(a_feeds);
+	}
+
+	static async pickProvider(p_chain: ChainPath, p_provider: ProviderPath, gc_feed: FeedHooks): Promise<NetworkFeed> {
+		const g_chain = (await Chains.at(p_chain))!;
+		const g_provider = (await Providers.at(p_provider))!;
+
+		H_FEEDS[p_chain]?.destroy?.();
+
+		return await NetworkFeed.create(g_chain, g_provider, gc_feed);
 	}
 
 	/**
@@ -163,11 +187,20 @@ export class NetworkFeed {
 		// open socket
 		await k_feed.open();
 
-		// follow blocks
-		await k_feed.followBlocks();
+		try {
+			// follow blocks
+			await k_feed.followBlocks();
 
-		// follow all accounts
-		await k_feed.followAccounts();
+			// follow all accounts
+			await k_feed.followAccounts();
+
+			// // follow fungible tokens
+			// await k_feed.followTokens();
+		}
+		catch(e_follow) {
+			console.error(e_follow);
+		}
+
 
 		return k_feed;
 	}
@@ -518,5 +551,159 @@ export class NetworkFeed {
 		}
 
 		return h_streams;
+	}
+
+	async followTokens() {
+		const {
+			_p_chain,
+			_g_chain,
+			_kc_socket,
+		} = this;
+
+		// nil socket
+		if(!_kc_socket) throw new Error(`No active websocket to subcribe to Tendermint JSON-RPC connection`);
+
+		// gather set of fungible tokens
+		const h_tokens: Record<ContractPath, TokenState> = {};
+
+		// load accounts
+		const ks_accounts = await Accounts.read();
+
+		// read contracts store
+		const ks_contracts = await Contracts.read();
+
+		// select fungible tokens on this chain that are enabled
+		const a_candidates = await ks_contracts.filterRole(ContractRole.FUNGIBLE, {
+			chain: _p_chain,
+			on: 1,
+		});
+
+		// on secretwasm
+		if(_g_chain.features.secretwasm) {
+			// each token
+			for(const [p_contract, g_contract] of a_candidates) {
+				// prep list of accounts that follow this token
+				const g_state = h_tokens[p_contract] = {
+					accounts: [] as AccountStruct[],
+				};
+
+				const a_accounts = g_state.accounts;
+
+				// each account
+				for(const [, g_account] of ks_accounts.entries()) {
+					const a_viewing_key = await Snip2xToken.viewingKeyFor(g_contract, _g_chain, g_account);
+
+					// account does not hold this token
+					if(!a_viewing_key) continue;
+
+					// add account to list
+					a_accounts.push(g_account);
+				}
+
+				await this._subscribe_contract(g_contract, a_accounts);
+			}
+
+			// new token added
+			global_receive({
+				async tokenAdded({p_contract, p_chain, p_account}) {
+					const [
+						g_contract,
+						g_chain,
+						g_account,
+					] = await Promise.all([
+						Contracts.at(p_contract),
+						Chains.at(p_chain),
+						Accounts.at(p_account),
+					]);
+
+					const a_viewing_key = await Snip2xToken.viewingKeyFor(g_contract!, g_chain!, g_account!);
+
+					// account does not hold this token
+					if(!a_viewing_key) return;
+
+					// add account to existing list of accounts that subscribe to this token
+					if(h_tokens[p_contract]) {
+						h_tokens[p_contract].accounts.push(g_account!);
+					}
+					// create new subscription
+					else {
+						const a_accounts = [g_account!];
+
+						h_tokens[p_contract] = {
+							accounts: a_accounts,
+						};
+
+						await this._subscribe_contract(g_contract, a_accounts);
+					}
+				},
+			})
+		}
+	}
+
+	async _subscribe_contract(g_contract: ContractStruct, a_accounts: AccountStruct[]) {
+		const {
+			_kc_socket,
+		} = this;
+
+		// nil socket
+		if(!_kc_socket) throw new Error(`No active websocket to subcribe to Tendermint JSON-RPC connection`);
+
+		// prep limiter for checking contract state
+		const k_limiter = new Limiter(() => {
+			for(const g_account of a_accounts) {
+				void this.checkSnip20(g_contract, g_account);
+			}
+		}, {
+			resolution: 90e3,  // 90 second resolution
+		});
+
+		// subscribe to new executions
+		await _kc_socket.subscribe<TjrwsValueNewBlock>([
+			`wasm.contract_address='${g_contract.bech32}'`,
+		], async() => {
+			console.debug(`Sending notice to check on ${g_contract.name}`);
+
+			await global_wait('blockInfo', ({chain:p_chain}) => p_chain === this._p_chain, 9e3);
+
+			await timeout(1e3);
+
+			// queue an update on this token for each account that owns it
+			void k_limiter.notice();
+		});
+
+		// initialize
+		void k_limiter.notice();
+	}
+
+	async checkSnip20(g_contract: ContractStruct, g_account: AccountStruct) {
+		const {
+			_k_network,
+		} = this;
+
+		const k_snip20 = Snip2xToken.from(g_contract, _k_network as SecretNetwork, g_account)!;
+		if(!k_snip20) {
+			console.error(`${g_contract.name} (${g_contract.bech32}) is not a SNIP-20 token`);
+			return;
+		}
+
+		try {
+			// transaction history method available on contract
+			if(k_snip20.snip21) {
+				await k_snip20.transactionHistory();
+			}
+			// fallback to transfer history
+			else {
+				const a_history = await k_snip20.transferHistory(16);
+
+				debugger;
+				console.log({
+					a_history,
+				});
+			}
+		}
+		catch(e_query) {
+			debugger;
+			console.error(e_query);
+		}
 	}
 }

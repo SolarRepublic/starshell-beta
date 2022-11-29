@@ -1,22 +1,16 @@
-import type { AppContext } from '#/app/svelte';
-import type { JsonMsgSend, PendingSend, TypedEvent } from '#/chain/cosmos-network';
-import type { Dict, Explode, JsonObject } from '#/meta/belt';
-import type { GenericAminoMessage } from '#/schema/amino';
-import type { Snip24Permission } from '#/schema/snip-24-def';
-import type { AminoMsg } from '@cosmjs/amino';
-import type { Coin } from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-import type { O, Union } from 'ts-toolbelt';
-import type { Cast } from 'ts-toolbelt/out/Any/Cast';
-import type { Merge } from 'ts-toolbelt/out/Object/Merge';
-import type {Nameable, Pfpable} from './able';
-import type { AccountPath } from './account';
-import type { AppApiMode, AppChainConnection, AppPath, AppPermissionSet } from './app';
-import type { Access, Values } from './belt';
-import type {Bech32, ChainPath, ChainNamespace, ChainNamespaceKey} from './chain';
-import type { Cw } from './cosm-wasm';
+import type {AccountPath} from './account';
+import type {AppApiMode, AppChainConnection, AppPath} from './app';
+import type {Bech32, ChainPath} from './chain';
+import type {Cw} from './cosm-wasm';
 import type {Resource} from './resource';
-import type { Secret, SecretPath } from './secret';
+import type {SecretPath} from './secret';
+import type {O} from 'ts-toolbelt';
+import type {Cast} from 'ts-toolbelt/out/Any/Cast';
 
+import type {Dict, JsonObject} from '#/meta/belt';
+
+
+export type SignedJsonEventRegistry = {};
 
 export type MsgEventRegistry = {
 	coin_received?: {
@@ -56,6 +50,19 @@ export type MsgEvent<
 > = MsgEventRegistry[si_key];
 
 
+interface ChainAccount extends JsonObject {
+	// chain that this incident occurred on
+	chain: ChainPath;
+
+	// the involved account
+	account: AccountPath;
+}
+
+interface AppChainAccount extends ChainAccount {
+	app: AppPath;
+}
+
+
 export interface TxMsg extends JsonObject {
 	events: Partial<MsgEventRegistry>;
 }
@@ -78,13 +85,7 @@ export interface TxSigner extends JsonObject {
 }
 
 
-export interface TxCore extends JsonObject {
-	// chain that this transaction belongs to
-	chain: ChainPath;
-
-	// the involved account
-	account: AccountPath;
-
+export interface TxCore extends ChainAccount {
 	// txResponse.code
 	code: number;
 
@@ -181,10 +182,12 @@ export interface TxAbsent extends TxCore, TxOutgoing {
 
 type TxStageKey = (TxPending | TxConfirmed | TxSynced)['stage'];
 
-interface AppChainAccount {
-	app: AppPath;
-	chain: ChainPath;
-	account: AccountPath;
+interface InboundTokenTransfer extends ChainAccount {
+	// contract bech32
+	bech32: Bech32;
+
+	// hash of tx in query cache
+	hash: string;
 }
 
 export type IncidentRegistry = {
@@ -198,6 +201,8 @@ export type IncidentRegistry = {
 	tx_out: TxPending | TxSynced | TxError | TxAbsent;
 
 	tx_in: TxSynced;
+
+	token_in: InboundTokenTransfer;
 
 	account_created: {
 		account: AccountPath;

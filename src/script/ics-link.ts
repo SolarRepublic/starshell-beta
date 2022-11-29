@@ -1,6 +1,7 @@
+import type * as UtilsImport from './utils';
+
 import type * as DataImport from '#/util/data';
 import type * as DomImport from '#/util/dom';
-import type * as UtilsImport from './utils';
 
 console.log(`StarShell.ics-link: Launched on <${location.href}>`);
 

@@ -158,7 +158,7 @@ export const Pfps = create_store_class({
 		// 	return `/template.pfp/id.${hash_json(g_pfp)}`;
 		// }
 
-		static async load(p_pfp: PfpTarget, gc_render: RenderConfig): Promise<HTMLElement | null> {
+		static async load(p_pfp: PfpTarget, gc_render: RenderConfig): Promise<HTMLPictureElement | null> {
 			// session storage ref
 			if(p_pfp.startsWith('pfp:')) {
 				// load data URL from session storage
@@ -195,7 +195,38 @@ export const Pfps = create_store_class({
 			}
 		}
 
-		static render(g_pfp: PfpStruct, gc_render: RenderConfig): HTMLElement {
+		static async createUrlFromDefault(p_pfp: PfpTarget): Promise<string | null> {
+			const ks_medias = await Medias.read();
+
+			// session storage ref
+			if(p_pfp.startsWith('pfp:')) {
+				// load data URL from session storage
+				const p_data = await SessionStorage.get(p_pfp as `pfp:${string}`);
+
+				// nothing to render
+				if(!p_data) return null;
+
+				// render data URL
+				return read_image_data(ks_medias, p_data as ImageMediaTarget);
+			}
+			// direct svg
+			else if(p_pfp.startsWith('svg:')) {
+				// render data URL
+				return p_pfp.slice('svg:'.length);
+			}
+			// store ref
+			else {
+				const g_pfp = await Pfps.at(p_pfp as Resource.Path<Pfp>);
+
+				if(!g_pfp) return null;
+
+				if('plain' !== g_pfp.type) return null;
+
+				return read_image_data(ks_medias, g_pfp.image.default);
+			}
+		}
+
+		static render(g_pfp: PfpStruct, gc_render: RenderConfig): HTMLPictureElement | null {
 			// dimension styling
 			const sx_style_picture = `width:${gc_render.dim}px; height:${gc_render.dim}px;`;
 
@@ -223,6 +254,8 @@ export const Pfps = create_store_class({
 					// TODO: log error
 				}
 			}
+
+			return null;
 		}
 
 		static async addSvg(dm_svg: SVGSVGElement): Promise<SavedPfpEntry> {

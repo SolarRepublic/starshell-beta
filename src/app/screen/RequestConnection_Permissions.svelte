@@ -291,7 +291,7 @@
 						hash: g_contract.hash || '',
 						interfaces: h_interfaces,
 						pfp: p_saved,
-						origin: 'domain',
+						origin: `app:${p_app}`,
 					});
 				}
 			});

@@ -1,7 +1,6 @@
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-
 import type {ImageMediaTarget} from './media';
 import type {Resource} from './resource';
+import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 
 export type ImageSet = {

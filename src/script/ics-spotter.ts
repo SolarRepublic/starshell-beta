@@ -1,3 +1,5 @@
+import type * as ImportHelper from './ics-spotter-imports';
+
 import type {
 	AppToSpotter,
 	IcsToService,
@@ -6,7 +8,6 @@ import type {
 
 import type {Vocab} from '#/meta/vocab';
 
-import type * as ImportHelper from './ics-spotter-imports';
 
 /**
  * The spotter's sole purpose is to silently forward advertisement requests from the page to the service.

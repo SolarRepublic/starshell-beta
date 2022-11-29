@@ -3,6 +3,7 @@
 	import {slide} from 'svelte/transition';
 	
 	import {Screen} from './_screens';
+	import {yw_popup} from '../mem';
 	import {load_flow_context} from '../svelte';
 	
 	import ActionsLine from '#/app/ui/ActionsLine.svelte';
@@ -17,8 +18,8 @@
 	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, B_FIREFOX_ANDROID, B_WITHIN_WEBEXT_POPOVER} from '#/share/constants';
 	import {CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from '#/share/errors';
 	import {stringify_params} from '#/util/dom';
-    import PopupFactoryReset from '../popup/PopupFactoryReset.svelte';
-    import { yw_popup } from '../mem';
+	
+	import PopupFactoryReset from '../popup/PopupFactoryReset.svelte';
 	
 
 	// will be set if part of flow

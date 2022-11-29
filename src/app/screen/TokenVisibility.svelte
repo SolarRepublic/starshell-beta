@@ -20,13 +20,14 @@
 	import QueryPermitCreate from './QueryPermitCreate.svelte';
 	import RequestSignature from './RequestSignature.svelte';
 	import ChainToken from '../frag/ChainToken.svelte';
+	import QueryPermitRow from '../frag/QueryPermitRow.svelte';
 	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
 	import PasswordField from '../ui/PasswordField.svelte';
-	import QueryPermitRow from '../frag/QueryPermitRow.svelte';
 	import Row from '../ui/Row.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
+    import AppView from './AppView.svelte';
 	
 	
 	const {
@@ -51,7 +52,7 @@
 
 	let s_viewing_key = '';
 	let g_viewing_key: SecretStruct<'viewing_key'>;
-	let a_outlets_vks: AppStruct[] = [];
+	let a_outlets_vks: [AppPath, AppStruct][] = [];
 
 	let a_permits: SecretStruct<'query_permit'>[] = [];
 	let s_permit_title = '';
@@ -76,7 +77,7 @@
 
 			[s_viewing_key, g_viewing_key] = a_viewing_key;
 
-			a_outlets_vks = await Promise.all(g_viewing_key.outlets.map(p => ks_apps.at(p)));
+			a_outlets_vks = await Promise.all(g_viewing_key.outlets.map(p => [p, ks_apps.at(p)]));
 		}
 
 		a_permits = await Secrets.filter({
@@ -99,7 +100,7 @@
 			s_permit_title = 'No query permits yet';
 		}
 		else {
-			s_permit_title = `${a_permits.length} permit${1 === a_permits.length? ' grants': 's grant'} ${as_apps.size} app${1 === as_apps.size? '': 's'} some query permissions`;
+			// s_permit_title = `${a_permits.length} permit${1 === a_permits.length? ' grants': 's grant'} ${as_apps.size} app${1 === as_apps.size? '': 's'} some query permissions`;
 		}
 	})();
 
@@ -183,7 +184,7 @@
 		</Tooltip>
 	</h3>
 
-	<ChainToken contract={contract} />
+	<ChainToken isToken={b_snip20} contract={contract} />
 
 	{#if b_snip20}
 		<PasswordField password={s_viewing_key} label="Viewing Key">
@@ -196,12 +197,26 @@
 
 		<Field key="apps-vks" name="Apps with Viewing Key">
 			<div>
-				{0 === a_outlets_vks.length? 'No': a_outlets_vks.length} app{1 === a_outlets_vks.length? ' has': 's have'} this viewing key
+				{#if !a_outlets_vks.length}
+					No apps have this viewing key
+				{:else}
+					<!-- {0 === a_outlets_vks.length? 'No': a_outlets_vks.length} app{1 === a_outlets_vks.length? ' has': 's have'} this viewing key -->
+				{/if}
 			</div>
 
-			{#each a_outlets_vks as g_outlet}
+			{#each a_outlets_vks as [p_outlet, g_outlet]}
 				<Row
 					resource={g_outlet}
+					resourcePath={p_outlet}
+					detail={g_outlet.host}
+					on:click={() => {
+						k_page.push({
+							creator: AppView,
+							props: {
+								app: g_outlet,
+							},
+						});
+					}}
 				/>
 			{/each}
 		</Field>
@@ -222,13 +237,9 @@
 		</svelte:fragment>
 
 		{#if contract.interfaces.snip24}
-			{s_permit_title}
-
-			{#each a_outlets_vks as g_outlet}
-				<Row
-					resource={g_outlet}
-				/>
-			{/each}
+			{#if s_permit_title}
+				{s_permit_title}
+			{/if}
 
 			{#each a_permits as g_permit}
 				<QueryPermitRow secret={g_permit} />

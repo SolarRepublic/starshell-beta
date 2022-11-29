@@ -4,6 +4,8 @@
  * each one.
  */
 
+/* eslint-disable */
+
 // mimic `__awaiter`
 const n = function(thisArg, _arguments, P, generator) {
 	function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -22,53 +24,6 @@ import s from '@keplr-wallet/router';
 
 // create and export intercepts
 export const H_INTERCEPTS: Dict<{}> = {};
-
-// // intercept "unwrap" method
-// {
-// 	const f_unwrap = s.JSONUint8Array.unwrap;
-// 	s.JSONUint8Array.unwrap = function(z_return: unknown) {
-// 		// apply original unwrap method
-// 		const z_intercept = f_unwrap(z_return);
-
-// 		// not interested
-// 		if(!z_intercept?.return) return z_intercept;
-
-// 		// interested
-// 		if(Array.isArray(z_intercept?.return?.intercepts)) {
-// 			// ref list of keys to intercept
-// 			const a_intercepts = z_intercept.return.intercepts;
-
-// 			// each key
-// 			for(const si_key of a_intercepts) {
-// 				const z_value = z_intercept[si_key];
-
-// 				if(z_value instanceof Uint8Array) {
-// 					z_intercept[si_key] = new Proxy(z_value, {
-
-// 					});
-// 				}
-// 				else if('string' === typeof z_value) {
-// 					z_intercept[si_key] = new Proxy(new String(''), {
-						
-// 					});
-// 				}
-// 			}
-
-// 			console.log({
-// 				a_intercepts,
-// 			})
-// 			debugger;
-
-// 			delete z_intercept.return.intercepts;
-// 		}
-
-// 		return z_intercept;
-// 	};
-
-// 	console.warn({
-// 		s,
-// 	});
-// }
 
 // mimic `deepmerge_1`
 import deepmerge from 'deepmerge';
@@ -101,7 +56,7 @@ const o = {
 	KeplrEnigmaUtils: class{constructor(t,e){this.chainId=t,this.keplr=e}getPubkey(){return n(this,void 0,void 0,(function*(){return yield this.keplr.getEnigmaPubKey(this.chainId)}))}getTxEncryptionKey(t){return n(this,void 0,void 0,(function*(){return yield this.keplr.getEnigmaTxEncryptionKey(this.chainId,t)}))}encrypt(t,e){return n(this,void 0,void 0,(function*(){return yield this.keplr.enigmaEncrypt(this.chainId,t,e)}))}decrypt(t,e){return n(this,void 0,void 0,(function*(){return yield this.keplr.enigmaDecrypt(this.chainId,t,e)}))}},
 };
 
-// mimi `cosmos_1.CosmJSOfflineSignerOnlyAmino`
+// mimic `cosmos_1.CosmJSOfflineSignerOnlyAmino`
 //   generated at runtime using `console.log(window.keplr.getOfflineSignerOnlyAmino('dummy-1').constructor.toString())`
 const i = class i{constructor(t,e){this.chainId=t,this.keplr=e}getAccounts(){return n(this,void 0,void 0,(function*(){const t=yield this.keplr.getKey(this.chainId);return[{address:t.bech32Address,algo:"secp256k1",pubkey:t.pubKey}]}))}signAmino(t,e){return n(this,void 0,void 0,(function*(){if(this.chainId!==e.chain_id)throw new Error("Unmatched chain id with the offline signer");if((yield this.keplr.getKey(e.chain_id)).bech32Address!==t)throw new Error("Unknown signer address");return yield this.keplr.signAmino(this.chainId,t,e)}))}sign(t,e){return n(this,void 0,void 0,(function*(){return yield this.signAmino(t,e)}))}}
 

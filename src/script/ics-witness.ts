@@ -96,6 +96,9 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 		Secrets,
 		Snip2xToken,
+		
+		TxRaw,
+		encode_proto,
 	} = inline_require('./ics-witness-imports.ts') as typeof ImportHelper;
 
 	type KeplrResponse<w_success extends any=any> = undefined | {
@@ -232,11 +235,14 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return this._kc_viewing_keys.queue(sa_token);
 		}
 
-		broadcast(sx_tx: string, xc_broadcast_mode: BroadcastMode) {
-			debugger;
-			console.log({
-				sx_tx,
-				xc_broadcast_mode,
+		broadcast(g_tx: TxRaw, xc_broadcast_mode: BroadcastMode): Promise<IcsToService.AppResponse<string>> {
+			return f_runtime_app().sendMessage({
+				type: 'requestBroadcast',
+				value: {
+					accountPath: this._p_account,
+					chainPath: this._p_chain,
+					sxb93_tx_raw: buffer_to_base93(encode_proto(TxRaw, g_tx)),
+				},
 			});
 		}
 	}
@@ -571,7 +577,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 	}
 
 	function app_to_keplr<w_out extends any>(
-		g_response: IcsToService.AppResponse<JsonValue>,
+		g_response: IcsToService.AppResponse<JsonValue | undefined>,
 		f_transform=(w_in: any): w_out => w_in
 	): KeplrResponse<w_out> {
 		if(g_response?.error) {
@@ -597,13 +603,15 @@ const XT_POLYFILL_DELAY = 1.5e3;
 		: w_thing extends any[]
 			? L.Replace<w_thing, Uint8Array, string>
 			: w_thing extends object
-				? {
-					[si_key in keyof w_thing]: w_thing[si_key] extends infer z_value
-						? z_value extends Uint8Array
-							? string
-							: z_value
-						: w_thing[si_key];
-				}
+				? [object] extends [w_thing]
+					? w_thing
+					: {
+						[si_key in keyof w_thing]: w_thing[si_key] extends infer z_value
+							? z_value extends Uint8Array
+								? string
+								: z_value
+							: w_thing[si_key];
+					}
 				: w_thing;
 
 	type ImplementedProxiedMethods<w_keplr extends Keplr=Keplr> = {
@@ -801,9 +809,21 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			const g_chain = await Chains.at(p_chain);
 			if(!g_chain) throw `Refusing token suggestion for unknown chain "${si_chain}"`;
 
+			// decode the proto
+			if('string' !== typeof sx_tx) throw `Invalid type supplied for tx argument`;
 
-			// buffer_to_keplr_str();
-			return await k_connection.broadcast(sx_tx, xc_broadcast_mode);
+			let g_tx!: TxRaw;
+			try {
+				g_tx = TxRaw.decode(keplr_str_to_buffer(sx_tx));
+			}
+			catch(e_decode) {
+				throw `Failed to decode tx data`;
+			}
+
+			return app_to_keplr(
+				await k_connection.broadcast(g_tx, xc_broadcast_mode),
+				si_txn => buffer_to_keplr_str(base64_to_buffer(si_txn))
+			);
 		}
 
 		async signArbitrary(a_args: ProxyArgs<'signArbitrary'>): AsyncKeplrResponse<DeKeplrified<StdSignature>> {
@@ -816,6 +836,8 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				sa_signer,
 				z_data,
 			});
+
+			throw `ADR-36 not supported`;
 		}
 
 		verifyArbitrary(a_args: ProxyArgs<'verifyArbitrary'>): AsyncKeplrResponse<boolean> {
@@ -828,6 +850,8 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				sa_signer,
 				z_data,
 			});
+
+			throw `ADR-36 not supported`;
 		}
 
 		async suggestToken(a_args: ProxyArgs<'suggestToken'>): AsyncKeplrResponse<void> {
@@ -917,7 +941,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			};
 
 			// already approved for this app
-			if(a_vks.filter(g => g.outlets.includes(p_app))) {
+			if(a_vks.filter(g => g.outlets.includes(p_app)).length) {
 				return g_approve;
 			}
 
@@ -1312,7 +1336,8 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			}
 
 			// find target string
-			const b_keplr_window = /window(\.keplr|\[['"`]keplr['"`]\])/.test(sx_content);
+			// const b_keplr_window = /window(\.keplr|\[['"`]keplr['"`]\])/.test(sx_content);
+			const b_keplr_window = /(\.keplr\b|\[['"`]keplr['"`]\])/.test(sx_content);
 
 			// found
 			if(b_keplr_window) {

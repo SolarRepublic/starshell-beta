@@ -1,10 +1,10 @@
-import type {List} from 'ts-toolbelt';
-import type {Compute} from 'ts-toolbelt/out/Any/Compute';
-import type {Range} from 'ts-toolbelt/out/Number/Range';
 import type {Nameable, Pfpable} from './able';
 import type {AccountPath} from './account';
 import type {ChainPath} from './chain';
 import type {Resource} from './resource';
+import type {List} from 'ts-toolbelt';
+import type {Compute} from 'ts-toolbelt/out/Any/Compute';
+import type {Range} from 'ts-toolbelt/out/Number/Range';
 
 export interface AppPermissionRegistry {
 	doxx: {

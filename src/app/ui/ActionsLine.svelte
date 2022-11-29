@@ -23,6 +23,8 @@
 	export let back = false;
 	const b_back = back;
 
+	export let deny = false;
+
 	/**
 	 * Sets the confirmation label and optionally its action and disabled state
 	 */
@@ -172,7 +174,7 @@
 	<slot>
 		{#if b_cancel || b_back}
 			<button disabled={disabled || b_busy} on:click={() => cancel_action()}>
-				{b_cancel? 'Cancel': 'Back'}
+				{deny? 'Deny': b_cancel? 'Cancel': 'Back'}
 			</button>
 		{/if}
 

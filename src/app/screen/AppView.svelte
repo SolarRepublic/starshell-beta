@@ -6,9 +6,9 @@
 	
 	import {Apps} from '#/store/apps';
 	
-	import Header from '../ui/Header.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
 	import Portrait, {type Actions} from '../frag/Portrait.svelte';
+	import Header from '../ui/Header.svelte';
 	
 
 	export let app: AppStruct;
@@ -92,10 +92,11 @@
 		title='App Info'
 	/>
 
-	<Portrait circular
+	<Portrait
 		actions={h_actions}
 		resource={g_app}
-		title={g_app.host}
+		title={g_app.name}
+		subtitle={g_app.host}
 		resourcePath={Apps.pathFrom(g_app)}
 	>
 

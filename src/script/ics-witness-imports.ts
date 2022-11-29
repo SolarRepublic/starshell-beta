@@ -81,3 +81,7 @@ export {
 export {Secrets} from '#/store/secrets';
 
 export {Snip2xToken} from '#/schema/snip-2x-const';
+
+export {TxRaw} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+
+export {encode_proto} from '#/chain/cosmos-msgs';

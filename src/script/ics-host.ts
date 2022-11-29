@@ -320,22 +320,7 @@ export default function({
 			// TODO: handle
 		},
 	};
-
-
-	// Record<RelayToHost.ChannelMessage['type'], MessageHandler> = {
-		// async submitTransaction() {
-		// 	const y_window = await chrome.windows.create({
-		// 		type: 'popup',
-		// 		width: N_PX_WIDTH_POPUP,
-		// 		height: N_PX_HEIGHT_POPUP,
-		// 		focused: true,
-		// 		url: chrome.runtime.getURL('src/entry/popup.html#/prompt'),
-		// 	});
-
-		// 	// y_window
-		// },
-
-
+	
 	// handle messages from authed port
 	function authed_message_handler(d_event) {
 		// destructure message data

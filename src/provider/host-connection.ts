@@ -1,6 +1,7 @@
-import {fodemtv, oderom} from '#/util/belt';
-import type {HostToRelay, RelayToHost} from '#/script/messages';
 import type {Vocab} from '#/meta/vocab';
+
+import type {HostToRelay, RelayToHost} from '#/script/messages';
+import {fodemtv, oderom} from '#/util/belt';
 
 type Features = {
 	storage: {};

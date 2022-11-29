@@ -7,7 +7,6 @@
 	import type {SearchItem} from '#/meta/search';
 	
 	import Fuse from 'fuse.js';
-	
 	import {onMount} from 'svelte';
 	
 	import {ClassType, ThreadId} from '#/app/def';
@@ -24,6 +23,7 @@
 	import TokensAdd from '#/app/screen/TokensAdd.svelte';
 	import GenericRow from '#/app/ui/GenericRow.svelte';
 	import {open_window, P_POPUP} from '#/extension/browser';
+	import {system_notify} from '#/extension/notifications';
 	import {launch_qr_scanner} from '#/extension/sensors';
 	import {logout} from '#/share/auth';
 	import {Accounts} from '#/store/accounts';
@@ -34,7 +34,7 @@
 	import {Medias} from '#/store/medias';
 	import {Pfps} from '#/store/pfps';
 	import {Providers} from '#/store/providers';
-	import {interjoin, microtask, oderac, proper} from '#/util/belt';
+	import {interjoin, microtask, oderac, proper, timeout} from '#/util/belt';
 	import {text_to_base64} from '#/util/data';
 	import {dd, qsa} from '#/util/dom';
 	import {abbreviate_addr} from '#/util/format';
@@ -67,6 +67,7 @@
 	import SX_ICON_CONTACTS from '#/icon/supervisor_account.svg?raw';
 	import SX_ICON_ACC_CREATED from '#/icon/user-add.svg?raw';
 	import SX_ICON_ACC_EDITED from '#/icon/user-edit.svg?raw';
+	import SX_ICON_BELL from '#/icon/bell.svg?raw';
 
 	const DM_BR = dd('br');
 
@@ -383,6 +384,20 @@
 				await logout();
 				await timeout(1e3);
 				globalThis.close?.();
+			},
+		},
+		notify: {
+			name: 'Test Notification',
+			text: 'Creates a test notification',
+			icon: SX_ICON_BELL,
+			pfp: '',
+			click() {
+				system_notify({
+					item: {
+						title: `🧪 Testing, 1 2 3...`,
+						message: 'This is a test notification',
+					},
+				});
 			},
 		},
 	};
@@ -810,45 +825,6 @@
 		a_fuses = await Promise.all(Object.values(H_CATEGORIES).map(g => g.fuse({
 			ks_chains,
 		})));
-
-		// a_fuses = await Promise.all([
-		// 	// tokens
-		// 	(async() => {
-		// 		const a_tokens: SearchItem[] = [];
-
-		// 		for(const [, g_chain] of ks_chains.entries()) {
-		// 			for(const [si_spec, h_tokens] of ode(await Entities.readFungibleTokens(g_chain))) {
-		// 				for(const [p_token, g_token] of ode(h_tokens)) {
-		// 					a_tokens.push({
-		// 						class: ClassType.TOKEN,
-		// 						name: g_token.name,
-		// 						resourcePath: p_token,
-		// 						resource: g_token,
-		// 						details: {
-		// 							spec: si_spec,
-		// 							name: g_token.name,
-		// 							symbol: g_token.symbol,
-		// 							bech32: g_token.bech32,
-		// 							codehash: g_token.hash,
-		// 						},
-		// 					});
-		// 				}
-		// 			}
-		// 		}
-
-		// 		return fuzey(a_tokens, [
-		// 			'spec',
-		// 			'symbol',
-		// 			'bech32',
-		// 			'codehash',
-		// 		]);
-		// 	})(),
-
-
-		// 	// Entities,
-		// 	// Providers,
-
-		// ]);
 	})();
 
 
@@ -1037,18 +1013,6 @@
 					// notify dst page
 					void kp_dst.fire('focus');
 				},
-
-				// this navigator only uses one thread
-				// async after_switch(kt_src, kt_dst) {
-				// 	// focus on page
-				// 	void kt_dst.page.fire('focus');
-
-				// 	// wait for svelte to render component before querying container
-				// 	await tick();
-
-				// 	// query container for last element child
-				// 	await page_slide(kt_dst.page.dom, true);
-				// },
 			},
 		};
 

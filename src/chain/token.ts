@@ -6,6 +6,8 @@ import type {ContractStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 import type {Snip20} from '#/schema/snip-20-def';
 
+import {Snip2xToken, ViewingKeyError} from '#/schema/snip-2x-const';
+
 import BigNumber from 'bignumber.js';
 
 import {R_BECH32} from '#/share/constants';
@@ -14,7 +16,6 @@ import {Secrets} from '#/store/secrets';
 import {CoinGecko} from '#/store/web-apis';
 import {buffer_to_text} from '#/util/data';
 import {format_amount, format_fiat} from '#/util/format';
-import { ViewingKeyError } from '#/schema/snip-2x-const';
 
 export async function token_balance(g_contract: ContractStruct, g_account: AccountStruct, k_network: CosmosNetwork): Promise<{
 	yg_amount: BigNumber;
@@ -33,19 +34,28 @@ export async function token_balance(g_contract: ContractStruct, g_account: Accou
 	const g_snip20 = g_contract.interfaces.snip20;
 	const p_viewing_key = g_snip20?.viewingKey;
 	if(p_viewing_key) {
-		// extract viewing key
-		const s_viewing_key = await Secrets.borrowPlaintext(p_viewing_key, kn => buffer_to_text(kn.data));
+		const k_snip = Snip2xToken.from(g_contract, k_network as SecretNetwork, g_account);
 
-		// construct query
-		const g_query: Snip20.BaseQueryParameters<'balance'> = {
-			balance: {
-				key: s_viewing_key as Cw.String,
-				address: sa_owner as Cw.Bech32,
-			},
-		};
+		if(!k_snip) {
+			throw new Error(`Not a SNIP-20 token`);
+		}
 
-		// query the secret contract
-		const g_response = await (k_network as SecretNetwork).queryContract<Snip20.BaseQueryResponse<'balance'>>(g_account, g_contract, g_query);
+		const g_response = await k_snip.balance();
+
+		// // extract viewing key
+		// const s_viewing_key = await Secrets.borrowPlaintext(p_viewing_key, kn => buffer_to_text(kn.data));
+
+		// // construct query
+		// const g_query: Snip20.BaseQueryParameters<'balance'> = {
+		// 	balance: {
+		// 		key: s_viewing_key as Cw.String,
+		// 		address: sa_owner as Cw.Bech32,
+		// 	},
+		// };
+
+		// // query the secret contract
+		// const g_response = await (k_network as SecretNetwork).queryContract<Snip20.BaseQueryResponse<'balance'>>(g_account, g_contract, g_query);
+
 
 		// viewing key error
 		if(g_response['viewing_key_error']) {

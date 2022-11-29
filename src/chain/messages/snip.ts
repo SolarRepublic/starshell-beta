@@ -7,13 +7,20 @@ import type {Bech32, ChainStruct, ContractPath, ContractStruct} from '#/meta/cha
 import type {Snip20} from '#/schema/snip-20-def';
 import {Snip2xToken} from '#/schema/snip-2x-const';
 
+import type {Snip2x} from '#/schema/snip-2x-def';
+
 import BigNumber from 'bignumber.js';
 
 import {address_to_name} from './_util';
 
+import {Coins} from '../coin';
+
+import {produce_contract} from '../contract';
+
 import type {LoadedAppContext} from '#/app/svelte';
 import type {NotifyItemConfig} from '#/extension/notifications';
 
+import {global_broadcast} from '#/script/msg-global';
 import {G_APP_STARSHELL} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
@@ -23,7 +30,7 @@ import {fodemtv} from '#/util/belt';
 import {text_to_buffer, uuid_v4} from '#/util/data';
 
 import {format_amount} from '#/util/format';
-import { Coins } from '../coin';
+
 
 
 const XT_QUERY_TOKEN_INFO = 10e3;
@@ -41,7 +48,7 @@ interface Bundle<si_key extends Snip2x.AnyMessageKey=Snip2x.AnyMessageKey> exten
 	g_exec: ExecContractMsg;
 	p_contract: ContractPath;
 	g_contract_loaded: ContractStruct | null;
-	g_contract_pseudo: ContractStruct;
+	g_contract: ContractStruct;
 	g_snip20: NonNullable<ContractStruct['interfaces']['snip20']> | undefined;
 	sa_owner: Bech32;
 }
@@ -56,17 +63,18 @@ type SnipConfigs = {
 	} | void>;
 };
 
+type SnipHandler = {
+	apply?(si_txn: string): Promisable<NotifyItemConfig | void>;
 
-type SnipHandlers = {
+	review?(b_pending: boolean): Promisable<ReviewedMessage>;
+};
+
+type SnipHandlers<as_keys extends string=string> = {
 	[si_each in Snip2x.AnyMessageKey]: (
 		h_args: Snip2x.AnyMessageParameters<si_each>[si_each],
 		g_context: LoadedAppContext,
 		g_exec: ExecContractMsg,
-	) => Promisable<{
-		apply?(si_txn: string): Promisable<NotifyItemConfig | void>;
-
-		review?(b_pending: boolean): Promisable<ReviewedMessage>;
-	} | void>;
+	) => Promisable<SnipHandler | void>;
 };
 
 function snip_info(g_contract: ContractStruct, g_chain: ChainStruct): string[] {
@@ -75,7 +83,7 @@ function snip_info(g_contract: ContractStruct, g_chain: ChainStruct): string[] {
 	return [`${g_snip20.symbol} token on ${g_chain.name}`];
 }
 
-function wrap_handlers(h_configs: Partial<SnipConfigs>): SnipHandlers {
+function wrap_handlers<as_keys extends string>(h_configs: Partial<SnipConfigs>): SnipHandlers<as_keys> {
 	return fodemtv(h_configs, (f_action, si_action) => async(
 		h_args: Values<Snip2x.AnyMessageParameters>,
 		g_context: LoadedAppContext,
@@ -89,79 +97,16 @@ function wrap_handlers(h_configs: Partial<SnipConfigs>): SnipHandlers {
 		// construct contract path
 		const p_contract = Contracts.pathFor(p_chain, sa_contract);
 
-		// load contract def
+		// check if it exists
 		const g_contract_loaded = await Contracts.at(p_contract);
 
-		// prep psuedo contract struct
-		const g_contract_pseudo = g_contract_loaded!;
+		// load contract def
+		const g_contract = g_contract_loaded || await produce_contract(sa_contract, g_chain, g_app);
 
 		// prep snip20 struct
-		const g_snip20 = g_contract_loaded?.interfaces?.snip20;
+		const g_snip20 = g_contract.interfaces?.snip20;
 
-		// TODO: the below code attempts to detect if a contract is a SNIP-20, but this should not happen automatically
-		// // contract was not declared to be a SNIP-20
-		// if(!g_snip20) {
-		// 	let g_response: TokenInfoResponse | undefined;
-		// 	let xc_timeout: 0 | 1;
-
-		// 	const k_network = await Providers.activateDefaultFor(g_chain) as SecretNetwork;
-
-		// 	// fetch code hash
-		// 	const s_hash = await k_network.codeHashByContractAddress(sa_contract);
-
-		// 	// attempt to query for token info
-		// 	try {
-		// 		[g_response, xc_timeout] = await timeout_exec(XT_QUERY_TOKEN_INFO, async() => {
-		// 			const g_query: Snip20.BaseQueryParameters<'token_info'> = {
-		// 				token_info: {},
-		// 			};
-
-		// 			return await k_network.queryContract<TokenInfoResponse>(g_account, {
-		// 				bech32: sa_contract,
-		// 				hash: s_hash,
-		// 			}, g_query);
-		// 		});
-
-		// 		if(xc_timeout) {
-		// 			return syswarn({
-		// 				title: 'Token info query timed out',
-		// 				text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract} because the query took more than ${XT_QUERY_TOKEN_INFO / XT_SECONDS} seconds`,
-		// 			});
-		// 		}
-		// 	}
-		// 	catch(e_query) {
-		// 		return syswarn({
-		// 			title: 'Token info query failed',
-		// 			text: `Failed to update internal SNIP-20 viewing key while attempting to query token info from ${sa_contract}: ${e_query.message}`,
-		// 		});
-		// 	}
-
-		// 	const g_token_info = g_response!.token_info;
-
-		// 	// invalid token info
-		// 	if(!Snip20Util.validate_token_info(g_token_info)) {
-		// 		return;
-		// 	}
-
-		// 	g_snip20 = {
-		// 		decimals: g_token_info.decimals as L.UnionOf<N.Range<0, 18>>,
-		// 		symbol: g_token_info.symbol,
-		// 	};
-
-		// 	g_contract_pseudo = {
-		// 		bech32: sa_contract,
-		// 		chain: p_chain,
-		// 		hash: s_hash,
-		// 		interfaces: {
-		// 			snip20: g_snip20,
-		// 		},
-		// 		name: g_token_info.name,
-		// 		origin: 'domain',
-		// 		pfp: g_app.pfp,
-		// 	};
-		// }
-
-		return await f_action({
+		const g_wrapped = await f_action({
 			h_args: h_args as Bundle['h_args'],
 			p_app,
 			g_app,
@@ -171,15 +116,37 @@ function wrap_handlers(h_configs: Partial<SnipConfigs>): SnipHandlers {
 			g_account,
 			p_contract,
 			g_contract_loaded,
-			g_contract_pseudo,
+			g_contract,
 			g_snip20,
 			g_exec,
 			sa_owner: Chains.addressFor(g_account.pubkey, g_chain),
 		});
-	}) as SnipHandlers;
+
+		if(!g_wrapped) return g_wrapped;
+
+		// proxy certain actions
+		const g_proxy = {
+			...g_wrapped,
+		} as SnipHandler;
+
+		// contract isn't defined in store and is now being executed
+		if(!g_contract_loaded && g_proxy.apply) {
+			// proxy the handler
+			g_proxy.apply = async function(...a_args: any) {
+				// commit contract struct to store
+				await Contracts.merge(g_contract);
+
+				// apply proxied handler
+				return await g_wrapped.apply!.apply(this, a_args);
+			};
+		}
+
+		return g_proxy;
+	}) as SnipHandlers<as_keys>;
 }
 
-export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
+
+export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMessageKey>({
 	create_viewing_key(h_args) {
 		// TODO: fetch viewing key from contract once tx succeeds
 
@@ -218,7 +185,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		p_app, g_app,
 		p_chain, g_chain,
 		p_account, g_account,
-		p_contract, g_contract_loaded, g_contract_pseudo,
+		p_contract, g_contract_loaded, g_contract,
 		g_snip20,
 		g_exec,
 	}) => ({
@@ -242,7 +209,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 			// contract does not yet exist
 			else {
 				// create contract def from token info response
-				[p_contract, g_contract_loaded] = await Contracts.merge(g_contract_pseudo);
+				[p_contract, g_contract_loaded] = await Contracts.merge(g_contract);
 			}
 
 			// save new viewing key
@@ -255,15 +222,15 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 				name: `Viewing Key for ${g_snip20!.symbol}`,
 				chain: p_chain,
 				owner: Chains.addressFor(g_account.pubkey, g_chain),
-				contract: g_contract_loaded.bech32,
+				contract: g_contract.bech32,
 				outlets: g_app === G_APP_STARSHELL? []: [p_app],
 			});
 
 			// update contract's viewing key path
 			await Contracts.merge({
-				...g_contract_loaded,
+				...g_contract,
 				interfaces: {
-					...g_contract_loaded.interfaces,
+					...g_contract.interfaces,
 					snip20: {
 						...g_snip20,
 						viewingKey: p_viewing_key_new,
@@ -271,18 +238,28 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 				},
 			} as ContractStruct);
 
+			// dispatch event
+			global_broadcast({
+				type: 'tokenAdded',
+				value: {
+					p_contract,
+					p_chain,
+					p_account,
+				},
+			});
+
 			// notification summary
 			return {
 				group: nl => `Viewing Key${1 === nl? '': 's'} Updated`,
 				title: '🔑 Viewing Key Updated',
-				message: `${g_contract_loaded.name} token (${g_snip20!.symbol}) has been updated on ${g_chain.name}`,
+				message: `${g_contract.name} token (${g_snip20!.symbol}) has been updated on ${g_chain.name}`,
 			};
 		},
 
 		review(b_pending) {
 			return {
 				title: `Updat${b_pending? 'ing': 'ed'} Viewing Key`,
-				infos: snip_info(g_contract_pseudo, g_chain),
+				infos: snip_info(g_contract, g_chain),
 				fields: [
 					{
 						type: 'password',
@@ -290,7 +267,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 						label: 'Viewing Key',
 					},
 				],
-				resource: g_contract_pseudo,
+				resource: g_contract,
 			};
 		},
 	}),
@@ -300,7 +277,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		p_app, g_app,
 		p_chain, g_chain,
 		p_account, g_account,
-		p_contract, g_contract_loaded, g_contract_pseudo,
+		p_contract, g_contract_loaded, g_contract: g_contract_pseudo,
 		g_snip20,
 		g_exec,
 	}) => {
@@ -341,7 +318,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		p_app, g_app,
 		p_chain, g_chain,
 		p_account, g_account,
-		p_contract, g_contract_loaded, g_contract_pseudo,
+		p_contract, g_contract_loaded, g_contract: g_contract_pseudo,
 		g_snip20,
 		g_exec,
 	}) => {
@@ -362,9 +339,11 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 				};
 			},
 
-			review(b_pending) {
+			review(b_pending, b_incoming) {
 				return {
-					title: `Transferr${b_pending? 'ing': 'ed'} ${s_payload}`,
+					title: b_incoming
+						? `Received ${s_payload}`
+						: `Transferr${b_pending? 'ing': 'ed'} ${s_payload}`,
 					infos: snip_info(g_contract_pseudo, g_chain),
 					fields: [
 						{
@@ -378,6 +357,11 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 							label: 'Recipient',
 							g_chain,
 						},
+						// private memo
+						h_args.memo && {
+							type: 'memo',
+							value: h_args.memo,
+						},
 					],
 					resource: g_contract_pseudo,
 				};
@@ -390,7 +374,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		p_app, g_app,
 		p_chain, g_chain,
 		p_account, g_account,
-		p_contract, g_contract_loaded, g_contract_pseudo,
+		p_contract, g_contract_loaded, g_contract: g_contract_pseudo,
 		g_exec,
 	}) => {
 		const sa_contract = g_exec.contract;
@@ -445,7 +429,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		p_app, g_app,
 		p_chain, g_chain,
 		p_account, g_account,
-		p_contract, g_contract_loaded, g_contract_pseudo,
+		p_contract, g_contract_loaded, g_contract: g_contract_pseudo,
 		g_snip20,
 		g_exec,
 	}) => {
@@ -505,7 +489,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers({
 		p_app, g_app,
 		p_chain, g_chain,
 		p_account, g_account,
-		p_contract, g_contract_loaded, g_contract_pseudo,
+		p_contract, g_contract_loaded, g_contract: g_contract_pseudo,
 		g_snip20,
 		g_exec,
 	}) => {

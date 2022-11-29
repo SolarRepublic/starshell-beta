@@ -1,13 +1,5 @@
-import type { Compute } from 'ts-toolbelt/out/Any/Compute';
 import type {Resource} from './resource';
 
-
-// export type Media = Resource.New<{
-// 	segments: ['media'],
-// 	struct: {
-
-// 	};
-// }>;
 
 export type MediaTypeRegistry = {
 	'image': {};
@@ -41,5 +33,5 @@ export type MediaPath<
 	si_media extends MediaTypeKey=MediaTypeKey,
 	s_hash extends string=string,
 > = ImageMediaPath<si_media, s_hash>;
-export type Mediatarget = ImageMediaTarget;
+export type MediaTarget = ImageMediaTarget;
 export type MediaStruct = ImageMediaStruct;

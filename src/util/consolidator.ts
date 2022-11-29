@@ -2,10 +2,20 @@ import type {Dict} from '#/meta/belt';
 
 
 interface ConsolidatorConfig {
+	/**
+	 * How long to wait for an additional item to be queued before executing all pending
+	 */
 	delay?: number;
+
+	/**
+	 * Maximum time a pending operation can sit in the queue before it is executed
+	 */
 	max?: number;
 }
 
+/**
+ * Consolidator is a generic tool for batching asychronous operations
+ */
 export class Consolidator<w_return extends any=any> {
 	protected readonly _xt_delay: number = 50;
 	protected readonly _xt_max: number = 200;
@@ -16,7 +26,6 @@ export class Consolidator<w_return extends any=any> {
 
 	protected _h_queue: Dict<([(w: w_return) => unknown, (e_reject: any) => unknown])[]> = {};
 	protected _as_queue = new Set<string>();
-	// protected _a_pending = 
 
 	constructor(protected _f_submit: (a_items: string[]) => Promise<Dict<w_return>>, gc_consolidate: ConsolidatorConfig={}) {
 		if(Number.isFinite(gc_consolidate?.delay)) this._xt_delay = Math.abs(gc_consolidate.delay!);

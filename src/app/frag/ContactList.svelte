@@ -141,7 +141,7 @@
 				k_page.push({
 					creator: ContactEdit,
 					props: {
-						contact: g_contact,
+						contactPath: Agents.pathFromContact(g_contact),
 					},
 				});
 			},

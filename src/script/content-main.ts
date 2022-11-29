@@ -60,7 +60,7 @@ export default function(g_secrets) {
 
 		// ref iframe
 		const dm_iframe = a_iframes[0];
-		
+
 		// ref iframe's window
 		const d_window = dm_iframe.contentWindow;
 
@@ -82,7 +82,7 @@ export default function(g_secrets) {
 		// use safe reflect on window
 		debugger;
 		const gd_receiver = d_safe_bundle.Reflect.getOwnPropertyDescriptor(window, 'walletAdvertisementReceiver');
-		
+
 		console.log(gd_receiver);
 		console.log('^^ receiver');
 

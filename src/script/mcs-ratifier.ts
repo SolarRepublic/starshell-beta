@@ -1,7 +1,6 @@
-import type {
-	HostToRatifier,
-} from "./messages";
-import type { Vocab } from "#/meta/vocab";
+import type {HostToRatifier} from './messages';
+
+import type {Vocab} from '#/meta/vocab';
 
 /**
  * The ratifier's sole purpose is to verify that the declared `window.starshell` global is authentic and not spoofed.
@@ -68,7 +67,7 @@ export default function({
 	/**
 	 * Use native Reflect functions to locate property descriptor
 	 */
-	 function locate_descriptor(w_ref: unknown, si_prop: string, a_lineage:unknown[]=[]): null | PropertyDescriptor {
+	 function locate_descriptor(w_ref: unknown, si_prop: string, a_lineage: unknown[]=[]): null | PropertyDescriptor {
 		try {
 			// get descriptor
 			const g_descriptor = f_get_own_property_descriptor.call(d_reflect, w_ref, si_prop);
@@ -76,7 +75,7 @@ export default function({
 			// not defined
 			if(!g_descriptor) {
 				// add this to ignore set
-				a_lineage.push(w_ref)
+				a_lineage.push(w_ref);
 
 				// get parent
 				const w_parent = f_get_prototype_of.call(d_reflect, w_ref);
@@ -139,12 +138,12 @@ export default function({
 			else if(!locate_descriptor(window, 'starshell')) {
 				return silent_exit('StarShell failed to ratify global since it is not defined.');
 			}
-		
+
 			// capture reference
 			const k_starshell = window.starshell;
 
 			// invoke synchronous verification call
-			let f_ratify = k_starshell.verify((s_sig_auth: string) => {
+			const f_ratify = k_starshell.verify((s_sig_auth: string) => {
 				// already aborted
 				if(b_aborted) return;
 
@@ -196,4 +195,4 @@ export default function({
 			}
 		}
 	});
-};
+}

@@ -26,6 +26,8 @@ import NoticeIllegalChainsSvelte from '#/app/screen/NoticeIllegalChains.svelte';
 import PreRegister from '#/app/screen/PreRegister.svelte';
 import ReloadPage from '#/app/screen/ReloadPage.svelte';
 import RequestConnection_AccountsSvelte from '#/app/screen/RequestConnection_Accounts.svelte';
+import RequestExposure from '#/app/screen/RequestExposure.svelte';
+import RequestKeplrDecisionSvelte from '#/app/screen/RequestKeplrDecision.svelte';
 import type {CompletedSignature} from '#/app/screen/RequestSignature.svelte';
 
 import RequestSignatureSvelte from '#/app/screen/RequestSignature.svelte';
@@ -46,8 +48,6 @@ import AuthenticateSvelte from '##/screen/Authenticate.svelte';
 
 import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
 import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
-import RequestExposure from '#/app/screen/RequestExposure.svelte';
-import RequestKeplrDecisionSvelte from '#/app/screen/RequestKeplrDecision.svelte';
 
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
@@ -274,7 +274,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		}
 	},
 
-	requestKeplrDecision: (g_value) => completed_render(RequestKeplrDecisionSvelte, {
+	requestKeplrDecision: g_value => completed_render(RequestKeplrDecisionSvelte, {
 		app: g_value.app,
 		page: g_value.page,
 	}),
@@ -340,8 +340,12 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		});
 	},
 
-	async exposeViewingKeys(g_value) {
-		return await completed_render(RequestExposure, g_value);
+	async exposeViewingKeys(g_value, g_context) {
+		return await completed_render(RequestExposure, g_value, {
+			app: g_context.app,
+			chain: g_context.chain,
+			accountPath: g_value.accountPath,
+		});
 	},
 } as const;
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type {Nameable, Pfpable} from '#/meta/able';
-	import type {Account, AccountPath, AccountStruct} from '#/meta/account';
+	import type {AccountPath, AccountStruct} from '#/meta/account';
 	import type {Dict} from '#/meta/belt';
 	import type {ChainStruct, ChainPath} from '#/meta/chain';
 	import type {PfpTarget} from '#/meta/pfp';
@@ -16,11 +16,11 @@
 	import {dd} from '#/util/dom';
 	
 	import Address from '../frag/Address.svelte';
+	import PfpDisplay from '../frag/PfpDisplay.svelte';
 	import Close from '../ui/Close.svelte';
 	import Field from '../ui/Field.svelte';
 	import Info from '../ui/Info.svelte';
 	import Load from '../ui/Load.svelte';
-	import PfpDisplay from '../frag/PfpDisplay.svelte';
 	import StarSelect, {type SelectOption} from '../ui/StarSelect.svelte';
 	
 
@@ -130,9 +130,11 @@
 	let dm_qr: HTMLElement;
 	$: {
 		if(dm_qr && g_account_selected && g_chain_selected) {
+			const p_s2r = `caip-10:${g_chain_selected.namespace}:${g_chain_selected.reference}:${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}:`;
+
 			const y_qrcode = new QRCode({
 				// use hash fragment to encode the data so that is never leaves device
-				content: `https://link.starshell.net/qr#family.cosmos/chain.${g_chain_selected.reference}/address.${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}`,
+				content: `https://m.s2r.sh/qr#${p_s2r}`,
 				width: 220,
 				height: 220,
 				padding: 3,

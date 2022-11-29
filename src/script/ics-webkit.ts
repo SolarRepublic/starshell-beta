@@ -1,5 +1,3 @@
-import type {JsonValue} from '#/meta/belt';
-// import {do_webkit_polyfill, WebKitMessenger} from './webkit-polyfill';
 import type * as WebkitPolyfillImport from './webkit-polyfill';
 
 /**

@@ -168,7 +168,6 @@ export function ode<
 	// 	: never;
 // };
 
-// const check = ode({a: '1', b: '2'} as const);
 
 /**
  * Typed alias to `Object.fromEntries`
