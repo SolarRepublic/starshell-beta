@@ -42,7 +42,7 @@ Under the [`src/`](/src) directory:
 
 All things related to the privacy and security components.
 
-
+<!-- 
 ### Provider API
 
 When a web dApp wants to read/write data to/from the blockchain through a wallet extension, the user is exposing themselves to a non-trivial amount of privacy and security risks.
@@ -93,7 +93,7 @@ The following sections break down this process.
 
 12. The _Host_ notifies _Service_ that a new connection has been established with _App_.
 
-13. _App_ is now able to communicate with the StarShell web extension via `window.starshell`.
+13. _App_ is now able to communicate with the StarShell web extension via `window.starshell`. -->
 
 
 ### Private Key Management and Secp256k1
@@ -115,5 +115,20 @@ Instead, we have opted to revive a defunct open-source project that creates a WA
 [@solar-republic/wasm-secp256k1](https://github.com/SolarRepublic/wasm-secp256k1) is fork of that defunt project that merges with the libsecp256k1 upstream and fixes some build issues seen with the latest emscripten binary. It also adds support for the `ecdh` function provided by libsecp256k1 in order to derive a shared secret given a private key and another's public key.
 
 The wallet uses this compiled WASM module for all secp256k1 operations including key generation, signing, verification, and derivation.
+
+
+### Mitigating Supply-Chain Attacks
+
+We employ [SES lockdown](https://github.com/endojs/endo/tree/master/packages/ses) to make intrinsics non-configurable in order to mitigate prototype-pollution from supply-chain attacks in runtime dependencies.
+
+Taken a step further, we also harden `globalThis` by deeply freezing all of its properties with the custom `static/deep-freeze.js`, which is injected before the entry point script in each web extension HTML page (e.g., popup.html, flow.html). This mitigates targetted supply-chain attacks in runtime dependencies.
+
+We do not yet have a solution to guard against supply-chain attacks in development dependencies. For example, if a svelte library or vite plugin were compromised, it is possible the attacker could inject malicious code into the output. However, the capabilities and limitations of such an attack are uncertain.
+
+
+### Content Security Policy
+
+We use MV3's content security policy (CSP) to prevent foreign scripts, evals, and connections to unlisted servers.
+
 
 
