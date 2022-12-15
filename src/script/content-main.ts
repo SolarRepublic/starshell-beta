@@ -65,7 +65,7 @@ export default function(g_secrets) {
 		const d_window = dm_iframe.contentWindow;
 
 		// capture safe bundle
-		const d_safe_bundle = d_window['safeBundle'] as SafeBundle
+		const d_safe_bundle = d_window['safeBundle'] as SafeBundle;
 
 		// invoke synchronous verification call
 		let f_post = d_safe_bundle.verify(() => {

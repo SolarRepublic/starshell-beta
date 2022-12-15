@@ -123,12 +123,11 @@ We employ [SES lockdown](https://github.com/endojs/endo/tree/master/packages/ses
 
 Taken a step further, we also harden `globalThis` by deeply freezing all of its properties with the custom `static/deep-freeze.js`, which is injected before the entry point script in each web extension HTML page (e.g., popup.html, flow.html). This mitigates targetted supply-chain attacks in runtime dependencies.
 
-We do not yet have a solution to guard against supply-chain attacks in development dependencies. For example, if a svelte library or vite plugin were compromised, it is possible the attacker could inject malicious code into the output. However, the capabilities and limitations of such an attack are uncertain.
+We do not yet have a solution to guard against supply-chain attacks in development dependencies. For example, if a svelte library or vite plugin were compromised, it is possible the attacker could inject malicious code into the output. However, the capabilities and limitations of such an attack are unclear.
 
 
 ### Content Security Policy
 
 We use MV3's content security policy (CSP) to prevent foreign scripts, evals, and connections to unlisted servers.
-
 
 

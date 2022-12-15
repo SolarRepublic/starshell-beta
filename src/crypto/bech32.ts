@@ -1,8 +1,8 @@
 import type {Bech32, ChainStruct} from '#/meta/chain';
-import {base64_to_buffer, ripemd160_sync, sha256_sync} from '#/util/data';
+
 import {fromBech32, toBech32} from '@cosmjs/encoding';
-import { bech32PaddedToBin, binToBech32Padded, encodeBech32 } from '@solar-republic/wasm-secp256k1';
-import { toWords } from 'bech32';
+
+import {base64_to_buffer, ripemd160_sync, sha256_sync} from '#/util/data';
 
 
 export function pubkey_to_bech32(z_pubkey: string | Uint8Array, z_context: ChainStruct | string): Bech32 {
@@ -32,17 +32,6 @@ export function pubkey_to_bech32(z_pubkey: string | Uint8Array, z_context: Chain
 
 export function bech32_to_buffer(sa_addr: Bech32): Uint8Array {
 	return fromBech32(sa_addr).data;
-
-	// const z_return = bech32PaddedToBin(sa_addr);
-
-
-	// if(z_return instanceof Uint8Array) {
-	// 	return z_return;
-	// }
-	// else {
-	// 	throw new Error(z_return);
-	// }
-	// // return Uint8Array.from(bech32.fromWords(bech32.decode(address).words));
 }
 
 export function buffer_to_bech32(atu8_data: Uint8Array, s_hrp: string): string {

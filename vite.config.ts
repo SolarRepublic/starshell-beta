@@ -8,7 +8,6 @@ import nodeResolve from '@rollup/plugin-node-resolve';
 import analyze from 'rollup-plugin-analyzer'
 import graph from 'rollup-plugin-graph';
 import {svelte} from '@sveltejs/vite-plugin-svelte';
-// import webExtension from '@solar-republic/vite-plugin-web-extension';
 import webExtension from '@samrum/vite-plugin-web-extension';
 
 import G_PACKAGE_JSON from './package.json';
@@ -129,24 +128,20 @@ export default defineConfig((gc_run) => {
 					}),
 				],
 
+			{
+				name: 'bundle-mapper',
 
-			// {
-			// 	name: 'deep-seal',
+				generateBundle(gc_output, h_bundle) {
+					const h_output = {};
+					for(const g_module of Object.values(h_bundle)) {
+						if('chunk' === g_module.type && g_module.facadeModuleId) {
+							h_output[g_module.facadeModuleId?.slice(__dirname.length)] = g_module.fileName;
+						}
+					}
 
-			// 	writeBundle(g_opt, h_bundle) {
-			// 		console.debug(`@@marker`);
-
-			// 		for(const si_asset in h_bundle) {
-			// 			const g_output = h_bundle[si_asset];
-			// 			if('chunk' === g_output.type && !g_output.fileName.startsWith('assets/src/script/mcs-')) {
-			// 				const sr_output = path.join(srd_out, g_output.fileName);
-
-			// 				const sx_output = fs.readFileSync(sr_output);
-			// 				fs.writeFileSync(sr_output, `${sx_deep_seal}\n${sx_output}`)
-			// 			}
-			// 		}
-			// 	},
-			// },
+					fs.writeFileSync(`${srd_out}/bundle-map.json`, JSON.stringify(h_output, null, '\t'));
+				},
+			},
 
 			graph({
 				prune: true,
@@ -156,12 +151,6 @@ export default defineConfig((gc_run) => {
 				summaryOnly: true,
 			}),
 		],
-
-		// optimizeDeps: {
-		// 	exlucde: [
-		// 		'@solar-republic/wasm-secp256k1',
-		// 	],
-		// },
 
 		resolve: {
 			alias: {
@@ -175,7 +164,6 @@ export default defineConfig((gc_run) => {
 		// }: {},
 
 		build: {
-			// sourcemap: ['safari', 'firefox'].includes(SI_ENGINE)? false: 'inline',
 			sourcemap: true,
 			minify: 'production' === si_mode,
 			emptyOutDir: true,
@@ -191,9 +179,6 @@ export default defineConfig((gc_run) => {
 				},
 
 				output: {
-					// banner: `
-					// 	${sx_deep_seal}
-					// `,
 					...('firefox' === SI_ENGINE) && {
 						manualChunks: {
 							'html5-qrcode': ['html5-qrcode'],
@@ -210,6 +195,11 @@ export default defineConfig((gc_run) => {
 				},
 			// 	preserveEntrySignatures: 'strict',
 			},
+		},
+
+		test: {
+			globals: true,
+			environment: 'jsdom',
 		},
 	};
 });

@@ -18,20 +18,6 @@ export function encode_memo_ciphertext(atu8_ciphertext: Uint8Array): string {
 	return '🔒1'+buffer_to_base93(atu8_ciphertext);
 }
 
-export function encode_memo_query_permit(g_permit: AminoSignResponse) {
-	const sxb64_signature = g_permit.signature.signature;
-	const g_msg_value = g_permit.signed.msgs[0].value;
-
-	// TODO: reduce contract addresses to data only
-	// g_msg_value.allowed_tokens.map()
-
-	// encode permissions array
-
-	// encode permit name
-
-	// 
-}
-
 export function extract_memo_ciphertext(s_memo: string): Uint8Array {
 	if(!s_memo.startsWith('🔒1')) {
 		throw syserr({
@@ -174,7 +160,7 @@ export async function decrypt_private_memo(
 	k_network: CosmosNetwork,
 	sa_other: Bech32,
 	s_sequence: string
-) {
+): Promise<string> {
 	if(!s_memo_encrypted.startsWith('🔒1')) {
 		throw new Error(`Unexpected preamble in encrypted memo ciphertext`);
 	}

@@ -3,12 +3,14 @@ import type {StoreKey} from '#/meta/store';
 import {Accounts} from './accounts';
 import {Apps} from './apps';
 import {Chains} from './chains';
-import {Policies} from './policies';
-import {Settings} from './settings';
-import {Medias} from './medias';
-import {Tags} from './tags';
 import {Entities} from './entities';
+import {Incidents} from './incidents';
+import {Medias} from './medias';
 import {Pfps} from './pfps';
+import {Policies} from './policies';
+import {Providers} from './providers';
+import {Settings} from './settings';
+import {Tags} from './tags';
 import {WebApis} from './web-apis';
 
 import {
@@ -25,8 +27,7 @@ import {
 	SI_STORE_PROVIDERS,
 	SI_STORE_EVENTS,
 } from '#/share/constants';
-import {Providers} from './providers';
-import {Incidents} from './incidents';
+
 
 export const H_STORE_REGISTRY = {
 	[SI_STORE_ACCOUNTS]: Accounts,
@@ -48,19 +49,3 @@ export type StoreRegistry<
 > = si_store extends keyof typeof H_STORE_REGISTRY
 	? (typeof H_STORE_REGISTRY)[si_store]
 	: never;
-
-// type StoreInstance<
-// 	as_keys extends StoreKey,
-// > = Pick<StoreRegistry, as_keys> extends infer h_store_cls
-// 	? {
-// 		[si in keyof h_store_cls]: h_store_cls[si] extends Class<any[], object>
-// 			? InstanceType<h_store_cls[si]> extends infer k_store
-// 				? k_store extends WritableStore<si extends StoreKey? si: StoreKey>
-// 					? k_store
-// 					: never
-// 				: never
-// 			: never
-// 	}
-// 	: never;
-
-// // type test = StoreInstance<'apps'>['apps']['release'];

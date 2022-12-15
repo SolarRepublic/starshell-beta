@@ -12,6 +12,7 @@ import toml from 'toml';
 
 import {load_icon_data} from './utils';
 
+import {load_word_list} from '#/crypto/bip39';
 import {SessionStorage} from '#/extension/session-storage';
 import {A_CHAIN_NAMESPACES, N_PX_DIM_ICON, RT_CAIP_2_NAMESPACE, RT_CAIP_2_REFERENCE, RT_UINT, R_BECH32, R_CAIP_10, R_CAIP_19, R_CAIP_2, R_CHAIN_ID_VERSION, R_CHAIN_NAME, R_CONTRACT_NAME, R_DATA_IMAGE_URL_WEB, R_TOKEN_SYMBOL} from '#/share/constants';
 import type {AppProfile} from '#/store/apps';
@@ -364,8 +365,6 @@ export function* destructure_links(si_data_key: string): IterableIterator<Destru
 	}
 }
 
-let A_WORDLIST: string[] | null = null;
-
 function abbreviate_word(s_word: string) {
 	// shorten
 	if(s_word.length > 4) {
@@ -380,27 +379,8 @@ function abbreviate_word(s_word: string) {
 }
 
 async function generate_token_symbol(sa_token: Bech32) {
-	// have not tried loading lis yet
-	if(!A_WORDLIST) {
-		// attempt to fetch
-		try {
-			const d_res = await fetch(chrome.runtime.getURL('data/bip-0039-english.txt'));
-
-			// response succeeded
-			if(d_res?.ok) {
-				// parse text
-				const s_text = await d_res.text();
-
-				// split by newline and save
-				A_WORDLIST = s_text.split('\n');
-			}
-		}
-		// fail-safe
-		catch(e_fetch) {}
-
-		// did not work; do not try again
-		if(!A_WORDLIST) A_WORDLIST = [];
-	}
+	// load word list
+	const a_wordlist = await load_word_list();
 
 	// contract suffix
 	let s_contract_suffix = '';
@@ -412,15 +392,15 @@ async function generate_token_symbol(sa_token: Bech32) {
 	const atu8_sha256 = sha256_sync(text_to_buffer(sa_token));
 
 	// wordlist available
-	if(A_WORDLIST?.length) {
+	if(a_wordlist?.length) {
 		// use the first 3 bytes (24 bits) of hash to pick from wordlist so there is no modulo bias in 2048 words
 		const ab_entropy = concat([Uint8Array.from([0]), atu8_sha256.subarray(0, 3)]).buffer;
 
 		// convert to 24-bit index and module by length of word list (2048)
-		const i_word = new DataView(ab_entropy).getUint32(0) % A_WORDLIST.length;
+		const i_word = new DataView(ab_entropy).getUint32(0) % a_wordlist.length;
 
 		// find word and abbreviate it
-		s_contract_suffix = abbreviate_word(A_WORDLIST[i_word]);
+		s_contract_suffix = abbreviate_word(a_wordlist[i_word]);
 	}
 	// wordlist not available; fallback to using random entropy
 	else {

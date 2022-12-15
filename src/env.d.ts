@@ -6,7 +6,7 @@
 import type {Dict, JsonValue} from './meta/belt';
 import type {ImageMedia} from './meta/media';
 import type {Resource} from './meta/resource';
-import type {Store, StoreKey} from './meta/store';
+import type {Store} from './meta/store';
 import type {Vocab} from './meta/vocab';
 import type {ExtToNative} from './script/messages';
 import type {SI_STORE_MEDIA} from './share/constants';
@@ -19,13 +19,20 @@ interface ImportMeta {
 	readonly env: ImportMetaEnv;
 }
 
-type WebKitMessageHandlerRegsitry = {
+export type WebKitMessageHandlerRegsitry = {
 	storage: Vocab.Message<ExtToNative.StorageVocab>;
+
+	notification: Vocab.Message<ExtToNative.NotificationVocab>;
 
 	runtime: {
 		id: string;
 		data: JsonValue;
 		sender: chrome.runtime.MessageSender;
+	};
+
+	native: {
+		type: 'notificationClicked';
+		value: string;
 	};
 
 	response: {
@@ -57,10 +64,6 @@ declare global {
 			}, h_handlers[si_handler]>): void;
 		};
 	};
-
-	// declare interface addEventListener {
-	// 	(si_webkit: `@${'controller' | 'storage'}`, fk_callback: () => {}): void;
-	// }
 
 	const webkit: {
 		messageHandlers: WebKitMessageHandlers<WebKitMessageHandlerRegsitry>;

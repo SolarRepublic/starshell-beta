@@ -13,7 +13,6 @@
 	import {
 		yw_menu_vendor,
 		yw_chain_ref,
-		yw_provider,
 		yw_connection_health,
 		yw_chain,
 	} from '##/mem';
@@ -21,7 +20,6 @@
 	interface Item {
 		click: VoidFunction;
 		label: string;
-		// icon: Icon;
 	}
 
 	interface ConnectionState {
@@ -45,7 +43,6 @@
 	let g_connection_active: ConnectionState;
 	yw_chain_ref.subscribe((p_chain) => {
 		if(p_chain) {
-			console.log(`Chain updated: ${$yw_chain_ref}`);
 			g_connection_active = h_connections[p_chain];
 		}
 	});

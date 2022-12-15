@@ -1,3 +1,12 @@
+import type {BrowserAction} from 'webextension-polyfill';
+
+import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
+import type {Vocab} from '#/meta/vocab';
+
+import {SessionStorage} from './session-storage';
+
+import {Vault} from '#/crypto/vault';
+import type {PageInfo, Pwa} from '#/script/messages';
 import {do_webkit_polyfill} from '#/script/webkit-polyfill';
 import {
 	G_USERAGENT,
@@ -9,25 +18,18 @@ import {
 	B_WEBEXT_BROWSER_ACTION,
 	B_FIREFOX_ANDROID,
 	B_IOS_NATIVE,
+	H_PARAMS,
 } from '#/share/constants';
 
+// TODO: remove do_webkit_polyfill import from everywhere except for common import
 if(B_IOS_NATIVE) {
 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.browser: ${s}`, ...a_args));
 }
 
-import {Vault} from '#/crypto/vault';
-
-import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
-import type {Vocab} from '#/meta/vocab';
-
-import type {PageInfo, Pwa} from '#/script/messages';
 import {F_NOOP} from '#/util/belt';
 import {buffer_to_base64, text_to_buffer} from '#/util/data';
 import {open_external_link, parse_params, stringify_params} from '#/util/dom';
 
-import type {BrowserAction} from 'webextension-polyfill';
-
-import {SessionStorage} from './session-storage';
 
 export type PopoutWindowHandle = {
 	window: chrome.windows.Window | null;
@@ -374,8 +376,20 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 	}
 	// open as link
 	else {
+		// within iOS native
+		if(B_IOS_NATIVE) {
+			// extend search params by copying `within` query parameter
+			h_params.within = H_PARAMS.within;
+
+			// update url
+			d_url.search = new URLSearchParams(h_params as Dict).toString();
+
+			// reserialize
+			p_url = d_url.toString();
+		}
+
 		// treat as external link
-		open_external_link(p_url);
+		void open_external_link(p_url);
 
 		return {
 			window: null,

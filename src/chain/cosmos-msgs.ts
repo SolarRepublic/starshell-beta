@@ -2,7 +2,7 @@ import type {O} from 'ts-toolbelt';
 import type {Type} from 'ts-toolbelt/out/Any/Type';
 
 import type {Dict, JsonObject} from '#/meta/belt';
-import type {Bech32, ChainStruct} from '#/meta/chain';
+import type {Bech32} from '#/meta/chain';
 
 import {
 	MsgSend,
@@ -37,11 +37,8 @@ import {
 	MsgStoreCode as SecretMsgStoreCode,
 } from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/msg';
 
-import {bech32PaddedToBin, binToBech32Padded, decodeBech32} from '@solar-republic/wasm-secp256k1';
-import {toWords} from 'bech32';
-
 import {bech32_to_buffer, buffer_to_bech32} from '#/crypto/bech32';
-import {fold, is_dict, oderom} from '#/util/belt';
+import {is_dict, oderom} from '#/util/belt';
 import {base64_to_buffer, buffer_to_base64} from '#/util/data';
 import {camel_to_snake, snake_to_camel} from '#/util/format';
 

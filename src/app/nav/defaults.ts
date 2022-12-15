@@ -63,7 +63,7 @@ export async function page_slide(dm_slide: HTMLElement, b_in=false): Promise<voi
 
 
 export const GC_HOOKS_DEFAULT: NavigatorConfig['hooks'] = {
-	before_change(kt_context, kp_src, kp_dst) {
+	before_change(kt_context, kp_src) {
 		// blur on page
 		void kp_src.fire('blur');
 	},

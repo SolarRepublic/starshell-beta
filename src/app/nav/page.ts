@@ -15,7 +15,7 @@ export interface PageConfig<
 	creator: dc_creator;
 	props?: h_props;
 	context?: PlainObject;
-	events?: Dict<(d_event: CustomEvent<unknown>) => Promisable<void>>;
+	events?: Dict<(d_event: CustomEvent<unknown>) => Promisable>;
 	path?: string;
 	pattern?: string;
 }
@@ -24,23 +24,23 @@ export interface PageEventConfig {
 	/**
 	 * Fired anytime a page loses focus (including on thread switch)
 	 */
-	blur?(): Promisable<void>;
+	blur?(): Promisable;
 
 	/**
 	 * Fired anytime a page receives focus (including on thread switch)
 	 */
-	focus?(): Promisable<void>;
+	focus?(): Promisable;
 
 	/**
 	 * Fired when a previously existing page is restored from history (e.g., via pop)
 	 */
-	restore?(): Promisable<void>;
+	restore?(): Promisable;
 
 	/**
 	 * Fired when the system has handled a key binding or gesture to initiate a search
 	 * @param fk_captured - callback to execute if the search initiation was effective
 	 */
-	search?(fk_captured?: () => void): Promisable<void>;
+	search?(fk_captured?: () => void): Promisable;
 }
 
 type PageEventId = keyof PageEventConfig;
@@ -57,7 +57,7 @@ export class Page<
 	protected _dm_page: HTMLElement;
 
 	protected _si_page: string;
-	protected _h_events: Partial<Record<PageEventId, Array<(...a_args: any[]) => Promisable<void>>>> = {};
+	protected _h_events: Partial<Record<PageEventId, Array<(...a_args: any[]) => Promisable>>> = {};
 
 	protected _sr_path: string;
 	protected _sx_pattern: string;
@@ -85,10 +85,7 @@ export class Page<
 		// spawn component
 		this._yc_component = new this._dc_creator({
 			target: dm_buffer,
-			props: {
-				...this._h_props,
-				k_page: this,
-			},
+			props: this._h_props,
 			context: hm_context,
 		}) as yc_component;
 

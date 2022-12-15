@@ -1,3 +1,9 @@
+import type {SvelteComponent} from 'svelte';
+
+import type {AppStruct} from '#/meta/app';
+import type {Dict} from '#/meta/belt';
+import type {Vocab} from '#/meta/vocab';
+
 import {dm_log, domlog} from './fallback';
 
 domlog(`Pre-init: registering uncaught error handler`);
@@ -7,44 +13,36 @@ window.addEventListener('error', (d_event) => {
 	console.error(d_event.error);
 });
 
-import {B_LOCALHOST, B_MOBILE, B_IOS_NATIVE, XT_SECONDS, P_STARSHELL_DEFAULTS, R_CAIP_2} from '#/share/constants';
-// import {
-// 	do_webkit_polyfill,
-// } from '#/script/webkit-polyfill';
-
-// if(B_NATIVE_IOS) {
-// 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.popup: ${s}`, ...a_args));
-// }
-
 
 import SystemSvelte from '#/app/container/System.svelte';
-import BlankSvelte from '#/app/screen/Blank.svelte';
-import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
-
-import type {SvelteComponent} from 'svelte';
-import type {PageConfig} from '#/app/nav/page';
-import {Vault} from '#/crypto/vault';
-import {parse_params, qs} from '#/util/dom';
-import {initialize_caches, yw_navigator} from '#/app/mem';
 import {ThreadId} from '#/app/def';
-import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
-import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
-import {global_broadcast, global_receive} from '#/script/msg-global';
-import {Accounts} from '#/store/accounts';
+import {initialize_caches, yw_navigator} from '#/app/mem';
+import type {PageConfig} from '#/app/nav/page';
+import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
+import BlankSvelte from '#/app/screen/Blank.svelte';
+
 import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
-import {factory_reset, login, register, reinstall} from '#/share/auth';
-import {check_defaults, check_restrictions} from '#/extension/restrictions';
+import ImportMnemonicSvelte from '#/app/screen/ImportMnemonic.svelte';
+import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
-import type {Vocab} from '#/meta/vocab';
-import type {IntraExt} from '#/script/messages';
-import type {Dict} from '#/meta/belt';
-import {Apps} from '#/store/apps';
-import {AppApiMode, AppStruct} from '#/meta/app';
+import {Bip39} from '#/crypto/bip39';
+import {Vault} from '#/crypto/vault';
+import {check_restrictions} from '#/extension/restrictions';
+import {ServiceClient} from '#/extension/service-comms';
 import {SessionStorage} from '#/extension/session-storage';
-import { Chains } from '#/store/chains';
-import { StarShellDefaults, WebResourceCache } from '#/store/web-resource-cache';
-import { Providers } from '#/store/providers';
-import { ServiceClient } from '#/extension/service-comms';
+import type {IntraExt} from '#/script/messages';
+import {global_broadcast, global_receive} from '#/script/msg-global';
+import {login, register} from '#/share/auth';
+import {B_LOCALHOST, B_IOS_NATIVE, XT_SECONDS, P_STARSHELL_DEFAULTS, R_CAIP_2} from '#/share/constants';
+import {Accounts} from '#/store/accounts';
+import {Apps} from '#/store/apps';
+import {Chains} from '#/store/chains';
+import {Providers} from '#/store/providers';
+import type {StarShellDefaults} from '#/store/web-resource-cache';
+import {WebResourceCache} from '#/store/web-resource-cache';
+import {forever, F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
+import {parse_params, qs} from '#/util/dom';
+import {AppApiMode} from '#/meta/app';
 
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
 
@@ -110,7 +108,7 @@ const dp_cause = (async() => {
 				g_app = {
 					on: 1,
 					api: AppApiMode.UNKNOWN,
-					name: (await SessionStorage.get(`profile:${d_url.origin}`))?.name as string
+					name: (await SessionStorage.get(`profile:${d_url.origin}`))?.name!
 						|| g_tab.title || s_host,
 					scheme: s_scheme,
 					host: s_host,
@@ -143,7 +141,7 @@ let i_health = 0;
 let b_busy = false;
 
 // init service client
-const dp_connect = ServiceClient.connect('self');
+const dp_connect = B_IOS_NATIVE? forever(): ServiceClient.connect('self');
 
 // reload the entire system
 async function reload() {
@@ -324,7 +322,30 @@ async function reload() {
 
 			// launch to homescreen
 			if(b_launch) {
-				k_navigator.activateThread(ThreadId.TOKENS);
+				void k_navigator.activateThread(ThreadId.TOKENS).then(async() => {
+					// thread activated
+
+					// development env
+					if(B_LOCALHOST) {
+						if(h_params.screen) {
+							switch(h_params.screen) {
+								case 'mnemonic': {
+									const kn_indicies = await Bip39.entropyToIndicies();
+
+									k_navigator.activePage.push({
+										creator: ImportMnemonicSvelte,
+										props: {
+											atu16_indicies: new Uint16Array(kn_indicies.data.buffer),
+										},
+									});
+									break;
+								}
+
+								default: {}
+							}
+						}
+					}
+				});
 			}
 			// launch to init thread
 			else {
@@ -426,7 +447,7 @@ if(B_LOCALHOST) {
 }
 else {
 	// start health check timer
-	i_health = globalThis.setTimeout(() => {
+	i_health = (globalThis as typeof window).setTimeout(() => {
 		domlog('Fatal time out, likely caused by an uncaught error.');
 	}, 15*XT_SECONDS);
 

@@ -11,6 +11,7 @@ import {
 
 import {Chains} from './chains';
 import {Secrets} from './secrets';
+import {Settings} from './settings';
 
 import {Bip32} from '#/crypto/bip32';
 import RuntimeKey from '#/crypto/runtime-key';
@@ -96,6 +97,25 @@ export const Accounts = create_store_class({
 				// return imported signing key (and allow public key to be exported)
 				return await Secp256k1Key.import(kk_sk, true);
 			});
+		}
+
+		/**
+		 * Retrieves the currently selected account (defaulting when not set)
+		 */
+		static async selected(): Promise<[AccountPath, AccountStruct]> {
+			const [
+				ks_accounts,
+				p_account_selected,
+			] = await Promise.all([
+				Accounts.read(),
+				Settings.get('p_account_selected'),
+			]);
+
+			const p_account = p_account_selected || Object.keys(ks_accounts.raw)[0] as AccountPath;
+
+			const g_account = ks_accounts.at(p_account)!;
+
+			return [p_account, g_account];
 		}
 
 		get(si_family: ChainNamespaceKey, s_pubkey: string): AccountStruct | null {

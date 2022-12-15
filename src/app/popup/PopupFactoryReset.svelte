@@ -1,8 +1,10 @@
 <script lang="ts">
+	import {yw_popup} from '../mem';
+	
 	import {factory_reset} from '#/share/auth';
 	
 	import ActionsLine from '../ui/ActionsLine.svelte';
-
+	
 	import SX_ICON_NUCLEAR from '#/icon/nuclear.svg?raw';
 
 
@@ -58,5 +60,5 @@
 	<input type="text" bind:value={s_confirmation} placeholder="DELETE ALL">
 </div>
 
-<ActionsLine cancel confirm={['Factory Reset', () => submit(), !b_qualifies]} />
+<ActionsLine cancel={() => $yw_popup = null} confirm={['Factory Reset', () => submit(), !b_qualifies]} />
 	

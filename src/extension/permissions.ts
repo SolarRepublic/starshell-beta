@@ -1,11 +1,12 @@
+import type {AccountPath} from '#/meta/account';
 import type {SessionRequest} from '#/meta/api';
+import type {AppChainConnection} from '#/meta/app';
 import type {Dict} from '#/meta/belt';
-import {ode} from '#/util/belt';
+
 import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
+
 import {Chains} from '#/store/chains';
-import {Accounts} from '#/store/accounts';
-import type { AppChainConnection } from '#/meta/app';
-import type { AccountStruct, AccountPath } from '#/meta/account';
+import {ode} from '#/util/belt';
 
 export interface PermissionsRegistry {
 	doxx_name: true;

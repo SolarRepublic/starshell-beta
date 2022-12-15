@@ -1,11 +1,11 @@
 <script lang="ts">
+	import {onMount} from 'svelte';
+	
 	import {Screen, Header} from './_screens';
-
 	import {load_page_context} from '../svelte';
 	
 	import CreateWallet from './CreateWallet.svelte';
 	import ActionsWall from '../ui/ActionsWall.svelte';
-	import { onMount } from 'svelte';
 
 	const {k_page} = load_page_context();
 

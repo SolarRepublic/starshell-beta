@@ -663,7 +663,7 @@ strong {
 input {
 	font-size: inherit;
 
-	&[type="text"],&[type="password"],&[type="number"] {
+	&[type="text"]:not(.atypical),&[type="password"],&[type="number"] {
 		.form-entry();
 
 		&.global_compact {
@@ -713,6 +713,10 @@ input {
 
 .font-variant_tiny {
 	.font(tiny);
+}
+
+.svg-color_primary {
+	--svg-color-fg: var(--theme-color-primary);
 }
 
 .color-icon-send {

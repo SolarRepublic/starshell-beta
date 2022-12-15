@@ -1,12 +1,7 @@
-<script lang="ts">
+<script lang="ts">	
+	import {createEventDispatcher, onMount} from 'svelte';
 	
-	import type {Page} from '../screen/_screens';
-	
-	import {
-		createEventDispatcher,
-		getContext,
-		onMount,
-	} from 'svelte';
+	import {load_page_context} from '../svelte';
 	
 	import {
 		yw_blur,
@@ -24,8 +19,10 @@
 	export let keyed = false;
 	export let classNames = '';
 
-
-	const k_page = getContext<Page>('page');
+	
+	const {
+		k_page,
+	} = load_page_context();
 
 	export let leaves = false;
 	export let swipes = false;

@@ -1,18 +1,19 @@
 import type {Replace} from 'ts-toolbelt/out/String/Replace';
-import type {Resource} from '#/meta/resource';
+
 import type {App, AppStruct, AppPath, AppSchemeKey} from '#/meta/app';
 import {AppApiMode} from '#/meta/app';
+import type {Dict, JsonObject} from '#/meta/belt';
+import type {ContractStruct} from '#/meta/chain';
+import type {Resource} from '#/meta/resource';
 
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
+import {H_LOOKUP_PFP} from './_init';
 
 import {SI_STORE_APPS} from '#/share/constants';
-import type {Dict, JsonObject} from '#/meta/belt';
 import {ode} from '#/util/belt';
-import type {ContractStruct} from '#/meta/chain';
-import {H_LOOKUP_PFP} from './_init';
 
 export interface AppFilterConfig extends Partial<AppStruct> {}
 
@@ -160,7 +161,7 @@ export const Apps = create_store_class({
 
 			// each app in store
 			FILTERING_APPS:
-			for(const [p_app, g_app] of ode(this._w_cache)) {
+			for(const [, g_app] of ode(this._w_cache)) {
 				// each criterion in filter
 				for(const [si_key, w_value] of ode(gc_filter)) {
 					// one of the filters doesn't match; skip it

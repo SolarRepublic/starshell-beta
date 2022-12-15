@@ -25,7 +25,7 @@
 	
 </style>
 
-<Screen debug='AppsHome' nav root>
+<Screen nav root debug='AppsHome' classNames="apps">
 	<Header search network account />
 
 	<SubHeader bare

@@ -70,6 +70,8 @@ import {Settings} from '#/store/settings';
 import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
 import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, ripemd160_sync, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
 import {stringify_params} from '#/util/dom';
+import type { StoreKey } from '#/meta/store';
+import { Argon2 } from '#/crypto/argon2';
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
@@ -495,8 +497,18 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 		// message originates from extension
 		const b_origin_verified = g_sender.url?.startsWith(chrome.runtime.getURL('')) || false;
 		if(chrome.runtime.id === g_sender.id && (b_origin_verified || 'null' === g_sender.origin)) {
-			// console.debug(`Routing message from extension as instruction to '${si_type}'`);
-			// h_handlers = H_HANDLERS_INSTRUCTIONS;
+			// for native iOS only
+			if(B_IOS_NATIVE) {
+				// handle session storage commands
+				if('sessionStorage' === g_msg.type) {
+					const g_command = g_msg.value;
+
+					// polyfill is synchronous
+					fk_respond(H_SESSION_STORAGE_POLYFILL[g_command.type](g_command.value));
+					return;
+				}
+			}
+
 			console.error(`Need to migrate caller to service comms for '${si_type}'`);
 			return;
 		}
@@ -856,7 +868,7 @@ if(import.meta.env?.DEV) {
 }
 
 Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
-	async decrypt(si_store: string) {
+	async decrypt(si_store: StoreKey) {
 		// fetch the root key
 		const dk_root = await Vault.getRootKey();
 
@@ -871,6 +883,8 @@ Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
 
 		return w_store;
 	},
+
+	Argon2,
 
 	Secrets,
 	Accounts,

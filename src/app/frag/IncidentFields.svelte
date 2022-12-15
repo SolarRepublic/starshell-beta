@@ -1,4 +1,4 @@
-<script context="module" type="ts">
+<script context="module" lang="ts">
 	import type {Promisable} from '#/meta/belt';
 	import type {ChainStruct} from '#/meta/chain';
 	import type {PfpTarget} from '#/meta/pfp';
@@ -37,7 +37,7 @@
 </script>
 
 
-<script type="ts">
+<script lang="ts">
 	import {syserr} from '../common';
 	import {ecdh_nonce, extract_memo_ciphertext} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';

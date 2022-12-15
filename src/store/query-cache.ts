@@ -1,5 +1,7 @@
+import type {Cached} from './providers';
+
 import type {JsonObject} from '#/meta/belt';
-import type {Bech32, ChainPath, HoldingPath} from '#/meta/chain';
+import type {Bech32, ChainPath} from '#/meta/chain';
 
 import {
 	create_store_class,
@@ -9,7 +11,6 @@ import {
 import {Chains} from './chains';
 
 import {SI_STORE_QUERY_CACHE} from '#/share/constants';
-import type { Cached } from './providers';
 
 
 export const QueryCache = create_store_class({

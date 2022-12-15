@@ -1,36 +1,23 @@
+import type {Coin} from '@cosmjs/proto-signing';
+
+import type {Writable} from 'ts-toolbelt/out/Object/Writable';
+
+import type {Dict} from '#/meta/belt';
 import type {Bech32, BlockExplorerConfig, Chain, ChainPath, ChainNamespaceKey, ChainStruct, Caip2, ChainNamespace, CoinInfo} from '#/meta/chain';
 
 import {fromBech32, toBech32} from '@cosmjs/encoding';
+import BigNumber from 'bignumber.js';
 
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
 
+import {pubkey_to_bech32} from '#/crypto/bech32';
 import {R_BECH32, SI_STORE_CHAINS} from '#/share/constants';
-import type {Dict} from '#/meta/belt';
 import {ode} from '#/util/belt';
-import {base64_to_buffer, ripemd160_sync, sha256_sync} from '#/util/data';
-import type { Coin } from '@cosmjs/proto-signing';
-import BigNumber from 'bignumber.js';
-import { format_amount } from '#/util/format';
-import type { Writable } from 'ts-toolbelt/out/Object/Writable';
-import { pubkey_to_bech32 } from '#/crypto/bech32';
+import {format_amount} from '#/util/format';
 
-// type so = {
-// 	pathArgs: [FamilyKey, string];
-// 	resource: <a_args extends [FamilyKey, string]>() => Chain<a_args[0], a_args[1]>;
-// 	test: <s_test extends string>(s: s_test) => s_test;
-// };
-
-// type T1 = <s_str extends string>(s: s_str) => s_str;
-// type T2 = <s_str extends number>(s: s_str) => s_str;
-
-// type homa = so['test'] extends T2? 'y': 'n';
-
-// type test = so['test'];
-// type wtf = test<'end'>;
-// const fff: test = <S extends number>(s: S) => s;
 
 export class TransactionNotFoundError extends Error {}
 
@@ -47,16 +34,6 @@ export const parse_date = (s_input: string | null): number => {
 
 	return Date.now();
 };
-
-class ChainLink {
-	constructor(protected _g_res: ChainStruct) {
-
-	}
-
-	get data() {
-		return this._g_res;
-	}
-}
 
 const R_CHAIN_PATH = /^\/family\.([^/]+)\/chain\.([^/]+)(\/|$)/;
 
@@ -135,7 +112,7 @@ export const Chains = create_store_class({
 		}
 
 		// TODO: return normalized address using `normalizeBech32()`
-		static isValidAddressFor(g_chain: ChainStruct, s_address: Chain.Bech32String, si_purpose: keyof ChainNamespace.Bech32s<typeof g_chain['namespace']>='acc') {
+		static isValidAddressFor(g_chain: ChainStruct, s_address: Chain.Bech32String, si_purpose: keyof ChainNamespace.Bech32s='acc') {
 			if(g_chain.bech32s) {
 				const m_bech32 = R_BECH32.exec(s_address);
 				try {

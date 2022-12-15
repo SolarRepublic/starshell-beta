@@ -32,9 +32,7 @@
 </style>
 
 <Screen nav root classNames='contacts'>
-	<Header search network account
-	>
-	</Header>
+	<Header search network account />
 
 	<SubHeader title="Agents"
 		on:add_new={() => k_page.push({

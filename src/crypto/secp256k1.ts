@@ -1,12 +1,12 @@
 
+import type {Secp256k1} from '@solar-republic/wasm-secp256k1';
+
+import {instantiateSecp256k1Bytes} from '@solar-republic/wasm-secp256k1';
+
 import RuntimeKey from './runtime-key';
 
 import {sha256, zero_out} from '#/util/data';
 
-import {
-	instantiateSecp256k1Bytes,
-	Secp256k1,
-} from '@solar-republic/wasm-secp256k1';
 
 function F_DESTROYED(): never {
 	throw new Error('The Secp256k1 instance being called has been destroyed');

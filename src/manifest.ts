@@ -36,21 +36,15 @@ const H_ICONS = {
 	19: 'media/vendor/icon_19.png',
 	24: 'media/vendor/icon_24.png',
 	32: 'media/vendor/icon_32.png',
-	// 38: 'media/vendor/icon_38.png',
 	48: 'media/vendor/icon_48.png',
 	64: 'media/vendor/icon_64.png',
-	// 96: 'media/vendor/icon_96.png',
 	128: 'media/vendor/icon_128.png',
 	256: 'media/vendor/icon_256.png',
-	// 512: 'media/vendor/icon_512.png',
 };
-
-// const pd_media = path.resolve(__dirname, './media');
-// fs.readdirSync(pd_media);
 
 
 const A_EXCLUDE_DEVELOPMENT = [
-	// 'http://localhost:8188/*',
+	'http://localhost:8128/*',
 ];
 
 const A_MATCH_LOCALHOST = [
@@ -72,13 +66,17 @@ const A_MATCH_LINK = [
 	'https://link.starshell.net/*',
 ];
 
+const A_MATCH_NEVER = [
+	'file://__never__/*',
+];
+
 
 type ContentScriptOverrides = Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>;
 
 const B_ALL_FRAMES = false;
 
 const G_CONTENT_SCRIPT_DEFAULT = {
-	// exclude_matches: A_EXCLUDE_DEVELOPMENT,
+	exclude_matches: A_EXCLUDE_DEVELOPMENT,
 };
 
 const G_CONTENT_SCRIPTS = {
@@ -97,9 +95,7 @@ const G_CONTENT_SCRIPTS = {
 		return {
 			...G_CONTENT_SCRIPT_DEFAULT,
 			js: ['src/script/mcs-relay.ts'],
-			matches: [
-				'file:///:never:',
-			],
+			matches: A_MATCH_NEVER,
 			run_at: 'document_start',
 			all_frames: B_ALL_FRAMES,
 		};
@@ -133,6 +129,16 @@ const G_CONTENT_SCRIPTS = {
 			run_at: 'document_start',
 			all_frames: B_ALL_FRAMES,
 			...h_overrides,
+		};
+	},
+
+	worker_argon2() {
+		return {
+			...G_CONTENT_SCRIPT_DEFAULT,
+			js: ['src/script/worker-argon2.ts'],
+			matches: A_MATCH_NEVER,
+			run_at: 'document_start',
+			all_frames: false,
 		};
 	},
 
@@ -220,6 +226,7 @@ export const GC_MANIFEST_V2: Partial<ManifestV2> = {
 		G_CONTENT_SCRIPTS.ics_spotter(),
 		G_CONTENT_SCRIPTS.ics_launch(),
 		G_CONTENT_SCRIPTS.ics_link(),
+		G_CONTENT_SCRIPTS.worker_argon2(),
 	] as Mv2ContentScript[],
 
 	background: {
@@ -269,6 +276,7 @@ export const GC_MANIFEST_V3: Partial<ManifestV3> = {
 		G_CONTENT_SCRIPTS.ics_link({
 			world: 'ISOLATED',
 		}),
+		G_CONTENT_SCRIPTS.worker_argon2(),
 	] as Mv3ContentScript[],
 
 	background: {
@@ -329,6 +337,12 @@ export const H_BROWSERS = {
 						'api.trivium.network',
 						'starshell.net',
 					].flatMap(s => [`https://*.${s}`, `https://${s}`]),
+					...[
+						'faucet.starshell.net',
+						'faucet.pulsar.scrttestnet.com',
+						'pulsar.faucet.trivium.network',
+						'faucet.secrettetnet.io',
+					].map(s => `https://${s}`),
 					'wss://rpc.testnet.secretsaturn.net',
 					'wss://pulsar-2.api.trivium.network',
 					'wss:',

@@ -1,29 +1,22 @@
-
 import type {AminoMsg} from '@cosmjs/amino';
 import type {Block as CosmosBlock} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/types';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-import type {BroadcastMode, GetTxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
+import type {GetTxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
-
 import type {Block as TendermintBlock} from '@solar-republic/cosmos-grpc/dist/tendermint/types/block';
-import type {U} from 'ts-toolbelt';
 
-import type {Account, AccountPath, AccountStruct} from '#/meta/account';
+import type {AccountPath, AccountStruct} from '#/meta/account';
 import type {AsJson, Dict, JsonObject, Promisable} from '#/meta/belt';
 import type {Bech32, ChainStruct, HoldingPath} from '#/meta/chain';
-import type {TxPending, TxSynced} from '#/meta/incident';
-import type {Provider, ProviderStruct, ProviderPath} from '#/meta/provider';
+import type {TxSynced} from '#/meta/incident';
+import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 
-import {
-	create_store_class,
-	WritableStoreMap,
-} from './_base';
+import {create_store_class, WritableStoreMap} from './_base';
 import {Chains} from './chains';
 
 import {yw_chain} from '#/app/mem';
 
-import type {CosmosNetwork, IncidentTx, ModWsTxResult} from '#/chain/cosmos-network';
-
+import type {CosmosNetwork, ModWsTxResult} from '#/chain/cosmos-network';
 import {SecretNetwork} from '#/chain/secret-network';
 import {SI_STORE_PROVIDERS, XT_SECONDS} from '#/share/constants';
 import {timeout_exec} from '#/util/belt';
@@ -57,9 +50,6 @@ export interface E2eInfo {
 	sequence: string;
 	height: string;
 	hash: string;
-	// priorSequence: string | null;
-	// priorHeight: string | null;
-	// priorHash: string | null;
 	pubkey: Uint8Array;
 }
 
@@ -176,10 +166,6 @@ export interface ActiveNetwork {
 	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_tx?: JsonObject, si_txn?: string) => Promisable<void>): Promise<() => void>;
 
 	get hasRpc(): boolean;
-
-	onReceive(sa_owner: string, fke_receive: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): Promise<() => void>;
-
-	onSend(sa_owner: string, fke_send: (d_kill: Event | null, g_tx?: ModWsTxResult) => Promisable<void>): Promise<() => void>;
 
 	cachedCoinBalance(sa_owner: Bech32, si_coin: string): Cached<Coin> | null;
 

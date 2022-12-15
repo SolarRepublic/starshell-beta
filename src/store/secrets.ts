@@ -1,13 +1,10 @@
-
 import type {AppPath} from '#/meta/app';
 import type {Promisable} from '#/meta/belt';
-import type {Bech32, ChainPath, ContractPath} from '#/meta/chain';
-import type {Secret, SecretStruct, SecretPath, SecretType} from '#/meta/secret';
+import type {Bech32, ChainPath} from '#/meta/chain';
+import type {SecretStruct, SecretPath, SecretType} from '#/meta/secret';
 import type {Snip24Permission} from '#/schema/snip-24-def';
 
-import {
-	fetch_cipher,
-} from './_base';
+import {fetch_cipher} from './_base';
 
 import type {Bip44Path} from '#/crypto/bip44';
 
@@ -15,9 +12,9 @@ import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
 
 import {storage_get_all} from '#/extension/public-storage';
+import {ResourceNonExistentError} from '#/share/errors';
 import {is_dict, ode, oderac} from '#/util/belt';
 import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
-import { ResourceNonExistentError } from '#/share/errors';
 
 type PathFrom<
 	g_secret extends Pick<SecretStruct, 'type' | 'uuid'>,

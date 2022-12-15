@@ -1,34 +1,13 @@
-import { buffer_to_base64, zero_out } from '#/util/data';
 import SensitiveBytes from './sensitive-bytes';
+
+import {zero_out} from '#/util/data';
 
 
 /**
  * Callback that returns or resolves to a private key as an Uint8Array.
  */
-export interface KeyProducer {
-	(): Uint8Array | Promise<Uint8Array>;
-}
+export type KeyProducer<dc_type extends ArrayBufferView=Uint8Array> = () => dc_type | Promise<dc_type>;
 
-
-/**
- * Compute and store XOR within ArrayBuffer so that sensitive data can be overwritten in memory immediately after use.
- */
-function inbuffer_xor(atu8_a: Uint8Array, atu8_b: Uint8Array): Uint8Array {
-	// make sure byte lengths match
-	const nb_a = atu8_a.byteLength;
-	if(nb_a !== atu8_b.byteLength) throw new Error('Inputs must have exactly the same byte length');
-
-	// prep output buffer
-	const atu8_out = new Uint8Array(nb_a);
-
-	// xor one byte at a time
-	for(let ib_each=0; ib_each<nb_a; ib_each++) {
-		atu8_out[ib_each] = atu8_a[ib_each] ^ atu8_b[ib_each];
-	}
-
-	// return output buffer
-	return atu8_out;
-}
 
 /**
  * Fetch a derived key deterministically given some salt and optional info.
@@ -78,7 +57,7 @@ async function fetch_derived(dk_base: CryptoKey, atu8_salt: Uint8Array, ni_bits=
  */
 async function generate_pair(fk_sk: KeyProducer, atu8_salt: Uint8Array, ni_bits=256): Promise<[CryptoKey, SensitiveBytes]> {
 	// derive a random 256-bit 'one-time pad' key
-	const atu8_otp = crypto.getRandomValues(new Uint8Array(ni_bits >> 3));
+	const atu8_otp = crypto.getRandomValues(new Uint8Array(Math.ceil(ni_bits / 8)));
 
 	// import the base key into a new managed key object that can derive bits
 	const dk_base = await crypto.subtle.importKey('raw', atu8_otp, {

@@ -7,9 +7,12 @@ import type {Vocab} from '#/meta/vocab';
 
 import type {ScreenInfo} from '#/extension/browser';
 import type {IcsToService} from '#/script/messages';
+import {do_webkit_polyfill} from '#/script/webkit-polyfill';
 import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_IOS_NATIVE} from '#/share/constants';
 
-
+if(B_IOS_NATIVE) {
+	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.session-storage: ${s}`, ...a_args));
+}
 
 export type SessionStorageRegistry = NonNullableFlat<MergeAll<{
 	/**
@@ -57,12 +60,6 @@ export type SessionStorageRegistry = NonNullableFlat<MergeAll<{
 		wrapped: number;
 	};
 }, [
-	// {
-	// 	[p_app in `app:${string}`]: {
-	// 		wrapped: CachedAppState;
-	// 	};
-	// },
-
 	{
 		[si_mutex in `mutex:${string}`]: {
 			wrapped: string;
@@ -139,37 +136,41 @@ export const SessionStorage = {} as ExtSessionStorage;
 
 // TODO: change `b_force_background` default assignment back to `false` once chromium fixes bug
 
+const throw_no_fallback = () => {
+	throw new Error(`No fallback storage mechanism available`);
+};
+
+const no_fallback = () => ({
+	get: throw_no_fallback,
+	set: throw_no_fallback,
+	remove: throw_no_fallback,
+	clear: throw_no_fallback,
+});
+
 // eslint-disable-next-line @typescript-eslint/unbound-method
 function resolve_storage_mechanism(b_force_background=false) {
 	let f_session!: () => Window['sessionStorage'];
 
 	console.debug(`Resolving storage mechanism (force_background=${b_force_background}); chrome session capable: ${B_CHROME_SESSION_CAPABLE}`);
 
-	if(B_IOS_NATIVE) {
-		console.debug('Using sessionStorage since on iOS Native');
-
-		f_session = () => sessionStorage;
-	}
-	else if(chrome.storage['session'] && !b_force_background) {  // B_CHROME_SESSION_CAPABLE
+	if(chrome.storage['session'] && !b_force_background) {  // B_CHROME_SESSION_CAPABLE
 		console.debug('Using chrome.storage.session since it is available');
 
 		const f_session_direct = () => (chrome.storage as unknown as {
 			session: chrome.storage.StorageArea;
 		}).session;
 
-		const g_fallback = resolve_storage_mechanism(true);
+		const g_fallback = B_IOS_NATIVE? no_fallback(): resolve_storage_mechanism(true);
 
 		const g_exports: ExtSessionStorage = {
-			async get<
-				si_key extends SessionStorageKey,
-			>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
+			async get<si_key extends SessionStorageKey>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
 				try {
 					return (await f_session_direct().get([si_key]) as {
 						[si in typeof si_key]: SessionStorage.Wrapped<si_key> | null;
 					})[si_key];
 				}
 				catch(e_get) {
-					console.warn(`Falling back to message-based storage mechanism`);
+					console.warn(`Falling back to message-based storage mechanism due to caught error: ${e_get.stack}`);
 					return g_fallback.get(si_key);
 				}
 			},
@@ -226,91 +227,42 @@ function resolve_storage_mechanism(b_force_background=false) {
 			return {
 				/* eslint-disable @typescript-eslint/require-await */
 				get<si_key extends SessionStorageKey>(si_key: si_key): Promise<SessionStorage.Wrapped<si_key> | null> {
-					try {
-						return f_runtime().sendMessage({
-							type: 'sessionStorage',
-							value: {
-								type: 'get',
-								value: si_key,
-							},
-						}) as Promise<SessionStorage.Wrapped<si_key> | null>;
-					}
-					catch(e_send) {
-						console.error(`Caught failed session storage get: ${e_send.stack}`);
-					}
-					// return new Promise((fk_resolve) => {
-					// 	f_runtime().sendMessage({
-					// 		type: 'sessionStorage',
-					// 		value: {
-					// 			type: 'get',
-					// 			value: si_key,
-					// 		},
-					// 	}, (w_value: JsonObject) => {
-					// 		fk_resolve(w_value as SessionStorage.Wrapped<si_key> || null);
-					// 	});
-					// });
+					return f_runtime().sendMessage({
+						type: 'sessionStorage',
+						value: {
+							type: 'get',
+							value: si_key,
+						},
+					}) as Promise<SessionStorage.Wrapped<si_key> | null>;
 				},
 
-				set(h_set_wrapped: SetWrapped): Promise<undefined> {
-					return f_runtime().sendMessage({
+				async set(h_set_wrapped: SetWrapped): Promise<void> {
+					await f_runtime().sendMessage({
 						type: 'sessionStorage',
 						value: {
 							type: 'set',
 							value: h_set_wrapped as JsonObject,
 						},
-					}) as Promise<undefined>;
-
-					// return new Promise((fk_resolve) => {
-					// 	f_runtime().sendMessage({
-					// 		type: 'sessionStorage',
-					// 		value: {
-					// 			type: 'set',
-					// 			value: h_set_wrapped as JsonObject,
-					// 		},
-					// 	}, () => {
-					// 		fk_resolve();
-					// 	});
-					// });
+					});
 				},
 
-				remove(si_key: SessionStorageKey): Promise<void> {
-					return f_runtime().sendMessage({
+				async remove(si_key: SessionStorageKey): Promise<void> {
+					await f_runtime().sendMessage({
 						type: 'sessionStorage',
 						value: {
 							type: 'remove',
 							value: si_key,
 						},
-					}) as Promise<void>;
-					// return new Promise((fk_resolve) => {
-					// 	f_runtime().sendMessage({
-					// 		type: 'sessionStorage',
-					// 		value: {
-					// 			type: 'remove',
-					// 			value: si_key,
-					// 		},
-					// 	}, () => {
-					// 		fk_resolve();
-					// 	});
-					// });
+					});
 				},
 
-				clear(): Promise<void> {
-					return f_runtime().sendMessage({
+				async clear(): Promise<void> {
+					await f_runtime().sendMessage({
 						type: 'sessionStorage',
 						value: {
 							type: 'clear',
 						},
-					}) as Promise<void>;
-					// return new Promise((fk_resolve) => {
-					// 	f_runtime().sendMessage({
-					// 		type: 'sessionStorage',
-					// 		value: {
-					// 			type: 'clear',
-					// 		},
-					// 	}, () => {
-					// 		fk_resolve();
-					// 	});
-					// });
+					});
 				},
 
 				synchronously: null,

@@ -1,7 +1,9 @@
+import type {MessageDict} from './_types';
+import type {Coin} from '@cosmjs/amino';
+
 import type {Bech32} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
-import type {Coin} from '@cosmjs/amino';
-import type {MessageDict} from './_types';
+
 import {add_coins} from './_util';
 
 export const DistributionMessages: MessageDict = {

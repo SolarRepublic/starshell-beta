@@ -3,15 +3,17 @@ import '#/dev';
 import type {JsonObject, JsonValue, Dict} from '#/meta/belt';
 import type {Store, StoreKey} from '#/meta/store';
 
+import {Argon2, Argon2Methods, Argon2Type} from './argon2';
+
 import SensitiveBytes from './sensitive-bytes';
 
 import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
 import {global_broadcast} from '#/script/msg-global';
 
-import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_IS_BACKGROUND, XG_64_BIT_MAX} from '#/share/constants';
+import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_LOCALHOST, XG_64_BIT_MAX} from '#/share/constants';
 import {NotAuthenticatedError} from '#/share/errors';
-import {F_NOOP, timeout} from '#/util/belt';
+import {F_NOOP} from '#/util/belt';
 import {
 	base93_to_buffer,
 	buffer_to_base93,
@@ -21,19 +23,17 @@ import {
 	hex_to_buffer,
 	sha256_sync,
 	text_to_buffer,
-	uuid_v4,
 	zero_out,
 } from '#/util/data';
+import {WorkerHost} from '#/extension/worker-host';
 
-
-// identifies the schema version of the store
-const SI_VERSION_SCHEMA_STORE = '1';
 
 // number of key derivation iterations
-// const N_ITERATIONS = 6942069;
-// const N_ITERATIONS = 4206969;
-const N_ITERATIONS = 696969;
-// const N_ITERATIONS = 20;
+const N_PBKDF2_ITERATIONS = 696969;
+
+const N_ARGON2_ITERATIONS = B_LOCALHOST? 1: 48;
+
+const NB_ARGON2_MEMORY = B_LOCALHOST? 256: 32 * 1024;  // 64 KiB
 
 /**
  * Sets the block size to use when padding plaintext before encrypting for storage.
@@ -42,9 +42,6 @@ const NB_PLAINTEXT_BLOCK_SIZE = 512;
 
 // size of salt in bytes
 const NB_SALT = 256 >> 3;
-
-// size of nonce in bytes
-const NB_NONCE = 256 >> 3;
 
 // pseudo-random hash function (OK to use SHA-512 with AES-256 since kdf will simply use higheset-order octets of hash)
 // <https://crypto.stackexchange.com/questions/41476/is-there-any-benefit-from-using-sha-512-over-sha-256-when-aes-just-truncates-it>
@@ -77,36 +74,10 @@ const GC_HKDF_COMMON = {
 };
 
 
-// identify this local frame
-const SI_FRAME_LOCAL = B_IS_BACKGROUND? `SERVICE.${uuid_v4().slice(32)}`: uuid_v4().slice(24);
-
-
 interface VaultFields {
 	atu8_ciphertext: Uint8Array;
 	atu8_extra_salt: Uint8Array;
 }
-
-
-// async function unlock(atu8_import: Uint8Array) {
-// 	// Web Crypto does not support the secp256k1 curve, but keeping the private key in heap memory
-// 	// makes the user more vulnerable to key finding attacks. instead, try to leverage platform-specific
-// 	// solutions provided by browser that ideally store the key within secure hardware boundaries.
-// 	// more specifically, choose a supported elliptic curve that has larger `n` curve order than secp256k1
-// 	// in order to make sure the private key won't be rejected upon import for exceeding the valid range.
-// 	// secp256k1: <https://neuromancer.sk/std/secg/secp256k1>
-// 	// secp384r1 (P-384): <https://neuromancer.sk/std/secg/secp384r1>
-// 	await crypto.subtle.importKey('raw', atu8_import, {
-// 		name: 'ECDSA',
-// 		namedCurve: 'P-384',
-// 	}, true, []);
-
-// 	// 
-// 	const atu8_a = crypto.getRandomValues(new Uint8Array(32));
-// 	crypto.subtle.importKey('raw', atu8_a, {
-// 		name: 'ECDSA',
-// 		namedCurve: 'P-384',
-// 	}, false, ['deriveBits']);
-// }
 
 
 /**
@@ -201,13 +172,12 @@ async function hkdf_params(): Promise<typeof GC_HKDF_COMMON> {
 	};
 }
 
-
 function pbkdf2_derive2(ab_nonce: BufferSource, x_iteration_multiplier=0): (dk_base: CryptoKey) => Promise<SensitiveBytes> {
 	return async function(dk_base) {
 		return new SensitiveBytes(new Uint8Array(await crypto.subtle.deriveBits({
 			name: 'PBKDF2',
 			salt: ab_nonce,
-			iterations: x_iteration_multiplier? Math.ceil(N_ITERATIONS * x_iteration_multiplier): N_ITERATIONS,
+			iterations: x_iteration_multiplier? Math.ceil(N_PBKDF2_ITERATIONS * x_iteration_multiplier): N_PBKDF2_ITERATIONS,
 			hash: SI_PRF,
 		}, dk_base, 256)));
 	};
@@ -282,6 +252,29 @@ interface RootKeysData {
 // wait for release from local frame
 const h_release_waiters_local: Dict<VoidFunction[]> = {};
 
+// argon worker
+let k_argon_host: Argon2Methods;
+async function load_argon_worker(): Promise<Argon2Methods> {
+	if(k_argon_host) return k_argon_host;
+
+	// when testing on localhost, import argon2 directly to run on main thread
+	if(B_LOCALHOST) {
+		const {Argon2} = await import('#/crypto/argon2');
+		return k_argon_host = {
+			...Argon2,
+
+			// override hash function by injecting preserve flag
+			hash: (gc_hash) => Argon2.hash({
+				...gc_hash,
+				preserve: true,
+			}),
+		};
+	}
+	// otherwise use webworker so as to not block ui
+	else {
+		return k_argon_host = await WorkerHost.create('assets/src/script/worker-argon2');
+	}
+}
 
 
 /**
@@ -297,8 +290,6 @@ const h_release_waiters_local: Dict<VoidFunction[]> = {};
 export const Vault = {
 	async getBase(): Promise<BaseParams | undefined> {
 		return await public_storage_get<BaseParams>('base') || void 0;
-
-		// return PublicStorage.base();
 	},
 
 	isValidBase(z_test: unknown): z_test is BaseParams {
@@ -325,14 +316,10 @@ export const Vault = {
 			nonce: g_base.nonce+'',
 			signature: buffer_to_hex(g_base.signature),
 		});
-
-		// PublicStorage.base({});
 	},
 
 	async eraseBase(): Promise<void> {
 		return await public_storage_remove('base');
-
-		// PublicStorage.base(null);
 	},
 
 	/**
@@ -348,23 +335,6 @@ export const Vault = {
 		if(!w_root) return null;
 
 		return await restore_as_key(w_root, 'HKDF', false, ['deriveKey']);
-
-		// // background page exists
-		// let dw_background!: Window | null;
-		// if(chrome.extension.getBackgroundPage && (dw_background=chrome.extension.getBackgroundPage())) {
-		// 	return dw_background['_dk_root'] || null;
-		// }
-		// // mv3
-		// else {
-		// 	// read root key from session storage
-		// 	const ax_root = await session_storage_get('root');
-
-		// 	// no key; not authenticated
-		// 	if(!ax_root) return null;
-
-		// 	// return imported root key
-		// 	return await crypto.subtle.importKey('raw', Uint8Array.from(ax_root), 'HKDF', false, ['deriveKey']);
-		// }
 	},
 
 	async symmetricKey(a_usages: KeyUsage[]): Promise<CryptoKey> {
@@ -408,8 +378,9 @@ export const Vault = {
 	 * Create the root key by importing the plaintext password string, using PBKDF2 to derive `root0`, then deferring
 	 * to callbacks to complete child key derivation. Uses callbacks instead of a Promise to help make it obvious to
 	 * the runtime that the password string does not need to put into heap memory (i.e., only exists in stack memory).
+	 * @deprecated superceded by {@link Vault.deriveRootBitsArgon2}
 	 */
-	deriveRootBits(
+	deriveRootBitsPbkdf2(
 		atu8_phrase: Uint8Array,
 		ab_nonce: BufferSource,
 		x_iteration_multiplier=0
@@ -418,6 +389,28 @@ export const Vault = {
 		return crypto.subtle.importKey('raw', atu8_phrase, 'PBKDF2', false, ['deriveBits'])
 			// help allow the plaintext password to have a short life in the stack by forcing it out of scope as soon as possible
 			.then(pbkdf2_derive2(ab_nonce, x_iteration_multiplier));
+	},
+
+
+	/**
+	 * Create the root key by using Argon2id to derive `root0` using a WebWorker
+	 */
+	async deriveRootBitsArgon2(
+		atu8_phrase: Uint8Array,
+		atu8_nonce: Uint8Array,
+		x_iteration_multiplier=0
+	): Promise<SensitiveBytes> {
+		const k_argon_host = await load_argon_worker();
+
+		return new SensitiveBytes(await k_argon_host.hash({
+			phrase: atu8_phrase,
+			salt: atu8_nonce,
+			time: x_iteration_multiplier? Math.ceil(N_ARGON2_ITERATIONS * x_iteration_multiplier): N_ARGON2_ITERATIONS,
+			mem: NB_ARGON2_MEMORY,
+			hashLen: 32,  // 256 bits
+			parallelism: 2,
+			type: Argon2Type.Argon2id,
+		}));
 	},
 
 
@@ -455,7 +448,7 @@ export const Vault = {
 
 		// if a new version changes the number of iterations used, it should happen here
 		// migration
-		const x_migrate_multiplier = 0;
+		// const x_migrate_multiplier = 0;
 		// const g_last_seen = await PublicStorage.lastSeen();
 		// if(!g_last_seen) {
 		// 	x_migrate_multiplier = 20 / N_ITERATIONS;
@@ -466,8 +459,8 @@ export const Vault = {
 			kn_root_old,
 			kn_root_new,
 		] = await Promise.all([
-			Vault.deriveRootBits(atu8_phrase, atu8_vector_old, x_migrate_multiplier),
-			Vault.deriveRootBits(atu8_phrase, atu8_vector_new),
+			Vault.deriveRootBitsArgon2(atu8_phrase, atu8_vector_old, 0),
+			Vault.deriveRootBitsArgon2(atu8_phrase, atu8_vector_new, 0),
 		]);
 
 		// zero out passphrase data

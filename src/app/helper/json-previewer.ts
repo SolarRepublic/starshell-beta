@@ -18,6 +18,10 @@ export function classify(s_value: string, s_class: string): HTMLSpanElement {
 	}, [s_value]);
 }
 
+function render_string(s_value: string): HTMLSpanElement {
+	return classify(JSON.stringify(s_value).replace(/^"|"$/g, ''), 'json-string');
+}
+
 export type RenderValue = JsonValue<Promise<JsonValue> | (() => Promisable<JsonValue>)>;
 
 let xt_global_delay = 0;
@@ -38,10 +42,6 @@ export class JsonPreviewer {
 	}
 
 	constructor(protected _gc_previewer: PreviewerConfig) {}
-
-	render_string(s_value: string): HTMLSpanElement {
-		return classify(JSON.stringify(s_value).replace(/^"|"$/g, ''), 'json-string');
-	}
 
 	render(z_value: RenderValue, a_terms: boolean[]=[]): HTMLElement {
 		const n_depth = a_terms.length;
@@ -214,7 +214,7 @@ export class JsonPreviewer {
 					'data-bech32': z_value,
 					'data-chain-path': this._gc_previewer.chain? Chains.pathFrom(this._gc_previewer.chain): '',
 				}, [
-					this.render_string(z_value),
+					render_string(z_value),
 				]);
 			}
 			// uri
@@ -236,7 +236,7 @@ export class JsonPreviewer {
 			}
 			// any other string
 			else {
-				return this.render_string(z_value);
+				return render_string(z_value);
 			}
 		}
 		else if('number' === typeof z_value) {

@@ -46,6 +46,7 @@
 	import SX_ICON_NARROW from '#/icon/narrow.svg?raw';
 	import SX_ICON_SEARCH from '#/icon/search.svg?raw';
 	import SX_VISIBILITY from '#/icon/visibility.svg?raw';
+    import { Settings } from '#/store/settings';
 	
 	
 
@@ -725,35 +726,6 @@
 										{#await Accounts.read()}
 											...
 										{:then ks_accounts}
-											<!-- {#if ks_accounts.entries().length > 2}
-												<Row
-													name="All Accounts"
-													detail={format_fiat(Object.values(H_ACCOUNTS).reduce((c_sum, k_account) => c_sum + (k_account.aggregator? 0: Holding.usdSum(k_account.holdings(H_HOLDINGS, $yw_chain), H_TOKENS, H_VERSUS_USD)), 0))}
-													on:click={() => {
-														const p_account_all = Account.refFromId('*');
-														$yw_account = H_ACCOUNTS[p_account_all];
-														$yw_overlay_account = false;
-													}}
-												>
-													<svelte:fragment slot="right">
-														{#if $yw_account.def.iri === Account.refFromId('*')}
-															<span class="overlay-select icon">
-																{@html SX_CHECKED}
-															</span>
-														{/if}
-													</svelte:fragment>
-
-													<svelte:fragment slot="icon">
-														<span class="pfp square icon aggregator" style="display: inline-block; font-size:30px; margin-left:auto; margin-right:auto;">
-															A
-														</span>
-
-													</svelte:fragment>
-												</Row>
-											{/if}
-											-->
-
-											<!-- {#each ks_accounts.entries().filter(([,k]) => !k.aggregator) as [p_account, k_account]} -->
 											{#each ks_accounts.entries() as [p_account, g_account]}
 												<Row
 													resource={g_account}
@@ -762,6 +734,9 @@
 													on:click={() => {
 														$yw_account_ref = p_account;
 														$yw_overlay_account = false;
+
+														// save selection
+														void Settings.set('p_account_selected', p_account);
 													}}
 												>
 													<svelte:fragment slot="right">

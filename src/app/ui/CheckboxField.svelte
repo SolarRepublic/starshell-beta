@@ -58,7 +58,7 @@
 	// handle click events on the fieldset
 	function handle_fieldset_click(d_event: MouseEvent) {
 		// already handled; exit
-		if(d_event[_$_CLICK_HANDLED] || d_event.detail) return;
+		if(d_event[_$_CLICK_HANDLED]) return;
 
 		// not disabled
 		if(!disabled) {

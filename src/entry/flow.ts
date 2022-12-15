@@ -36,7 +36,7 @@ import {Vault} from '#/crypto/vault';
 import {SessionStorage} from '#/extension/session-storage';
 import type {ErrorRegistry, IntraExt} from '#/script/messages';
 import {RegisteredFlowError} from '#/script/msg-flow';
-import {B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constants';
+import {B_IOS_NATIVE, B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
@@ -48,7 +48,6 @@ import AuthenticateSvelte from '##/screen/Authenticate.svelte';
 
 import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
 import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
-
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 

@@ -3,26 +3,19 @@ import type {Union} from 'ts-toolbelt';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 import type {Values} from '#/meta/belt';
-import type {Bech32, Chain, ChainStruct, ChainNamespaceKey, ChainPath, Entity, EntityPath, EntityStruct, HoldingPath} from '#/meta/chain';
+import type {Bech32, ChainStruct, ChainNamespaceKey, ChainPath, Entity, EntityPath, HoldingPath} from '#/meta/chain';
 import type {Resource} from '#/meta/resource';
-
 import type {Store} from '#/meta/store';
 import type {TokenSpecKey} from '#/meta/token';
-
-
-
 import {TokenRegistry} from '#/schema/token-registry';
 
-import {
-	create_store_class,
-	WritableStoreDict,
-} from './_base';
+import {create_store_class, WritableStoreDict} from './_base';
 import {Chains} from './chains';
-
 
 import {yw_chain, yw_chain_ref} from '#/app/mem';
 import {SI_STORE_ENTITIES} from '#/share/constants';
 import {fold} from '#/util/belt';
+
 
 type EntityTree = NonNullable<Values<Store['entities']>>;
 

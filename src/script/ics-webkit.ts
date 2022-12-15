@@ -9,7 +9,7 @@ import type * as WebkitPolyfillImport from './webkit-polyfill';
 	debug(`Launched on <${location.href}>`);
 
 	const {
-		do_webkit_polyfill, WebKitMessenger,
+		do_webkit_polyfill, WebKitMessenger: WebKitMessenger,
 	} = inline_require('./webkit-polyfill.ts') as typeof WebkitPolyfillImport;
 
 	// const k_runtime = new WebKitMessenger('runtime');

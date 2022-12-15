@@ -7,7 +7,7 @@ import {ContactAgentType} from '#/meta/contact';
 import type {PfpStruct, PfpTarget} from '#/meta/pfp';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 import type {Store, StoreKey} from '#/meta/store';
-import { TokenInterfaceRuntimeSchema } from '#/schema/token-interface-const';
+import {TokenInterfaceRuntimeSchema} from '#/schema/token-interface-const';
 
 import {
 	SI_STORE_ACCOUNTS,
@@ -31,7 +31,7 @@ import {
 	SI_STORE_CONTRACTS,
 } from '#/share/constants';
 
-import {fodemtv, fold, ode, oderac, oderom} from '#/util/belt';
+import {fold, ode, oderac, oderom} from '#/util/belt';
 import {buffer_to_base64, sha256_sync_insecure, text_to_buffer} from '#/util/data';
 
 

@@ -3,8 +3,8 @@
 	import {slide} from 'svelte/transition';
 	
 	import {Screen} from './_screens';
-	import {yw_popup} from '../mem';
-	import {load_flow_context} from '../svelte';
+	import {yw_popup, yw_progress} from '../mem';
+	import {load_flow_context, make_progress_timer} from '../svelte';
 	
 	import ActionsLine from '#/app/ui/ActionsLine.svelte';
 	import Field from '#/app/ui/Field.svelte';
@@ -78,7 +78,7 @@
 		k_logger = k_logger.event(s_msg, Date.now() - xt_start);
 	}
 
-	async function attempt_unlock(b_recover=false): Promise<1> {
+	async function attempt_unlock(b_recover=false, fk_sample?: (xt_estimate: number) => void): Promise<1> {
 		// do not interupt; lock
 		if(b_busy) return 1; b_busy = true;
 
@@ -96,13 +96,31 @@
 		// estimate time to complete
 		{
 			const xt_start_est = window.performance.now();
-			await Vault.deriveRootBits(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / 50);
+			const X_SAMPLE = 48;
+			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / X_SAMPLE);
 			const xt_finish_est = window.performance.now();
 
 			const xt_elapsed = xt_finish_est - xt_start_est;
-			const xt_estimate = 2 * (xt_elapsed * 50);
-			log(`About ${(xt_estimate / 1000).toFixed(1)} seconds`);
+			const xt_estimate = 0.9 * (xt_elapsed * X_SAMPLE);
+			fk_sample?.(xt_estimate);
+			log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
+			console.log(`Estimating ${(xt_estimate / 1e3).toFixed(1)} seconds`);
 		}
+
+		// // run actual trial
+		// {
+		// 	const xt_start_est = window.performance.now();
+		// 	const X_SAMPLE = 1;
+		// 	await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / X_SAMPLE);
+		// 	const xt_finish_est = window.performance.now();
+
+		// 	const xt_elapsed = xt_finish_est - xt_start_est;
+		// 	const xt_estimate = 0.7 * (xt_elapsed * X_SAMPLE);
+		// 	fk_sample?.(xt_estimate);
+		// 	log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
+		// 	console.log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
+		// }
+		// debugger;
 
 		// attempt login
 		try {
@@ -118,7 +136,7 @@
 			}
 			else if(e_login instanceof RecoverableVaultError) {
 				s_err_password = 'Vault is partially corrupted; attempting recovery...';
-				return await attempt_unlock(true);
+				return await attempt_unlock(true, fk_sample);
 			}
 			else if(b_recover) {
 				s_err_password = `Recovery failed. Vault may be irreparably corrupted.\n${e_login.message!}`;
@@ -146,6 +164,22 @@
 		if(++c_logo_clicks >= 5) {
 			b_factory_reset_showing = true;
 		}
+	}
+
+	async function track_unlock() {
+		$yw_progress = [1, 100];
+		let f_cancel!: VoidFunction;
+
+		await attempt_unlock(true, (xt_estimate) => {
+			$yw_progress = [5, 100];
+
+			f_cancel = make_progress_timer({
+				estimate: xt_estimate,
+				range: [5, 100],
+			});
+		});
+
+		f_cancel();
 	}
 </script>
 
@@ -247,7 +281,7 @@
 		}]} />
 	{/if}
 
-	<ActionsLine confirm={['Unlock', attempt_unlock]} />
+	<ActionsLine confirm={['Unlock', track_unlock]} />
 
 	<Log bind:items={k_logger.items} hide />
 

@@ -1,4 +1,4 @@
-import { F_NOOP } from "#/util/belt";
+import {F_NOOP} from '#/util/belt';
 
 function destroyed() {
 	throw new Error('Method called on destroyed SensitiveBytes instance');
@@ -36,7 +36,7 @@ function destroyed() {
  * const b = Uint8Array(64); b[0] = 0x03;
  * const sa = new SensitiveBytes(a);
  * const sb = new SensitiveBytes(b);
- * sa.times(sb);  // throws Error since `sa` is 32 bytes while `sb` is 64 bytes
+ * sa.xor(sb);  // throws Error since `sa` is 32 bytes while `sb` is 64 bytes
  * ```
  * 
  * One consideration that should be made is whether timing attacks are part of the user's threat model.
@@ -61,8 +61,8 @@ export default class SensitiveBytes {
 
 
 	/**
-	 * 
-	 * @param atu8_data 
+	 * Create an instance around a `Uint8Array`
+	 * @param atu8_data the sensitive data source
 	 */
 	constructor(private readonly _atu8_data: Uint8Array) {}
 
@@ -148,7 +148,6 @@ export default class SensitiveBytes {
 	 */
 	split(xb_value: number): Uint8Array[] {
 		const atu8_data = this.data;
-		const nb_this = atu8_data.byteLength;
 
 		// array of pointers to words as buffers
 		const a_words: Uint8Array[] = [];
@@ -156,17 +155,23 @@ export default class SensitiveBytes {
 		// byte index start of word
 		let ib_start = 0;
 
-		// each byte
-		for(let ib_each=0; ib_each<nb_this; ib_each++) {
-			// byte matches the target
-			if(xb_value === atu8_data[ib_each]) {
-				// without copying data, save a reference to the word
-				a_words.push(atu8_data.subarray(ib_start, ib_each));
+		// while there are words remaining
+		for(;;) {
+			// find next matching byte
+			const ib_delim = atu8_data.indexOf(xb_value, ib_start);
 
-				// advanced the index for the start of the next word
-				ib_start = ib_each + 1;
-			}
+			// no more matches
+			if(-1 === ib_delim) break;
+
+			// without copying data, save a reference to the word
+			a_words.push(atu8_data.subarray(ib_start, ib_delim));
+
+			// advanced the index for the start of the next word
+			ib_start = ib_delim + 1;
 		}
+
+		// push final word
+		a_words.push(atu8_data.subarray(ib_start));
 
 		// return list of words
 		return a_words;

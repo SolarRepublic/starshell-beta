@@ -19,8 +19,6 @@
 	export type LogItem = LogItem.Any;
 
 	export class Logger {
-		// private _a_items: LogItem[] = [];
-
 		constructor() {
 			this._a_items = [];
 		}
@@ -48,11 +46,13 @@
 </script>
 
 <script lang="ts">
-	import { onMount } from "svelte";
-
 	export let items: LogItem[];
-
+	
 	export let hide = false;
+	
+	export let latest = false;
+
+	$: a_display_items = (latest && items.length? [items.at(-1)]: items) as LogItem[];
 
 	function format_ms(n_ms: number): string {
 		return (n_ms / 1000).toFixed(2).padStart(5, '0');
@@ -65,12 +65,19 @@
 
 		>ol {
 			>li {
+				&.styleless {
+					list-style-type: none;
+				}
+
 				>span {
 					&.string {
 
 					}
 
 					&.event {
+						.index {
+							padding-right: 2px;
+						}
 					}
 				}
 			}
@@ -80,12 +87,13 @@
 
 <div class="log-container" class:display_none={hide}>
 	<ol>
-		{#each items as g_item}
-			<li>
+		{#each a_display_items as g_item}
+			<li class:styleless={latest}>
 				{#if 'string' === g_item.type}
 					<span class="string">{g_item.value}</span>
 				{:else if 'event' === g_item.type}
 					<span class="event">
+						<span class="index">{items.length + 1}.</span>
 						<span class="offset">+{format_ms(g_item.value.offset)}ms: </span>
 						<span class="message">{g_item.value.message}</span>
 					</span>

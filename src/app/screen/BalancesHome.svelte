@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
-	import type {AccountStruct} from '#/meta/account';
 	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
 	import type {ContractStruct, CoinInfo, FeeConfig} from '#/meta/chain';
 	import type {Cw} from '#/meta/cosm-wasm';
@@ -26,7 +25,7 @@
 	import {Accounts} from '#/store/accounts';
 	import {G_APP_STARSHELL} from '#/store/apps';
 	import {Chains} from '#/store/chains';
-	import {ContractRole, Contracts} from '#/store/contracts';
+	import {Contracts} from '#/store/contracts';
 	import {Entities} from '#/store/entities';
 	import {Incidents} from '#/store/incidents';
 	import type {BalanceBundle} from '#/store/providers';
@@ -69,7 +68,7 @@
 	let a_mintable: ContractStruct[] = [];
 
 	// determine best faucet upon chain switch
-	$: if($yw_chain.testnet) {
+	$: if($yw_chain.testnet?.faucets?.length) {
 		// reset faucet to default
 		p_best_faucet = $yw_chain.testnet.faucets[0];
 
@@ -255,7 +254,7 @@
 		h_fiats = {};
 
 		// 
-		const g_assets = $yw_account.assets[$yw_chain_ref];
+		const g_assets = $yw_account?.assets?.[$yw_chain_ref];
 		if(!g_assets) return [];
 
 		const a_bech32s = g_assets.fungibleTokens;
@@ -373,7 +372,7 @@
 
 	// perform tests to deduce best faucet based on availability
 	async function best_faucet(): Promise<string> {
-		const a_faucets = $yw_chain.testnet!.faucets;
+		const a_faucets = $yw_chain.testnet!.faucets!;
 
 		// ping each faucet to find best one
 		try {

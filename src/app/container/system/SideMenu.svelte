@@ -78,13 +78,6 @@
 
 	const A_ITEMS = [
 		{
-			label: 'Apps',
-			icon: SX_ICON_CUBES,
-			click() {
-				activate(ThreadId.APPS);
-			},
-		},
-		{
 			label: 'Accounts',
 			icon: SX_ICON_ACCOUNTS,
 			click() {

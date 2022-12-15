@@ -1,9 +1,9 @@
-import {SignDoc} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-
-import {encodeSecp256k1Signature, serializeSignDoc, StdSignature} from '@cosmjs/amino';
-
 import type {AccountStruct} from '#/meta/account';
 import type {AdaptedStdSignature, AdaptedStdSignDoc} from '#/schema/amino';
+
+import {encodeSecp256k1Signature, serializeSignDoc} from '@cosmjs/amino';
+import {SignDoc} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
+
 import {Accounts} from '#/store/accounts';
 
 
@@ -41,7 +41,7 @@ export async function signDirectDoc(
 
 export async function signAmino(
 	g_account: AccountStruct,
-	g_amino: AdaptedStdSignDoc,
+	g_amino: AdaptedStdSignDoc
 ): Promise<AdaptedStdSignature> {
 	// get account's signing key
 	const k_key = await Accounts.getSigningKey(g_account);

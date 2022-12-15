@@ -389,7 +389,8 @@ module.exports = {
 								'abstract-field',
 								'abstract-method',
 								'instance-method',
-							].flatMap(s => [`private-${s}`, `protected-${s}`, `public-${s}`]),
+							].flatMap(s => [`private-${s}`, `protected-${s}`, `public-${s}`])
+								.filter(s => !['private-abstract-field', 'private-abstract-method'].includes(s)),
 						}],
 					},
 				}),

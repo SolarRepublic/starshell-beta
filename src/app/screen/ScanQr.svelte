@@ -1,6 +1,6 @@
 
-<script type="ts">
-	import type {CameraDevice} from 'html5-qrcode/core';
+<script lang="ts">
+	import type {CameraDevice} from 'html5-qrcode/esm/camera/core';
 
 	import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
 	

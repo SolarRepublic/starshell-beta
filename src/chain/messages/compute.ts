@@ -14,7 +14,9 @@ import {AminoJsonError, kv, MalforedMessageError} from './_util';
 import {H_SNIP_HANDLERS} from './snip';
 import {SecretNetwork} from '../secret-network';
 
+import PfpDisplay from '#/app/frag/PfpDisplay.svelte';
 import {JsonPreviewer} from '#/app/helper/json-previewer';
+import {svelte_to_dom} from '#/app/svelte';
 import {SecretWasm} from '#/crypto/secret-wasm';
 
 import {R_SCRT_COMPUTE_ERROR} from '#/share/constants';
@@ -24,11 +26,8 @@ import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {defer_many, is_dict, proper} from '#/util/belt';
 import {base64_to_buffer, buffer_to_hex, buffer_to_text, sha256_sync} from '#/util/data';
+import {dd} from '#/util/dom';
 import {abbreviate_addr} from '#/util/format';
-import { dd } from '#/util/dom';
-import { svelte_to_dom } from '#/app/svelte';
-import PfpDisplay from '#/app/frag/PfpDisplay.svelte';
-import type { MsgEventRegistry } from '#/meta/incident';
 
 
 interface ExecContractMsg {
@@ -193,7 +192,7 @@ export const ComputeMessages: MessageDict = {
 							// go async
 							(async() => {
 								// instantiate network
-								const k_network = await Providers.activateDefaultFor(g_chain) as SecretNetwork;
+								const k_network = await Providers.activateDefaultFor(g_chain);
 
 								// lookup code info
 								const g_code = await k_network.codeInfo(si_instantiate) || {} as CodeInfoResponse;
@@ -430,8 +429,6 @@ export const ComputeMessages: MessageDict = {
 			},
 
 			async fail(nl_msgs, g_result) {
-				debugger;
-
 				// secret
 				if(g_chain.features.secretwasm) {
 					// parse contract error

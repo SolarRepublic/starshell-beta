@@ -1,24 +1,26 @@
 import type {Readable} from 'svelte/store';
-import { AppProfile, G_APP_EXTERNAL } from '#/store/apps';
+
 import type {Nameable, Pfpable} from '#/meta/able';
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {AppStruct, AppPath} from '#/meta/app';
-import type {ChainStruct, ChainPath, Bech32, ContractStruct} from '#/meta/chain';
+import type {ChainStruct, ChainPath, Bech32} from '#/meta/chain';
 import type {Resource} from '#/meta/resource';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
-import {ode, ofe} from '#/util/belt';
-import {dd} from '#/util/dom';
+
 import {getContext} from 'svelte';
 import {cubicOut} from 'svelte/easing';
-import type {Page} from '##/nav/page';
-import PfpDisplay from './frag/PfpDisplay.svelte';
-import {Apps, G_APP_STARSHELL} from '#/store/apps';
-import type {IntraExt} from '#/script/messages';
-import {SessionStorage} from '#/extension/session-storage';
-import {Chains} from '#/store/chains';
-import { Contracts } from '#/store/contracts';
-import type { PfpTarget } from '#/meta/pfp';
 
+import {yw_progress} from './mem';
+
+import type {IntraExt} from '#/script/messages';
+import {Apps, G_APP_STARSHELL} from '#/store/apps';
+import {Chains} from '#/store/chains';
+import {ode, ofe} from '#/util/belt';
+import {dd} from '#/util/dom';
+
+import type {Page} from '##/nav/page';
+
+import PfpDisplay from './frag/PfpDisplay.svelte';
 
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
@@ -221,3 +223,45 @@ export function load_app_context<w_complete extends any=any>() {
 
 /* eslint-enable */
 
+export interface ProgressTimerConfig {
+	estimate: number;
+	range: [number, number];
+	interval?: number;
+}
+
+export function make_progress_timer(gc_timer: ProgressTimerConfig): VoidFunction {
+	const {
+		estimate: xt_estimate,
+		range: [x_range_lo, x_range_hi],
+		interval: xt_interval=500,
+	} = gc_timer;
+
+	const nl_iterations = Math.ceil(xt_estimate / xt_interval);
+	const x_range_gap = x_range_hi - x_range_lo;
+	const x_increment = x_range_gap / nl_iterations;
+
+	let i_iteration = 0;
+
+	let b_done = false;
+
+	const i_interval = setInterval(() => {
+		if(!b_done) {
+			yw_progress.set([
+				Math.min(100, Math.round(x_range_lo + (i_iteration++ * x_increment))),
+				100,
+			]);
+		}
+	}, xt_interval);
+
+	return () => {
+		b_done = true;
+
+		clearInterval(i_interval);
+
+		yw_progress.set([x_range_hi, 100]);
+
+		setTimeout(() => {
+			yw_progress.set([0, 0]);
+		}, 500);
+	};
+}

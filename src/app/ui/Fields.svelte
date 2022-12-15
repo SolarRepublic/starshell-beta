@@ -1,4 +1,4 @@
-<script type="ts">
+<script lang="ts">
 	import type {Nameable, Pfpable} from '#/meta/able';
 	import type {AccountPath, AccountStruct} from '#/meta/account';
 	import type {AppPath, AppStruct} from '#/meta/app';
@@ -22,7 +22,6 @@
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
 	import {Apps} from '#/store/apps';
-	import type {AppProfile} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
 	
@@ -90,11 +89,22 @@
 			sender: sa_sender,
 		} = g_transfer;
 
+		{
+			class MissingPropError extends Error {
+				constructor(si_prop: string) {
+					super(`A ${si_prop} prop was not provided to the Fields.svelte component, which is required for memo fields`);
+				}
+			}
+
+			if(!network) throw new MissingPropError('network');
+			if(!chain) throw new MissingPropError('chain');
+			if(!incident) throw new MissingPropError('incident');
+		}
 
 		const b_outgoing = 'tx_out' === incident.type;
 
-		const sa_owner = (b_outgoing? sa_sender: sa_recipient) as string;
-		const sa_other = (b_outgoing? sa_recipient: sa_sender) as string;
+		const sa_owner = (b_outgoing? sa_sender: sa_recipient) as Bech32;
+		const sa_other = (b_outgoing? sa_recipient: sa_sender) as Bech32;
 
 		const [, g_account] = await Accounts.find(sa_owner, $yw_chain);
 
@@ -123,10 +133,6 @@
 
 		return buffer_to_text(atu8_plaintext).replace(/\0+$/, '');
 	}
-
-
-	const b_profile_load_attempted = false;
-	let g_profile: AppProfile | undefined;
 
 
 	async function load_resource(gc_field: Awaited<FieldConfig<'resource'>>): Promise<[{
@@ -419,7 +425,6 @@
 						<Load forever />
 					{:then [g_resource, s_detail]}
 						{#if g_resource}
-						<!-- ; padding:calc(0.5 * var(--ui-padding)) 1px; -->
 							<Row
 								rootStyle='border:none; padding:0;'
 								resource={g_resource}

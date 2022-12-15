@@ -1,5 +1,9 @@
 import {ATU8_SHA512_STARSHELL} from '#/share/constants';
 
+/**
+ * Takes a given seed to determinstically derive pseudo-random bits intended for reproducibility, and then
+ * produces "random" values of various types within given ranges
+ */
 export class EntropyProducer {
 	static async create(n_variables: number, i_iterator: number, atu8_seed?: Uint8Array): Promise<EntropyProducer> {
 		// no seed given, fill with 256 random bits

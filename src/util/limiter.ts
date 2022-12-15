@@ -35,7 +35,7 @@ export class Limiter {
 			this._b_postponed = false;
 
 			// create new notice
-			this.notice();
+			void this.notice();
 		}
 	}
 

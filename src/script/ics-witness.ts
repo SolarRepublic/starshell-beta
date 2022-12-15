@@ -96,7 +96,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 		Secrets,
 		Snip2xToken,
-		
+
 		TxRaw,
 		encode_proto,
 	} = inline_require('./ics-witness-imports.ts') as typeof ImportHelper;
@@ -160,7 +160,6 @@ const XT_POLYFILL_DELAY = 1.5e3;
 	});
 
 	class KeplrChainConnection {
-		protected _g_account: AccountStruct;
 		protected _g_chain: ChainStruct;
 		protected _g_permissions: Partial<AppPermissionSet>;
 		protected _p_account: AccountPath;
@@ -170,22 +169,18 @@ const XT_POLYFILL_DELAY = 1.5e3;
 		protected _kc_add_tokens: Consolidator<IcsToService.AppResponse<void>>;
 		protected _kc_viewing_keys: Consolidator<IcsToService.AppResponse<void>>;
 
-		constructor(protected _g_session: InternalSessionResponse, protected _ks_accounts: Awaited<ReturnType<typeof Accounts.read>>) {
+		constructor(protected _g_session: InternalSessionResponse, protected _g_account: AccountStruct) {
 			const {
 				chain: g_chain,
-				accounts: a_accounts,
 				permissions: g_permissions,
 			} = _g_session;
 
 			this._g_chain = g_chain;
 			this._g_permissions = g_permissions;
 
-			const p_account = this._p_account = a_accounts[0];
+			const p_account = this._p_account = Accounts.pathFrom(_g_account);
 
-			// only one account can be used at a time in Keplr mode
-			const g_account = this._g_account = _ks_accounts.at(p_account)!;
-
-			this._sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
+			this._sa_owner = Chains.addressFor(_g_account.pubkey, g_chain);
 
 			const p_chain = this._p_chain = Chains.pathFrom(g_chain);
 
@@ -395,7 +390,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 						// testnet
 						...g_chain_keplr.beta && {
-							testnet: true,
+							testnet: {},
 						},
 
 						// human parts
@@ -487,11 +482,11 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 			if(h_responses) {
 				// read from accounts store
-				const ks_accounts = await Accounts.read();
+				const [, g_account] = await Accounts.selected();
 
 				// 1:1 chain session request
 				for(const [p_chain, g_session] of ode(h_responses)) {
-					const k_connection = new KeplrChainConnection(g_session, ks_accounts);
+					const k_connection = new KeplrChainConnection(g_session, g_account);
 
 					const si_chain = g_session.chain.reference;
 

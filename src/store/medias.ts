@@ -1,15 +1,12 @@
-import type { Replace } from 'ts-toolbelt/out/String/Replace';
-import type { App, AppSchemeKey } from '#/meta/app';
-import type { Resource } from '#/meta/resource';
-import type { ImageMedia, ImageMediaPath, Media, MediaStruct, MediaPath, MediaTypeKey } from '#/meta/media';
+import type {MediaPath, MediaTypeKey} from '#/meta/media';
 
 import {
 	create_store_class,
 	WritableStoreMap,
 } from './_base';
 
-import { R_DATA_IMAGE_URL_ANY, R_DATA_IMAGE_URL_WEB, SI_STORE_MEDIA } from '#/share/constants';
-import { buffer_to_base64, sha256_sync, text_to_buffer } from '#/util/data';
+import {R_DATA_IMAGE_URL_ANY, SI_STORE_MEDIA} from '#/share/constants';
+import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
 
 export const Medias = create_store_class({
 	store: SI_STORE_MEDIA,
@@ -55,7 +52,7 @@ export const Medias = create_store_class({
 			}
 			// unknown media type
 			else {
-				throw new Error(`Unsupported media type "${si_media}"`);
+				throw new Error(`Unsupported media type "${si_media as string}"`);
 			}
 
 			// hash data string

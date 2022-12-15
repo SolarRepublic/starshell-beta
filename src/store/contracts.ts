@@ -1,5 +1,4 @@
-import type {
-	FilterPrimitive} from './_base';
+import type {FilterPrimitive} from './_base';
 import type {O} from 'ts-toolbelt';
 
 import type {AppPath} from '#/meta/app';
@@ -10,7 +9,6 @@ import type {TokenStructDescriptor} from '#/meta/token';
 
 import {
 	create_store_class,
-	FilterValue,
 	filter_applies,
 	WritableStoreMap,
 } from './_base';
@@ -208,15 +206,5 @@ export const Contracts = create_store_class({
 
 			return true;
 		}
-
-		// async put(g_contract: ContractStruct): Promise<ContractPath> {
-		// 	const p_contract = Contracts.pathFrom(g_contract);
-
-		// 	this._w_cache[p_contract] = g_contract;
-
-		// 	await this.save();
-
-		// 	return p_contract;
-		// }
 	},
 });

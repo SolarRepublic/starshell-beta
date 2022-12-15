@@ -1,19 +1,14 @@
-import type {Merge} from 'ts-toolbelt/out/Object/Merge';
-
-import type {Values, Dict, JsonObject} from '#/meta/belt';
-import type {Resource} from '#/meta/resource';
-
-import type {ResponseCache, WebApi, WebApiPath} from '#/meta/web-api';
+import type {Values, Dict} from '#/meta/belt';
+import type {WebApi, WebApiPath} from '#/meta/web-api';
 
 import {
 	create_store_class,
-	WritableStore,
 	WritableStoreMap,
 } from './_base';
 
 import {SI_STORE_WEB_APIS, XT_HOURS, XT_MINUTES} from '#/share/constants';
 
-import {fodemtv, fold, ode, oderac} from '#/util/belt';
+import {fodemtv, ode} from '#/util/belt';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
 
 
@@ -184,7 +179,7 @@ export const CoinGecko = {
 
 		// load response
 		return await d_res.json() as CoinGeckoCoinstList;
-	}
+	},
 };
 
 export const WebApis = create_store_class({

@@ -19,7 +19,6 @@
 	const {k_page} = load_page_context();
 
 	function use_anyway() {
-		debugger;
 		attempt_register(s_password);
 		k_page.pop();
 	}

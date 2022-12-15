@@ -85,7 +85,16 @@ if(B_LOCALHOST) {
 		d_chrome.runtime = {
 			getURL(p_asset: string): string {
 				const d_url = new URL(location.href);
-				d_url.pathname = p_asset;
+				if(p_asset.startsWith('./')) {
+					// d_url.pathname = d_url.pathname.replace(/\/[^/]*$/, '')+p_asset.slice(1);
+					d_url.pathname = '/assets/'+p_asset.slice(2);
+				}
+				else {
+					d_url.pathname = p_asset;
+				}
+
+				d_url.hash = '';
+				d_url.search = '';
 				return ''+d_url;
 			},
 
@@ -194,6 +203,18 @@ if(B_LOCALHOST) {
 					debugger;
 				},
 			},
+
+			connect() {
+				return {
+					onDisconnect: {
+						addListener() {},
+					},
+					onMessage: {
+						addListener() {},
+					},
+					disconnect() {},
+				};
+			},
 		};
 	}
 
@@ -221,6 +242,8 @@ if(B_LOCALHOST) {
 					debugger;
 				},
 			},
+
+			query() {},
 		};
 	}
 

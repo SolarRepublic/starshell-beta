@@ -124,7 +124,7 @@ export async function hmac(atu8_sk: Uint8Array, atu8_message: Uint8Array, si_alg
 /**
  * Wipe the contents of a buffer so that sensitive data does not outlive garbage collection.
  */
-export function zero_out(atu8_data: number[] | Uint8Array): void {
+export function zero_out(atu8_data: number[] | Uint8Array | Uint16Array): void {
 	// overwrite the contents
 	atu8_data.fill(0);
 

@@ -2,8 +2,8 @@ import type {AccountStruct, AccountPath, UtilityKeyType} from '#/meta/account';
 import type {PfpTarget} from '#/meta/pfp';
 import type {SecretPath} from '#/meta/secret';
 
-import {Bip32, bip32MasterKey} from '#/crypto/bip32';
-import {bip39EntropyToPaddedMnemonic, bip39MnemonicToSeed, trimPaddedMnemonic} from '#/crypto/bip39';
+import {Bip32} from '#/crypto/bip32';
+import {Bip39} from '#/crypto/bip39';
 import type {Bip44Path} from '#/crypto/bip44';
 import RuntimeKey from '#/crypto/runtime-key';
 import {Secp256k1Key} from '#/crypto/secp256k1';
@@ -14,7 +14,7 @@ import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 import {Secrets} from '#/store/secrets';
-import {buffer_to_base64, buffer_to_base93, buffer_to_text, serialize_private_key, sha256_sync, text_to_buffer, uuid_v4, zero_out} from '#/util/data';
+import {buffer_to_base64, serialize_private_key, sha256_sync, text_to_buffer, uuid_v4, zero_out} from '#/util/data';
 
 
 export async function create_account(
@@ -42,6 +42,7 @@ export async function create_account(
 		pubkey: sxb64_pubkey,
 		secret: p_secret,
 		name: `Citizen ${i_citizen}`,
+		assets: {},
 		utilityKeys: {},
 		pfp: p_pfp,
 	}));
@@ -123,15 +124,9 @@ export async function create_mnemonic(): Promise<AccountPath> {
 	const kn_entropy = SensitiveBytes.random(32);
 
 	// create new mnemonic
-	const kn_padded = await bip39EntropyToPaddedMnemonic(kn_entropy);
+	const kn_padded = await Bip39.entropyToPaddedMnemonic(kn_entropy);
 
-	const s_mnemonic_padded = buffer_to_base93(kn_padded.data);
-
-	console.log({
-		s_mnemonic_padded,
-		data: kn_padded.data,
-		text: buffer_to_text(kn_padded.data),
-	});
+	// const s_mnemonic_padded = buffer_to_base93(kn_padded.data);
 
 	const [atu8_mnemonic, sx_otp_mnemonic] = serialize_private_key(kn_padded.clone());
 
@@ -152,87 +147,68 @@ export async function create_mnemonic(): Promise<AccountPath> {
 
 
 	// trim padded mnemonic
-	const kn_trimmed = trimPaddedMnemonic(kn_padded);
-
-	console.log({
-		kn_trimmed: kn_trimmed.data,
-	});
+	const kn_trimmed = Bip39.trimPaddedMnemonic(kn_padded);
 
 	// mnemonic passphrase
 	const atu8_passphrase = text_to_buffer('');
 
 	// generate 512-bit seed key
-	const kk_seed = await bip39MnemonicToSeed(() => kn_trimmed.data, () => Uint8Array.from(atu8_passphrase));
+	const kk_seed = await Bip39.mnemonicToSeed(() => kn_trimmed.data, () => Uint8Array.from(atu8_passphrase));
 
 	// prep signing verification
 	let s_signature_before = '';
 
-	// prep public key
-	let atu8_pk33!: Uint8Array;
+	// create master node from seed
+	const k_master = await kk_seed.access(atu8_seed => Bip32.masterKey(() => atu8_seed));
 
-	// derive account
-	const p_secret_node = await kk_seed.access(async(atu8_seed) => {
-		// create master node from seed
-		const k_master = await bip32MasterKey(() => atu8_seed);
+	// traverse to given node
+	const k_node = await k_master.derivePath(sx_hd_path);
 
-		// traverse to given node
-		const k_node = await k_master.derivePath(sx_hd_path);
+	// set compressed public key
+	const atu8_pk33 = k_node.publicKey.slice();
 
-		// copy out compressed public key
-		atu8_pk33 = k_node.publicKey.slice();
+	// create a signature to verify the node gets serialized and stored correctly
+	s_signature_before = await bip32_test_signature(k_node);
 
-		// create a signature to verify the node gets serialized and stored correctly
-		s_signature_before = await bip32_test_signature(k_node);
+	// serialize node
+	const kn_node = await k_node.serializeNode();
 
-		// serialize node
-		const kn_node = await k_node.serializeNode();
+	// create otp in order to avoid serializing the raw node as a string
+	const [atu8_xor_node, sx_otp_node] = serialize_private_key(kn_node);
 
-		// create otp in order to avoid serializing the raw node as a string
-		const [atu8_xor_node, sx_otp_node] = serialize_private_key(kn_node);
+	// compeletely destroy the whole bip32 tree
+	k_node.obliterate();
 
-		// compeletely destroy the whole bip32 tree
-		k_node.obliterate();
-
-		// create private key secret
-		return await Secrets.put(atu8_xor_node, {
-			type: 'bip32_node',
-			uuid: crypto.randomUUID(),
-			mnemonic: p_secret_mnemonic,
-			bip44: sx_hd_path,
-			name: `Private key at ${sx_hd_path} for the mnemonic ${p_secret_mnemonic}`,
-			security: {
-				type: 'otp',
-				data: sx_otp_node,
-			},
-		});
+	// create private key secret
+	const p_secret_node = await Secrets.put(atu8_xor_node, {
+		type: 'bip32_node',
+		uuid: crypto.randomUUID(),
+		mnemonic: p_secret_mnemonic,
+		bip44: sx_hd_path,
+		name: `Private key at ${sx_hd_path} for the mnemonic ${p_secret_mnemonic}`,
+		security: {
+			type: 'otp',
+			data: sx_otp_node,
+		},
 	});
 
 	// test the node was serialized and stored correctly
 	{
 		// access private node
-		(await Secrets.borrowPlaintext(p_secret_node, async(kn_node, g_secret) => {
+		(await Secrets.borrowPlaintext(p_secret_node, async(kn_node_test/* , g_secret*/) => {
 			// import as bip32 node
-			const k_node = await Bip32.import(kn_node);
+			const k_node_test = await Bip32.import(kn_node_test);
 
 			// signatures do no match
-			if(s_signature_before !== await bip32_test_signature(k_node)) {
+			if(s_signature_before !== await bip32_test_signature(k_node_test)) {
 				// obliterate the node
-				k_node.obliterate();
+				k_node_test.obliterate();
 
 				// error
 				throw new Error(`Failed to produce matching signatures for BIP-0032 node after round-trip serialization.`);
 			}
-
-			console.debug(`Confirmed matching signatures: ${s_signature_before}`);
 		}))!;
 	}
-
-	// console.log({
-	// 	data: base64_to_buffer(g_secret_sk.data),
-	// 	base64: g_secret_sk.data,
-	// 	pubkey: atu8_pk,
-	// 	pubkey_64: buffer_to_base64(atu8_pk),
-	// });
 
 	// create account using new seed
 	const [p_account, g_account] = await create_account(p_secret_node, buffer_to_base64(atu8_pk33), '');
@@ -338,6 +314,7 @@ export async function import_private_key(kn_sk: SensitiveBytes, s_name: string):
 		secret: p_secret,
 		name: s_name,
 		utilityKeys: {},
+		assets: {},
 		pfp: '',
 	}));
 

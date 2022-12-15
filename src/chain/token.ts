@@ -3,8 +3,6 @@ import type {SecretNetwork} from './secret-network';
 
 import type {AccountStruct} from '#/meta/account';
 import type {ContractStruct} from '#/meta/chain';
-import type {Cw} from '#/meta/cosm-wasm';
-import type {Snip20} from '#/schema/snip-20-def';
 
 import {Snip2xToken, ViewingKeyError} from '#/schema/snip-2x-const';
 
@@ -12,9 +10,7 @@ import BigNumber from 'bignumber.js';
 
 import {R_BECH32} from '#/share/constants';
 import {Chains} from '#/store/chains';
-import {Secrets} from '#/store/secrets';
 import {CoinGecko} from '#/store/web-apis';
-import {buffer_to_text} from '#/util/data';
 import {format_amount, format_fiat} from '#/util/format';
 
 export async function token_balance(g_contract: ContractStruct, g_account: AccountStruct, k_network: CosmosNetwork): Promise<{

@@ -1,11 +1,13 @@
+import type {AccountPath} from '#/meta/account';
+import type {ChainPath} from '#/meta/chain';
+
 import {
 	create_store_class,
 	WritableStoreDict,
 } from './_base';
 
 import {SI_STORE_SETTINGS} from '#/share/constants';
-import type {Dict} from '#/meta/belt';
-import type { ChainPath } from '#/meta/chain';
+
 
 export enum KeplrCompatibilityMode {
 	DEFAULT = 0,
@@ -28,6 +30,16 @@ export type SettingsRegistry = {
 
 	// 
 	keplr_compatibility_mode?: KeplrCompatibilityMode;
+
+	/**
+	 * For persisting the selected account
+	 */
+	p_account_selected?: AccountPath;
+
+	/**
+	 * For persisting the selected chain
+	 */
+	p_chain_selected?: ChainPath;
 };
 
 export type SettingsKey = keyof SettingsRegistry;

@@ -1,9 +1,6 @@
-import type {App} from '#/meta/app';
+import type {AppStruct} from '#/meta/app';
 
-import {
-	create_store_class,
-	WritableStore,
-} from './_base';
+import {create_store_class, WritableStore} from './_base';
 
 import {SI_STORE_APP_POLICIES} from '#/share/constants';
 import {escape_regex} from '#/util/belt';

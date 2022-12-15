@@ -297,7 +297,6 @@
 			});
 		}
 
-		debugger;
 		// save incident
 		await Incidents.record({
 			type: 'app_connected',

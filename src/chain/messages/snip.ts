@@ -30,6 +30,7 @@ import {fodemtv} from '#/util/belt';
 import {text_to_buffer, uuid_v4} from '#/util/data';
 
 import {format_amount} from '#/util/format';
+import { Accounts } from '#/store/accounts';
 
 
 
@@ -237,6 +238,22 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 					},
 				},
 			} as ContractStruct);
+
+			// ensure asset is placed in account
+			await Accounts.update(p_account, (g_account_latest) => {
+				let a_assets = g_account_latest.assets[p_chain]?.fungibleTokens || [];
+				if(!a_assets.includes(g_contract.bech32)) {
+					a_assets = [...a_assets, g_contract.bech32];
+					return {
+						assets: {
+							...g_account_latest.assets,
+							[p_chain]: a_assets,
+						},
+					};
+				}
+
+				return {};
+			});
 
 			// dispatch event
 			global_broadcast({

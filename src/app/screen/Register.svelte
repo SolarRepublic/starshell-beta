@@ -1,26 +1,23 @@
 <script lang="ts">
-	import {slide} from 'svelte/transition';
-	
 	import {Screen} from './_screens';
-	import {load_flow_context} from '../svelte';
+	import {yw_progress} from '../mem';
+	import {load_flow_context, make_progress_timer} from '../svelte';
 	
-	import Field from '#/app/ui/Field.svelte';
 	import Log, {Logger} from '#/app/ui/Log.svelte';
 	import {Vault} from '#/crypto/vault';
 	import {
-		acceptable,
 		login,
 		register,
 	} from '#/share/auth';
 	
-	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM} from '#/share/constants';
+	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR} from '#/share/constants';
 	import {AlreadyRegisteredError, InvalidPassphraseError} from '#/share/errors';
 	
 	import RegisterWeakPasswordSvelte from './RegisterWeakPassword.svelte';
+	import NewPassword from '../frag/NewPassword.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
 	import StarShellTitle from '../ui/StarShellTitle.svelte';
-	
 	
 
 	// will be set if this is part of a flow
@@ -30,12 +27,13 @@
 	} = load_flow_context();
 
 	// bindings
-	let sh_phrase = '';
-	let sh_verify = '';
 	let s_error = '';
+	let s_info = '';
 
-	let s_err_password = '';
-	let s_err_verify = '';
+	let sh_phrase = '';
+	let b_password_acceptable = false;
+
+	let c_resets = 0;
 
 	// time started registration
 	let xt_start = 0;
@@ -48,48 +46,8 @@
 		k_logger = k_logger.event(s_msg, Date.now() - xt_start);
 	}
 
-
-	// continuously check the acceptability of the password
-	$: b_password_acceptable = !!sh_phrase && sh_phrase === sh_verify && acceptable(sh_phrase);
-
 	// update the confirm action
 	$: a_confirm_action = ['Continue', prepare_register, !b_password_acceptable] as const;
-
-
-	// listen for page event restore
-	k_page.on({
-		restore() {
-			// clear passwords
-			sh_phrase = sh_verify = '';
-		},
-	});
-
-	function check_password() {
-		if(sh_phrase && !acceptable(sh_phrase)) {
-			if(sh_phrase.length < NL_PASSPHRASE_MINIMUM) {
-				s_err_password = 'Password must be at least 5 characters';
-			}
-			else if(sh_phrase.length > NL_PASSPHRASE_MAXIMUM) {
-				s_err_password = 'Password must be 1024 characters or fewer';
-			}
-			else {
-				s_err_password = 'Password is not acceptable';
-			}
-
-			return;
-		}
-
-		s_err_password = '';
-	}
-
-	function check_verify() {
-		if(sh_phrase && !s_err_password && sh_phrase !== sh_verify) {
-			s_err_verify = 'Passwords do not match';
-			return;
-		}
-
-		s_err_verify = '';
-	}
 
 	// download top 10k list and parse it
 	const dp_passwords = (async() => {
@@ -134,7 +92,11 @@
 		if(b_busy) return 1; b_busy = true;
 
 		// prep graceful exit
-		const exit = (): 1 => (b_busy = false, 1);
+		const exit = (): 1 => {
+			$yw_progress = [0, 0];
+			b_busy = false;
+			return 1;
+		};
 
 		// reset error
 		s_error = '';
@@ -142,21 +104,34 @@
 		// start timer
 		xt_start = Date.now();
 
+		$yw_progress = [15, 100];
+
 		log('Estimating time to complete');
 
 		// estimate time to complete
+		let f_cancel!: VoidFunction;
+		let xt_estimate = 0;
 		{
 			const xt_start_est = window.performance.now();
-			await Vault.deriveRootBits(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / 50);
+			const X_SAMPLE = 48;
+			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / X_SAMPLE);
 			const xt_finish_est = window.performance.now();
 
-			const xt_elapsed_est = xt_finish_est - xt_start_est;
-			const xt_estimate = 2 * (2 * (xt_elapsed_est * 50));
-			log(`About ${(xt_estimate / 1000).toFixed(1)} seconds`);
+			const xt_elapsed = xt_finish_est - xt_start_est;
+			xt_estimate = 0.7 * (xt_elapsed * X_SAMPLE);
+			log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
 
+			$yw_progress = [5, 100];
+	
 			if(xt_estimate > 10e3) {
-				log(`This could take a while. Please be patient`);
+				const n_minutes = Math.ceil(xt_estimate / 1e3 / 60);
+				s_info = `This could take up to ${n_minutes} minute${1 === n_minutes? '': 's'}. Do not leave this screen`;
 			}
+
+			f_cancel = make_progress_timer({
+				estimate: xt_estimate,
+				range: [5, 50],
+			});
 		}
 
 		// restore password from caller (again, after restore wiped it)
@@ -181,8 +156,16 @@
 			// exit
 			return exit();
 		}
+		finally {
+			f_cancel();
+		}
 
 		log('Verifying passphrase');
+
+		f_cancel = make_progress_timer({
+			estimate: xt_estimate,
+			range: [50, 100],
+		});
 
 		// attempt login
 		try {
@@ -190,7 +173,6 @@
 		}
 		// failed to verify
 		catch(e_login) {
-			debugger;
 			s_error = `Failed to verify passphrase immediately after registration:\n${e_login.stack}`;
 
 			// reset vault
@@ -198,6 +180,9 @@
 
 			// exit
 			return exit();
+		}
+		finally {
+			f_cancel();
 		}
 
 		log('Done');
@@ -215,6 +200,12 @@
 
 <style lang="less">
 	@import '../../style/util.less';
+
+	.registration-info {
+		text-align: center;
+		margin-left: auto;
+		margin-right: auto;
+	}
 
 	.intro {
 		margin-top: 1em;
@@ -287,53 +278,13 @@
 		</p>
 	</center>
 
-	<div class="form flex-rows">
-		<!-- <input hidden
-			type="text"
-			name="username"
-			autocomplete="username"
-			value="StarShell Wallet User"> -->
+	<NewPassword b_disabled={b_busy} bind:sh_phrase={sh_phrase} bind:b_acceptable={b_password_acceptable} bind:c_resets={c_resets} />
 
-		<Field key="password" name="New password">
-			<!-- autocomplete="new-password" -->
-			<input
-				type="password"
-				autocomplete="off"
-				name="password"
-				placeholder="Password"
-				on:blur={() => check_password()}
-				bind:value={sh_phrase}
-				disabled={b_busy}
-			>
+	{#if s_info}
+		<div class="registration-info">{s_info}</div>
+	{/if}
 
-			{#if !b_password_acceptable && s_err_password}
-				<div class="validation-message" transition:slide={{duration:300}}>
-					{s_err_password}
-				</div>
-			{/if}
-		</Field>
-
-		<Field key="verify-password" name="Verify password">
-			<input
-				type="password"
-				autocomplete="off"
-				name="verify"
-				placeholder="Password"
-				on:blur={() => check_verify()}
-				bind:value={sh_verify}
-				disabled={b_busy}
-			>
-
-			{#if !b_password_acceptable && s_err_verify}
-				<div class="validation-message" transition:slide={{duration:300}}>
-					{s_err_verify}
-				</div>
-			{/if}
-		</Field>
-
-	</div>
-
-	<Log bind:items={k_logger.items} />
+	<Log latest bind:items={k_logger.items} />
 
 	{#if s_error}
 		<pre>{s_error}</pre>

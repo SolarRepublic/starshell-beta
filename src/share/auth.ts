@@ -8,12 +8,12 @@ import {SessionStorage} from '#/extension/session-storage';
 import {global_broadcast} from '#/script/msg-global';
 import {set_keplr_compatibility_mode} from '#/script/scripts';
 import {Accounts} from '#/store/accounts';
+import {Chains} from '#/store/chains';
+import {ContractRole, Contracts} from '#/store/contracts';
+import {Secrets} from '#/store/secrets';
 import {F_NOOP, timeout} from '#/util/belt';
 import {text_to_buffer} from '#/util/data';
-import { ContractRole, Contracts } from '#/store/contracts';
-import { Secrets } from '#/store/secrets';
-import type { AccountPath } from '#/meta/account';
-import { Chains } from '#/store/chains';
+
 
 
 /**
@@ -59,12 +59,6 @@ export async function register(sh_phrase: string, f_update: ((s_state: string) =
 	const xg_nonce_init_lo = dv_random.getBigUint64(8, false);
 	const xg_nonce_init = (xg_nonce_init_hi << 64n) | xg_nonce_init_lo;
 
-	// console.log({
-	// 	__hi: xg_nonce_init_hi.toString(16),
-	// 	__lo: xg_nonce_init_lo.toString(16),
-	// 	init: xg_nonce_init.toString(16),
-	// });
-
 	// set last seen
 	await PublicStorage.markSeen();
 
@@ -75,12 +69,6 @@ export async function register(sh_phrase: string, f_update: ((s_state: string) =
 			nonce: xg_nonce_new,
 		},
 	} = await Vault.deriveRootKeys(atu8_phrase, atu8_entropy, xg_nonce_init);
-
-	// console.log({
-	// 	_hi: ((xg_nonce_new >> 64n) & XG_64_BIT_MAX).toString(16),
-	// 	_lo: (xg_nonce_new & XG_64_BIT_MAX).toString(16),
-	// 	new: xg_nonce_new.toString(16),
-	// });
 
 	f_update('Generating signature');
 
@@ -237,21 +225,26 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 
 
 async function run_migrations() {
-	if(await PublicStorage.isUpgrading('0.6.6')) {
-		for(const [, g_account] of (await Accounts.read()).entries()) {
-			if(!g_account['utilityKeys']) {
-				await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
-			}
+	let b_assets_new = false;
+
+	// migrate accounts
+	for(const [p_account, g_account] of (await Accounts.read()).entries()) {
+		// add utility keys
+		if(!g_account['utilityKeys']) {
+			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
 		}
 
-		// introduce assets dict for all existing accounts
-		const ks_accounts = await Accounts.read();
-		for(const [p_account] of ks_accounts.entries()) {
-			await Accounts.update(p_account, g_account => ({
-				assets: g_account.assets || {},
+		// add assets
+		if(!g_account['assets']) {
+			b_assets_new = true;
+			await Accounts.update(p_account, g_account_latest => ({
+				assets: g_account_latest.assets || {},
 			}));
 		}
+	}
 
+	// migrate assets
+	if(b_assets_new) {
 		const a_contracts = await Contracts.filterRole(ContractRole.TOKEN);
 		for(const [, g_contract] of a_contracts) {
 			const h_extra = g_contract.interfaces.snip20?.extra;

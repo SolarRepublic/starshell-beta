@@ -14,7 +14,11 @@ import type {TypedMessage} from '#/script/messages';
  * 
  * Describes a meta instance type that describes the range of message types defined over a certain exchange medium.
  */
-export type Vocab<g_type extends TypedMessage=TypedMessage, w_response extends JsonValue=JsonValue> = Record<string, {
+export type Vocab<
+	g_type extends TypedMessage=TypedMessage,
+	w_response extends w_constraint=JsonValue<any>,
+	w_constraint extends JsonValue<any>=JsonValue,
+> = Record<string, {
 	message: g_type;
 	response?: w_response;
 }>;
@@ -31,8 +35,10 @@ export namespace Vocab {
 	/**
 	 * Struct of the input definition for a vocab.
 	 */
-	type Source = Record<string, {
-		value?: JsonValue;
+	type Source<
+		w_constraint=JsonValue
+	> = Record<string, {
+		value?: w_constraint;
 		response?: JsonValue<void>;
 	}>;
 
@@ -64,8 +70,9 @@ export namespace Vocab {
 	 * Creates a new Vocab
 	 */
 	export type New<
-		h_source extends Source,
+		h_source extends Source<w_constraint>,
 		gc_vocab extends Config={},
+		w_constraint=JsonValue,
 	> = Compute<{
 		// use mapped type to transform each entry; destructure each entry's value into `g_source`
 		[si_key in keyof h_source]: h_source[si_key] extends infer g_source
@@ -77,7 +84,7 @@ export namespace Vocab {
 							type: si_key;
 						}, [
 							// merge the `value` type if one was provided
-							g_source extends {value: JsonValue}
+							g_source extends {value: w_constraint}
 								? {value: g_source['value']}
 								: {value?: undefined},
 
@@ -89,7 +96,7 @@ export namespace Vocab {
 					},
 					[
 						// append the response struct if one was provided
-						g_source extends {response: JsonValue}
+						g_source extends {response: w_constraint}
 							? {response: g_source['response']}
 							: {},
 
@@ -281,6 +288,8 @@ export namespace Vocab {
 	}
 
 
+	type DomMessagePort = (typeof window)['MessagePort']['prototype'];
+
 	/**
 	 * === _**@starshell/meta**_ ===
 	 * 
@@ -296,14 +305,41 @@ export namespace Vocab {
 	export interface TypedPort<
 		h_outgoing extends Vocab,
 		h_incoming extends Vocab=Vocab,
-	> extends MessagePort {
+	> extends DomMessagePort {
 		// outgoing messages
-		postMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg);
+		postMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg, a_transfers?: Transferable[]);
+		postMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg, gc_options?: StructuredSerializeOptions): void;
 
 		// incoming messages
 		set onmessage(f_listener: ((d_event: MessageEvent<Message<h_incoming>>) => void) | null);
 	}
 
+
+	type DomWorker = (typeof window)['Worker']['prototype'];
+
+	/**
+	 * === _**@starshell/meta**_ ===
+	 * 
+	 * ```ts
+	 * Vocab.TypedWorker<
+	 * 	outgoing: Vocab,
+	 * 	incoming?: Vocab,
+	 * >
+	 * ```
+	 * 
+	 * Creates a typed {@link Worker} suitable for the given `outgoing` and optionally `incoming` vocabs.
+	 */
+	export interface TypedWorker<
+		h_outgoing extends Vocab,
+		h_incoming extends Vocab=Vocab,
+	> extends DomWorker {
+		// outgoing messages
+		postMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg, a_transfers: Transferable[]);
+		postMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg, gc_options?: StructuredSerializeOptions): void;
+
+		// incoming messages
+		set onmessage(f_listener: ((d_event: MessageEvent<Message<h_incoming>>) => void) | null);
+	}
 
 	/**
 	 * === _**@starshell/meta**_ ===
@@ -369,7 +405,7 @@ export namespace Vocab {
 	 */
 	export interface TypedBroadcast<
 		h_outgoing extends Vocab,
-		h_incoming extends Vocab=Vocab,
+		h_incoming extends Vocab=h_outgoing,
 	> extends BroadcastChannel {
 		// outgoing messages
 		postMessage<g_msg extends Message<h_outgoing>>(g_msg: g_msg);

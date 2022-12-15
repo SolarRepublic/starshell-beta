@@ -55,7 +55,7 @@
 	import type {IntraExt} from '#/script/messages';
 	import {open_flow} from '#/script/msg-flow';
 	import {global_broadcast, global_receive, global_wait} from '#/script/msg-global';
-	import {X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
+	import {B_IOS_NATIVE, X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
@@ -624,8 +624,6 @@
 				return;
 			}
 
-			debugger;
-
 
 			try {
 				const {auth:atu8_auth} = await $yw_network.authInfoAmino(g_account, {
@@ -638,8 +636,7 @@
 				} = $yw_network.packAmino(g_amino, atu8_auth, base64_to_buffer(g_completed.amino.signature.signature));
 
 				si_txn = sxb16_hash;
-				console.log(`Produced transaction hash of ${si_txn}`);
-				debugger;
+				console.debug(`Produced transaction hash of ${si_txn}`);
 			}
 			// offline doc
 			catch(e_convert) {
@@ -818,6 +815,9 @@
 			}, 500);
 
 			CONTACTING_BACKGROUND: {
+				// skip on ios
+				if(B_IOS_NATIVE) break CONTACTING_BACKGROUND;
+
 				try {
 					const k_client = await ServiceClient.connect('self');
 

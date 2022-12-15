@@ -1,4 +1,4 @@
-<script type="ts">
+<script lang="ts">
 	import type {AppPath} from '#/meta/app';
 	import type {Dict, Promisable} from '#/meta/belt';
 	
@@ -392,7 +392,7 @@
 			icon: SX_ICON_BELL,
 			pfp: '',
 			click() {
-				system_notify({
+				void system_notify({
 					item: {
 						title: `🧪 Testing, 1 2 3...`,
 						message: 'This is a test notification',

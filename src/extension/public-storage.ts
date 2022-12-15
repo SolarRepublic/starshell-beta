@@ -1,11 +1,9 @@
 import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
 import type {StoreKey} from '#/meta/store';
-import type {Vocab} from '#/meta/vocab';
 
 import {precedes} from './semver';
 
-import type {ExtToNative} from '#/script/messages';
-import {B_IOS_WEBEXT, SI_VERSION} from '#/share/constants';
+import {SI_VERSION} from '#/share/constants';
 import {base93_to_buffer, buffer_to_base93} from '#/util/data';
 
 
@@ -31,17 +29,23 @@ type StorageSchema = {
 		interface: LastSeen;
 	};
 
-	// when enabled, allows Keplr to be detected and/or polyfilled
+	/**
+	 * When enabled, allows Keplr to be detected and/or polyfilled
+	 */
 	keplr_compatibility_mode: {
 		interface: boolean;
 	};
 
-	// when enabled, allows Keplr to be detected
+	/**
+	 * When enabled, allows Keplr to be detected
+	 */ 
 	keplr_detection_mode: {
 		interface: boolean;
 	};
 
-	// when enabled, polyfills Keplr unconditionally
+	/**
+	 * When enabled, polyfills Keplr unconditionally
+	 */
 	keplr_polyfill_mode: {
 		interface: boolean;
 	};
@@ -56,67 +60,24 @@ type StorageSchema = {
 
 type PublicStorageKey = keyof StorageSchema;
 
-const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
-
-const async_callback = (f_action: (f: () => void) => void): Promise<any> => new Promise((fk_resolve, fe_reject) => {
-	f_action(() => {
-		if(chrome.runtime.lastError) {
-			fe_reject(chrome.runtime.lastError);
-		}
-		else {
-			fk_resolve(void 0);
-		}
-	});
-});
-
 export function storage_get_all(): Promise<JsonObject> {
 	return chrome.storage.local.get(null);
-
-	// return new Promise((fk_resolve) => {
-	// 	chrome.storage.local.get(null, (h_all) => {
-	// 		fk_resolve(h_all);
-	// 	});
-	// });
 }
 
-const B_USE_IOS_NATIVE_STORAGE = B_IOS_WEBEXT && 'function' === typeof f_runtime_ios()?.sendNativeMessage;
-
-export const storage_get = B_USE_IOS_NATIVE_STORAGE
-	? async function<w_value extends any=any>(si_key: StoreKey): Promise<w_value | null> {
-		return (await f_runtime_ios().sendNativeMessage('application.id', {
-			type: 'localStorage',
-			value: {
-				type: 'get',
-				value: si_key,
-			},
-		}) || null) as Promise<w_value | null>;
-	}
-	: async function<w_value extends any=any>(si_key: string): Promise<w_value | null> {
-		return (await chrome.storage.local.get([si_key]))[si_key] || null;
-		// return new Promise((fk_resolve) => {
-		// 	chrome.storage.local.get([si_key], (h_gets) => {
-		// 		fk_resolve(h_gets[si_key] as w_value || null);
-		// 	});
-		// });
-	};
+export async function storage_get<w_value extends any=any>(si_key: StoreKey): Promise<w_value | null> {
+	return (await chrome.storage.local.get([si_key]))[si_key] || null;
+}
 
 export function storage_set(h_set: JsonObject): Promise<void> {
 	return chrome.storage.local.set(h_set);
-	// return new Promise((fk_resolve) => {
-	// 	chrome.storage.local.set(h_set, () => {
-	// 		fk_resolve();
-	// 	});
-	// });
 }
 
 export function storage_remove(si_key: string): Promise<void> {
 	return chrome.storage.local.remove(si_key);
-	// return async_callback(f => chrome.storage.local.remove(si_key, f));
 }
 
 export function storage_clear(): Promise<void> {
 	return chrome.storage.local.clear();
-	// return async_callback(f => chrome.storage.local.clear(f));
 }
 
 

@@ -1,7 +1,9 @@
-import type { Bech32 } from "#/meta/chain";
-import type { FieldConfig } from "#/meta/field";
-import type { Coin } from "@cosmjs/amino";
-import { add_coins } from "./_util";
+import type {Coin} from '@cosmjs/amino';
+
+import type {Bech32} from '#/meta/chain';
+import type {FieldConfig} from '#/meta/field';
+
+import {add_coins} from './_util';
 
 export const StakingMessages = {
 	'cosmos-sdk/MsgBeginRedelegate'(g_msg, {g_chain}) {

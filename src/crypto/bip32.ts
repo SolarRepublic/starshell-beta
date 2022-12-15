@@ -4,7 +4,7 @@ import RuntimeKey from './runtime-key';
 import {Secp256k1Key} from './secp256k1';
 import SensitiveBytes from './sensitive-bytes';
 
-import {hmac, ripemd160_sync, text_to_buffer, zero_out} from '#/util/data';
+import {buffer_to_base58, concat, hmac, ripemd160_sync, sha256, text_to_buffer, zero_out} from '#/util/data';
 
 // create the master 'Bitcoin seed' hmac key
 let DK_BIP32_KEY_MASTER_GEN: CryptoKey;
@@ -15,57 +15,6 @@ void crypto.subtle.importKey('raw', text_to_buffer('Bitcoin seed'), {
 
 function F_DESTROYED(): never {
 	throw new Error('The Secp256k1 instance being called has been destroyed');
-}
-
-/**
- * BIP-32: {@link https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Master_key_generation Master Key Generation}
- */
-export async function bip32MasterKey(fk_seed: KeyProducer): Promise<Bip32> {
-	// initialize WASM module
-	await Secp256k1Key.init();
-
-	// create seed
-	const atu8_seed = await fk_seed();
-
-	// safety checks
-	{
-		// seed too short
-		if(atu8_seed.byteLength < 16) {
-			// panic wipe
-			zero_out(atu8_seed);
-			throw new Error('Seed is too short');
-		}
-		// seed too long
-		else if(atu8_seed.byteLength > 64) {
-			// panic wipe
-			zero_out(atu8_seed);
-			throw new Error('Seed is too long');
-		}
-	}
-
-	// generate the master `I`
-	const atu8_i = new Uint8Array(await crypto.subtle.sign('HMAC', DK_BIP32_KEY_MASTER_GEN, atu8_seed));
-
-	// wipe
-	zero_out(atu8_seed);
-
-	// split into two 32-byte sequences `I_L` and `I_R`
-	const atu8_il = atu8_i.subarray(0, 32);
-	const atu8_ir = atu8_i.subarray(32);
-
-	// invalid master secret key
-	if(!Secp256k1Key.validatePrivateKey(atu8_il)) {
-		// panic wipe
-		zero_out(atu8_i);
-
-		throw new Error('Invalid master key');
-	}
-
-	// wrap as runtime key
-	const kk_sk = await RuntimeKey.create(() => atu8_il);
-
-	// create bip32
-	return Bip32.create(kk_sk, atu8_ir);
 }
 
 
@@ -107,6 +56,57 @@ export class Bip32 {
 		const k_bip32 = new Bip32();
 
 		return await k_bip32.init(kk_sk, atu8_chain, atu8_parent, i_depth, i_index, k_parent);
+	}
+
+	/**
+	 * BIP-32: {@link https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Master_key_generation Master Key Generation}
+	 */
+	static async masterKey(fk_seed: KeyProducer): Promise<Bip32> {
+		// initialize WASM module
+		await Secp256k1Key.init();
+
+		// create seed
+		const atu8_seed = await fk_seed();
+
+		// safety checks
+		{
+			// seed too short
+			if(atu8_seed.byteLength < 16) {
+				// panic wipe
+				zero_out(atu8_seed);
+				throw new Error('Seed is too short');
+			}
+			// seed too long
+			else if(atu8_seed.byteLength > 64) {
+				// panic wipe
+				zero_out(atu8_seed);
+				throw new Error('Seed is too long');
+			}
+		}
+
+		// generate the master `I`
+		const atu8_i = new Uint8Array(await crypto.subtle.sign('HMAC', DK_BIP32_KEY_MASTER_GEN, atu8_seed));
+
+		// wipe
+		zero_out(atu8_seed);
+
+		// split into two 32-byte sequences `I_L` and `I_R`
+		const atu8_il = atu8_i.subarray(0, 32);
+		const atu8_ir = atu8_i.subarray(32);
+
+		// invalid master secret key
+		if(!Secp256k1Key.validatePrivateKey(atu8_il)) {
+			// panic wipe
+			zero_out(atu8_i);
+
+			throw new Error('Invalid master key');
+		}
+
+		// wrap as runtime key
+		const kk_sk = await RuntimeKey.create(() => atu8_il);
+
+		// create bip32
+		return Bip32.create(kk_sk, atu8_ir);
 	}
 
 	static async import(kn_node: SensitiveBytes): Promise<Bip32> {
@@ -325,6 +325,19 @@ export class Bip32 {
 		return new SensitiveBytes(atu8_seed);
 	}
 
+	async exportBase58(): Promise<string> {
+		const kn_serialized = await this.serializeNode();
+		const atu8_hash = await sha256(await sha256(kn_serialized.data));
+
+		// serialize(node) || checksum(serialize(node))
+		const atu8_data = concat([kn_serialized.data, atu8_hash.subarray(0, 4)]);
+
+		// wipe secret material
+		kn_serialized.wipe();
+
+		// serialize to base58
+		return buffer_to_base58(atu8_data);
+	}
 
 	/**
 	 * <https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#child-key-derivation-ckd-functions>

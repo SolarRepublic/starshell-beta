@@ -1,9 +1,8 @@
 import type {Dict, JsonValue, Promisable} from '#/meta/belt';
-import type { Vocab } from '#/meta/vocab';
+import type {Vocab} from '#/meta/vocab';
 
 import type {IntraExt, TypedMessage} from '#/script/messages';
-import { global_broadcast } from '#/script/msg-global';
-import { ode, timeout } from '#/util/belt';
+import {ode, timeout} from '#/util/belt';
 
 import {buffer_to_base93, uuid_v4} from '#/util/data';
 
@@ -104,18 +103,30 @@ export class ServiceClient {
 
 	protected _connect(): Promise<void> {
 		console.debug(`Attempting to connect to background...`);
+
 		return new Promise((fk_resolve, fe_reject) => {
 			// hoist timeout handle
 			let i_timeout = 0;
 
 			// initiate connection to service worker
-			const d_port = this._d_port = chrome.runtime.connect({
-				name: this._si_connection,
-			});
+			let d_port!: chrome.runtime.Port;
+			try {
+				d_port = this._d_port = chrome.runtime.connect({
+					name: this._si_connection,
+				});
 
-			// error
-			if(chrome.runtime.lastError) {
-				console.error(`Failed to connect to background: %o`, chrome.runtime.lastError);
+				// error
+				if(chrome.runtime.lastError) {
+					console.error(`Failed to connect to background: %o`, chrome.runtime.lastError);
+				}
+			}
+			catch(e_connect) {
+				console.error(`Failed to connect to background: ${e_connect.message}`);
+			}
+
+			// no port connection
+			if(!d_port) {
+				throw new Error(`Failed to connect to background service`);
 			}
 
 			// set connection state

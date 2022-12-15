@@ -27,6 +27,7 @@ import type {ConnectionHandleConfig} from '#/provider/connection';
 
 
 import type {AppProfile} from '#/store/apps';
+import type { Argon2Config } from '#/crypto/argon2';
 
 
 
@@ -904,6 +905,55 @@ export namespace IntraExt {
 			};
 		};
 	}>;
+
+	export type WebKitGlobal = Vocab.New<{
+		connect: {
+			value: {
+				name: string;
+			};
+		};
+	}>;
+
+	export type WebKitDirect = Vocab.New<{
+		establish: {};
+		disconnect: {};
+		message: {
+			value: JsonValue;
+		};
+	}>;
+}
+
+
+/**
+ * Messages sent between workers/hosts
+ */
+export namespace Workers {
+	export type HostToArgon2 = Vocab.New<{
+		hash: {
+			value: Argon2Config;
+		};
+	}, {
+		each: {
+			message: {
+				id: string;
+			};
+		};
+	}, JsonValue<Uint8Array>>;
+
+	export type Argon2ToHost = Vocab.New<{
+		ok: {
+			value: Uint8Array;
+		};
+		error: {
+			value: string;
+		};
+	}, {
+		each: {
+			message: {
+				id: string;
+			};
+		};
+	}, JsonValue<Uint8Array>>;
 }
 
 
@@ -973,6 +1023,21 @@ export namespace ExtToNative {
 
 		clear: {
 			value: undefined;
+		};
+	}>;
+
+	export type NotificationVocab = Vocab.New<{
+		create: {
+			value: {
+				id: string;
+				options: AsJson<chrome.notifications.NotificationOptions>;
+			}
+		};
+
+		clear: {
+			value: {
+				id: string;
+			};
 		};
 	}>;
 }

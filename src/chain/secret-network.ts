@@ -2,14 +2,13 @@ import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 import type {AccountStruct} from '#/meta/account';
 import type {JsonObject} from '#/meta/belt';
-import type {Bech32, ChainStruct, ContractStruct} from '#/meta/chain';
+import type {ChainStruct, ContractStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 
 import {
 	QueryClientImpl as ComputeQueryClient,
-	CodeInfoResponse,
-	ContractInfoWithAddress,
 } from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/query';
+
 import {
 	QueryClientImpl as RegistrationQueryClient,
 } from '@solar-republic/cosmos-grpc/dist/secret/registration/v1beta1/query';

@@ -1,7 +1,9 @@
-import {P_STARSHELL_DECREES, SI_VERSION} from '#/share/constants';
-import {Decree, WebResourceCache} from '#/store/web-resource-cache';
-
 import * as semver from 'semver';
+
+import {P_STARSHELL_DECREES, SI_VERSION} from '#/share/constants';
+import type {Decree} from '#/store/web-resource-cache';
+import {WebResourceCache} from '#/store/web-resource-cache';
+
 
 const R_SEMVER = /^([<>]=?)?(.+)$/;
 

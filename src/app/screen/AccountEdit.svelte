@@ -67,8 +67,7 @@
 
 		// 
 		if(!g_account) {
-			console.error(`Account '${accountPath}'' was not found in %o`, ks_accounts.raw);
-			debugger;
+			throw new Error(`Account '${accountPath}'' was not found in %o`, ks_accounts.raw);
 		}
 
 		// propagate custom pfp

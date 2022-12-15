@@ -18,6 +18,7 @@
 	
 	
 	import SX_ICON_CONTACTS from '#/icon/account_box.svg?raw';
+	import SX_ICON_CUBES from '#/icon/cubes.svg?raw';
 	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
 	import SX_ICON_HISTORY from '#/icon/history.svg?raw';
 	import SX_ICON_MENU from '#/icon/menu.svg?raw';
@@ -28,21 +29,21 @@
 
 	// nav bar definition
 	const H_BUTTONS = {
-		[ThreadId.TOKENS]: {
-			svg: SX_ICON_TOKENS,
-			label: 'Tokens',
+		[ThreadId.HISTORY]: {
+			svg: SX_ICON_HISTORY,
+			label: 'History',
 		},
 		[ThreadId.AGENTS]: {
 			svg: SX_ICON_CONTACTS,
 			label: 'Agents',
 		},
-		// [ThreadId.NFTS]: {
-		// 	svg: SX_ICON_NFT,
-		// 	label: 'NFTs',
-		// },
-		[ThreadId.HISTORY]: {
-			svg: SX_ICON_HISTORY,
-			label: 'History',
+		[ThreadId.TOKENS]: {
+			svg: SX_ICON_TOKENS,
+			label: 'Tokens',
+		},
+		[ThreadId.APPS]: {
+			svg: SX_ICON_CUBES,
+			label: 'Apps',
 		},
 		menu: {
 			svg: SX_ICON_MENU,
@@ -211,16 +212,7 @@
 				cursor: pointer;
 
 				&.active {
-					&.tokens {
-						--svg-color-fg: var(--theme-color-primary);
-					}
-					&.contacts {
-						--svg-color-fg: var(--theme-color-primary);
-					}
-					&.nfts {
-						--svg-color-fg: var(--theme-color-primary);
-					}
-					&.history {
+					&:not(.menu) {
 						--svg-color-fg: var(--theme-color-primary);
 					}
 

@@ -221,12 +221,12 @@ export type Dict<w_value=string> = Record<string, w_value>;
 /**
  * Shortcut for another common type pattern
  */
-export type Promisable<w_value> = w_value | Promise<w_value>;
+export type Promisable<w_value=unknown> = w_value | Promise<w_value>;
 
 /**
  * Shortcut for another common type pattern
  */
- export type Arrayable<w_value> = w_value | Array<w_value>;
+export type Arrayable<w_value> = w_value | Array<w_value>;
 
 
 /**

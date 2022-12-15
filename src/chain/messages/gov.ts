@@ -1,19 +1,15 @@
-import type {Bech32, ChainStruct} from '#/meta/chain';
-import type {FieldConfig} from '#/meta/field';
-import type {Coin} from '@cosmjs/amino';
 import type {MessageDict} from './_types';
-import showdown from 'showdown';
-
-import {
-	ProposalStatus,
-	TextProposal,
-	VoteOption,
-	WeightedVoteOption,
-} from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/gov';
+import type {TypedValue} from '../cosmos-msgs';
+import type {Coin} from '@cosmjs/amino';
 
 import type {
 	CommunityPoolSpendProposal,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/distribution/v1beta1/distribution';
+
+import type {
+	TextProposal,
+	WeightedVoteOption
+} from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/gov';
 
 import type {
 	ParameterChangeProposal,
@@ -28,13 +24,24 @@ import type {
 	SoftwareUpgradeProposal,
 	CancelSoftwareUpgradeProposal,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/upgrade/v1beta1/upgrade';
+
+import type {Dict, JsonValue} from '#/meta/belt';
+import type {Bech32, ChainStruct} from '#/meta/chain';
+import type {FieldConfig} from '#/meta/field';
+
+import {
+	ProposalStatus,
+	VoteOption,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/gov';
+
 import {add_coins, kv} from './_util';
-import {format_amount} from '#/util/format';
+import {proto_to_amino} from '../cosmos-msgs';
+
+import {JsonPreviewer} from '#/app/helper/json-previewer';
+
+import {yw_network} from '#/app/mem';
 import {dd} from '#/util/dom';
-import { JsonPreviewer } from '#/app/helper/json-previewer';
-import type { Dict, JsonObject, JsonValue } from '#/meta/belt';
-import { yw_network } from '#/app/mem';
-import { proto_to_amino, TypedValue } from '../cosmos-msgs';
+import {format_amount} from '#/util/format';
 
 type ProposalRegistry = {
 	TextProposal: TextProposal;
@@ -85,6 +92,7 @@ function embed_proposal(g_proposal: ProposalTuple, g_chain: ChainStruct, a_field
 	// push basic fields
 	a_fields.push(kv('Title', g_value.title));
 
+	// create a sandboxed iframe to render the proposal markdown as html with the help of the showdown library
 	const dm_iframe = dd('iframe', {
 		style: `
 			background-color: rgba(0,0,0,0.6);
@@ -179,7 +187,8 @@ function embed_proposal(g_proposal: ProposalTuple, g_chain: ChainStruct, a_field
 					let z_value = g_param.value;
 					try {
 						z_value = JSON.parse(z_value);
-					} catch(e_parse) {}
+					}
+					catch(e_parse) {}
 
 					return z_value;
 				})(), {
@@ -259,7 +268,6 @@ function add_weighted_votes(a_options: WeightedVoteOption[], g_chain: ChainStruc
 			],
 		});
 	}
-
 }
 
 export const GovMessages: MessageDict = {
@@ -413,5 +421,4 @@ export const GovMessages: MessageDict = {
 			},
 		};
 	},
-
 };
