@@ -330,12 +330,12 @@ async function reload() {
 						if(h_params.screen) {
 							switch(h_params.screen) {
 								case 'mnemonic': {
-									const kn_indicies = await Bip39.entropyToIndicies();
+									const atu16_indicies = await Bip39.entropyToIndicies();
 
 									k_navigator.activePage.push({
 										creator: ImportMnemonicSvelte,
 										props: {
-											atu16_indicies: new Uint16Array(kn_indicies.data.buffer),
+											atu16_indicies,
 										},
 									});
 									break;

@@ -4,7 +4,7 @@ import {Argon2, Argon2Type as Argon2Type} from './argon2';
 import RuntimeKey from './runtime-key';
 import SensitiveBytes from './sensitive-bytes';
 
-import {base64_to_buffer, buffer_to_base64, buffer_to_text, concat, sha256, text_to_buffer, zero_out} from '#/util/data';
+import {base64_to_buffer, buffer_to_base64, buffer_to_text, concat, sha256, sha256d, text_to_buffer, zero_out} from '#/util/data';
 
 interface ExportedEntropy {
 	description?: string;
@@ -642,6 +642,10 @@ export const Bip39 = {
 		return Bip39.exportIndicies(() => Bip39.mnemonicToIndicies(fk_mnemonic), atu8_phrase);
 	},
 
+	/**
+	 * Encrypts the 256 bits of entropy used to derive a mnemonic by using a one-time pad from the output
+	 * hash of SHA-256d(Argon2id(passphrase)). 
+	*/
 	async exportIndicies(fk_indicies: KeyProducer<Uint16Array>, atu8_phrase: Uint8Array): Promise<ExportedEntropy> {
 		// generate random salt
 		const atu8_salt = crypto.getRandomValues(new Uint8Array(32));
@@ -664,7 +668,7 @@ export const Bip39 = {
 		};
 
 		// perform hashing
-		const atu8_hash = await Argon2.hash({
+		const atu8_hash_phrase = await Argon2.hash({
 			type: Argon2Type.Argon2id,
 			phrase: atu8_phrase,
 			salt: atu8_salt,
@@ -673,18 +677,19 @@ export const Bip39 = {
 			time: n_iterations,
 		});
 
-		// wrap hash as sensitive bytes
-		const kn_hash = new SensitiveBytes(atu8_hash);
+		// sha-256d
+		const atu8_hash_out = await sha256d(atu8_hash_phrase);
 
 		// convert indicies to entropy
 		const kn_entropy = Bip39.inndiciesToEntropy(await fk_indicies());
 
 		// access the entropy key and create "one-time" pad
-		const kn_otp = kn_entropy.xor(kn_hash);
+		const kn_otp = new SensitiveBytes(atu8_hash_out).xor(kn_entropy);
 
 		// wipe secret material
+		zero_out(atu8_hash_phrase);
+		zero_out(atu8_hash_out);
 		kn_entropy.wipe();
-		kn_hash.wipe();
 
 		// create output json
 		return {
@@ -697,7 +702,7 @@ export const Bip39 = {
 		const kn_cipertext = new SensitiveBytes(base64_to_buffer(g_entropy.ciphertextBase64!));
 
 		// perform hashing
-		const atu8_hash = await Argon2.hash({
+		const atu8_hash_phrase = await Argon2.hash({
 			type: g_entropy.argonType,
 			phrase: atu8_phrase,
 			salt: base64_to_buffer(g_entropy.saltBase64),
@@ -706,11 +711,15 @@ export const Bip39 = {
 			time: g_entropy.iterations,
 		});
 
+		// sha-256d
+		const atu8_hash_out = await sha256d(atu8_hash_phrase);
+
 		// xor result
-		const kn_otp = new SensitiveBytes(atu8_hash).xor(kn_cipertext);
+		const kn_otp = new SensitiveBytes(atu8_hash_out).xor(kn_cipertext);
 
 		// zero-out secret material
-		zero_out(atu8_hash);
+		zero_out(atu8_hash_phrase);
+		zero_out(atu8_hash_out);
 		kn_cipertext.wipe();
 
 		// create runtime key

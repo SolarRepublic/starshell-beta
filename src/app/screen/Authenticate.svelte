@@ -96,12 +96,12 @@
 		// estimate time to complete
 		{
 			const xt_start_est = window.performance.now();
-			const X_SAMPLE = 48;
+			const X_SAMPLE = 42;
 			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / X_SAMPLE);
 			const xt_finish_est = window.performance.now();
 
 			const xt_elapsed = xt_finish_est - xt_start_est;
-			const xt_estimate = 0.9 * (xt_elapsed * X_SAMPLE);
+			const xt_estimate = 1.2 * (xt_elapsed * X_SAMPLE);
 			fk_sample?.(xt_estimate);
 			log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
 			console.log(`Estimating ${(xt_estimate / 1e3).toFixed(1)} seconds`);

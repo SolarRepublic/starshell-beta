@@ -1,14 +1,17 @@
 import '#/dev';
 
+import type {Argon2Methods} from './argon2';
+
 import type {JsonObject, JsonValue, Dict} from '#/meta/belt';
 import type {Store, StoreKey} from '#/meta/store';
 
-import {Argon2, Argon2Methods, Argon2Type} from './argon2';
+import {Argon2Type} from './argon2';
 
 import SensitiveBytes from './sensitive-bytes';
 
 import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
+import {WorkerHost} from '#/extension/worker-host';
 import {global_broadcast} from '#/script/msg-global';
 
 import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_LOCALHOST, XG_64_BIT_MAX} from '#/share/constants';
@@ -25,15 +28,14 @@ import {
 	text_to_buffer,
 	zero_out,
 } from '#/util/data';
-import {WorkerHost} from '#/extension/worker-host';
 
 
 // number of key derivation iterations
 const N_PBKDF2_ITERATIONS = 696969;
 
-const N_ARGON2_ITERATIONS = B_LOCALHOST? 1: 48;
+const N_ARGON2_ITERATIONS = B_LOCALHOST? 1: 42;
 
-const NB_ARGON2_MEMORY = B_LOCALHOST? 256: 32 * 1024;  // 64 KiB
+const NB_ARGON2_MEMORY = B_LOCALHOST? 256: 32 * 1024;  // 32 KiB
 
 /**
  * Sets the block size to use when padding plaintext before encrypting for storage.
@@ -264,7 +266,7 @@ async function load_argon_worker(): Promise<Argon2Methods> {
 			...Argon2,
 
 			// override hash function by injecting preserve flag
-			hash: (gc_hash) => Argon2.hash({
+			hash: gc_hash => Argon2.hash({
 				...gc_hash,
 				preserve: true,
 			}),
@@ -400,9 +402,9 @@ export const Vault = {
 		atu8_nonce: Uint8Array,
 		x_iteration_multiplier=0
 	): Promise<SensitiveBytes> {
-		const k_argon_host = await load_argon_worker();
+		const k_argon_host_local = await load_argon_worker();
 
-		return new SensitiveBytes(await k_argon_host.hash({
+		return new SensitiveBytes(await k_argon_host_local.hash({
 			phrase: atu8_phrase,
 			salt: atu8_nonce,
 			time: x_iteration_multiplier? Math.ceil(N_ARGON2_ITERATIONS * x_iteration_multiplier): N_ARGON2_ITERATIONS,

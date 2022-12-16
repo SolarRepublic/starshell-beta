@@ -40,6 +40,7 @@
 
 	let b_tooltip_showing = false;
 
+	
 	async function export_backup(atu8_phrase: Uint8Array) {
 		// loading
 		$yw_popup = null;
@@ -117,6 +118,8 @@
 
 		$yw_popup = PopupExportFile;
 	}
+
+	let b_avanced = false;
 </script>
 
 <style lang="less">
@@ -260,7 +263,20 @@
 				Save to backup file
 			</span>
 		</span>
+
+		<span class="link" on:click={() => b_avanced = true}>
+			<span class="global_svg-icon icon-diameter_18px">
+				{@html SX_ICON_DOWNLOAD}
+			</span>
+			<span>
+				Show advanced
+			</span>
+		</span>
 	</div>
 </div>
+
+<p>
+	This mnemonic phrase will be stored to your wallet in an encrypted form so that you can create multiple accounts with it.
+</p>
 
 <Curtain on:click={() => b_tooltip_showing = false} />

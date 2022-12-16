@@ -35,6 +35,18 @@ export async function sha256(atu8_data: Uint8Array): Promise<Uint8Array> {
 	return new Uint8Array(await crypto.subtle.digest('SHA-256', atu8_data));
 }
 
+/**
+ * Performs SHA-256 hash on the given data.
+ * @param atu8_data data to hash
+ * @returns the hash digest
+ */
+export async function sha256d(atu8_data: Uint8Array): Promise<Uint8Array> {
+	const atu8_1 = await sha256(atu8_data);
+	const atu8_2 = await sha256(atu8_1);
+	zero_out(atu8_1);
+	return atu8_2;
+}
+
 
 /**
 * Performs SHA-256 hash on the given data synchronously (only suitable for non-secure applications).

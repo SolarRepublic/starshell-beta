@@ -2,7 +2,7 @@ import type {AgentStruct, AgentPath, Bech32, ChainStruct, ChainNamespaceKey} fro
 import type {ContactStruct, ContactPath} from '#/meta/contact';
 
 import {decodeBech32} from '@solar-republic/wasm-secp256k1';
-import bech32 from 'bech32';
+import {bech32} from 'bech32';
 
 import {create_store_class, WritableStoreMap} from './_base';
 import {Chains} from './chains';
