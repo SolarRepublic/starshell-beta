@@ -8,9 +8,21 @@
 
 	export let showing = false;
 
-	export let overlayStyle = '';
-
 	$: $yw_curtain = showing;
+
+	let x_left_overlay = 0;
+
+	// automatically re-center
+	let dm_overlay!: HTMLDivElement;
+	$: if(showing && dm_overlay) {
+		const xl_width_overlay = dm_overlay.getBoundingClientRect().width;
+
+		const xl_x_toooltip = dm_overlay.closest('.tooltip')!.getBoundingClientRect().x;
+
+		const xl_width_viewport = dm_overlay.closest('main.viewport')!.getBoundingClientRect().width;
+
+		x_left_overlay = ((xl_width_viewport - xl_width_overlay) / 2) - xl_x_toooltip;
+	}
 </script>
 
 <style lang="less">
@@ -63,7 +75,9 @@
 	</span>
 
 	{#if showing}
-		<div class="tooltip-overlay" style={overlayStyle} transition:fade={{duration:300, easing:quintOut}}>
+		<div class="tooltip-overlay" style={`
+			left: ${x_left_overlay}px;
+		`} bind:this={dm_overlay} transition:fade={{duration:300, easing:quintOut}}>
 			<slot />
 		</div>
 	{/if}

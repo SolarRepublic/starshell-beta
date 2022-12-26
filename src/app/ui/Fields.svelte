@@ -352,6 +352,10 @@
 										<span class="font-variant_mono">
 											{z_value}
 										</span>
+									{:else if 'error' === gc_field.render}
+										<span class="color_caution">
+											{z_value}
+										</span>
 									{:else}
 										{z_value}
 									{/if}
@@ -449,7 +453,7 @@
 						{#await load_account(p_account)}
 							<Load forever />
 						{:then g_account} 
-							<Row pfpDim={gc_field.short? 22: 0}
+							<Row pfpDim={gc_field.short? 22: 36}
 								rootStyle='border:none; padding:0;'
 								resource={g_account}
 							/>
@@ -472,7 +476,10 @@
 					{/each}
 				</Field>
 			{:else if 'contacts' === gc_field.type}
-				<Field key={phrase_to_hyphenated(gc_field.label || 'affiliated-addresses')} name={gc_field.label || 'Affiliated address'}>
+				<Field short={gc_field.short ?? false}
+					key={phrase_to_hyphenated(gc_field.label || 'affiliated-addresses')}
+					name={gc_field.label || 'Affiliated address'}
+				>
 					{#each gc_field.bech32s as w_agent}
 						{#await load_contact(w_agent, gc_field.g_chain)}
 							<Load forever />

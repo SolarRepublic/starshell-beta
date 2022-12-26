@@ -907,7 +907,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 					host: location.host,
 				});
 
-				if(!(g_registered_app = a_apps[0])) {
+				if(!(g_registered_app = a_apps[0]?.[1])) {
 					throw 'App is not registered';
 				}
 			}
@@ -1414,12 +1414,10 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				host: location.host,
 			});
 
-			console.log({a_apps});
-
 			// app is already registered
 			if(a_apps.length) {
 				// ref app
-				const g_app = a_apps[0];
+				const g_app = a_apps[0][1];
 
 				// app is enabled
 				if(g_app.on) {
@@ -1435,23 +1433,32 @@ const XT_POLYFILL_DELAY = 1.5e3;
 						if(await PublicStorage.forceMcsInjection()) {
 							await inject_keplr_polyfill();
 						}
-
-						return;
 					}
 					// another API mode is enabled
 					else if(AppApiMode.UNKNOWN !== xc_api) {
 						b_cancel_polyfill = true;
 						debug(`Cancelling polyfill since app is in alternate mode: %o`, g_app);
-						return;
+					}
+					// unknown API mode
+					else {
+						debug(`App is registered in an unknown API mode`);
 					}
 				}
 				// app is disabled
 				else {
 					b_cancel_polyfill = true;
 					debug(`Cancelling polyfill since app is disabled`);
-					return;
 				}
+
+				// do not attempt to detect keplr
+				return;
 			}
+			else {
+				debug(`App is not registered`);
+			}
+		}
+		else {
+			debug(`Vault is locked`);
 		}
 
 		// attempt to detect keplr

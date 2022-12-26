@@ -8,9 +8,34 @@ import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 import type {Snip24Permission} from '#/schema/snip-24-def';
 
 import type {Bip44Path} from '#/crypto/bip44';
+import type { SerializableArgon2Params } from '#/store/secrets';
 
 type SecurityTypeRegistry = {
 	none: {};
+
+	pin: {
+		struct: {
+			/**
+			 * Encryption struct
+			 */
+			encryption: {
+				algorithm: 'AES-GCM';
+				salt: string;
+			};
+
+			/**
+			 * Hashing struct
+			 */
+			hashing: Merge<{
+				algorithm: 'argon2';
+			}, SerializableArgon2Params>;
+
+			/**
+			 * Hint for the PIN
+			 */
+			hint: string;
+		};
+	};
 
 	phrase: {
 		struct: {
@@ -19,7 +44,18 @@ type SecurityTypeRegistry = {
 			salt: string;
 			subtype: 'pin' | 'text';
 			hint: string;
+
+			argonType?: 0 | 1 | 2;
+			memory?: number;
 		};
+		// } | {
+		// 	algo: 'argon2';
+		// 	iterations: number;
+		// 	salt: string;
+		// 	argonType: 0 | 1 | 2;
+		// 	memory: number;
+		// 	hint: string;
+		// };
 	};
 
 	webauthn: {
@@ -37,7 +73,7 @@ type SecurityTypeRegistry = {
 
 type SecurityType = keyof SecurityTypeRegistry;
 
-namespace Security {
+export namespace SecretSecurity {
 	export type Struct<
 		si_type extends SecurityType=SecurityType,
 	> = {
@@ -54,7 +90,20 @@ namespace Security {
 type SecretTypeRegistry = {
 	mnemonic: {
 		struct: {
+			/**
+			 * Optional hint for the seed extension passphrase
+			 */
 			hint: string;  // its presence indicates the user has set a password ontop of this mnemonic
+
+			/**
+			 * Distinguishes between imported and created mnemonics for ui help
+			 */
+			origin: 'imported' | 'created';
+
+			/**
+			 * Mnemonics are always protected by a PIN
+			 */
+			security: SecretSecurity.Struct<'pin'>;
 		};
 	};
 
@@ -145,13 +194,14 @@ export namespace Secret {
 		si_type extends SecretType=SecretType,
 		si_security extends SecurityType=SecurityType,
 	> = {
-		[si_each in SecretType]: Merge<{
-			type: si_each;
-			uuid: string;
-			security: Security.Struct<si_security>;
-		}, SecretTypeRegistry[si_each] extends {struct: infer h_struct}
+		[si_each in SecretType]: Merge<SecretTypeRegistry[si_each] extends {struct: infer h_struct}
 			? Cast<h_struct, object>
-			: {}
+			: {},
+			{
+				type: si_each;
+				uuid: string;
+				security: SecretSecurity.Struct<si_security>;
+			}
 		>
 	}[si_type];
 

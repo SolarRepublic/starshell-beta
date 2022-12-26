@@ -27,7 +27,7 @@ function builtin_media(): Record<string, {hash:string; data:string;}> {
 	const h_out = {};
 
 	// each media subdirectory
-	['chain', 'token', 'vendor', 'other'].forEach((sr_subdir) => {
+	['token', 'vendor', 'other'].forEach((sr_subdir) => {
 		// subdirectory
 		const pd_full = path.join(PD_MEDIA, sr_subdir);
 
@@ -73,10 +73,10 @@ export default defineConfig((gc_run) => {
 	};
 
 	// build media dict
-	const H_MEDIA_BUILTINT = builtin_media();
+	const H_MEDIA_BUILTIN = builtin_media();
 
 	// compute lookup table
-	const H_MEDIA_LOOKUP = Object.fromEntries(Object.entries(H_MEDIA_BUILTINT).map(([si_key, g_media]) => [g_media.data, si_key]));
+	const H_MEDIA_LOOKUP = Object.fromEntries(Object.entries(H_MEDIA_BUILTIN).map(([si_key, g_media]) => [g_media.data, si_key]));
 
 	const SI_BROWSER = 'ios' === SI_ENGINE? 'safari': SI_ENGINE;
 
@@ -86,7 +86,7 @@ export default defineConfig((gc_run) => {
 
 	return {
 		define: {
-			__H_MEDIA_BUILTIN: JSON.stringify(H_MEDIA_BUILTINT),
+			__H_MEDIA_BUILTIN: JSON.stringify(H_MEDIA_BUILTIN),
 			__H_MEDIA_LOOKUP: JSON.stringify(H_MEDIA_LOOKUP),
 			__SI_VERSION: JSON.stringify(G_PACKAGE_JSON.version),
 			__SI_ENGINE: JSON.stringify(SI_ENGINE),

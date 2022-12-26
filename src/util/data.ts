@@ -195,6 +195,29 @@ export function deserialize_private_key(kn_xor: SensitiveBytes, sx_otp: string):
 }
 
 
+export function encode_length_prefix_u16(atu8_data: Uint8Array): Uint8Array {
+	// prep buffer to serialize encoded extension
+	const atu8_encoded = concat([
+		new Uint8Array(2),  // 2 bytes for length prefix
+		atu8_data,
+	]);
+
+	// use big-endian to encode length prefix
+	new DataView(atu8_encoded.buffer).setUint16(atu8_encoded.byteOffset, atu8_data.byteLength, false);
+
+	// return encoded buffer
+	return atu8_encoded;
+}
+
+
+export function decode_length_prefix_u16(atu8_encoded: Uint8Array): [Uint8Array, Uint8Array] {
+	// use big-endian to decode length prefix
+	const ib_terminus = new DataView(atu8_encoded.buffer).getUint16(atu8_encoded.byteOffset, false) + 2;
+
+	// return decoded payload buffer and everything after it
+	return [atu8_encoded.subarray(2, ib_terminus), atu8_encoded.subarray(ib_terminus)];
+}
+
 
 /**
  * UTF-8 encodes the given text to an Uint8Array.

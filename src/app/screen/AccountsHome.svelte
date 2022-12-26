@@ -19,6 +19,8 @@
 	import Address from '../frag/Address.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
+    import Load from '../ui/Load.svelte';
+    import { forever } from '#/util/belt';
 	
 
 	const {
@@ -86,9 +88,13 @@
 					>
 						<svelte:fragment slot="detail">
 							<div class="hd-path">
-								StarShell
 								{#if 'bip32_node' === g_secret?.type}
-									- {g_secret.bip44}
+									{#await Secrets.metadata(g_secret.mnemonic)}
+										<Load forever />
+									{:then g_mnemonic}
+										{g_mnemonic.name}
+									{/await}
+									 - {g_secret.bip44}
 								{/if}
 							</div>
 

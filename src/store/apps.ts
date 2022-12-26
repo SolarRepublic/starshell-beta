@@ -6,14 +6,10 @@ import type {Dict, JsonObject} from '#/meta/belt';
 import type {ContractStruct} from '#/meta/chain';
 import type {Resource} from '#/meta/resource';
 
-import {
-	create_store_class,
-	WritableStoreMap,
-} from './_base';
+import {create_store_class, WritableStoreMap} from './_base';
 import {H_LOOKUP_PFP} from './_init';
 
 import {SI_STORE_APPS} from '#/share/constants';
-import {ode} from '#/util/belt';
 
 export interface AppFilterConfig extends Partial<AppStruct> {}
 
@@ -72,7 +68,7 @@ export const H_WALLET_APPS = {
 
 export const Apps = create_store_class({
 	store: SI_STORE_APPS,
-	extension: 'map',
+	extension: ['map', 'filterable'],
 	class: class AppsI extends WritableStoreMap<typeof SI_STORE_APPS> {
 		static pathFor<
 			s_host extends string,
@@ -101,10 +97,6 @@ export const Apps = create_store_class({
 
 		static async get(s_host: string, s_scheme: AppSchemeKey | `${AppSchemeKey}:`): Promise<null | AppStruct> {
 			return (await Apps.read()).get(s_host, s_scheme.replace(/:$/, '') as AppSchemeKey);
-		}
-
-		static async filter(gc_filter: AppFilterConfig) {
-			return (await Apps.read()).filter(gc_filter);
 		}
 
 		/**
@@ -150,30 +142,6 @@ export const Apps = create_store_class({
 
 			// attempt to save
 			await this.save();
-		}
-
-		filter(gc_filter: AppFilterConfig): AppStruct[] {
-			// no filter; return values list
-			if(!Object.keys(gc_filter).length) return Object.values(this._w_cache);
-
-			// list of apps matching given filter
-			const a_apps: AppStruct[] = [];
-
-			// each app in store
-			FILTERING_APPS:
-			for(const [, g_app] of ode(this._w_cache)) {
-				// each criterion in filter
-				for(const [si_key, w_value] of ode(gc_filter)) {
-					// one of the filters doesn't match; skip it
-					if(g_app[si_key] !== w_value) continue FILTERING_APPS;
-				}
-
-				// app passed filter criteria; add it to list
-				a_apps.push(g_app);
-			}
-
-			// return list
-			return a_apps;
 		}
 	},
 });

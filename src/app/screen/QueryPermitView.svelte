@@ -238,7 +238,7 @@
 					<span style="position:relative; z-index:16;">
 						{a_permissions.join(', ')}
 					</span>
-					<Tooltip overlayStyle='right:0;' bind:showing={b_tooltip_showing}>
+					<Tooltip bind:showing={b_tooltip_showing}>
 						{s_tooltip}
 					</Tooltip>
 				</span>

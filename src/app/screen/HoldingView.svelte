@@ -197,7 +197,11 @@
 
 			const {
 				events: h_events,
+				chain: p_chain,
 			} = (g_incident as IncidentStruct<'tx_in' | 'tx_out'>).data;
+
+			// skip incidents from other chains
+			if(p_chain !== $yw_chain_ref) continue;
 
 			for(const g_event of h_events.transfer || []) {
 				const [, si_parsed] = parse_coin_amount(g_event.amount, $yw_chain);

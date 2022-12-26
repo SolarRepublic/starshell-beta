@@ -58,7 +58,7 @@
 </style>
 
 <div class="popup" class:showing={null !== $yw_popup} on:click={() => $yw_popup = null}>
-	<section class="screen content" on:click={(d_event) => d_event.stopPropagation()}>
+	<form class="screen content" on:click={(d_event) => d_event.stopPropagation()}>
 		<svelte:component this={$yw_popup}></svelte:component>
-	</section>
+	</form>
 </div>

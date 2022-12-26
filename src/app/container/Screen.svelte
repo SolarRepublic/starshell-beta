@@ -8,6 +8,7 @@
 		yw_curtain,
 		yw_nav_visible,
 		yw_overscroll_pct,
+		yw_progress,
 	} from '#/app/mem';
 
 	export let nav = false;
@@ -41,6 +42,8 @@
 
 	const dispatch = createEventDispatcher();
 	onMount(() => {
+		if(progress) $yw_progress = progress;
+
 		if(!k_page) {
 			console.warn(`${debug || 'unknown'} Screen missing page context`);
 		}
@@ -49,9 +52,18 @@
 			k_page.on({
 				// on page focus
 				focus() {
+					// set or remove progress
+					$yw_progress = progress || [0, 0];
+
 					// set nav visibility
 					$yw_nav_visible = b_nav;
 				},
+
+				// // on page blur
+				// blur() {
+				// 	// remove progress
+				// 	if(progress) $yw_progress = [0, 0];
+				// },
 			});
 		}
 
@@ -356,7 +368,6 @@
 		}
 
 	}
-
 </style>
 
 
@@ -377,6 +388,7 @@
 		bind:this={dm_screen}
 		on:submit={(d_event) => {
 			void d_event.preventDefault();
+			// qs(dm_screen, 'button.primary')?.click();
 		}}
 		on:submit
 		style="{style}"

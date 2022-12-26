@@ -227,32 +227,45 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 				outlets: g_app === G_APP_STARSHELL? []: [p_app],
 			});
 
-			// update contract's viewing key path
-			await Contracts.merge({
-				...g_contract,
-				interfaces: {
-					...g_contract.interfaces,
-					snip20: {
-						...g_snip20,
-						viewingKey: p_viewing_key_new,
-					},
-				},
-			} as ContractStruct);
-
 			// ensure asset is placed in account
 			await Accounts.update(p_account, (g_account_latest) => {
-				let a_assets = g_account_latest.assets[p_chain]?.fungibleTokens || [];
-				if(!a_assets.includes(g_contract.bech32)) {
-					a_assets = [...a_assets, g_contract.bech32];
-					return {
-						assets: {
-							...g_account_latest.assets,
-							[p_chain]: a_assets,
-						},
-					};
+				// refset assets
+				const g_assets = g_account_latest.assets[p_chain] || {
+					fungibleTokens: [],
+					data: {},
+				};
+
+				// destructure fungibles list
+				let a_fungibles = g_assets.fungibleTokens;
+
+				// ref contract address
+				const sa_contract = g_contract.bech32;
+
+				// fungibles is currently lacking contract; append to list
+				if(!a_fungibles.includes(sa_contract)) {
+					a_fungibles = [...a_fungibles, sa_contract];
 				}
 
-				return {};
+				// ref asset data
+				const h_data = g_assets.data;
+
+				// deepmerge everything
+				return {
+					assets: {
+						...g_account_latest.assets,
+						[p_chain]: {
+							...g_account_latest.assets[p_chain],
+							fungibleTokens: a_fungibles,
+							data: {
+								...h_data,
+								[sa_contract]: {
+									...h_data?.[sa_contract],
+									viewingKeyPath: p_viewing_key_new,
+								},
+							},
+						},
+					},
+				};
 			});
 
 			// dispatch event

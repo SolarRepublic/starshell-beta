@@ -6,12 +6,27 @@ import type {SecretPath} from './secret';
 import type {Dict} from '#/meta/belt';
 
 export interface UtilityKeyRegistry {
-	secretWasmTx: {};
-	snip20ViewingKey: {};
-	antiPhishingArt: {};
+	walletSecurity: {
+		children: {
+			antiPhishingArt: {};
+		};
+	};
+
+	secretNetworkKeys: {
+		children: {
+			snip20ViewingKey: {};
+			transactionEncryptionKey: {};
+		};
+	};
 }
 
 export type UtilityKeyType = keyof UtilityKeyRegistry;
+
+export namespace UtilityKey {
+	export type Children<
+		si_root extends UtilityKeyType,
+	> = keyof UtilityKeyRegistry[si_root]['children'] & string;
+}
 
 export type UtilityKeys = {
 	[si_each in UtilityKeyType]?: SecretPath;
@@ -46,12 +61,19 @@ export type Account<
 		/**
 		 * Assets belonging to this account
 		 */
-		assets: Partial<Record<ChainPath, {
+		assets: Record<ChainPath, {
 			/**
 			 * Ordered list of fungible tokens this account wants to appear in their balance screen
 			 */
 			fungibleTokens: Bech32[];
-		}>>;
+
+			/**
+			 * Arbitrary data associated with the given account-contract pair
+			 */
+			data: Record<Bech32, {
+				viewingKeyPath?: SecretPath<'viewing_key'>;
+			}>;
+		}>;
 
 		/**
 		 * Custom data extensions

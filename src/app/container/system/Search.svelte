@@ -68,6 +68,8 @@
 	import SX_ICON_ACC_CREATED from '#/icon/user-add.svg?raw';
 	import SX_ICON_ACC_EDITED from '#/icon/user-edit.svg?raw';
 	import SX_ICON_BELL from '#/icon/bell.svg?raw';
+    import AccountCreate from '#/app/screen/AccountCreate.svelte';
+    import WalletCreate from '#/app/screen/WalletCreate.svelte';
 
 	const DM_BR = dd('br');
 
@@ -111,6 +113,11 @@
 
 	let b_listening = false;
 	async function keydown(d_event: KeyboardEvent) {
+		const dm_target = d_event.target as HTMLElement;
+		if(['INPUT', 'TEXTAREA', 'BUTTON'].includes(dm_target?.tagName) && 'search-bar-input' !== dm_target.id) {
+			return;
+		}
+
 		switch(d_event.key) {
 			case 'ArrowDown': {
 				i_selected += 1;
@@ -397,6 +404,28 @@
 						title: `🧪 Testing, 1 2 3...`,
 						message: 'This is a test notification',
 					},
+				});
+			},
+		},
+		new_account: {
+			name: 'Add New Account',
+			text: 'Creates a new account in the wallet',
+			icon: SX_ICON_ACC_CREATED,
+			pfp: '',
+			click(k_navigator: Navigator) {
+				k_navigator.activePage.push({
+					creator: AccountCreate,
+				});
+			},
+		},
+		newseed: {
+			name: 'Add Seed Phrase',
+			text: 'Creates new or imports/restores an existing mnemonic',
+			icon: SX_ICON_ACC_CREATED,
+			pfp: '',
+			click(k_navigator: Navigator) {
+				k_navigator.activePage.push({
+					creator: WalletCreate,
 				});
 			},
 		},

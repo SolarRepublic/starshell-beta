@@ -1,13 +1,19 @@
 import type {AppStruct, AppPath} from '#/meta/app';
 import {AppApiMode} from '#/meta/app';
 import type {Dict} from '#/meta/belt';
-import type {ContractStruct} from '#/meta/chain';
 import type {ContactStruct, ContactPath} from '#/meta/contact';
 import {ContactAgentType} from '#/meta/contact';
 import type {PfpStruct, PfpTarget} from '#/meta/pfp';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 import type {Store, StoreKey} from '#/meta/store';
 import {TokenInterfaceRuntimeSchema} from '#/schema/token-interface-const';
+
+import {F_CONTRACTS_PULSAR_NATIVE} from './built-ins/contracts-pulsar-native';
+
+import {F_CONTRACTS_SECRET_GEN} from './built-ins/contracts-secret-gen';
+import {F_CONTRACTS_SECRET_IBC} from './built-ins/contracts-secret-ibc';
+
+import {F_CONTRACTS_SECRET_NATIVE} from './built-ins/contracts-secret-native';
 
 import {
 	SI_STORE_ACCOUNTS,
@@ -32,7 +38,7 @@ import {
 } from '#/share/constants';
 
 import {fold, ode, oderac, oderom} from '#/util/belt';
-import {buffer_to_base64, sha256_sync_insecure, text_to_buffer} from '#/util/data';
+import {buffer_to_base58, buffer_to_base64, sha256_sync_insecure, text_to_buffer} from '#/util/data';
 
 
 const type_check = <si_store extends StoreKey>(h_input: Store.Cache<si_store>): typeof h_input => h_input;
@@ -51,106 +57,18 @@ const cosmos_bech32s = <s_prefix extends string=string>(s_prefix: s_prefix) => (
 	valconspub: `${s_prefix}valconspub`,
 }) as const;
 
-export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(fold<PfpStruct, PfpStruct>([
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/vendor/logo.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/chain/cosmos-hub.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/chain/secret-network.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/secret-secret.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/other/secret-saturn.png'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/other/supdoggie.png'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/secret-eth-eth.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/secret-usdc-eth.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/secret-doge-bsc.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/dai.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/secret-bnb-bsc.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/usdt.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/wbtc.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/chain/monero.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/token/busd.svg'],
-		},
-	},
-	{
-		type: 'plain',
-		image: {
-			default: H_MEDIA_LOOKUP['/media/other/trivium.svg'],
-		},
-	},
-], (g_pfp, i_pfp) => ({
-	[`/template.pfp/uuid.${i_pfp}`]: g_pfp,
-})));
+export const H_STORE_INIT_PFPS = type_check<typeof SI_STORE_PFPS>(
+	oderom(H_MEDIA_LOOKUP, (sr_path, w_data) => /^\/media\/(token|vendor|other)\//.test(sr_path)
+		? {
+			[`/template.pfp/uuid.${buffer_to_base58(sha256_sync_insecure(text_to_buffer(sr_path)))}`]: {
+				type: 'plain',
+				image: {
+					default: w_data,
+				},
+			},
+		} as Dict<PfpStruct>
+		: {}
+	));
 
 export const H_LOOKUP_PFP: Dict<PfpTarget> = {};
 for(const [p_pfp, g_pfp] of ode(H_STORE_INIT_PFPS)) {
@@ -163,10 +81,106 @@ for(const [p_pfp, g_pfp] of ode(H_STORE_INIT_PFPS)) {
 const S_SNIP20_GAS_LIMIT_LOW = `${150_000n}` as const;
 const S_SNIP20_GAS_LIMIT_MORE = `${175_000n}` as const;
 
+
 export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
+	'/family.cosmos/chain.secret-4': {
+		name: 'Secret Network',
+		pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
+		namespace: 'cosmos',
+		reference: 'secret-4',
+		bech32s: cosmos_bech32s('secret'),
+		slip44s: [
+			{
+				coinType: 529,
+			},
+			{
+				coinType: 118,
+			},
+		],
+		coins: {
+			SCRT: {
+				decimals: 6,
+				denom: 'uscrt',
+				name: 'Secret',
+				pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
+				extra: {
+					coingecko_id: 'secret',
+					native_bech32: 'secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek',
+				},
+			},
+		},
+		gasPrices: {
+			default: 0.1,
+			steps: [
+				0.0125,
+				0.1,
+				0.25,
+			],
+		},
+		features: {
+			'secretwasm': {
+				consensusIoPubkey: `m.d(S*[F9klRKRy5I7qK#';VOtCg2jX*b),Y:pIA`,
+				gasPadding: {
+					stepSize: `${10_000n}`,
+				},
+				interfaceSchemas: {
+					snip20: {
+						name: TokenInterfaceRuntimeSchema.String,
+						symbol: TokenInterfaceRuntimeSchema.String,
+						decimals: TokenInterfaceRuntimeSchema.NaturalNumber,
+					},
+					snip21: {},
+					snip22: {},
+					snip23: {},
+					snip24: {},
+					snip721: {
+						name: TokenInterfaceRuntimeSchema.String,
+						symbol: TokenInterfaceRuntimeSchema.String,
+					},
+					snip722: {},
+				},
+				snip20GasLimits: {
+					transfer: `${180_000n}`,
+					send: S_SNIP20_GAS_LIMIT_MORE,
+					register_receive: S_SNIP20_GAS_LIMIT_LOW,
+					create_viewing_key: S_SNIP20_GAS_LIMIT_MORE,  // 175k
+					set_viewing_key: S_SNIP20_GAS_LIMIT_MORE,  // 175k
+					increase_allowance: S_SNIP20_GAS_LIMIT_LOW,
+					decrease_allowance: S_SNIP20_GAS_LIMIT_LOW,
+					transfer_from: S_SNIP20_GAS_LIMIT_LOW,
+					send_from: S_SNIP20_GAS_LIMIT_MORE,
+					mint: S_SNIP20_GAS_LIMIT_LOW,
+					set_minters: S_SNIP20_GAS_LIMIT_LOW,
+					burn: S_SNIP20_GAS_LIMIT_LOW,
+					burn_from: S_SNIP20_GAS_LIMIT_LOW,
+					deposit: S_SNIP20_GAS_LIMIT_LOW,  // 150k
+					redeem: S_SNIP20_GAS_LIMIT_LOW,
+					revoke_permit: S_SNIP20_GAS_LIMIT_LOW,
+				},
+			},
+			'ibc-go': {},
+			'ibc-transfer': {},
+		},
+		fungibleTokenInterfaces: ['snip-20', 'snip-21', 'snip-22', 'snip-23', 'snip-24'],
+		nonFungibleTokenInterfaces: ['snip-721', 'snip-722'],
+		blockExplorer: {
+			base: 'https://secretnodes.com/{chain_prefix}',
+			block: '/blocks/{height}',
+			account: '/accounts/{address}',
+			contract: '/contracts/{address}',
+			validator: '/validators/{address}',
+			transaction: '/transactions/{hash}#overview',
+		},
+		mainnet: {
+			feegrants: [
+				'https://faucet.secretsaturn.net/',
+			],
+		},
+		providers: [],
+	},
 	'/family.cosmos/chain.pulsar-2': {
 		name: 'Secret Pulsar',
-		pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
+		pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
 		namespace: 'cosmos',
 		reference: 'pulsar-2',
 		bech32s: cosmos_bech32s('secret'),
@@ -183,7 +197,7 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 				decimals: 6,
 				denom: 'uscrt',
 				name: 'Secret',
-				pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
+				pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
 				extra: {
 					coingecko_id: 'secret',
 					native_bech32: 'secret18vd8fpwxzck93qlwghaj6arh4p7c5n8978vsyg',
@@ -245,7 +259,7 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			'ibc-go': {},
 			'ibc-transfer': {},
 		},
-		fungibleTokenInterfaces: ['snip-20', 'snip-21', 'snip-22', 'snip23', 'snip-24'],
+		fungibleTokenInterfaces: ['snip-20', 'snip-21', 'snip-22', 'snip-23', 'snip-24'],
 		nonFungibleTokenInterfaces: ['snip-721', 'snip-722'],
 		blockExplorer: {
 			base: 'https://secretnodes.com/{chain_prefix}',
@@ -265,228 +279,137 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 		},
 		providers: [],
 	},
-	'/family.cosmos/chain.theta-testnet-001': {
-		name: 'Cosmos Hub Theta',
-		pfp: H_LOOKUP_PFP['/media/chain/cosmos-hub.svg'],
-		namespace: 'cosmos',
-		reference: 'theta-testnet-001',
-		bech32s: cosmos_bech32s('cosmos'),
-		slip44s: [{
-			coinType: 118,
-		}],
-		coins: {
-			ATOM: {
-				decimals: 6,
-				denom: 'uatom',
-				name: 'Cosmos',
-				pfp: H_LOOKUP_PFP['/media/chain/cosmos-hub.svg'],
-				extra: {
-					coingecko_id: 'cosmos-hub',
-				},
-			},
-		},
-		gasPrices: {
-			default: 0.025,
-			steps: [
-				0,
-				0.025,
-				0.04,
-			],
-		},
-		features: {
-			'ibc-go': {},
-			'ibc-transfer': {},
-		},
-		tokenInterfaces: ['cw-20'],
-		blockExplorer: {
-			base: 'https://testnet.cosmos.bigdipper.live',
-			block: '/blocks/{height}',
-			account: '/accounts/{address}',
-			contract: '/contracts/{address}',
-			validator: '/validators/{address}',
-			transaction: '/transactions/{hash}',
-		},
-		testnet: {
-			faucets: [
-				'https://discord.com/channels/669268347736686612/953697793476821092',
-			],
-		},
-		providers: [],
-	},
+	// '/family.cosmos/chain.theta-testnet-001': {
+	// 	name: 'Cosmos Hub Theta',
+	// 	pfp: H_LOOKUP_PFP['/media/chain/cosmos-hub.svg'],
+	// 	namespace: 'cosmos',
+	// 	reference: 'theta-testnet-001',
+	// 	bech32s: cosmos_bech32s('cosmos'),
+	// 	slip44s: [{
+	// 		coinType: 118,
+	// 	}],
+	// 	coins: {
+	// 		ATOM: {
+	// 			decimals: 6,
+	// 			denom: 'uatom',
+	// 			name: 'Cosmos',
+	// 			pfp: H_LOOKUP_PFP['/media/chain/cosmos-hub.svg'],
+	// 			extra: {
+	// 				coingecko_id: 'cosmos-hub',
+	// 			},
+	// 		},
+	// 	},
+	// 	gasPrices: {
+	// 		default: 0.025,
+	// 		steps: [
+	// 			0,
+	// 			0.025,
+	// 			0.04,
+	// 		],
+	// 	},
+	// 	features: {
+	// 		'ibc-go': {},
+	// 		'ibc-transfer': {},
+	// 	},
+	// 	fungibleTokenInterfaces: ['cw-20'],
+	// 	nonFungibleTokenInterfaces: [],
+	// 	blockExplorer: {
+	// 		base: 'https://testnet.cosmos.bigdipper.live',
+	// 		block: '/blocks/{height}',
+	// 		account: '/accounts/{address}',
+	// 		contract: '/contracts/{address}',
+	// 		validator: '/validators/{address}',
+	// 		transaction: '/transactions/{hash}',
+	// 	},
+	// 	testnet: {
+	// 		faucets: [
+	// 			'https://discord.com/channels/669268347736686612/953697793476821092',
+	// 		],
+	// 	},
+	// 	providers: [],
+	// },
 });
 
 export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold([
-	...[
-		{
-			name: 'Pulsar Secret Secret',
-			bech32: 'secret18vd8fpwxzck93qlwghaj6arh4p7c5n8978vsyg',
-			pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
-			snip20: {
-				symbol: 'sSCRT',
-				extra: {
-					coingecko_id: 'secret',
-				},
-			},
-			hash: '9587D60B8E6B078ACE12014CEEEE089530B9FABCD76535D93666A6C127AD8813',
-		},
-		{
-			name: 'Pulsar USD Coin',
-			bech32: 'secret1rzz7q3us7zksy3la7hjup33gvtqxyfljpaya2r',
-			pfp: H_LOOKUP_PFP['/media/token/secret-usdc-eth.svg'],
-			snip20: {
-				symbol: 'pUSDC',
-				extra: {
-					coingecko_id: 'usd-coin',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Ethereum',
-			bech32: 'secret1zkqumk5l9efwlfprxl0zw8fqwxz0d0pvd020pr',
-			pfp: H_LOOKUP_PFP['/media/token/secret-eth-eth.svg'],
-			snip20: {
-				symbol: 'pETH',
-				extra: {
-					coingecko_id: 'ethereum',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Tether',
-			bech32: 'secret1na2lzyu27zwdkkd5xcdcgnrxawj5pzvm07fa0p',
-			pfp: H_LOOKUP_PFP['/media/token/usdt.svg'],
-			snip20: {
-				symbol: 'pUSDT',
-				extra: {
-					coingecko_id: 'tether',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Binance',
-			bech32: 'secret1cf8pvts87kp424larws7vqfgd3kpd8vm84e3v4',
-			pfp: H_LOOKUP_PFP['/media/token/secret-bnb-bsc.svg'],
-			snip20: {
-				symbol: 'pBNB',
-				extra: {
-					coingecko_id: 'binancecoin',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Binance USD',
-			bech32: 'secret18kfwq9d2k9xa7f6e40wutd6a85sjuecwk78hv8',
-			pfp: H_LOOKUP_PFP['/media/token/busd.svg'],
-			snip20: {
-				symbol: 'pBUSD',
-				extra: {
-					coingecko_id: 'binance-usd',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Cosmos Hub',
-			bech32: 'secret1phueq2prrrc6l0q5ye55csqr7zzrl99dvxqx7a',
-			pfp: H_LOOKUP_PFP['/media/chain/cosmos-hub.svg'],
-			snip20: {
-				symbol: 'pATOM',
-				extra: {
-					coingecko_id: 'cosmos',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Dogecoin',
-			bech32: 'secret1wsldxtnsrptfj447p0l32eepvdhap4wl6uh6hq',
-			pfp: H_LOOKUP_PFP['/media/token/secret-doge-bsc.svg'],
-			snip20: {
-				symbol: 'pDOGE',
-				extra: {
-					coingecko_id: 'dogecoin',
-				},
-			},
-		},
-		{
-			name: 'Pulsar DAI',
-			bech32: 'secret1gc9wg4xz97muz6clxflgt69js94g26wqm8eqqh',
-			pfp: H_LOOKUP_PFP['/media/token/dai.svg'],
-			snip20: {
-				symbol: 'pDAI',
-				extra: {
-					coingecko_id: 'dai',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Wrapped Bitcoin',
-			bech32: 'secret1h0ehf7py5r0ejatvnrpwlnykl5qe9q997u5p4t',
-			pfp: H_LOOKUP_PFP['/media/token/wbtc.svg'],
-			snip20: {
-				symbol: 'pWBTC',
-				extra: {
-					coingecko_id: 'bitcoin',
-				},
-			},
-		},
-		{
-			name: 'Pulsar Monero',
-			bech32: 'secret1um29h7me55nmwxswkp7p55rzm56vjkzsvrdlg7',
-			pfp: H_LOOKUP_PFP['/media/chain/monero.svg'],
-			snip20: {
-				symbol: 'pXMR',
-				extra: {
-					coingecko_id: 'monero',
-				},
-			},
-		},
-	].map(g => ({
-		name: g.name,
-		bech32: g.bech32,
-		on: 0,
-		pfp: g.pfp,
-		chain: '/family.cosmos/chain.pulsar-2',
-		origin: 'built-in',
-		interfaces: {
-			snip20: {
-				decimals: 6,
-				...g.snip20,
-			},
-			snip21: {},
-			snip22: {},
-			snip23: {},
-			snip24: {},
-		},
-		hash: g.hash || '43EDA3A25DFAB766C6AD622828B4B780D5D31A77A344163358FFFCEAA136CFCA',
-	}) as ContractStruct),
+	...F_CONTRACTS_PULSAR_NATIVE(H_LOOKUP_PFP),
+
+	// ...F_CONTRACTS_SECRET_IBC(H_LOOKUP_PFP),
+	...F_CONTRACTS_SECRET_NATIVE(H_LOOKUP_PFP),
+	...F_CONTRACTS_SECRET_GEN(H_LOOKUP_PFP),
 ], g_each => ({
 	[`${g_each.chain}/bech32.${g_each.bech32}/as.contract`]: g_each,
 })));
 
 export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold([
+	// {
+	// 	name: 'StarShell Secret Mainnet',
+	// 	pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
+	// 	chain: '/family.cosmos/chain.secret-4',
+	// 	grpcWebUrl: 'https://secret-4..starshell.net',
+	// 	rpcHost: 'rpc.pulsar.scrttestnet.com',
+	// 	on: 1,
+	// },
+
 	{
-		name: 'SCRT Testnet Committee',
-		pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
-		chain: '/family.cosmos/chain.pulsar-2',
-		grpcWebUrl: 'https://grpc.pulsar.scrttestnet.com',
-		rpcHost: 'rpc.pulsar.scrttestnet.com',
+		name: '🪐 𝕊ecret 𝕊aturn Mainnet',
+		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
+		chain: '/family.cosmos/chain.secret-4',
+		grpcWebUrl: 'https://grpc.mainnet.secretsaturn.net',
+		rpcHost: 'rpc.spartanapi.dev',
 		on: 1,
 	},
+
 	{
-		name: '𝕊ecret 𝕊aturn',
+		name: 'secretnodes.com',
+		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
+		chain: '/family.cosmos/chain.secret-4',
+		grpcWebUrl: 'https://wgrpc.spartanapi.dev',
+		rpcHost: 'rpc.spartanapi.dev',
+		on: 1,
+	},
+
+	{
+		name: '[block pane]',
+		pfp: '',
+		chain: '/family.cosmos/chain.secret-4',
+		grpcWebUrl: 'http://scrt-rpc.blockpane.com:9091',
+		rpcHost: 'scrt-rpc.blockpane.com',
+		on: 1,
+	},
+
+	// {
+	// 	name: 'AgoraNodes.com',
+	// 	pfp: '',
+	// 	chain: '/family.cosmos/chain.secret-4',
+	// 	grpcWebUrl: 'https://scrt-grpc.agoranodes.com',
+	// 	rpcHost: 'scrt-rpc.agoranodes.com',
+	// 	on: 1,
+	// },
+
+	// {
+	// 	name: 'SCRT Testnet Committee',
+	// 	pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
+	// 	chain: '/family.cosmos/chain.pulsar-2',
+	// 	grpcWebUrl: 'https://grpc.pulsar.scrttestnet.com',
+	// 	rpcHost: 'rpc.pulsar.scrttestnet.com',
+	// 	on: 1,
+	// },
+	{
+		name: '🪐 𝕊ecret 𝕊aturn Testnet',
 		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
 		chain: '/family.cosmos/chain.pulsar-2',
 		grpcWebUrl: 'https://grpc.testnet.secretsaturn.net',
 		rpcHost: 'rpc.testnet.secretsaturn.net',
 		on: 1,
 	},
-	{
-		name: 'Trivium',
-		pfp: H_LOOKUP_PFP['/media/other/trivium.svg'],
-		chain: '/family.cosmos/chain.pulsar-2',
-		grpcWebUrl: 'https://pulsar-2.api.trivium.network:9091',
-		rpcHost: 'pulsar-2.api.trivium.network:26657',
-		on: 1,
-	},
+	// {
+	// 	name: 'Trivium',
+	// 	pfp: H_LOOKUP_PFP['/media/other/trivium.svg'],
+	// 	chain: '/family.cosmos/chain.pulsar-2',
+	// 	grpcWebUrl: 'https://pulsar-2.api.trivium.network:9091',
+	// 	rpcHost: 'pulsar-2.api.trivium.network:26657',
+	// 	on: 1,
+	// },
 	{
 		name: 'StarShell',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
@@ -495,14 +418,14 @@ export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold
 		rpcHost: 'rpc.tactus-1.cosmos-theta.starshell.net',
 		on: 1,
 	},
-	{
-		name: 'Polypore',
-		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
-		chain: '/family.cosmos/chain.theta-testnet-001',
-		grpcWebUrl: 'https://grpc.sentry-01.theta-testnet.polypore.xyz/',
-		rpcHost: 'rpc.sentry-01.theta-testnet.polypore.xyz',
-		on: 0,
-	},
+	// {
+	// 	name: 'Polypore',
+	// 	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+	// 	chain: '/family.cosmos/chain.theta-testnet-001',
+	// 	grpcWebUrl: 'https://grpc.sentry-01.theta-testnet.polypore.xyz/',
+	// 	rpcHost: 'rpc.sentry-01.theta-testnet.polypore.xyz',
+	// 	on: 0,
+	// },
 ], g_each => ({
 	[`/provider.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: {
 		...g_each,
@@ -523,23 +446,28 @@ export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
 		name: 'StarShell Pulsar-2 Faucet',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 	},
-	{
-		host: 'faucet.pulsar.scrttestnet.com',
-		name: 'Pulsar-2 Faucet',
-	},
-	{
-		host: 'pulsar.faucet.trivium.network',
-		name: 'Trivium Pulsar-2 Faucet',
-	},
-	{
-		host: 'faucet.secrettestnet.io',
-		name: 'Pulsar-2 Faucet Alternative',
-	},
+	// {
+	// 	host: 'faucet.pulsar.scrttestnet.com',
+	// 	name: 'Pulsar-2 Faucet',
+	// },
+	// {
+	// 	host: 'pulsar.faucet.trivium.network',
+	// 	name: 'Trivium Pulsar-2 Faucet',
+	// },
+	// {
+	// 	host: 'faucet.secrettestnet.io',
+	// 	name: 'Pulsar-2 Faucet Alternative',
+	// },
 ], g_each => ({
-	[`/scheme.${g_each.scheme || 'https'}/host.${g_each.host.replace(/:/g, '+')}`]: {
+	[`/scheme.${g_each['scheme'] || 'https'}/host.${g_each.host.replace(/:/g, '+')}`]: {
 		scheme: 'https',
 		on: 1,
-		connections: {},
+		connections: {
+			'/family.cosmos/chain.pulsar-2': {
+				accounts: [],
+				permissions: {},
+			},
+		},
 		pfp: '' as PfpTarget,
 		api: AppApiMode.UNKNOWN,
 		...g_each,
@@ -550,54 +478,100 @@ export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
 export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 	{
 		namespace: 'cosmos',
-		chains: ['/family.cosmos/chain.pulsar-2'],
-		agentType: ContactAgentType.PERSON,
-		addressSpace: 'acc',
-		addressData: '7zsfp55my52xv0qx2p0ryfull82cr3cm',
-		origin: 'built-in',
-		name: 'supdoggie',
-		pfp: H_LOOKUP_PFP['/media/other/supdoggie.png'],
-		notes: '',
-	} as ContactStruct,
-	{
-		namespace: 'cosmos',
-		chains: ['/family.cosmos/chain.pulsar-2'],
+		chains: ['/family.cosmos/chain.secret-4'],
 		agentType: ContactAgentType.ROBOT,
 		addressSpace: 'acc',
-		addressData: 'x0dh57m99fg2vwg49qxpuadhq4dz3gsv',
+		addressData: 'tq6y8waegggp4fv2fcxk3zmpsmlfadyc',
 		origin: 'built-in',
-		name: 'faucet.starshell.net',
+		name: 'Secret Network Faucet',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 		notes: '',
 	} as ContactStruct,
-	{
-		namespace: 'cosmos',
-		chains: ['/family.cosmos/chain.pulsar-2'],
-		agentType: ContactAgentType.ROBOT,
-		addressSpace: 'acc',
-		addressData: '3fqtu0lxsvn8gtlf3mz5kt75spxv93ss',
-		origin: 'built-in',
-		name: 'faucet.secrettestnet.io',
-		pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
-		notes: '',
-	} as ContactStruct,
-	{
-		namespace: 'cosmos',
-		chains: ['/family.cosmos/chain.pulsar-2'],
-		agentType: ContactAgentType.ROBOT,
-		addressSpace: 'acc',
-		addressData: 'nhq5lntsfucw4fsj4q2rfdd5gwh593w3',
-		origin: 'built-in',
-		name: 'faucet.pulsar.scrttestnet.com',
-		pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
-		notes: '',
-	} as ContactStruct,
+
+	// {
+	// 	namespace: 'cosmos',
+	// 	chains: ['/family.cosmos/chain.pulsar-2'],
+	// 	agentType: ContactAgentType.ROBOT,
+	// 	addressSpace: 'acc',
+	// 	addressData: 'x0dh57m99fg2vwg49qxpuadhq4dz3gsv',
+	// 	origin: 'built-in',
+	// 	name: 'Secret Network Faucet',
+	// 	pfp: H_LOOKUP_PFP['/media/other/secret-saturn.svg'],
+	// 	notes: '',
+	// } as ContactStruct,
+
+	// {
+	// 	namespace: 'cosmos',
+	// 	chains: ['/family.cosmos/chain.pulsar-2'],
+	// 	agentType: ContactAgentType.ROBOT,
+	// 	addressSpace: 'acc',
+	// 	addressData: '3fqtu0lxsvn8gtlf3mz5kt75spxv93ss',
+	// 	origin: 'built-in',
+	// 	name: 'faucet.secrettestnet.io',
+	// 	pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
+	// 	notes: '',
+	// } as ContactStruct,
+	// {
+	// 	namespace: 'cosmos',
+	// 	chains: ['/family.cosmos/chain.pulsar-2'],
+	// 	agentType: ContactAgentType.ROBOT,
+	// 	addressSpace: 'acc',
+	// 	addressData: 'nhq5lntsfucw4fsj4q2rfdd5gwh593w3',
+	// 	origin: 'built-in',
+	// 	name: 'faucet.pulsar.scrttestnet.com',
+	// 	pfp: H_LOOKUP_PFP['/media/token/secret-secret.svg'],
+	// 	notes: '',
+	// } as ContactStruct,
+
+	// {
+	// 	namespace: 'cosmos',
+	// 	chains: ['/family.cosmos/chain.pulsar-2'],
+	// 	agentType: ContactAgentType.PERSON,
+	// 	addressSpace: 'acc',
+	// 	addressData: '7zsfp55my52xv0qx2p0ryfull82cr3cm',
+	// 	origin: 'built-in',
+	// 	name: 'supdoggie',
+	// 	pfp: H_LOOKUP_PFP['/media/other/supdoggie.png'],
+	// 	notes: '',
+	// } as ContactStruct,
 ], g_contact => ({
 	[`/family.${g_contact.namespace}/agent.${g_contact.addressData}/as.contact`]: g_contact,
 })) as Record<ContactPath, ContactStruct>);
 
 // export const H_STORE_INIT_ENTITIES = type_check<typeof SI_STORE_ENTITIES>(fold([]));
 
+const H_TAGS_DEFAULT = {
+	// pink: '#D500F9',
+	art: '#D500F9',
+	hot: '#C51162',
+	// orange: '#FF4D21',
+	social: '#FF4D21',
+	// gold: '#FF8622',
+	personal: '#FF8622',
+	// yellow: '#EEB521',
+	speculative: '#EEB521',
+	// autum: '#7E9E24',
+	business: '#7E9E24',
+	// grass: '#3A6F16',
+	trusted: '#3A6F16',
+	// teal: '#009688',
+	defi: '#009688',
+	// sky: '#1976D2',,
+	faucet: '#1976D2',
+	// violet: '#6200EA',
+	gaming: '#6200EA',
+	// gray: '#607D8B',
+	stablecoin: '#607D8B',
+	// brown: '#795548',
+	sellable: '#795548',
+	bright: '#ffffff',
+};
+
+const f_tag_index = (si_name: string) => ode(H_TAGS_DEFAULT).findIndex(([si]) => si_name === si);
+
+const A_STABLECOIN_COMBOS = `
+	DAI USDT USDC TUSD BUSD
+`.trim().split(/\s+/g).flatMap(s => [s, `s${s}`, `s${s}(BSC)`]);
 
 export const H_STORE_INITS: {
 	[si_store in StoreKey]: Store[si_store] extends any[]
@@ -629,29 +603,7 @@ export const H_STORE_INITS: {
 	},
 	[SI_STORE_SECRETS]: {},
 	[SI_STORE_TAGS]: {
-		registry: oderac({
-			// pink: '#D500F9',
-			art: '#D500F9',
-			hot: '#C51162',
-			orange: '#FF4D21',
-			// gold: '#FF8622',
-			personal: '#FF8622',
-			yellow: '#EEB521',
-			// autum: '#7E9E24',
-			business: '#7E9E24',
-			// grass: '#3A6F16',
-			trusted: '#3A6F16',
-			// teal: '#009688',
-			defi: '#009688',
-			// sky: '#1976D2',,
-			faucet: '#1976D2',
-			violet: '#6200EA',
-			// gray: '#607D8B',
-			stablecoin: '#607D8B',
-			// brown: '#795548',
-			sellable: '#795548',
-			bright: '#ffffff',
-		}, (si_key, s_value, i_entry) => ({
+		registry: oderac(H_TAGS_DEFAULT, (si_key, s_value, i_entry) => ({
 			index: i_entry,
 			color: s_value,
 			name: si_key,
@@ -663,21 +615,21 @@ export const H_STORE_INITS: {
 				const g_contact = g_agent as ContactStruct;
 				if('robot' === g_contact.agentType) {
 					return {
-						[p_agent]: [8],
+						[p_agent]: [f_tag_index('faucet')],
 					};
 				}
 			}),
 
 			// faucet apps
 			...oderom(H_STORE_INIT_APPS, p_app => ({
-				[p_app]: [8],
+				[p_app]: [f_tag_index('faucet')],
 			})),
 
 			// stablecoins
 			...oderom(H_STORE_INIT_CONTRACTS, (p_contract, g_contract) => {
-				if(['pUSDC', 'pUSDT', 'pBUSD', 'pDAI'].includes(g_contract.interfaces.snip20?.symbol)) {
+				if(A_STABLECOIN_COMBOS.includes(g_contract.interfaces.snip20?.symbol || '')) {
 					return {
-						[p_contract]: [10],
+						[p_contract]: [f_tag_index('stablecoin')],
 					};
 				}
 			}),

@@ -1,31 +1,48 @@
 <script lang="ts">
+	import {slide} from 'svelte/transition';
+	
 	import {yw_context_popup, yw_popup, yw_progress} from '../mem';
 	import {make_progress_timer} from '../svelte';
 	
 	import {Argon2, Argon2Type} from '#/crypto/argon2';
 	import {Bip39} from '#/crypto/bip39';
 	import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL} from '#/share/constants';
-	import {microtask} from '#/util/belt';
+	import {F_NOOP, microtask} from '#/util/belt';
 	import {open_external_link} from '#/util/dom';
 	
 	import MnemonicInput from './MnemonicInput.svelte';
 	import PopupExportFile from '../popup/PopupExportFile.svelte';
 	import PopupProcessing from '../popup/PopupProcessing.svelte';
 	import Curtain from '../ui/Curtain.svelte';
+	import Field from '../ui/Field.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
 	
 	import SX_ICON_DOWNLOAD from '#/icon/download.svg?raw';
-
+	import SX_ICON_GEAR from '#/icon/settings.svg?raw';
+	import SX_ICON_UPLOAD from '#/icon/upload.svg?raw';
 	
 	
-	export let atu16_indicies: Uint16Array = new Uint16Array(24);
+	
+	export let atu16_indicies: Uint16Array = new Uint16Array(24).fill(0xff_ff);
 
 	export let b_readonly = false;
 
-	const nl_words = atu16_indicies.length;
-	const nl_rows = Math.floor(nl_words / 2);
+	export let b_valid = false;
+
+	export let i_reveal = 0xff_ff;
+
+	let b_revealing = 0xff_ff !== i_reveal;
+
+	export let nl_words = 24;
+
+	export let sh_extension = '';
+	export let s_hint = '';
+
+	const nl_indicies = atu16_indicies.length;
+	const nl_rows = Math.floor(nl_indicies / 2);
 
 	const a_absents = new Array(nl_rows).fill(false);
+	const a_valids = new Array(nl_rows).fill(false);
 
 	const N_GROUPS = 2;
 	const N_WORDS_PER_GROUP = 3;
@@ -39,7 +56,6 @@
 	}
 
 	let b_tooltip_showing = false;
-
 	
 	async function export_backup(atu8_phrase: Uint8Array) {
 		// loading
@@ -67,8 +83,8 @@
 					phrase: ATU8_DUMMY_PHRASE,
 					salt: ATU8_SHA256_STARSHELL,
 					hashLen: 32,
-					mem: 1 << 10,
-					time: 1,
+					memory: 1 << 10,
+					iterations: 1,
 				});
 				const xt_elapsed = Date.now() - xt_start;
 				xt_estimate = xt_elapsed * 64;
@@ -119,7 +135,36 @@
 		$yw_popup = PopupExportFile;
 	}
 
-	let b_avanced = false;
+	let dm_input_file: HTMLInputElement;
+
+	// TODO: finish implementing
+	function import_file() {
+		const a_files = Array.from(dm_input_file.files || []);
+		console.log(a_files);
+		debugger;
+	}
+	
+	function inputs_changed() {
+		b_valid = false;
+		const b_valid_words = a_valids.slice(0, nl_words).every(b => b);
+
+		if(b_valid_words) {
+			const atu16_indicies_test = atu16_indicies.slice(0, nl_words);
+
+			const kn_expanded = Bip39.inndiciesToExpanded(atu16_indicies_test);
+			(async() => {
+				if(await Bip39.validateExpanded(kn_expanded)) {
+					b_valid = true;
+				}
+			})();
+		}
+	}
+
+	let b_advanced = false;
+	function toggle_advanced() {
+		b_advanced = !b_advanced;
+		if(!b_advanced) sh_extension = '';
+	}
 </script>
 
 <style lang="less">
@@ -193,40 +238,72 @@
 			}
 		}
 	}
+
+	.upload {
+		position: relative;
+		width: fit-content;
+
+		input[type="file"] {
+			position: absolute;
+			width: 100%;
+			opacity: 0;
+		}
+	}
+
+	.extras {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+		font-size: 12px;
+
+		span {
+			vertical-align: bottom;
+		}
+	}
+
+	.advanced {
+		display: flex;
+		flex-direction: column;
+		gap: var(--ui-padding);
+	}
 </style>
 
 <div class="mnemonic">
-	<div class="controls">
-		<span class="title">
-			BIP-39 Mnemonic Phrase 
-			<Tooltip bind:showing={b_tooltip_showing}>
-				Only the <span class="link" on:click={() => open_external_link('https://github.com/bitcoin/bips/blob/master/bip-0039/english.txt')}>english BIP-39 wordlist</span> is currently supported.
-				<br><br>
-				{#if b_readonly}
-					Do NOT copy the wordlist to your clipboard. It is recommended that you do not store this digitally. If you must, use the "export" feature to store an encrypted copy.
-					<br><br>
-					Recording your mnemonic onto a physical medium (pen and paper, metal stamping, etc.) is the recommended backup method.
-				{:else}
-					Type your full mnemonic into the form below. Use tab or space bar to advance to the next input. Pasting and importing are also supported.
-				{/if}
-			</Tooltip>
-		</span>
 
-		<span class="wordlist">
-			<span class="wordlist-title">
-				wordlist:
+	{#if !b_revealing}
+		<div class="controls">
+			<span class="title">
+				Mnemonic Seed Phrase 
+				<Tooltip bind:showing={b_tooltip_showing}>
+					{#if b_readonly}
+						Record your mnemonic seed phrase onto a physical medium, such as by writing it down. This phrase unlocks access to all your accounts, so keep it in a safe place.
+						<br><br>
+						Do NOT copy to your clipboard. We advise to NOT store this digitally. If you must, use the "export" feature to store an encrypted copy.
+					{:else}
+						Type your full mnemonic into the form below. Use tab or space bar to advance to the next input. Pasting and importing are also supported.
+					{/if}
+					<br><br>
+					Only the <span class="link" on:click={() => open_external_link('https://github.com/bitcoin/bips/blob/master/bip-0039/english.txt')}>english BIP-39 wordlist</span> is currently supported.
+				</Tooltip>
 			</span>
-			<span class="wordlist-value">
-				ENGLISH
+
+			<span class="wordlist">
+				<span class="wordlist-title">
+					wordlist:
+				</span>
+				<span class="wordlist-value">
+					ENGLISH
+				</span>
 			</span>
-		</span>
-	</div>
+		</div>
+	{/if}
 
 	<div class="mnemonic-words">
 		{#each Array.from({length:2}, (w, i) => i) as i_group}
 			<div class="column">
 				{#each atu16_indicies.subarray(0, nl_rows) as xb_index, i_sub}
 					{@const i_word = i_sub+(i_group * nl_rows)}
+					{@const b_lock = i_word >= nl_words}
 
 					<!-- create a random amount of fake inputs around each actual input to mitigate attacks on browser's field cache -->
 					{#each noise(i_word * 2) as i_fake}
@@ -235,16 +312,20 @@
 						</div>
 					{/each}
 
-					<div class="item" class:warning={a_absents[i_word]}>
+					<div class="item" class:warning={a_absents[i_word]} class:opacity_20%={b_lock || (b_revealing && i_word > i_reveal)}>
 						<span class="index">
 							{i_word+1}.
 						</span>
-						<MnemonicInput atu16_indicies={atu16_indicies} i_index={i_word} {b_readonly}
+						<MnemonicInput atu16_indicies={atu16_indicies} i_index={i_word >= i_reveal? 0xff_ff: i_word}
+							b_readonly={b_readonly || b_lock}
+							b_locked={b_lock}
+							bind:b_valid={a_valids[i_word]}
 							bind:b_absent={a_absents[i_word]}
+							on:change={inputs_changed}
 						/>
 					</div>
 
-					{#each noise(i_word * 2 + 1) as i_fake}
+					{#each noise((i_word * 2) + 1) as i_fake}
 						<div class="display_none">
 							<MnemonicInput atu16_indicies={atu16_indicies_fake} i_index={i_fake} />
 						</div>
@@ -254,29 +335,62 @@
 		{/each}
 	</div>
 
-	<div class="extras text-align_right">
-		<span class="link" on:click={show_export_popup}>
-			<span class="global_svg-icon icon-diameter_18px">
-				{@html SX_ICON_DOWNLOAD}
+	{#if !b_revealing}
+		<div class="extras text-align_right">
+			<span class="link" on:click={toggle_advanced}>
+				<span class="global_svg-icon icon-diameter_18px">
+					{@html SX_ICON_GEAR}
+				</span>
+				<span>
+					Advanced
+				</span>
 			</span>
-			<span>
-				Save to backup file
-			</span>
-		</span>
 
-		<span class="link" on:click={() => b_avanced = true}>
-			<span class="global_svg-icon icon-diameter_18px">
-				{@html SX_ICON_DOWNLOAD}
-			</span>
-			<span>
-				Show advanced
-			</span>
-		</span>
-	</div>
+			{#if b_readonly}
+				<span class="link" on:click={show_export_popup}>
+					<span class="global_svg-icon icon-diameter_18px">
+						{@html SX_ICON_DOWNLOAD}
+					</span>
+					<span>
+						Save to backup file
+					</span>
+				</span>
+			{:else}
+				<span class="upload link" on:click={() => F_NOOP}>
+					<input type="file" name="import-mnemonic"
+						bind:this={dm_input_file}
+						accept="application/json,text/plain"
+						on:change={import_file}
+					/>
+
+					<!-- <span class="global_svg-icon icon-diameter_18px">
+						{@html SX_ICON_UPLOAD}
+					</span>
+					<span class="text">
+						Import from file
+					</span> -->
+				</span>
+			{/if}
+		</div>
+
+		{#if b_advanced}
+			<div class="advanced" transition:slide={{duration:300}}>
+				<Field name="Extension passphrase">
+					<input type="text"
+						placeholder="Leave blank if unsure"
+						bind:value={sh_extension}
+					>
+				</Field>
+
+				<Field name="Passphrase hint (optional)">
+					<input type="text"
+						placeholder="To help recall the above passphrase"
+						bind:value={s_hint}
+					>
+				</Field>
+			</div>
+		{/if}
+	{/if}
 </div>
-
-<p>
-	This mnemonic phrase will be stored to your wallet in an encrypted form so that you can create multiple accounts with it.
-</p>
 
 <Curtain on:click={() => b_tooltip_showing = false} />

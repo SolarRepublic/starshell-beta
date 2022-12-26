@@ -57,7 +57,7 @@ import {PublicStorage, storage_clear, storage_get, storage_get_all, storage_remo
 import {ServiceHost} from '#/extension/service-comms';
 import {SessionStorage} from '#/extension/session-storage';
 import type {InternalConnectionsResponse} from '#/provider/connection';
-import {add_utility_key, import_private_key} from '#/share/account';
+import {import_private_key} from '#/share/account';
 import {factory_reset, reinstall} from '#/share/auth';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
@@ -67,11 +67,13 @@ import {Histories, Incidents} from '#/store/incidents';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {Settings} from '#/store/settings';
-import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
+import {crypto_random_int, F_NOOP, ode, random_int, shuffle, timeout, timeout_exec} from '#/util/belt';
 import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, ripemd160_sync, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
 import {stringify_params} from '#/util/dom';
 import type { StoreKey } from '#/meta/store';
 import { Argon2 } from '#/crypto/argon2';
+import { SecretWasm } from '#/crypto/secret-wasm';
+import { SecretNetwork } from '#/chain/secret-network';
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
@@ -896,6 +898,8 @@ Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
 	Providers,
 
 	EntropyProducer,
+	SecretWasm,
+	SecretNetwork,
 
 	base93_to_buffer,
 	base58_to_buffer,
@@ -914,9 +918,13 @@ Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
 	fromBech32,
 	toBech32,
 	SessionStorage,
+	PublicStorage,
 	G_USERAGENT,
 
-	add_utility_key,
+	shuffle,
+	random_int,
+	crypto_random_int,
+
 	decodeTxRaw,
 	set_keplr_compatibility_mode,
 	SecretMsgExecuteContract,

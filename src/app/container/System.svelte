@@ -282,7 +282,10 @@
 		});
 
 		// 
-		addEventListener('keydown', (d_event) => {
+		window.addEventListener('keydown', (d_event) => {
+			// do not steal event from inputs
+			if(['INPUT', 'TEXTAREA'].includes((d_event.target as HTMLElement)?.tagName || '')) return;
+
 			// a slash "/" keydown initiates a search
 			if(['/', 'Divide'].includes(d_event.key)) {
 				void $yw_navigator.activePage.fire('search', () => {

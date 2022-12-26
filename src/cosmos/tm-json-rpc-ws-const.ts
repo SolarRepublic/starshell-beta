@@ -6,14 +6,15 @@ import type {ProviderStruct} from '#/meta/provider';
 import type {ReceiverHooks} from '#/script/service-tx-abcis';
 import {F_NOOP, ode} from '#/util/belt';
 
+interface TendermintError extends JsonObject {
+	code: number;
+	message: string;
+	data: string;
+}
 
 interface CallStruct {
 	data(w_data: TjrwsResult): Promisable<void>;
-	error?(w_error: {
-		code: number;
-		message: string;
-		data: string;
-	}): Promisable<void>;
+	error?(w_error: TendermintError): Promisable<void>;
 }
 
 interface SubscriptionState {
@@ -23,6 +24,8 @@ interface SubscriptionState {
 	confirmed: number;
 	activity: number;
 }
+
+export class MaxSubscriptionsReachedError extends Error {}
 
 export class TmJsonRpcWebsocket {
 	static async open(_g_provider: ProviderStruct, g_hooks: ReceiverHooks): Promise<TmJsonRpcWebsocket> {
@@ -159,16 +162,18 @@ export class TmJsonRpcWebsocket {
 			if(g_call) {
 				// error
 				if(g_msg.error) {
+					// handler
 					if(g_call.error) {
-						void g_call.error(g_msg.error);
+						void g_call.error(g_msg['error'] as TendermintError);
 					}
+					// unhandled
 					else {
 						console.error(g_msg.error);
 					}
 				}
 				// emit result as data
 				else {
-					void g_call.data(g_msg.result);
+					void g_call.data(g_msg['result'] as TjrwsResult);
 				}
 			}
 
@@ -231,7 +236,7 @@ export class TmJsonRpcWebsocket {
 	subscribe<w_data extends {}>(a_events: string[], fk_data: (w_data: TjrwsResult<w_data>) => Promisable<void>): Promise<void> {
 		return new Promise((fk_resolve, fe_reject) => {
 			// create new subscription id
-			const si_subscription = this._c_messages++ +'';
+			const si_subscription = ''+this._c_messages++;
 
 			// init connection state
 			const g_subscription = this._h_subscriptions[si_subscription] = {
@@ -265,7 +270,13 @@ export class TmJsonRpcWebsocket {
 				},
 
 				error(g_error) {
-					fe_reject(new Error(g_error.message));
+					// max subscriptions reached
+					if(-32603 === g_error.code || g_error.data.startsWith('max_subscriptions_per_client')) {
+						fe_reject(new MaxSubscriptionsReachedError());
+						return;
+					}
+
+					fe_reject(new Error(`${g_error.message}: ${g_error.data}`));
 				},
 			} as CallStruct;
 

@@ -1,25 +1,31 @@
+import type {O} from 'ts-toolbelt';
+
 import {buffer_to_text, zero_out} from '#/util/data';
 
 export interface Argon2Methods {
 	hash(gc_hash: Argon2Config): Promise<Uint8Array>;
 }
 
-export type Argon2Config = {
-	phrase: Uint8Array;
+export type Argon2Params = {
+	type: Argon2Type;
 	salt: Uint8Array;
+	iterations: number;
+	memory: number;
+
 	hashLen?: number;
-	time?: number;
-	mem?: number;
 	parallelism?: number;
-	type?: Argon2Type;
 	secret?: Uint8Array;
 	ad?: Uint8Array;
+};
+
+export type Argon2Config = O.Merge<Argon2Params, {
+	phrase: Uint8Array;
 
 	/**
 	 * Do not zero-out passphrase (caller still needs to use it)
 	 */
 	preserve?: boolean;
-}
+}>;
 
 interface Argon2WasmInstance {
 	mem: ProgramMemory;
@@ -34,7 +40,7 @@ interface Argon2WasmInstance {
 		_malloc(xb_size: number): number;
 
 		_argon2_encodedlen(
-			n_time: number,
+			n_iterations: number,
 			xb_memory: number,
 			n_parallelism: number,
 			nb_salt: number,
@@ -43,7 +49,7 @@ interface Argon2WasmInstance {
 		): number;
 
 		_argon2_hash_ext(
-			n_time: number,
+			n_iterations: number,
 			xb_memory: number,
 			n_parallelism: number,
 			atu8_phrase: number,
@@ -215,9 +221,9 @@ export const Argon2: Argon2Methods = {
 	async hash(gc_hash: Argon2Config): Promise<Uint8Array> {
 		await init_wasm();
 
-		const n_time = gc_hash.time || 1;
+		const n_iterations = gc_hash.iterations || 1;
 		const n_parallelism = gc_hash.parallelism || 1;
-		const xb_memory = gc_hash.mem || 1 * NB_KIB;
+		const xb_memory = gc_hash.memory || 1 * NB_KIB;
 
 		const atu8_phrase = gc_hash.phrase;
 		const ib_phrase = g_wasm.alloc_cstr(atu8_phrase);
@@ -242,7 +248,7 @@ export const Argon2: Argon2Methods = {
 		const nb_ad = gc_hash.ad? gc_hash.ad.byteLength: 0;
 
 		const nb_encoded = g_wasm.calls._argon2_encodedlen(
-			n_time,
+			n_iterations,
 			xb_memory,
 			n_parallelism,
 			nb_salt,
@@ -256,7 +262,7 @@ export const Argon2: Argon2Methods = {
 		let xc_result: number;
 		try {
 			xc_result = g_wasm.calls._argon2_hash_ext(
-				n_time,
+				n_iterations,
 				xb_memory,
 				n_parallelism,
 				ib_phrase,

@@ -26,6 +26,7 @@
 		>.global_svg-icon {
 			flex: 1;
 			max-width: fit-content;
+			padding-bottom: 1px;
 
 			&.info-icon {
 				color: var(--theme-color-text-med);

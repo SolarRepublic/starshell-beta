@@ -182,6 +182,26 @@ export type UseStore<
 
 type StoreExtensionKey = 'array' | 'map' | 'dict' | 'filterable';
 
+/**
+ * Deeply creates a filter type by making all properties optional and unioned with `symbol`
+ */
+type DeepFilter<
+	h_struct extends object,
+> = {
+	[si_each in keyof h_struct]?: h_struct[si_each] extends object
+		? DeepFilter<h_struct[si_each]> | symbol
+		: h_struct[si_each] | symbol;
+};
+
+/**
+ * Converts a store's struct type into a filter type
+ */
+type FilterFromStruct<
+	z_struct,
+> = z_struct extends object
+	? DeepFilter<z_struct>
+	: z_struct;
+
 export type StaticStore<
 	si_store extends StoreKey=StoreKey,
 	dc_store extends StoreClassImpl<si_store>=StoreClassImpl<si_store>,
@@ -216,7 +236,7 @@ export type StaticStore<
 		set(p_res: Store.Key<si_store>, w_value: Store[si_store][typeof p_res]): Promise<void>;
 	};
 	filterable: {
-		filter(gc_filter: Partial<Store[si_store][Store.Key<si_store>]>): Promise<[Store.Key<si_store>, Store[si_store]][]>;
+		filter(gc_filter: FilterFromStruct<Store[si_store][Store.Key<si_store>]>): Promise<[Store.Key<si_store>, Store[si_store][Store.Key<si_store>]][]>;
 	};
 }, L.UnionOf<L.Flatten<[z_extends]>>>>>;
 
@@ -293,6 +313,7 @@ export function create_store_class<
 
 	const a_extensions = 'string' === typeof z_extensions? [z_extensions] as [string]: z_extensions;
 
+	// @ts-expect-error typings
 	return Object.assign(dc_store, {
 		async open<w_return extends any>(fk_use: UseStore<dc_store, w_return>): Promise<w_return> {
 			// fetch cipher key
@@ -314,12 +335,6 @@ export function create_store_class<
 			}
 			finally {
 				ks_store.release();
-
-				// // try to release the store if it was opened
-				// try {
-				// 	ks_store.release();
-				// }
-				// catch(e_release) {}
 			}
 
 			// return
@@ -404,26 +419,20 @@ export function create_store_class<
 		...z_extensions?.includes('filterable') && {
 			async filter(gc_filter: Partial<w_cache>): Promise<[ItemPath, w_cache][]> {
 				// load cache
-				const h_cache = (await dc_store['read'])() as Record<ItemPath, w_cache>;
+				const h_cache = (await dc_store['read']())._w_cache as Record<ItemPath, w_cache>;
 
 				// no filter; return entries
 				if(!Object.keys(gc_filter).length) return ode(h_cache);
 
-				// list of apps matching given filter
+				// list of items matching given filter
 				const a_outs: [ItemPath, w_cache][] = [];
 
 				// each entry in store
-				FILTERING:
 				for(const p_item in h_cache) {
 					const g_item = h_cache[p_item]!;
 
-					// each criterion in filter
-					for(const si_key in gc_filter) {
-						const w_value = gc_filter[si_key];
-
-						// one of the filters doesn't match; skip it
-						if(g_item[si_key] !== w_value) continue FILTERING;
-					}
+					// skip items that do not match
+					if(!filter_applies(gc_filter as Dict<FilterPrimitive>, g_item)) continue;
 
 					// app passed filter criteria; add it to list
 					a_outs.push([p_item, g_item]);
@@ -456,19 +465,28 @@ export function subscribe_store(
 }
 
 
-export type FilterPrimitive = boolean | number | string;
+export type FilterPrimitive = boolean | number | string | symbol;
 export type FilterObject = Array<FilterPrimitive> | Dict<FilterPrimitive>;
 export type FilterValue = FilterPrimitive | FilterObject;
 
-export function filter_applies(h_filter: Dict<FilterValue>, g_thing: Dict<FilterValue | Dict<any>>): boolean {
+export const W_FILTER_ACCEPT_ANY = Symbol('filter.accept-any');
+
+export function filter_applies(h_filter: Dict<FilterValue>, h_thing: unknown): boolean {
+	if(!h_thing || 'object' !== typeof h_thing) {
+		throw new Error(`Cannot apply filter to non-object type thing: ${h_thing}`);
+	}
+
 	// each criterion in filter
 	for(const [si_key, z_expected] of ode(h_filter)) {
+		// accept any
+		if(W_FILTER_ACCEPT_ANY === z_expected) continue;
+
 		// ref actual value
-		const z_actual = g_thing[si_key];
+		const z_actual = h_thing[si_key];
 
 		// primitive or null; use exact comparison
 		if(['string', 'number', 'boolean'].includes(typeof z_actual) || null === z_actual) {
-			if(g_thing[si_key] !== z_expected) return false;
+			if(h_thing[si_key] !== z_expected) return false;
 		}
 		// actual is array
 		else if(Array.isArray(z_actual)) {
@@ -486,6 +504,9 @@ export function filter_applies(h_filter: Dict<FilterValue>, g_thing: Dict<Filter
 		else if(is_dict(z_expected)) {
 			// each entry in expected
 			for(const [si_spec, z_expect_item] of ode(z_expected)) {
+				// expect is a special type meaning 'anything'
+				if(W_FILTER_ACCEPT_ANY === z_expect_item) continue;
+
 				// ref actual item
 				const z_actual_item = z_actual[si_spec];
 

@@ -4,7 +4,7 @@ import type {StoreKey} from '#/meta/store';
 import {precedes} from './semver';
 
 import {SI_VERSION} from '#/share/constants';
-import {base93_to_buffer, buffer_to_base93} from '#/util/data';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json, json_to_buffer} from '#/util/data';
 
 
 interface LastSeen extends JsonObject {
@@ -15,6 +15,13 @@ interface LastSeen extends JsonObject {
 type StorageSchema = {
 	salt: {
 		interface: string;
+	};
+
+	/**
+	 * Hash params for password
+	 */
+	hash_params: {
+		interface: StoredHashParams;
 	};
 
 	base: {
@@ -122,11 +129,20 @@ async function getter_setter<
 	}
 }
 
+export interface StoredHashParams extends JsonObject {
+	iterations: number;
+	memory: number;
+}
+
 export const PublicStorage = {
 	async salt(atu8_salt?: Uint8Array | null): Promise<Uint8Array | undefined> {
 		const s_salt = await getter_setter('salt', atu8_salt? buffer_to_base93(atu8_salt): void 0) || '';
 
 		return s_salt? base93_to_buffer(s_salt): void 0;
+	},
+
+	async hashParams(g_params?: StoredHashParams | null): Promise<StoredHashParams | undefined> {
+		return await getter_setter('hash_params', g_params || void 0) || void 0;
 	},
 
 	// async base(atu8_salt?: Uint8Array | null): Promise<Uint8Array | undefined> {

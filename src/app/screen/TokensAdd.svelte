@@ -10,8 +10,6 @@
 	import {load_page_context} from '../svelte';
 	
 	import type {SecretNetwork} from '#/chain/secret-network';
-	import {add_utility_key} from '#/share/account';
-	import {Accounts} from '#/store/accounts';
 	import {G_APP_STARSHELL} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
@@ -20,8 +18,8 @@
 	
 	import RequestSignature, {type CompletedSignature} from './RequestSignature.svelte';
 	import TokenManualAdd from './TokenManualAdd.svelte';
-	import Header from '../ui/Header.svelte';
 	import PfpDisplay from '../frag/PfpDisplay.svelte';
+	import Header from '../ui/Header.svelte';
 	import Row from '../ui/Row.svelte';
 	
 	import SX_ICON_ADD from '#/icon/add.svg?raw';
@@ -109,15 +107,7 @@
 
 		const g_chain = $yw_chain;
 		const p_account = $yw_account_ref;
-		let g_account = $yw_account;
-
-		// no viewing key utility
-		if(!g_account.utilityKeys.snip20ViewingKey) {
-			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
-
-			// update account
-			g_account = (await Accounts.at(p_account))!;
-		}
+		const g_account = $yw_account;
 
 		// generate viewing key messages
 		const a_msgs_proto = await Promise.all(a_staged.map(async(g_token) => {
@@ -149,7 +139,7 @@
 				async completed(b_answer: boolean, g_completed: CompletedSignature) {
 					// approved
 					if(b_answer) {
-						// enable each token
+						// ensure each token is enabled
 						await Contracts.open(async(ks_contracts) => {
 							for(const g_contract of a_staged) {
 								g_contract.on = 1;
@@ -315,7 +305,7 @@
 
 		<div class="rows">
 			{#each a_filtered as g_token (g_token.bech32)}
-				<Row resource={g_token} postname={g_token.interfaces.snip20.symbol}
+				<Row resource={g_token} postname={g_token.interfaces.snip20.symbol} postnameDelimiter='-'
 					on:click={() => toggle(g_token)}
 					rootStyle={`
 						transition: 100ms opacity linear;

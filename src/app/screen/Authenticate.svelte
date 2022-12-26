@@ -3,15 +3,17 @@
 	import {slide} from 'svelte/transition';
 	
 	import {Screen} from './_screens';
+	import {syserr} from '../common';
 	import {yw_popup, yw_progress} from '../mem';
 	import {load_flow_context, make_progress_timer} from '../svelte';
 	
 	import ActionsLine from '#/app/ui/ActionsLine.svelte';
 	import Field from '#/app/ui/Field.svelte';
 	import Log, {Logger} from '#/app/ui/Log.svelte';
-	import {Vault} from '#/crypto/vault';
+	import {NB_ARGON2_MEMORY, N_ARGON2_ITERATIONS, Vault} from '#/crypto/vault';
 	
 	import {P_POPUP} from '#/extension/browser';
+	import {PublicStorage, StoredHashParams} from '#/extension/public-storage';
 	import {global_receive} from '#/script/msg-global';
 	import {login} from '#/share/auth';
 	
@@ -20,6 +22,7 @@
 	import {stringify_params} from '#/util/dom';
 	
 	import PopupFactoryReset from '../popup/PopupFactoryReset.svelte';
+    import { sys } from 'typescript';
 	
 
 	// will be set if part of flow
@@ -93,38 +96,53 @@
 
 		log('Estimating time to complete');
 
-		// estimate time to complete
-		{
-			const xt_start_est = window.performance.now();
-			const X_SAMPLE = 42;
-			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / X_SAMPLE);
-			const xt_finish_est = window.performance.now();
+		// fetch hash params
+		let g_params = await PublicStorage.hashParams();
 
-			const xt_elapsed = xt_finish_est - xt_start_est;
-			const xt_estimate = 1.2 * (xt_elapsed * X_SAMPLE);
-			fk_sample?.(xt_estimate);
-			log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
-			console.log(`Estimating ${(xt_estimate / 1e3).toFixed(1)} seconds`);
+		// not there
+		if(!g_params) {
+			// attempt to recover with default values
+			try {
+				g_params = (await PublicStorage.hashParams({
+					iterations: N_ARGON2_ITERATIONS,
+					memory: NB_ARGON2_MEMORY,
+				}))!;
+			}
+			catch(e_restore) {
+				throw syserr(e_restore as Error);
+			}
+
+			s_err_password = 'Vault is partially corrupted (missing hash params); attempting to sign in with recovered params...';
 		}
 
-		// // run actual trial
-		// {
-		// 	const xt_start_est = window.performance.now();
-		// 	const X_SAMPLE = 1;
-		// 	await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / X_SAMPLE);
-		// 	const xt_finish_est = window.performance.now();
+		// estimate time to complete
+		{
+			// warm worker before timing
+			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, {
+				...g_params,
+				iterations: 2,
+			});
 
-		// 	const xt_elapsed = xt_finish_est - xt_start_est;
-		// 	const xt_estimate = 0.7 * (xt_elapsed * X_SAMPLE);
-		// 	fk_sample?.(xt_estimate);
-		// 	log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
-		// 	console.log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
-		// }
-		// debugger;
+			// time a trial run
+			const xt_start_est = window.performance.now();
+			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, {
+				...g_params,
+				iterations: 2,
+			});
+			const xt_finish_est = window.performance.now();
+			const xt_elapsed = xt_finish_est - xt_start_est;
+
+			// the hashing happens twice, once for the decryption key, and again for the new encryption key
+			const xt_estimate = xt_elapsed * g_params.iterations;  // parallelization multiplier
+			fk_sample?.(xt_estimate);
+			console.log(`Estimating ${(xt_estimate / 1e3).toFixed(1)} seconds; elapsed sample was ${xt_elapsed}`);
+		}
 
 		// attempt login
 		try {
+			const xt_start_est = window.performance.now();
 			await login(sh_password, b_recover, log);
+			console.debug(`Actual login took ${Math.round(window.performance.now() - xt_start_est)/1e3} seconds`);
 		}
 		// handle error
 		catch(e_login) {
@@ -152,6 +170,7 @@
 			return exit();
 		}
 
+		// success
 		login_success();
 
 		// exit
@@ -263,6 +282,7 @@
 				name="password"
 				autofocus
 				placeholder="Password"
+				disabled={b_busy}
 				bind:value={sh_password}
 				class:invalid={s_err_password}
 			/>
@@ -281,7 +301,7 @@
 		}]} />
 	{/if}
 
-	<ActionsLine confirm={['Unlock', track_unlock]} />
+	<ActionsLine confirm={['Unlock', track_unlock, b_busy]} />
 
 	<Log bind:items={k_logger.items} hide />
 

@@ -12,6 +12,8 @@
 
 	export let copyable = false;
 	const b_copyable = copyable;
+
+	export let b_no_scroll = false;
 </script>
 
 <style lang="less">
@@ -62,7 +64,9 @@
 </style>
 
 <div class="info" class:copyable={b_copyable} class:center={b_center}>
-	<span id={si_key} class="info-value">
+	<span id={si_key} class="info-value" style={`
+		${b_no_scroll? `overflow: hidden;`: ''}
+	`}>
 		<slot></slot>
 	</span>
 	{#if b_copyable}

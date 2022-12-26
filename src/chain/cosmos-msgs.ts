@@ -14,6 +14,17 @@ import {
 } from '@solar-republic/cosmos-grpc/dist/cosmos/distribution/v1beta1/tx';
 
 import {
+	AllowedMsgAllowance,
+	BasicAllowance,
+	PeriodicAllowance,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/feegrant';
+
+import {
+	MsgGrantAllowance,
+	MsgRevokeAllowance,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/tx';
+
+import {
 	Deposit,
 	Proposal,
 	TextProposal,
@@ -26,6 +37,7 @@ import {
 	MsgVoteWeighted,
 	MsgDeposit,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/tx';
+
 import {ParameterChangeProposal} from '@solar-republic/cosmos-grpc/dist/cosmos/params/v1beta1/params';
 
 import {TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
@@ -41,6 +53,7 @@ import {bech32_to_buffer, buffer_to_bech32} from '#/crypto/bech32';
 import {is_dict, oderom} from '#/util/belt';
 import {base64_to_buffer, buffer_to_base64} from '#/util/data';
 import {camel_to_snake, snake_to_camel} from '#/util/format';
+
 
 
 export interface CanonicalBase {
@@ -108,31 +121,59 @@ const H_ROOT_DEFS = {
 					},
 				},
 
-				'gov.v1beta1': {
-					MsgSubmitProposal: {
-						methods: MsgSubmitProposal,
-					},
-					MsgVote: {
-						methods: MsgVote,
-					},
-					MsgVoteWeighted: {
-						methods: MsgVoteWeighted,
-					},
-					MsgDeposit: {
-						methods: MsgDeposit,
+				'feegrant.v1beta1': {
+					BasicAllowance: {
+						methods: BasicAllowance,
 					},
 
+					PeriodicAllowance: {
+						methods: PeriodicAllowance,
+					},
+
+					AllowedMsgAllowance: {
+						methods: AllowedMsgAllowance,
+					},
+
+					MsgGrantAllowance: {
+						methods: MsgGrantAllowance,
+					},
+
+					MsgRevokeAllowance: {
+						methods: MsgRevokeAllowance,
+					},
+				},
+
+				'gov.v1beta1': {
 					TextProposal: {
 						methods: TextProposal,
 					},
+
 					WeightedVoteOption: {
 						methods: WeightedVoteOption,
 					},
+
 					Deposit: {
 						methods: Deposit,
 					},
+
 					Proposal: {
 						methods: Proposal,
+					},
+
+					MsgSubmitProposal: {
+						methods: MsgSubmitProposal,
+					},
+
+					MsgVote: {
+						methods: MsgVote,
+					},
+
+					MsgVoteWeighted: {
+						methods: MsgVoteWeighted,
+					},
+
+					MsgDeposit: {
+						methods: MsgDeposit,
 					},
 				},
 
@@ -226,7 +267,7 @@ const H_METHODS_PROTO = oderom(H_ROOT_DEFS, (si_root, {groups:h_groups}) => oder
 
 
 
-function recase_keys_snake_to_camel(g_object: Dict<any>, f_transform?: null | ((si_key: string, w_value: any) => any)): Dict<any> {
+export function recase_keys_snake_to_camel(g_object: Dict<any>, f_transform?: null | ((si_key: string, w_value: any) => any)): Dict<any> {
 	return oderom(g_object, (si_key, z_value) => {
 		const w_value = f_transform? f_transform(si_key, z_value): z_value;
 
@@ -298,7 +339,7 @@ function recase_item_camel_to_snake(w_value: any, f_transform?: null | ((si_key:
 			: w_value;
 }
 
-function recase_keys_camel_to_snake(g_object: Dict<any>, f_transform?: null | ((si_key: string | number, w_value: any) => any)): Dict<any> {
+export function recase_keys_camel_to_snake(g_object: Dict<any>, f_transform?: null | ((si_key: string | number, w_value: any) => any)): Dict<any> {
 	return oderom(g_object, (si_key, z_value) => {
 		const w_value = f_transform? f_transform(si_key, z_value): z_value;
 

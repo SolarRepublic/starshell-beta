@@ -20,9 +20,9 @@ import {CosmosNetwork} from './cosmos-network';
 
 import {syserr} from '#/app/common';
 import {SecretWasm} from '#/crypto/secret-wasm';
+import { utility_key_child } from '#/share/account';
 import {Chains} from '#/store/chains';
-import {Secrets} from '#/store/secrets';
-import {base64_to_buffer, base93_to_buffer, buffer_to_json, buffer_to_text} from '#/util/data';
+import {base64_to_buffer, base93_to_buffer, buffer_to_base93, buffer_to_json, buffer_to_text} from '#/util/data';
 
 
 
@@ -53,39 +53,55 @@ export class SecretNetwork extends CosmosNetwork {
 		return SecretWasm.extractConsensusIoPubkey((await new RegistrationQueryClient(this._y_grpc).registrationKey({})).key);
 	}
 
-	async secretWasm(g_account: AccountStruct, s_code_hash: string, h_msg: JsonObject): Promise<SecretWasm> {
+	async secretWasm(g_account: AccountStruct): Promise<SecretWasm> {
 		// resolve consensus io pubkey
-		const sxb93_consensus_pk = this._g_chain.features.secretwasm?.consensusIoPubkey;
+		let sxb93_consensus_pk = this._g_chain.features.secretwasm?.consensusIoPubkey;
+
+		// not stored
 		if(!sxb93_consensus_pk) {
-			throw syserr({
-				title: 'Missing Chain Information',
-				text: 'No consensus IO public key found.',
-			});
+			try {
+				// acquire from network
+				const atu8_consensus_pk = await this.secretConsensusIoPubkey();
+
+				// set locally
+				sxb93_consensus_pk = buffer_to_base93(atu8_consensus_pk);
+
+				// save permanently
+				await Chains.update(this._p_chain, g_chain => ({
+					...g_chain,
+					features: {
+						...g_chain.features,
+						secretwasm: {
+							...g_chain.features.secretwasm!,
+							consensusIoPubkey: sxb93_consensus_pk!,
+						},
+					},
+				}));
+			}
+			catch(e_acquire) {
+				throw syserr({
+					title: 'Missing Chain Information',
+					text: `No consensus IO public key found, and an error was encountered while trying to acquire it: ${e_acquire.message}`,
+				});
+			}
 		}
 
 		// convert to buffer
 		const atu8_consensus_pk = base93_to_buffer(sxb93_consensus_pk);
 
-		// prep wasm instance
-		let k_wasm!: SecretWasm;
-
 		// account has signed a wasm seed; load secretwasm
-		const p_secret_wasm = g_account.utilityKeys['secretWasmTx'];
-		if(p_secret_wasm) {
-			k_wasm = await Secrets.borrow(p_secret_wasm, kn_seed => new SecretWasm(atu8_consensus_pk, kn_seed.data));
-		}
+		let k_wasm = await utility_key_child(g_account, 'secretNetworkKeys', 'transactionEncryptionKey',
+			atu8_seed => new SecretWasm(atu8_consensus_pk, atu8_seed));
 
 		// no pre-existing tx encryption key; generate a random seed
-		if(!k_wasm) {
-			k_wasm = new SecretWasm(atu8_consensus_pk);
-		}
+		if(!k_wasm) k_wasm = new SecretWasm(atu8_consensus_pk);
 
 		return k_wasm;
 	}
 
 	async encryptContractMessage(g_account: AccountStruct, s_code_hash: string, h_msg: JsonObject): Promise<Uint8Array> {
 		// get wasm instance
-		const k_wasm = await this.secretWasm(g_account, s_code_hash, h_msg);
+		const k_wasm = await this.secretWasm(g_account);
 
 		// encrypt message for destination contract
 		return await k_wasm.encrypt(s_code_hash, h_msg);
@@ -104,7 +120,7 @@ export class SecretNetwork extends CosmosNetwork {
 
 	async queryContract<
 		g_result extends JsonObject=JsonObject,
-	>(g_account: AccountStruct, g_contract: Queryable, h_query: JsonObject): Promise<g_result> {
+	>(g_account: AccountStruct, g_contract: Queryable, h_query: JsonObject, g_writeback?: {atu8_nonce: Uint8Array}): Promise<g_result> {
 		let si_hash = g_contract.hash;
 		if(!si_hash) {
 			si_hash = await this.codeHashByContractAddress(g_contract.bech32);
@@ -115,6 +131,9 @@ export class SecretNetwork extends CosmosNetwork {
 
 		// extract nonce from query
 		const atu8_nonce = atu8_query.slice(0, 32);
+
+		// caller provided writeback; set nonce
+		if(g_writeback) g_writeback.atu8_nonce = atu8_nonce;
 
 		// submit to provider
 		const g_response = await new ComputeQueryClient(this._y_grpc).querySecretContract({

@@ -55,11 +55,13 @@
 				}, [
 					g_item.primary,
 				]),
-				dd('span', {
-					class: 'secondary '+secondaryClass,
-				}, [
-					g_item.secondary || '',
-				]),
+				...g_item.secondary? [
+					dd('span', {
+						class: 'secondary '+secondaryClass,
+					}, [
+						g_item.secondary || '',
+					]),
+				]: [],
 			]).outerHTML;
 		}
 

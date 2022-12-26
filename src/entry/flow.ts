@@ -48,6 +48,8 @@ import AuthenticateSvelte from '##/screen/Authenticate.svelte';
 
 import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
 import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
+import { Snip2xMessageConstructor } from '#/schema/snip-2x-const';
+import RequestTokenAdd from '#/app/screen/RequestTokenAdd.svelte';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -90,12 +92,32 @@ let f_resolve_completion = F_NOOP;
 let f_resolve_reported = F_NOOP;
 
 // establish a regular heartbeat pulse to the service worker
-function heartbeat(d_port: Vocab.TypedChromePort<IntraExt.FlowControlVocab, IntraExt.FlowControlAckVocab>) {
+function heartbeat(d_port: Vocab.TypedChromePort<IntraExt.FlowControlVocab, IntraExt.FlowControlAckVocab>, si_key: string) {
 	// send a pulse every 200ms
 	const i_hearbeat = setInterval(() => {
-		d_port.postMessage({
-			type: 'heartbeat',
-		});
+		try {
+			d_port.postMessage({
+				type: 'heartbeat',
+			});
+		}
+		// port disconnected
+		catch(e_post) {
+			console.warn(`Service port disconnected; attempting to reconnect...`);
+
+			// cancel heartbeat
+			clearInterval(i_hearbeat);
+
+			// type runtime for posting messages
+			const d_runtime = chrome.runtime as Vocab.TypedRuntime<IntraExt.ServiceInstruction>;
+
+			// connect to service worker
+			const d_port_renew = d_runtime.connect({
+				name: si_key,
+			}) as Vocab.TypedChromePort<IntraExt.FlowControlVocab, IntraExt.FlowControlAckVocab>;
+
+			// renew
+			heartbeat(d_port_renew, si_key);
+		}
 	}, XT_INTERVAL_HEARTBEAT);
 
 	// port was disconnected by service
@@ -322,20 +344,28 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 			const g_msg = a_msgs[0];
 		}
 
-		return completed_render(RequestSignatureSvelte, g_value);
+		return completed_render(RequestSignatureSvelte, g_value, {
+			app: g_context.app,
+			chain: g_context.chain,
+			accountPath: g_value.accountPath,
+		});
 	},
 
 	inspectIncident: g_value => completed_render(IncidentView, {
 		incident: g_value.incident,
 	}),
 
-	scanQr: g_value => completed_render(ScanQrSvelte, g_value),
+	scanQr: (g_value, g_context) => completed_render(ScanQrSvelte, g_value, {
+		app: g_context.app,
+		chain: g_context.chain,
+		accountPath: g_value.accountPath,
+	}),
 
-	async addSnip20s(g_value) {
-		console.log({g_value});
-		debugger;
-		return await completed_render(RequestSignatureSvelte, {
-			si_preset: 'snip20ViewingKey',
+	async addSnip20s(g_value, g_context) {
+		return await completed_render(RequestTokenAdd, g_value, {
+			app: g_context.app,
+			chain: g_context.chain,
+			accountPath: g_value.accountPath,
 		});
 	},
 
@@ -637,7 +667,7 @@ async function suggest_reload_page(g_page: WebPage) {
 		// production
 		if(!B_LOCALHOST) {
 			// register heartbeat messages
-			heartbeat(d_port!);
+			heartbeat(d_port!, si_key);
 		}
 
 		// 

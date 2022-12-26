@@ -27,7 +27,7 @@ export interface PermissionsRequestBlock {
 
 /**
  * The entire request object is already validated and sanitized in content script before it gets here.
- * The purpose of this function is to distill the requests into a workable format.
+ * The purpose of this function is to restructure the requests into a workable format.
  */
 export function process_permissions_request(g_request: PermissionsRequestBlock): Required<PermissionsRequestBlock> {
 	const {
@@ -111,67 +111,3 @@ export function process_permissions_request(g_request: PermissionsRequestBlock):
 	};
 }
 
-
-
-// // each session request
-// for(const [, g_session] of ode(g_msg.sessions)) {
-// 	// ref CAIP-2
-// 	const si_caip2 = g_session.caip2;
-
-// 	// invalid or undefined chain; cancel preapproval
-// 	const g_chain_def = h_chains[si_caip2];
-// 	if(!g_chain_def?.namespace || !g_chain_def?.reference) break PREAPPROVE_REQUEST;
-
-// 	// lookup chain
-// 	const p_chain = Chains.pathFor(g_chain_def.namespace, g_chain_def.reference);
-// 	const g_chain = ks_chains.at(p_chain);
-
-// 	// chain does not exist; cancel preapproval
-// 	if(!g_chain) break PREAPPROVE_REQUEST;
-
-// 	// connection
-// 	const g_connection = h_connections[p_chain];
-
-// 	// 
-// 	if(!is_dict(g_session.broadcast) || !g_connection.permissions.broadcast) {
-// 		break PREAPPROVE_REQUEST;
-// 	}
-
-// 	// ref permissinos
-// 	const g_permissions = g_connection.permissions;
-
-// 	// requesting doxx
-// 	const g_doxx = g_session.doxx;
-// 	if(g_doxx) {
-// 		if(!is_dict(g_doxx)) break PREAPPROVE_REQUEST;
-// 		if(!g_permissions.doxx) break PREAPPROVE_REQUEST;
-
-// 		// requesting dox.address
-// 		if(g_doxx.address) {
-// 			if(!is_dict(g_doxx.address) || 'string' !== typeof g_doxx.address.justification
-// 				|| !g_permissions.doxx?.address) break PREAPPROVE_REQUEST;
-// 		}
-
-// 		// requesting doxx.name
-// 		if(g_doxx.name) {
-// 			if('string' !== typeof g_doxx.name || !g_permissions.doxx.name) {
-// 				break PREAPPROVE_REQUEST;
-// 			}
-// 		}
-// 	}
-
-// 	// requesting query
-// 	const g_query = g_session.query;
-// 	if(g_query) {
-// 		if(!is_dict(g_query)) break PREAPPROVE_REQUEST;
-// 		if(!g_permissions.query) break PREAPPROVE_REQUEST;
-
-// 		// requesting query.node
-// 		if(g_query.node) {
-// 			if(!is_dict(g_query.node) || 'string' !== typeof g_query.node.justification
-// 				|| !g_permissions.query.node) break PREAPPROVE_REQUEST;
-// 		}
-
-// 		// TODO: check all other query permissions
-// 	}
-// }

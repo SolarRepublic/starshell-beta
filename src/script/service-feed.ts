@@ -1,9 +1,11 @@
-import type {AbciConfig, ReceiverError, ReceiverHooks} from './service-tx-abcis';
+import type {AbciConfig, ReceiverError} from './service-tx-abcis';
 
-import type {AccountPath, AccountStruct} from '#/meta/account';
+import type {AccountStruct} from '#/meta/account';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-import type {Bech32, ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
+import type {ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
+
+import {Snip2xToken} from '#/schema/snip-2x-const';
 
 import {Chains} from './ics-witness-imports';
 import {global_broadcast, global_receive, global_wait} from './msg-global';
@@ -12,19 +14,18 @@ import {account_abcis} from './service-tx-abcis';
 import {syserr} from '#/app/common';
 import type {LocalAppContext} from '#/app/svelte';
 import type {CosmosNetwork} from '#/chain/cosmos-network';
-import {TmJsonRpcWebsocket} from '#/cosmos/tm-json-rpc-ws-const';
-import type {TjrwsValueNewBlock, TjrwsValueTxResult, WsTxResponse} from '#/cosmos/tm-json-rpc-ws-def';
+import type {SecretNetwork} from '#/chain/secret-network';
+import {MaxSubscriptionsReachedError, TmJsonRpcWebsocket} from '#/cosmos/tm-json-rpc-ws-const';
+import type {TjrwsResult, TjrwsValueNewBlock, TjrwsValueTxResult, WsTxResponse} from '#/cosmos/tm-json-rpc-ws-def';
 import type {NotificationConfig} from '#/extension/notifications';
 import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_EXTERNAL} from '#/store/apps';
 import {ContractRole, Contracts} from '#/store/contracts';
 import {NetworkTimeoutError, Providers} from '#/store/providers';
-import {Snip2xToken} from '#/schema/snip-2x-const';
 
 import {ode, timeout, timeout_exec} from '#/util/belt';
 import {buffer_to_base64} from '#/util/data';
-import type { SecretNetwork } from '#/chain/secret-network';
-import { Limiter } from '#/util/limiter';
+import {Limiter} from '#/util/limiter';
 
 
 const XT_ERROR_THRESHOLD_RESTART = 120e3;
@@ -214,8 +215,14 @@ export class NetworkFeed {
 	// active network instance
 	protected _k_network: CosmosNetwork;
 
+	// filled sockets
+	protected _a_sockets_filled: TmJsonRpcWebsocket[] = [];
+
 	// active socket wrapper instance
 	protected _kc_socket: TmJsonRpcWebsocket | null = null;
+
+	protected _b_subscriptions_busy = false;
+	protected _a_subscriptions_waiting: VoidFunction[] = [];
 
 	constructor(protected _g_chain: ChainStruct, protected _g_provider: ProviderStruct, protected _gc_hooks: FeedHooks) {
 		// infer paths
@@ -232,6 +239,10 @@ export class NetworkFeed {
 
 	get provider(): ProviderStruct {
 		return this._g_provider;
+	}
+
+	get sockets(): Array<TmJsonRpcWebsocket | null> {
+		return [...this._a_sockets_filled, this._kc_socket];
 	}
 
 	open(fe_socket?: (this: TmJsonRpcWebsocket, e_socket: ReceiverError) => Promisable<void>): Promise<void> {
@@ -327,13 +338,15 @@ export class NetworkFeed {
 	 * @param xt_socket - amount of time to wait for ping response
 	 */
 	async wake(xt_acceptable=0, xt_socket=Infinity): Promise<void> {
-		if(this._kc_socket) {
-			const [, xc_timeout] = await timeout_exec(xt_socket || Infinity, () => this._kc_socket!.wake(xt_acceptable));
+		for(const kc_socket of this.sockets) {
+			if(kc_socket) {
+				const [, xc_timeout] = await timeout_exec(xt_socket || Infinity, () => kc_socket.wake(xt_acceptable));
 
-			if(xc_timeout) throw new NetworkTimeoutError();
-		}
-		else {
-			throw new Error('Network Feed was already destroyed');
+				if(xc_timeout) throw new NetworkTimeoutError();
+			}
+			else {
+				throw new Error('Network Feed was already destroyed');
+			}
 		}
 	}
 
@@ -353,19 +366,48 @@ export class NetworkFeed {
 	 * Destroys the underyling JSON-RPC websocket connection
 	 */
 	destroy(): void {
-		const {
-			_kc_socket,
-		} = this;
-
-		if(_kc_socket) {
+		// each socket
+		for(const kc_socket of this.sockets) {
+			// attempt to destroy the connection
 			try {
-				// destroy connection
-				_kc_socket.destroy();
-
-				// mark feed destroyed
-				this._kc_socket = null;
+				kc_socket?.destroy();
 			}
 			catch(e_destroy) {}
+		}
+
+		// reset filled list
+		this._a_sockets_filled.length = 0;
+
+		// mark feed destroyed
+		this._kc_socket = null;
+	}
+
+	async autoSubscribe<w_data extends {}>(a_events: string[], fk_data: (w_data: TjrwsResult<w_data>) => Promisable<void>): Promise<void> {
+		const kc_socket = this._kc_socket!;
+
+		// busy waiting for previous subscription
+		if(this._b_subscriptions_busy) {
+			await new Promise(fk_resolve => this._a_subscriptions_waiting.unshift(fk_resolve as VoidFunction));
+		}
+
+		this._b_subscriptions_busy = true;
+
+		try {
+			await kc_socket.subscribe<w_data>(a_events, fk_data);
+		}
+		catch(e_subscribe) {
+			if(e_subscribe instanceof MaxSubscriptionsReachedError) {
+				this._a_sockets_filled.push(kc_socket);
+				this._kc_socket = null;
+				await this.open();
+
+				// retry
+				await this._kc_socket!.subscribe<w_data>(a_events, fk_data);
+			}
+		}
+		finally {
+			this._b_subscriptions_busy = false;
+			this._a_subscriptions_waiting.pop()?.();
 		}
 	}
 
@@ -386,7 +428,7 @@ export class NetworkFeed {
 		const a_recents: number[] = [];
 
 		// subscribe to new blocks
-		await _kc_socket.subscribe<TjrwsValueNewBlock>([
+		await this.autoSubscribe<TjrwsValueNewBlock>([
 			`tm.event='NewBlock'`,
 		], (g_result) => {
 			// push to recents list
@@ -457,6 +499,62 @@ export class NetworkFeed {
 	// 	}
 	// }
 
+	// async sync(g_account: AccountStruct): Promise<void> {
+	// 	const {
+	// 		_g_chain,
+	// 		_g_provider,
+	// 		_p_chain,
+	// 		_k_network,
+	// 		_gc_hooks,
+	// 		_kc_socket,
+	// 	} = this;
+
+	// 	const k_feed = this;
+
+	// 	const g_context_vague: LocalAppContext = {
+	// 		g_app: G_APP_EXTERNAL,
+	// 		p_app: Apps.pathFrom(G_APP_EXTERNAL),
+	// 		g_chain: _g_chain,
+	// 		p_chain: Chains.pathFrom(_g_chain),
+	// 		g_account,
+	// 		p_account: Accounts.pathFrom(g_account),
+	// 		sa_owner: Chains.addressFor(g_account.pubkey, _g_chain),
+	// 	};
+
+	// 	const h_abcis: Dict<AbciConfig> = {
+	// 		...account_abcis(_k_network, g_context_vague, (gc_notify) => {
+	// 			void _gc_hooks.notify?.(gc_notify, k_feed);
+	// 		}),
+	// 	};
+
+	// 	for(const [si_event, g_abci] of ode(h_abcis)) {
+	// 		// start to synchronize all txs since previous sync height
+	// 		const di_synchronize = _k_network.synchronize(g_abci.type, g_abci.filter, g_context_vague.p_account);
+	// 		for await(const {g_tx, g_result, g_synced} of di_synchronize) {
+	// 			// TODO: don't imitate websocket data, make a canonicalizer for the two different data sources instead
+
+	// 			// imitate websocket data
+	// 			const g_value: WsTxResponse = {
+	// 				height: g_result.height,
+	// 				tx: buffer_to_base64(g_result.tx!.value),
+	// 				result: {
+	// 					gas_used: g_result.gasUsed,
+	// 					gas_wanted: g_result.gasWanted,
+	// 					log: g_result.rawLog,
+	// 					...g_result,
+	// 					events: [],
+	// 				},
+	// 			};
+
+	// 			// apply
+	// 			await g_abci.hooks.data?.call(null, {TxResult:g_value} as unknown as JsonObject, {
+	// 				si_txn: g_result.txhash,
+	// 				g_synced,
+	// 			});
+	// 		}
+	// 	}
+	// }
+
 	async followAccounts(): Promise<void> {
 		// read accounts store
 		const ks_accounts = await Accounts.read();
@@ -517,7 +615,7 @@ export class NetworkFeed {
 
 		for(const [si_event, g_abci] of ode(h_abcis)) {
 			// start listening to events
-			const kc_account = await _kc_socket.subscribe<TjrwsValueTxResult>(g_abci.filter, (g_result) => {
+			const kc_account = await this.autoSubscribe<TjrwsValueTxResult>(g_abci.filter, (g_result) => {
 				// call hook with destructured data
 				g_abci.hooks.data.call(this, g_result.data.value, {
 					si_txn: g_result.events['tx.hash'][0],
@@ -525,7 +623,7 @@ export class NetworkFeed {
 			});
 
 			// start to synchronize all txs since previous sync height
-			const di_synchronize = this._k_network.synchronize(g_abci.type, g_abci.filter, g_context_vague.p_account);
+			const di_synchronize = _k_network.synchronize(g_abci.type, g_abci.filter, g_context_vague.p_account);
 			for await(const {g_tx, g_result, g_synced} of di_synchronize) {
 				// TODO: don't imitate websocket data, make a canonicalizer for the two different data sources instead
 
@@ -553,12 +651,14 @@ export class NetworkFeed {
 		return h_streams;
 	}
 
-	async followTokens() {
+	async followTokens(): Promise<void> {
 		const {
 			_p_chain,
 			_g_chain,
 			_kc_socket,
 		} = this;
+
+		const k_self = this;
 
 		// nil socket
 		if(!_kc_socket) throw new Error(`No active websocket to subcribe to Tendermint JSON-RPC connection`);
@@ -572,7 +672,7 @@ export class NetworkFeed {
 		// read contracts store
 		const ks_contracts = await Contracts.read();
 
-		// select fungible tokens on this chain that are enabled
+		// select fungible tokens on this chain that are in use
 		const a_candidates = await ks_contracts.filterRole(ContractRole.FUNGIBLE, {
 			chain: _p_chain,
 			on: 1,
@@ -587,20 +687,22 @@ export class NetworkFeed {
 					accounts: [] as AccountStruct[],
 				};
 
+				// list of accounts that should subscribe to this contract
 				const a_accounts = g_state.accounts;
 
 				// each account
 				for(const [, g_account] of ks_accounts.entries()) {
-					const a_viewing_key = await Snip2xToken.viewingKeyFor(g_contract, _g_chain, g_account);
-
 					// account does not hold this token
-					if(!a_viewing_key) continue;
+					if(!g_account.assets[_p_chain]?.fungibleTokens.includes(g_contract.bech32)) continue;
 
 					// add account to list
 					a_accounts.push(g_account);
 				}
 
-				await this._subscribe_contract(g_contract, a_accounts);
+				// at least one account follows the contract
+				if(a_accounts.length) {
+					await this._subscribe_contract(g_contract, a_accounts);
+				}
 			}
 
 			// new token added
@@ -633,14 +735,14 @@ export class NetworkFeed {
 							accounts: a_accounts,
 						};
 
-						await this._subscribe_contract(g_contract, a_accounts);
+						await k_self._subscribe_contract(g_contract!, a_accounts);
 					}
 				},
-			})
+			});
 		}
 	}
 
-	async _subscribe_contract(g_contract: ContractStruct, a_accounts: AccountStruct[]) {
+	async _subscribe_contract(g_contract: ContractStruct, a_accounts: AccountStruct[]): Promise<void> {
 		const {
 			_kc_socket,
 		} = this;
@@ -658,7 +760,7 @@ export class NetworkFeed {
 		});
 
 		// subscribe to new executions
-		await _kc_socket.subscribe<TjrwsValueNewBlock>([
+		await this.autoSubscribe<TjrwsValueNewBlock>([
 			`wasm.contract_address='${g_contract.bech32}'`,
 		], async() => {
 			console.debug(`Sending notice to check on ${g_contract.name}`);
@@ -675,7 +777,13 @@ export class NetworkFeed {
 		void k_limiter.notice();
 	}
 
-	async checkSnip20(g_contract: ContractStruct, g_account: AccountStruct) {
+	/**
+	 * Fetch history from snip and update local cache, triggering notifications along the way
+	 * @param g_contract 
+	 * @param g_account 
+	 * @returns 
+	 */
+	async checkSnip20(g_contract: ContractStruct, g_account: AccountStruct): Promise<void> {
 		const {
 			_k_network,
 		} = this;
@@ -686,23 +794,24 @@ export class NetworkFeed {
 			return;
 		}
 
-		try {
-			// transaction history method available on contract
-			if(k_snip20.snip21) {
+		// transaction history method available on contract
+		if(k_snip20.snip21) {
+			try {
 				await k_snip20.transactionHistory();
-			}
-			// fallback to transfer history
-			else {
-				const a_history = await k_snip20.transferHistory(16);
 
-				debugger;
-				console.log({
-					a_history,
-				});
+				// done
+				return;
+			}
+			catch(e_query) {
+				console.warn(`Contract @${g_contract.bech32} might not actually be a SNIP-21: ${e_query}`);
 			}
 		}
+
+		// fallback to transfer history
+		try {
+			await k_snip20.transferHistory(16);
+		}
 		catch(e_query) {
-			debugger;
 			console.error(e_query);
 		}
 	}

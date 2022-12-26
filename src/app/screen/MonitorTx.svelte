@@ -219,7 +219,11 @@
 	</AppBanner>
 		
 	<p>
-		Please wait until your transaction is confirmed. Do not close this window. It will automatically close itself.
+		{#if b_critical_failure}
+			An error occurred; unable to determine the status of the transaction. You can now close this window.
+		{:else}
+			Please wait until your transaction is confirmed. Do not close this window. It will automatically close itself.
+		{/if}
 	</p>
 
 	<Field key='status' name='Status'>

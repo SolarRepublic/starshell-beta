@@ -12,6 +12,8 @@
 
 	export let status: Status | null = null;
 
+	export let s_secondary_title = '';
+
 	$: $yw_blur = open;
 
 	let b_showing = false;
@@ -160,6 +162,11 @@
 			}
 		}
 	}
+
+	.secondary-group {
+		text-align: center;
+		margin: 1em;
+	}
 </style>
 
 <div class="cancel"
@@ -195,5 +202,17 @@
 		<div class="rows">
 			<slot name="rows"></slot>
 		</div>
+
+		{#if $$slots.secondary_rows}
+			<div class="secondary-group">
+				<span>
+					↓&nbsp;&nbsp;&nbsp;{s_secondary_title || 'OTHER'}&nbsp;&nbsp;&nbsp;↓
+				</span>
+			</div>
+
+			<div class="rows">
+				<slot name="secondary_rows"></slot>
+			</div>
+		{/if}
 	</div>
 </div>

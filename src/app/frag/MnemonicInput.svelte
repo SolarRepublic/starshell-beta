@@ -1,10 +1,26 @@
 <script lang="ts">
+	import {createEventDispatcher} from 'svelte';
+	
 	import {Bip39, load_word_list} from '#/crypto/bip39';
 	import {microtask} from '#/util/belt';
 	import {qsa} from '#/util/dom';
 
+	const dispatch = createEventDispatcher();
+
+	/**
+	 * Reference to mnemonic indicies array
+	 */
 	export let atu16_indicies: Uint16Array;
+
+	/**
+	 * Index of word within the indicies array
+	 */
 	export let i_index: number;
+
+	/**
+	 * If set, the input should be empty and readonly
+	 */
+	export let b_locked = false;
 
 	/**
 	 * If set, then the input is readonly
@@ -21,8 +37,6 @@
 	 */
 	export let b_valid = false;
 
-	export let fake = false;
-
 	let dm_input: HTMLInputElement;
 
 	let s_word = '';
@@ -30,14 +44,45 @@
 	let i_refine_lo = 0;
 	let i_refine_hi = 0;
 
+	$: if(b_locked) {
+		s_word = '';
+	}
+
+
 	let A_WORDLIST: string[] = [];
-	let nl_words = 0;
 	(async function load() {
+		// ensure wordlist is loaded
 		A_WORDLIST = await load_word_list();
-		s_word = A_WORDLIST[atu16_indicies[i_index]];
+
+		// access index
+		const i_word = atu16_indicies[i_index];
+
+		// index is out of bounds
+		if(i_index > A_WORDLIST.length) return;
+
+		// lookup word
+		s_word = A_WORDLIST[i_word] || '';
+
+		// set initial search limit
 		i_refine_hi = A_WORDLIST.length - 1;
-		nl_words = A_WORDLIST.length;
 	})();
+
+	// in readonly mode, update word when indicies change
+	$: if(b_readonly) {
+		if(A_WORDLIST && i_index <= 24) {
+			// access index
+			const i_word = atu16_indicies[i_index];
+	
+			// lookup word
+			s_word = A_WORDLIST[i_word] || '';
+	
+			// set initial search limit
+			i_refine_hi = A_WORDLIST.length - 1;
+		}
+		else {
+			s_word = '';
+		}
+	}
 
 	let s_checked = '';
 	let s_prediction = '';
@@ -66,6 +111,7 @@
 						dm_sibling.focus();
 						await microtask();
 						dm_sibling.value = s_sibling;
+						dm_sibling.dispatchEvent(new Event('input'));
 						await microtask();
 						dm_sibling.dispatchEvent(new KeyboardEvent('keydown', {key:' '}));
 						await microtask();
@@ -169,7 +215,7 @@
 		s_prediction = '';
 
 		// normalize
-		s_word = s_word.normalize('NFKD');
+		s_word = (s_word || '').trim().normalize('NFKD').toLocaleLowerCase();
 
 		// locate word in wordlist
 		const i_word = Bip39.findIndex(s_word);
@@ -179,8 +225,14 @@
 
 		// overwrite value at index
 		if(!b_absent && !b_readonly) {
+			b_valid = true;
 			atu16_indicies[i_index] = i_word;
 		}
+		else {
+			b_valid = false;
+		}
+
+		dispatch('change');
 	}
 </script>
 
@@ -231,7 +283,7 @@
 		bind:value={s_prediction}
 	>
 	<input type="text" spellcheck="false" autocomplete="false"
-		readonly={b_readonly}
+		disabled={b_readonly}
 		class="atypical user-input"
 		bind:this={dm_input}
 		bind:value={s_word}

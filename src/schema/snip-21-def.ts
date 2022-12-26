@@ -1,7 +1,7 @@
+import type {Snip20} from './snip-20-def';
 import type {O} from 'ts-toolbelt';
 
 import type {Cw, Cwm} from '#/meta/cosm-wasm';
-import type { Snip20 } from './snip-20-def';
 
 export namespace Snip21 {
 	interface BaseMessageRegistry {
@@ -39,7 +39,7 @@ export namespace Snip21 {
 				txs: O.Merge<{
 					block_time?: Cw.NaturalNumber | undefined;
 					block_height?: Cw.NaturalNumber | undefined;
-					memo?: Cw.String | undefined;
+					memo?: Cw.String | undefined | null;
 				}, Snip20.Registries['BaseQuery']['transfer_history']['response']['txs'][number]>[];
 			};
 		}>;
@@ -61,7 +61,7 @@ export namespace Snip21 {
 					coins: {
 						denom: Cw.String;
 						amount: Cw.Uint128;
-					}
+					};
 					memo?: Cw.String | undefined | null;
 					action: {
 						transfer?: {
@@ -79,7 +79,7 @@ export namespace Snip21 {
 						};
 						deposit?: {};
 						redeem?: {};
-					}
+					};
 				}[];
 			};
 		};
@@ -155,11 +155,11 @@ export namespace Snip21 {
 
 	export interface MessageRegistries {
 		BaseMessage: BaseMessageRegistry;
-		AllowanceMessage: AllowanceMessageRegistry,
+		AllowanceMessage: AllowanceMessageRegistry;
 	}
 
 	export interface QueryRegistries {
-		BaseQuery: BaseQueryRegistry,
+		BaseQuery: BaseQueryRegistry;
 	}
 
 	export type Registries = Cwm.MergeInterfaces<[

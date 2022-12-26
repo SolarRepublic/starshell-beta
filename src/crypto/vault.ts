@@ -9,7 +9,7 @@ import {Argon2Type} from './argon2';
 
 import SensitiveBytes from './sensitive-bytes';
 
-import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
+import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set, StoredHashParams} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
 import {WorkerHost} from '#/extension/worker-host';
 import {global_broadcast} from '#/script/msg-global';
@@ -30,12 +30,10 @@ import {
 } from '#/util/data';
 
 
-// number of key derivation iterations
-const N_PBKDF2_ITERATIONS = 696969;
+// number of argon hashing iterations
+export const N_ARGON2_ITERATIONS = B_LOCALHOST? 1: 42;
 
-const N_ARGON2_ITERATIONS = B_LOCALHOST? 1: 42;
-
-const NB_ARGON2_MEMORY = B_LOCALHOST? 256: 32 * 1024;  // 32 KiB
+export const NB_ARGON2_MEMORY = B_LOCALHOST? 256: 32 * 1024;  // 32 KiB
 
 /**
  * Sets the block size to use when padding plaintext before encrypting for storage.
@@ -171,17 +169,6 @@ async function hkdf_params(): Promise<typeof GC_HKDF_COMMON> {
 	return {
 		...GC_HKDF_COMMON,
 		salt: atu8_salt,
-	};
-}
-
-function pbkdf2_derive2(ab_nonce: BufferSource, x_iteration_multiplier=0): (dk_base: CryptoKey) => Promise<SensitiveBytes> {
-	return async function(dk_base) {
-		return new SensitiveBytes(new Uint8Array(await crypto.subtle.deriveBits({
-			name: 'PBKDF2',
-			salt: ab_nonce,
-			iterations: x_iteration_multiplier? Math.ceil(N_PBKDF2_ITERATIONS * x_iteration_multiplier): N_PBKDF2_ITERATIONS,
-			hash: SI_PRF,
-		}, dk_base, 256)));
 	};
 }
 
@@ -376,21 +363,12 @@ export const Vault = {
 		]);
 	},
 
+
 	/**
-	 * Create the root key by importing the plaintext password string, using PBKDF2 to derive `root0`, then deferring
-	 * to callbacks to complete child key derivation. Uses callbacks instead of a Promise to help make it obvious to
-	 * the runtime that the password string does not need to put into heap memory (i.e., only exists in stack memory).
-	 * @deprecated superceded by {@link Vault.deriveRootBitsArgon2}
+	 * Loads the Argon2 WASM worker
 	 */
-	deriveRootBitsPbkdf2(
-		atu8_phrase: Uint8Array,
-		ab_nonce: BufferSource,
-		x_iteration_multiplier=0
-	): Promise<SensitiveBytes> {
-		// import the passphrase to a managed key object
-		return crypto.subtle.importKey('raw', atu8_phrase, 'PBKDF2', false, ['deriveBits'])
-			// help allow the plaintext password to have a short life in the stack by forcing it out of scope as soon as possible
-			.then(pbkdf2_derive2(ab_nonce, x_iteration_multiplier));
+	async wasmArgonWorker(): Promise<Argon2Methods> {
+		return await load_argon_worker();
 	},
 
 
@@ -400,15 +378,15 @@ export const Vault = {
 	async deriveRootBitsArgon2(
 		atu8_phrase: Uint8Array,
 		atu8_nonce: Uint8Array,
-		x_iteration_multiplier=0
+		g_params: StoredHashParams
 	): Promise<SensitiveBytes> {
 		const k_argon_host_local = await load_argon_worker();
 
 		return new SensitiveBytes(await k_argon_host_local.hash({
 			phrase: atu8_phrase,
 			salt: atu8_nonce,
-			time: x_iteration_multiplier? Math.ceil(N_ARGON2_ITERATIONS * x_iteration_multiplier): N_ARGON2_ITERATIONS,
-			mem: NB_ARGON2_MEMORY,
+			iterations: g_params.iterations,
+			memory: g_params.memory,
 			hashLen: 32,  // 256 bits
 			parallelism: 2,
 			type: Argon2Type.Argon2id,
@@ -448,12 +426,15 @@ export const Vault = {
 		new DataView(atu8_vector_new.buffer).setBigUint64(16, xg_nonce_new_hi, false);
 		new DataView(atu8_vector_new.buffer).setBigUint64(16+8, xg_nonce_new_lo, false);
 
+		// read from stored params
+		const g_params_old = (await PublicStorage.hashParams())!;
+
 		// if a new version changes the number of iterations used, it should happen here
 		// migration
-		// const x_migrate_multiplier = 0;
+		const g_params_new = g_params_old;
 		// const g_last_seen = await PublicStorage.lastSeen();
 		// if(!g_last_seen) {
-		// 	x_migrate_multiplier = 20 / N_ITERATIONS;
+		// 	g_params_new = {...};
 		// }
 
 		// derive the two root byte sequences for this session
@@ -461,8 +442,8 @@ export const Vault = {
 			kn_root_old,
 			kn_root_new,
 		] = await Promise.all([
-			Vault.deriveRootBitsArgon2(atu8_phrase, atu8_vector_old, 0),
-			Vault.deriveRootBitsArgon2(atu8_phrase, atu8_vector_new, 0),
+			Vault.deriveRootBitsArgon2(atu8_phrase, atu8_vector_old, g_params_old),
+			Vault.deriveRootBitsArgon2(atu8_phrase, atu8_vector_new, g_params_new),
 		]);
 
 		// zero out passphrase data

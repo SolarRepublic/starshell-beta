@@ -189,7 +189,7 @@ export function format_fiat(x_amount: number, si_fiat: CoinGeckoFiat='usd', b_om
 // }
 
 export function abbreviate_addr(sa_addr: string): string {
-	return sa_addr.replace(/^(\w+1...).+(.{7})/, '$1[...]$2');
+	return sa_addr.replace(/^(\w+1...).+(.{5})/, '$1[…]$2');
 }
 
 const D_INTL_DATE = new Intl.DateTimeFormat('en-US', {

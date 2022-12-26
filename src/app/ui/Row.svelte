@@ -37,6 +37,8 @@
 
 	export let postnameTags = false;
 
+	export let postnameDelimiter: '()' | ':' | '-' = '()';
+
 	/**
 	 * Disables pfp
 	*/
@@ -347,7 +349,13 @@
 							<Load input={name} />
 							{#if postname}
 								<span class="postname">
-									({postname})
+									{#if '()' === postnameDelimiter}
+										({postname})
+									{:else if '-' === postnameDelimiter}
+										- {postname}
+									{:else if ':' === postnameDelimiter}
+										: {postname}
+									{/if}
 								</span>
 							{/if}
 						</span>

@@ -1,12 +1,12 @@
 import type {Snip20} from './snip-20-def';
 import type {Snip24} from './snip-24-def';
-import type {PortableMessage, Snip2x, TransactionHistoryItem} from './snip-2x-def';
+import type {PortableMessage, Snip2x, TransactionHistoryItem, TransferHistoryItem} from './snip-2x-def';
 
 import type {Coin} from '@cosmjs/amino';
 import type {L, N} from 'ts-toolbelt';
 
 import type {AccountStruct} from '#/meta/account';
-import type {Dict, JsonValue} from '#/meta/belt';
+import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
 import type {Bech32, ChainPath, ChainStruct, ContractStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 
@@ -16,14 +16,16 @@ import type {TokenStructDescriptor} from '#/meta/token';
 import {Fee} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 import BigNumber from 'bignumber.js';
 
-import {syswarn} from '#/app/common';
+import {syserr, syswarn} from '#/app/common';
 import type {PrebuiltMessage} from '#/chain/messages/_types';
 import {H_SNIP_TRANSACTION_HISTORY_HANDLER} from '#/chain/messages/snip-history';
 import type {SecretNetwork} from '#/chain/secret-network';
+import {SecretWasm} from '#/crypto/secret-wasm';
 import type {NotificationConfig} from '#/extension/notifications';
 import {system_notify} from '#/extension/notifications';
 
-import {ATU8_SHA256_STARSHELL} from '#/share/constants';
+import {utility_key_child} from '#/share/account';
+import {ATU8_SHA256_STARSHELL, R_SCRT_QUERY_ERROR} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
@@ -31,12 +33,22 @@ import {Incidents} from '#/store/incidents';
 import type {Cached} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {crypto_random_int, ode} from '#/util/belt';
-import {base58_to_buffer, buffer_to_base58, buffer_to_text, buffer_to_uint32_be, concat, json_to_buffer, ripemd160_sync, sha256_sync, text_to_buffer, uint32_to_buffer_be} from '#/util/data';
+import {base58_to_buffer, base64_to_buffer, buffer_to_base58, buffer_to_text, buffer_to_uint32_be, concat, json_to_buffer, ripemd160_sync, sha256_sync, text_to_buffer, uint32_to_buffer_be} from '#/util/data';
 
 
 type TokenInfoResponse = Snip20.BaseQueryResponse<'token_info'>;
 
 export class ViewingKeyError extends Error {}
+
+export class ContractQueryError extends Error {
+	constructor(protected _sx_plaintext: string) {
+		super(`Contract returned error while attempting query: ${_sx_plaintext}`);
+	}
+
+	get data(): JsonObject {
+		return JSON.parse(this._sx_plaintext);
+	}
+}
 
 export const Snip2xUtil = {
 	validate_token_info(g_token_info: TokenInfoResponse['token_info']): boolean | undefined | void {
@@ -58,7 +70,7 @@ export const Snip2xUtil = {
 		z_nonce: Uint8Array|string|null=null
 	): Promise<string> {
 		// generate the token's viewing key
-		const atu8_viewing_key = await Secrets.borrowPlaintext(g_account.utilityKeys.snip20ViewingKey!, async(kn_utility) => {
+		const atu8_viewing_key = await utility_key_child(g_account, 'secretNetworkKeys', 'snip20ViewingKey', async(atu8_key) => {
 			// prep nonce
 			let atu8_nonce = z_nonce as Uint8Array;
 
@@ -98,11 +110,11 @@ export const Snip2xUtil = {
 				}
 
 				// derive nonce from random
-				atu8_nonce = uint32_to_buffer_be(crypto_random_int(0, Number((1n << 32n) - 1n)));
+				atu8_nonce = uint32_to_buffer_be(crypto_random_int(Number(1n << 32n)));
 			}
 
 			// import utility key
-			const dk_input = await crypto.subtle.importKey('raw', kn_utility.data, 'HKDF', false, ['deriveBits']);
+			const dk_input = await crypto.subtle.importKey('raw', atu8_key, 'HKDF', false, ['deriveBits']);
 
 			// produce token info by concatenating: utf8-enc(caip-10) | nonce
 			const [si_namespace, si_reference] = Chains.parsePath(g_token.chain);
@@ -119,6 +131,13 @@ export const Snip2xUtil = {
 			// encode output vieiwng key
 			return concat([atu8_nonce, new Uint8Array(ab_viewing_key)]);
 		});
+
+		if(!atu8_viewing_key) {
+			throw syserr({
+				title: 'No viewing key seed',
+				text: `Account "${g_account.name}" is missing a Secret WASM viewing key seed.`,
+			});
+		}
 
 		// base58-encode to create password
 		return SX_VIEWING_KEY_PREAMBLE+buffer_to_base58(atu8_viewing_key);
@@ -141,7 +160,7 @@ export const Snip2xMessageConstructor = {
 		// prep snip-20 message
 		const g_msg: Snip20.BaseMessageParameters<'set_viewing_key'> = {
 			set_viewing_key: {
-				key: s_viewing_key as Cw.String,
+				key: s_viewing_key as Cw.ViewingKey,
 			},
 		};
 
@@ -439,11 +458,43 @@ export class Snip2xToken {
 		return true;
 	}
 
-	query<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey>(g_query: Snip2x.AnyQueryParameters<si_key>): QueryRes<si_key> {
-		return this._k_network.queryContract<Snip2x.AnyQueryResponse<si_key>>(this._g_account, {
-			bech32: this._g_contract.bech32,
-			hash: this._g_contract.hash,
-		}, g_query);
+	async query<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey>(g_query: Snip2x.AnyQueryParameters<si_key>): QueryRes<si_key> {
+		const g_writeback: {atu8_nonce?: Uint8Array} = {};
+
+		try {
+			return await this._k_network.queryContract<Snip2x.AnyQueryResponse<si_key>>(this._g_account, {
+				bech32: this._g_contract.bech32,
+				hash: this._g_contract.hash,
+			}, g_query, g_writeback);
+		}
+		catch(e_query) {
+			// ref query nonce
+			const atu8_nonce = g_writeback.atu8_nonce;
+
+			// compute error
+			if(2 === e_query['code']) {
+				// parse contract error
+				const m_error = R_SCRT_QUERY_ERROR.exec(e_query['message'] as string || '');
+
+				// able to decrypt
+				if(m_error && atu8_nonce) {
+					const [, sxb64_error_ciphertext] = m_error;
+
+					const atu8_ciphertext = base64_to_buffer(sxb64_error_ciphertext);
+
+					// use nonce to decrypt
+					const atu8_plaintext = await SecretWasm.decryptBuffer(this._g_account, this._g_chain, atu8_ciphertext, atu8_nonce);
+
+					// utf-8 decode
+					const sx_plaintext = buffer_to_text(atu8_plaintext);
+
+					// throw decrypted error
+					throw new ContractQueryError(sx_plaintext);
+				}
+			}
+
+			throw e_query;
+		}
 	}
 
 	viewingKey(): Promise<readonly [Cw.ViewingKey, SecretStruct<'viewing_key'>] | null> {
@@ -478,40 +529,198 @@ export class Snip2xToken {
 		return this._k_network.saveQueryCache(this._sa_owner, `${this._g_contract.bech32}:${si_key}`, g_data, Date.now());
 	}
 
-	async transferHistory(nl_records=Number.MAX_SAFE_INTEGER): QueryRes<'transfer_history'> {
-		// in async parallel
-		const [
-			a_txs_cached,
-			g_latest,
-		 ] = await Promise.all([
-			// read from cache
-			this.readCache<Snip2x.AnyQueryResponse<'transfer_history'>[]>('transfer_history'),
+	// async transferHistory(nl_records=Number.MAX_SAFE_INTEGER): QueryRes<'transfer_history'> {
+	// 	nl_page_size = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_page_size));
 
+	// 	// read from cache
+	// 	const g_cache = await this.readCache<TransactionHistoryCache>('transaction_history');
+
+	// 	// in async parallel
+	// 	const [
+	// 		a_txs_cached,
+	// 		g_latest,
+	// 	] = await Promise.all([
+	// 		// read from cache
+	// 		this.readCache<Snip2x.AnyQueryResponse<'transfer_history'>[]>('transfer_history'),
+
+	// 		// query for latest
+	// 		this.query({
+	// 			transfer_history: {
+	// 				address: this._sa_owner,
+	// 				key: await this._viewing_key_plaintext(),
+	// 				page_size: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_records)) as Cw.WholeNumber,
+	// 			},
+	// 		}),
+	// 	]);
+
+	// 	// number of transfers in this response
+	// 	const a_latest = g_latest.transfer_history.txs;
+
+	// 	// number of transfers total
+	// 	const nl_total = g_latest.transfer_history.total;
+
+	// 	// contract implements snip-21 total
+	// 	if('number' === typeof nl_total) {
+
+	// 	}
+
+	// 	for(const g_transfer of a_latest) {
+	// 		g_transfer.
+	// 	}
+	// }
+
+	// async* _read_pages<
+	// 	si_query extends Extract<Snip2x.AnyQueryKey, 'transfer_history' | 'transaction_history'>,
+	// >(si_query: si_query, h_query: Snip2x.AnyQueryParameters<si_query>, nl_page_size=16) {
+	// 	nl_page_size = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_page_size));
+
+
+	// 	// new tx cache
+	// 	const h_txs: TransactionHistoryCache = {...g_cache?.data};
+
+
+	// 	// page index
+	// 	let i_page = 0;
+
+	// 	// loop while there are more pages
+	// 	for(;;) {
+	// 		// submit query
+	// 		const g_response = await this.query({
+	// 			[si_query]: {
+	// 				...h_query,
+	// 				page_size: nl_page_size as Cw.WholeNumber,
+	// 				page: i_page as Cw.WholeNumber,
+	// 			},
+	// 		} as Snip2x.AnyQueryParameters) as unknown as Snip2x.AnyQueryResponse<si_query>;
+
+	// 		// yield response
+	// 		yield g_response;
+
+	// 		// parse data
+	// 		const g_data = g_response[si_query]!;
+
+	// 		// ref txs list
+	// 		const a_txs = g_data.txs;
+
+	// 		// total count in cache
+	// 		const nl_cached = Object.keys(h_txs).length;
+
+	// 		// 
+	// 		let nl_total = g_data['total'];
+	// 		if('number' !== typeof nl_total) nl_total = Infinity;
+
+	// 		// more items in history and result was full
+	// 		if(nl_cached < nl_total && a_txs.length === nl_page_size) {
+	// 			i_page += 1;
+	// 			continue;
+	// 		}
+
+	// 		// done
+	// 		break;
+	// 	}
+	// }
+
+
+	async transferHistory(nl_page_size=16): QueryRes<'transfer_history'> {
+		type TransferHistoryCache = TransferHistoryItem[];
+
+		nl_page_size = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_page_size));
+
+		// read from cache
+		const g_cache = await this.readCache<{
+			transfers: TransferHistoryCache;
+			order: string[];
+		}>('transfer_history');
+
+		// new transfer cache
+		const h_trs: TransferHistoryCache = g_cache?.data?.transfers || [];
+		const a_order = g_cache?.data?.order || [];
+
+		// count number of new trs
+		let c_new = 0;
+
+		// page index
+		let i_page = 0;
+
+		// number of transfers total
+		let nl_total: number | undefined = 0;
+
+		// collect notifications
+		const a_notifs: NotificationConfig[] = [];
+
+		// loop while there are more pages
+		for(;;) {
 			// query for latest
-			this.query({
+			const g_response = await this.query({
 				transfer_history: {
 					address: this._sa_owner,
 					key: await this._viewing_key_plaintext(),
-					page_size: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_records)) as Cw.WholeNumber,
+					page_size: nl_page_size as Cw.WholeNumber,
+					page: i_page as Cw.WholeNumber,
 				},
-			}),
-		]);
+			});
 
-		// number of transfers in this response
-		const a_latest = g_latest.transfer_history.txs;
+			// destructure transfer history response
+			const g_history = g_response.transfer_history;
 
-		// number of transfers total
-		const nl_total = g_latest.transfer_history.total;
+			// update total
+			nl_total = g_history.total;
+			if('number' !== typeof nl_total) nl_total = Infinity;
 
-		// contract implements total
-		if('number' === typeof nl_total) {
+			// each item in this response
+			for(const g_tx of g_history.txs) {
+				// hash tx
+				const si_tx = buffer_to_base58(ripemd160_sync(sha256_sync(json_to_buffer(g_tx))));
 
+				// item already exists in cache; skip
+				if(si_tx in h_trs) continue;
+
+				// new item
+				h_trs[si_tx] = g_tx;
+				a_order.push(si_tx);
+				c_new++;
+
+				// push to notif
+				const gc_notif = await this._handle_new_transfer(g_tx, si_tx);
+				if(gc_notif) a_notifs.push(gc_notif);
+			}
+
+			// total count in cache
+			const nl_cached = a_order.length;
+
+			// more items in history and result was full
+			if(nl_cached < nl_total && g_history.txs.length === nl_page_size) {
+				i_page += 1;
+				continue;
+			}
+
+			// done
+			break;
 		}
 
-		// for(const g_transfer of a_latest) {
-		// 	g_transfer.
-		// }
+		// commit cache
+		await this.writeCache('transfer_history', {
+			transfers: h_trs,
+			order: a_order,
+		});
+
+		// trigger notifications
+		if(a_notifs.length) {
+			// TODO: group multiple inbound transfers
+			for(const gc_notif of a_notifs) {
+				void system_notify(gc_notif);
+			}
+		}
+
+		// return complete cache
+		return {
+			transfer_history: {
+				total: a_order.length as Cw.WholeNumber,
+				txs: a_order.reverse().map((si_tx: string) => h_trs[si_tx]),
+			},
+		};
 	}
+
 
 	async transactionHistory(nl_page_size=16): QueryRes<'transaction_history'> {
 		if(!this.snip22) throw new Error(`'transaction_history' not available on non SNIP-21 contract`);
@@ -551,7 +760,7 @@ export class Snip2xToken {
 			});
 
 			// destructure transaction history response
-			const g_history = (await g_response).transaction_history;
+			const g_history = g_response.transaction_history;
 
 			// update total
 			nl_total = g_history.total;
@@ -569,8 +778,17 @@ export class Snip2xToken {
 				c_new++;
 
 				// push to notif
-				const gc_notif = await this._handle_new_tx(g_tx, si_tx);
-				if(gc_notif) a_notifs.push(gc_notif);
+				const g_transfer = g_tx.action?.transfer;
+				if(g_transfer) {
+					const gc_notif = await this._handle_new_transfer({
+						from: g_transfer.from,
+						receiver: g_transfer.recipient,
+						coins: g_tx.coins,
+						block_time: g_tx.block_time,
+						memo: g_tx.memo,
+					}, si_tx);
+					if(gc_notif) a_notifs.push(gc_notif);
+				}
 			}
 
 			// total count in cache
@@ -593,7 +811,7 @@ export class Snip2xToken {
 		if(a_notifs.length) {
 			// TODO: group multiple inbound transfers
 			for(const gc_notif of a_notifs) {
-				system_notify(gc_notif);
+				void system_notify(gc_notif);
 			}
 		}
 
@@ -613,7 +831,7 @@ export class Snip2xToken {
 		};
 	}
 
-	async _handle_new_tx(g_tx: TransactionHistoryItem, si_tx: string): Promise<NotificationConfig | void> {
+	async _handle_new_transfer(g_transfer: TransferHistoryItem, si_tx: string): Promise<NotificationConfig | void> {
 		const {
 			_sa_owner,
 			_g_snip20,
@@ -622,11 +840,9 @@ export class Snip2xToken {
 			_g_contract,
 		} = this;
 
-		const g_transfer = g_tx.action.transfer;
-
 		// incoming transfer
-		if(_sa_owner === g_transfer?.recipient) {
-			const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_tx, {
+		if(_sa_owner === g_transfer.receiver) {
+			const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_transfer, {
 				g_snip20: _g_snip20,
 				g_contract: _g_contract,
 				g_chain: _g_chain,
@@ -641,7 +857,7 @@ export class Snip2xToken {
 					bech32: _g_contract.bech32,
 					hash: si_tx,
 				},
-				time: g_tx.block_time,
+				time: g_transfer.block_time || Date.now(),
 			});
 
 			const g_notif = await g_handled?.apply?.();

@@ -41,6 +41,16 @@ export type MsgEventRegistry = {
 		contract: Cw.Bech32;
 		msg: JsonObject;
 	}[];
+
+	set_feegrant?: {
+		grantee: Cw.Bech32;
+		granter: Cw.Bech32;
+	}[];
+
+	use_feegrant?: {
+		grantee: Cw.Bech32;
+		granter: Cw.Bech32;
+	}[];
 };
 
 export type MsgEventKey = keyof MsgEventRegistry;

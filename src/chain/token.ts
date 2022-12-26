@@ -27,8 +27,14 @@ export async function token_balance(g_contract: ContractStruct, g_account: Accou
 	// deduce owner address
 	const sa_owner = Chains.addressFor(g_account.pubkey, m_bech32[1]);
 
-	const g_snip20 = g_contract.interfaces.snip20;
-	const p_viewing_key = g_snip20?.viewingKey;
+	// ref chain
+	const g_chain = k_network.chain;
+
+	// deduce chain path
+	const p_chain = Chains.pathFrom(g_chain);
+
+	// lookup viewing key
+	const p_viewing_key = g_account.assets[p_chain]?.data?.[g_contract.bech32]?.viewingKeyPath;
 	if(p_viewing_key) {
 		const k_snip = Snip2xToken.from(g_contract, k_network as SecretNetwork, g_account);
 
@@ -57,6 +63,9 @@ export async function token_balance(g_contract: ContractStruct, g_account: Accou
 		if(g_response['viewing_key_error']) {
 			throw new ViewingKeyError((g_response['viewing_key_error'] as {msg: string}).msg);
 		}
+
+		// ref snip20 struct
+		const g_snip20 = g_contract.interfaces.snip20!;
 
 		// parse token balance amount
 		const yg_amount = BigNumber(g_response.balance.amount).shiftedBy(-g_snip20.decimals);

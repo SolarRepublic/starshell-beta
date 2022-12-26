@@ -2,6 +2,7 @@
 	import type {AccountStruct} from '#/meta/account';
 	import type {SessionRequest} from '#/meta/api';
 	import type {AppChainConnection, AppStruct} from '#/meta/app';
+	import {AppApiMode} from '#/meta/app';
 	import type {Dict} from '#/meta/belt';
 	import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 	import type {PfpPath, PfpTarget} from '#/meta/pfp';
@@ -11,6 +12,7 @@
 	import {slide} from 'svelte/transition';
 	
 	import {Screen} from './_screens';
+	import {syserr} from '../common';
 	import {yw_chain, yw_provider} from '../mem';
 	
 	import {load_flow_context, s2r_slide} from '../svelte';
@@ -18,7 +20,7 @@
 	import {type PermissionsRegistry, process_permissions_request} from '#/extension/permissions';
 	import {SessionStorage} from '#/extension/session-storage';
 	import {Accounts} from '#/store/accounts';
-	import {Apps} from '#/store/apps';
+	import {Apps, G_APP_NOT_FOUND} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
 	import {Incidents} from '#/store/incidents';
@@ -26,8 +28,8 @@
 	import {fodemtv, ode, ofe} from '#/util/belt';
 	import {abbreviate_addr} from '#/util/format';
 	
-	import ActionsLine from '../ui/ActionsLine.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	
 	import SX_ICON_BADGE from '#/icon/address-card.svg?raw';
@@ -141,6 +143,9 @@
 	const h_connections: Record<ChainPath, AppChainConnection> = {};
 	const g_set: AppChainConnection['permissions'] = {};
 
+	// locks the ui
+	let b_busy = false;
+
 	let c_hidden = 0;
 	let c_hide_safe = 0;
 
@@ -183,130 +188,145 @@
 	})();
 
 	async function connect() {
-		// update global permissions
-		for(const [si_key, g_permission] of ode(h_permissions)) {
-			if(g_permission.selected) {
-				switch(si_key as PermissionKey) {
-					case 'doxx_name': {
-						(g_set.doxx = g_set.doxx || {}).name = true;
-						break;
-					}
+		// lock the ui
+		b_busy = true;
 
-					case 'dox_address': {
-						(g_set.doxx = g_set.doxx || {}).address = true;
-						break;
-					}
+		// catch any errors and show user
+		try {
+			// update global permissions
+			for(const [si_key, g_permission] of ode(h_permissions)) {
+				if(g_permission.selected) {
+					switch(si_key as PermissionKey) {
+						case 'doxx_name': {
+							(g_set.doxx = g_set.doxx || {}).name = true;
+							break;
+						}
 
-					case 'query_node': {
-						(g_set.query = g_set.query || {}).node = true;
-						break;
-					}
+						case 'dox_address': {
+							(g_set.doxx = g_set.doxx || {}).address = true;
+							break;
+						}
 
-					default: {
-						g_set[si_key] = {};
+						case 'query_node': {
+							(g_set.query = g_set.query || {}).node = true;
+							break;
+						}
+
+						default: {
+							g_set[si_key] = {};
+						}
 					}
 				}
 			}
-		}
 
-		// attempt to load previous app definition
-		const p_app = Apps.pathFrom(app);
-		const g_app_old = await Apps.at(p_app);
-
-		// prep new app definition
-		const g_app_new = {
-			// allow updates to name, pfp, api mode, etc.
-			...g_app_old || app,
-
-			// replace connections
-			connections: h_connections,
-		};
-
-		// construct site URL
-		const p_site = `${g_app_new.scheme}://${g_app_new.host}`;
-
-		// update app
-		{
-			// prep saved pfp path
-			let p_saved: PfpPath;
-
-			// pfp exists in session storage
-			const p_data = await SessionStorage.get(`pfp:${p_site}`);
-			if(p_data) {
-				// save pfp from session storage to persistent storage
-				[p_saved] = await Pfps.addData(p_data);
-
-				// update app definition
-				g_app_new.pfp = p_saved;
+			// apply permissions to connections
+			for(const [, g_connection] of ode(h_connections)) {
+				g_connection.permissions = g_set;
 			}
 
-			// replace app definition
-			await Apps.put(g_app_new);
-		}
+			// attempt to load previous app definition
+			const p_app = Apps.pathFrom(app);
+			const g_app_old = await Apps.at(p_app);
 
-		// save contract definitions from app profile
-		const g_profile = await SessionStorage.get(`profile:${p_site}`);
-		if(g_profile) {
-			// open the contracts store for writing
-			await Contracts.open(async(ks_contracts) => {
-				// each contract def in app profile
-				for(const [, g_contract] of ode(g_profile.contracts || {})) {
-					// ref contract's chain
-					const p_chain = g_contract.chain;
+			// prep new app definition
+			const g_app_new = {
+				// allow updates to name, pfp, api mode, etc.
+				...(g_app_old === G_APP_NOT_FOUND? void 0: g_app_old) || app,
+				pfp: app.pfp || g_app_old?.pfp || '' as PfpTarget,
+				name: app.name || g_app_old?.name || 'Un-named App',
+				api: app.api || g_app_old?.api || AppApiMode.UNKNOWN,
 
-					// parse chain path
-					const [si_family, si_chain] = Chains.parsePath(p_chain);
+				// replace connections
+				connections: h_connections,
+			};
 
-					// prep token interfaces
-					const h_interfaces = (g_contract.interfaces || {}) as TokenStructDescriptor;
+			// construct site URL
+			const p_site = `${g_app_new.scheme}://${g_app_new.host}`;
 
-					// construct path to contract pfp in session storage
-					let p_pfp = `pfp:${p_site}/${si_family}:${si_chain}`;
+			// update app
+			{
+				// prep saved pfp path
+				let p_saved: PfpPath;
 
-					// caip-19 asset
-					const si_interface_0 = Object.keys(h_interfaces)[0];
-					if(si_interface_0) {
-						p_pfp += `/${si_interface_0}:${g_contract.bech32}`;
-					}
-					// caip-10 account
-					else {
-						p_pfp += `:${g_contract.bech32}`;
-					}
+				// pfp exists in session storage
+				const p_data = await SessionStorage.get(`pfp:${p_site}`);
+				if(p_data) {
+					// save pfp from session storage to persistent storage
+					[p_saved] = await Pfps.addData(p_data);
 
-					console.debug(`Looking for contract pfp at ${p_pfp}`);
-
-					// save pfp
-					const p_data = await SessionStorage.get(p_pfp as `pfp:${string}`);
-					let p_saved: PfpTarget = '';
-					if(p_data) {
-						[p_saved] = await Pfps.addData(p_data);
-					}
-
-					// save contract to store
-					await ks_contracts.merge({
-						on: 1,
-						bech32: g_contract.bech32,
-						chain: g_contract.chain,
-						name: g_contract.name || 'Unlabeled',
-						hash: g_contract.hash || '',
-						interfaces: h_interfaces,
-						pfp: p_saved,
-						origin: `app:${p_app}`,
-					});
+					// update app definition
+					g_app_new.pfp = p_saved;
 				}
+
+				// replace app definition
+				await Apps.put(g_app_new);
+			}
+
+			// save contract definitions from app profile
+			const g_profile = await SessionStorage.get(`profile:${p_site}`);
+			if(g_profile) {
+				// open the contracts store for writing
+				await Contracts.open(async(ks_contracts) => {
+					// each contract def in app profile
+					for(const [, g_contract] of ode(g_profile.contracts || {})) {
+						// ref contract's chain
+						const p_chain = g_contract.chain;
+
+						// parse chain path
+						const [si_family, si_chain] = Chains.parsePath(p_chain);
+
+						// prep token interfaces
+						const h_interfaces = (g_contract.interfaces || {}) as TokenStructDescriptor;
+
+						// construct path to contract pfp in session storage
+						let p_pfp = `pfp:${p_site}/${si_family}:${si_chain}`;
+
+						// caip-19 asset
+						const si_interface_0 = Object.keys(h_interfaces)[0];
+						if(si_interface_0) {
+							p_pfp += `/${si_interface_0}:${g_contract.bech32}`;
+						}
+						// caip-10 account
+						else {
+							p_pfp += `:${g_contract.bech32}`;
+						}
+
+						// save pfp
+						const p_data = await SessionStorage.get(p_pfp as `pfp:${string}`);
+						let p_saved: PfpTarget = '';
+						if(p_data) {
+							[p_saved] = await Pfps.addData(p_data);
+						}
+
+						// save contract to store
+						await ks_contracts.merge({
+							on: 1,
+							bech32: g_contract.bech32,
+							chain: g_contract.chain,
+							name: g_contract.name || 'Unlabeled',
+							hash: g_contract.hash || '',
+							interfaces: h_interfaces,
+							pfp: p_saved,
+							origin: `app:${p_app}`,
+						});
+					}
+				});
+			}
+
+			// save incident
+			await Incidents.record({
+				type: 'app_connected',
+				data: {
+					app: p_app,
+					accounts: a_accounts.map(g => Accounts.pathFrom(g)),
+					api: g_app_new.api,
+					connections: h_connections,
+				},
 			});
 		}
-
-		// save incident
-		await Incidents.record({
-			type: 'app_connected',
-			data: {
-				app: p_app,
-				accounts: a_accounts.map(g => Accounts.pathFrom(g)),
-				api: g_app_new.api,
-				connections: h_connections,
-			},
-		});
+		catch(e_connect) {
+			throw syserr(e_connect as Error);
+		}
 
 		completed(true);
 	}
@@ -507,10 +527,10 @@
 					</div>	
 
 					<span class="checkbox-field">
-						<CheckboxField id={si_key} slot='right' checked={g_permission.selected}
+						<CheckboxField id={si_key} checked={g_permission.selected}
 							disabled={!g_permission.optional}
-							on:change={({detail:b_checked}) => g_permission.selected = b_checked}>
-						</CheckboxField>
+							on:change={({detail:b_checked}) => g_permission.selected = b_checked}
+						/>
 					</span>
 				</div>
 			{/if}
@@ -529,5 +549,5 @@
 	</div>
 	
 
-	<ActionsLine back confirm={['Connect', connect, false]} />
+	<ActionsLine back confirm={['Connect', connect]} disabled={b_busy} />
 </Screen>

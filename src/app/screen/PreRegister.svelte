@@ -25,6 +25,12 @@
 
 		padding-top: calc(50vh - 150px);
 	}
+
+	.large {
+		display: flex;
+		flex-direction: column;
+		gap: 1em;
+	}
 </style>
 
 <Screen root classNames='preregister'>
@@ -35,13 +41,9 @@
 	<Horizon />
 
 	<div class="large">
-		<div>Welcome to the beta program.</div>
-		<div>Thank for you being a tester!</div>
+		<div>Welcome to the only wallet extension that puts privacy and security above all else.</div>
+		<div>Please allow 10 - 20 minutes to complete the set up process.</div>
 	</div>
-
-	<p>
-		
-	</p>
 
 	<ActionsLine confirm={['Get Started']} contd={{creator:Register}} />
 </Screen>

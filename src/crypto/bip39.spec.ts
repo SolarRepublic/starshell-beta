@@ -56,26 +56,28 @@ describe('BIP-39', () => {
 	for(const a_vector of A_ENGLISH_VECTORS) {
 		i_vector += 1;
 
-		const [sxb16_entropy, sx_mnemonic_expect, sxb16_seed_expect, sxb58_sk_expect] = a_vector;
+		const [sxb16_entropy, s_mnemonic_expect, sxb16_seed_expect, sxb58_sk_expect] = a_vector;
 		const atu8_entropy = hex_to_buffer(sxb16_entropy);
 
-		// skip non-256-bit entropy vectors
-		if(atu8_entropy.byteLength !== 32) continue;
+		// // skip non-256-bit entropy vectors
+		// if(atu8_entropy.byteLength !== 32) continue;
 
 		it(`Trezor english test vector #${i_vector}`, async() => {
 			const kn_mnemonic = await Bip39.entropyToPaddedMnemonic(new SensitiveBytes(concat([atu8_entropy])));
-			const atu8_trimmed = Bip39.trimPaddedMnemonic(kn_mnemonic).data;
+			const nl_words_expect = s_mnemonic_expect.split(/\s+/g).length;
+
+			const atu8_trimmed = Bip39.trimPaddedMnemonic(kn_mnemonic, nl_words_expect).data;
 			const sx_mnemonic_actual = buffer_to_text(atu8_trimmed);
 
 			// mnemonic
-			expect(sx_mnemonic_actual).to.equal(sx_mnemonic_expect);
+			expect(sx_mnemonic_actual).to.equal(s_mnemonic_expect);
 
 			// seed
 			const kr_seed = await Bip39.mnemonicToSeed(() => atu8_trimmed, () => text_to_buffer('TREZOR'));
 			await kr_seed.access(atu8_seed => expect(buffer_to_hex(atu8_seed)).to.equal(sxb16_seed_expect));
 
 			// mnemonic => entropy
-			const kr_entropy_round = await Bip39.mnemonicToEntropy(() => text_to_buffer(sx_mnemonic_actual));
+			const kr_entropy_round = await Bip39.mnemonicToEntropy(() => text_to_buffer(sx_mnemonic_actual), nl_words_expect);
 			await kr_entropy_round.access(atu8_entropy_round => expect(buffer_to_hex(atu8_entropy_round)).to.equal(buffer_to_hex(atu8_entropy)));
 
 			// seed => private key

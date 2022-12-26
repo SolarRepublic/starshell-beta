@@ -18,18 +18,20 @@ import SystemSvelte from '#/app/container/System.svelte';
 import {ThreadId} from '#/app/def';
 import {initialize_caches, yw_navigator} from '#/app/mem';
 import type {PageConfig} from '#/app/nav/page';
+import AccountCreateSvelte from '#/app/screen/AccountCreate.svelte';
 import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
 import BlankSvelte from '#/app/screen/Blank.svelte';
 
-import CreateWalletSvelte from '#/app/screen/CreateWallet.svelte';
 import ImportMnemonicSvelte from '#/app/screen/ImportMnemonic.svelte';
 import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
+import WalletCreateSvelte from '#/app/screen/WalletCreate.svelte';
 import {Bip39} from '#/crypto/bip39';
 import {Vault} from '#/crypto/vault';
 import {check_restrictions} from '#/extension/restrictions';
 import {ServiceClient} from '#/extension/service-comms';
 import {SessionStorage} from '#/extension/session-storage';
+import {Secrets} from '#/script/ics-witness-imports';
 import type {IntraExt} from '#/script/messages';
 import {global_broadcast, global_receive} from '#/script/msg-global';
 import {login, register} from '#/share/auth';
@@ -42,6 +44,7 @@ import type {StarShellDefaults} from '#/store/web-resource-cache';
 import {WebResourceCache} from '#/store/web-resource-cache';
 import {forever, F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
 import {parse_params, qs} from '#/util/dom';
+
 import {AppApiMode} from '#/meta/app';
 
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
@@ -212,10 +215,27 @@ async function reload() {
 		// check for account(s)
 		const ks_accounts = await Accounts.read();
 
-		// no accounts; load account creation
-		if(!Object.keys(ks_accounts.raw).length) {
+		// check for mnemonics
+		const a_mnemonics = await Secrets.filter({
+			type: 'mnemonic',
+		});
+
+		// no mnemonics load mnemonic creation
+		if(!a_mnemonics.length) {
 			gc_page_start = {
-				creator: CreateWalletSvelte,
+				creator: WalletCreateSvelte,
+			};
+
+			// set complete function in context
+			h_context.completed = reload;
+		}
+		// no accounts; load account creation
+		else if(!Object.keys(ks_accounts.raw).length) {
+			gc_page_start = {
+				creator: AccountCreateSvelte,
+				props: {
+					b_mandatory: true,
+				},
 			};
 
 			// set complete function in context
@@ -341,7 +361,9 @@ async function reload() {
 									break;
 								}
 
-								default: {}
+								default: {
+									// ignore
+								}
 							}
 						}
 					}

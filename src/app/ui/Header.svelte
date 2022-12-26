@@ -17,6 +17,7 @@
 		yw_overlay_account,
 		yw_overlay_app,
 		yw_overlay_network,
+		yw_progress,
 		yw_search,
 		yw_update,
 	} from '../mem';
@@ -27,6 +28,7 @@
 	import {Chains} from '#/store/chains';
 	
 	import {Secrets} from '#/store/secrets';
+	import {Settings} from '#/store/settings';
 	import {load_page_context} from '##/svelte';
 	
 	import Close from './Close.svelte';
@@ -46,7 +48,6 @@
 	import SX_ICON_NARROW from '#/icon/narrow.svg?raw';
 	import SX_ICON_SEARCH from '#/icon/search.svg?raw';
 	import SX_VISIBILITY from '#/icon/visibility.svg?raw';
-    import { Settings } from '#/store/settings';
 	
 	
 
@@ -503,7 +504,7 @@
 	}
 </style>
 
-<div class="header no-blur" bind:this={dm_header}>  <!-- class:blur={$yw_blur} -->
+<div class="header no-blur" bind:this={dm_header}>
 	<!-- top row -->
 	<div class="top">
 		<!-- leftmost action/button -->
@@ -546,6 +547,7 @@
 						<div class="search-bar">
 							<!-- search text input -->
 							<input type="text"
+								id='search-bar-input'
 								placeholder='Start typing...'
 								bind:value={$yw_search}
 								on:input={update_search}
@@ -775,13 +777,39 @@
 							{#if $yw_overlay_network}
 								<OverlaySelect
 									title='Switch Network'
+									s_secondary_title='TESTNETS'
 									bind:open={$yw_overlay_network}
 								>
 									<svelte:fragment slot="rows">
 										{#await Chains.read()}
 											...
 										{:then ks_chains} 
-											{#each ks_chains.entries() as [p_chain, g_chain]}
+											{#each ks_chains.entries().filter(([,g]) => !g.testnet) as [p_chain, g_chain]}
+												<Row
+													resource={g_chain}
+													detail='Default Provider'
+													on:click={() => {
+														$yw_chain_ref = p_chain;
+														$yw_overlay_network = false;
+													}}
+												>
+													<svelte:fragment slot="right">
+														{#if $yw_chain_ref === p_chain}
+															<span class="overlay-select icon" style="--icon-color: var(--theme-color-primary);">
+																{@html SX_CHECKED}
+															</span>
+														{/if}
+													</svelte:fragment>
+												</Row>
+											{/each}
+										{/await}
+									</svelte:fragment>
+
+									<svelte:fragment slot="secondary_rows">
+										{#await Chains.read()}
+											...
+										{:then ks_chains} 
+											{#each ks_chains.entries().filter(([,g]) => g.testnet) as [p_chain, g_chain]}
 												<Row
 													resource={g_chain}
 													detail='Default Provider'

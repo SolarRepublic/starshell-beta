@@ -49,7 +49,7 @@ export class WebKitMessenger<
 				fk_resolve(w_data);
 			};
 
-			debug(`[${si_msg}] Posting message to webkit '${this._si_handler}' handler: %o`, g_msg);
+			// debug(`[${si_msg}] Posting message to webkit '${this._si_handler}' handler: %o`, g_msg);
 
 			const f_handler = webkit.messageHandlers[this._si_handler];
 

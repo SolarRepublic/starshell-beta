@@ -82,7 +82,8 @@ export type TokenSpecRegistry = {
 	};
 	'snip-21': {};
 	'snip-22': {};
-	'snip-24': {},
+	'snip-23': {};
+	'snip-24': {};
 	'snip-721': {
 		// chains: KnownChain.SecretNetwork;
 	};

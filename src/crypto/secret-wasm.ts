@@ -3,13 +3,8 @@
 // } from '@solar-republic/cosmos-grpc/dist/secret/registration/v1beta1/query';
 
 
-import {SIV, WebCryptoProvider} from 'miscreant';
 
 // TODO: build a version that only has the crypto_scalar_mult function
-import {
-	crypto_scalarmult,
-	crypto_scalarmult_base,
-} from 'libsodium-wrappers';
 
 // function crypto_scalarmult() {
 // 	throw new Error('scalar mult temp disabled');
@@ -20,13 +15,20 @@ import {
 // 	throw new Error('scalar mult temp disabled');
 // }
 
-import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, concat, hex_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
-import type {JsonObject, JsonValue} from '#/meta/belt';
 import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {JsonValue} from '#/meta/belt';
 import type {ChainStruct} from '#/meta/chain';
+
+import {
+	crypto_scalarmult,
+	crypto_scalarmult_base,
+} from 'libsodium-wrappers';
+import {SIV, WebCryptoProvider} from 'miscreant';
+
+import {syserr} from '#/app/common';
+import {utility_key_child} from '#/share/account';
 import {Accounts} from '#/store/accounts';
-import {Secrets} from '#/store/secrets';
-import {SessionStorage} from '#/extension/session-storage';
+import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, concat, hex_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
 
 export interface DecryptedMessage {
 	code_hash: string;
@@ -153,14 +155,25 @@ export class SecretWasm {
 		// fetch account
 		const g_account = await Accounts.at(p_account);
 
+		// account not found
 		if(!g_account) {
-			debugger;
-			throw new Error(`Account not found: ${p_account}`);
+			throw syserr({
+				title: 'Corrupted data',
+				text: `Account not found: ${p_account}`,
+			});
 		}
 
 		// borrow tx encryption key and instantiate secretwasm
-		const k_wasm = await Secrets.borrowPlaintext(g_account.utilityKeys.secretWasmTx!,
-			kn_seed => new SecretWasm(atu8_consensus_io_pk, kn_seed.data));
+		const k_wasm = await utility_key_child(g_account, 'secretNetworkKeys', 'transactionEncryptionKey',
+			atu8_seed => new SecretWasm(atu8_consensus_io_pk, atu8_seed));
+
+		// utility key missing
+		if(!k_wasm) {
+			throw syserr({
+				title: 'No tx encryption seed',
+				text: `Account "${g_account.name}" is missing a Secret WASM transaction encryption seed.`,
+			});
+		}
 
 		// decrypt the ciphertex
 		const atu8_plaintext = await k_wasm.decrypt(atu8_ciphertext, atu8_nonce);
@@ -193,8 +206,15 @@ export class SecretWasm {
 		const atu8_consensus_io_pk = base93_to_buffer(g_chain.features.secretwasm!.consensusIoPubkey);
 
 		// borrow tx encryption key and instantiate secretwasm
-		const k_wasm = await Secrets.borrowPlaintext(g_account.utilityKeys.secretWasmTx!,
-			kn_seed => new SecretWasm(atu8_consensus_io_pk, kn_seed.data));
+		const k_wasm = await utility_key_child(g_account, 'secretNetworkKeys', 'transactionEncryptionKey',
+			atu8_seed => new SecretWasm(atu8_consensus_io_pk, atu8_seed));
+
+		if(!k_wasm) {
+			throw syserr({
+				title: 'No tx encryption seed',
+				text: `Account "${g_account.name}" is missing a Secret WASM transaction encryption seed.`,
+			});
+		}
 
 		// decrypt the ciphertex
 		const atu8_plaintext = await k_wasm.decrypt(atu8_ciphertext, atu8_nonce);

@@ -55,7 +55,7 @@
 	$: a_display_items = (latest && items.length? [items.at(-1)]: items) as LogItem[];
 
 	function format_ms(n_ms: number): string {
-		return (n_ms / 1000).toFixed(2).padStart(5, '0');
+		return (n_ms / 1e3).toFixed(2).padStart(5, '0');
 	}
 </script>
 
@@ -64,6 +64,11 @@
 		font-family: 'PT Mono', monospace;
 
 		>ol {
+			&.selective {
+				padding-inline-start: 0;
+				text-align: center;
+			}
+
 			>li {
 				&.styleless {
 					list-style-type: none;
@@ -86,7 +91,7 @@
 </style>
 
 <div class="log-container" class:display_none={hide}>
-	<ol>
+	<ol class:selective={1 === a_display_items.length}>
 		{#each a_display_items as g_item}
 			<li class:styleless={latest}>
 				{#if 'string' === g_item.type}
@@ -94,7 +99,7 @@
 				{:else if 'event' === g_item.type}
 					<span class="event">
 						<span class="index">{items.length + 1}.</span>
-						<span class="offset">+{format_ms(g_item.value.offset)}ms: </span>
+						<span class="offset">+{format_ms(g_item.value.offset)}s: </span>
 						<span class="message">{g_item.value.message}</span>
 					</span>
 				{/if}

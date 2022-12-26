@@ -21,7 +21,7 @@
 		long?: boolean;
 		value: Promisable<string>;
 		subvalue?: Promisable<string>;
-		render?: 'address';
+		render?: 'address' | 'mono' | 'error';
 		pfp?: PfpTarget;
 	} | {
 		type: 'memo';

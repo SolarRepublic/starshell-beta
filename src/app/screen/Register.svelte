@@ -4,7 +4,8 @@
 	import {load_flow_context, make_progress_timer} from '../svelte';
 	
 	import Log, {Logger} from '#/app/ui/Log.svelte';
-	import {Vault} from '#/crypto/vault';
+	import {Vault, N_ARGON2_ITERATIONS, NB_ARGON2_MEMORY} from '#/crypto/vault';
+	import {PublicStorage} from '#/extension/public-storage';
 	import {
 		login,
 		register,
@@ -104,33 +105,50 @@
 		// start timer
 		xt_start = Date.now();
 
-		$yw_progress = [15, 100];
+		// initialize progress to 1%
+		$yw_progress = [1, 100];
 
 		log('Estimating time to complete');
+
+		// set hash params
+		const g_params = (await PublicStorage.hashParams({
+			iterations: N_ARGON2_ITERATIONS,
+			memory: NB_ARGON2_MEMORY,
+		}))!;
 
 		// estimate time to complete
 		let f_cancel!: VoidFunction;
 		let xt_estimate = 0;
 		{
+			// start timing
 			const xt_start_est = window.performance.now();
-			const X_SAMPLE = 44;
-			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, 1 / X_SAMPLE);
+
+			// simulate a single iteration
+			await Vault.deriveRootBitsArgon2(ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR, {
+				...g_params,
+				iterations: 1,
+			});
+
+			// stop timing
 			const xt_finish_est = window.performance.now();
 
+			// estimate total time required based on doing hash twice in serial
 			const xt_elapsed = xt_finish_est - xt_start_est;
-			xt_estimate = 1.2 * (xt_elapsed * X_SAMPLE);
+			xt_estimate = 2 * (xt_elapsed * g_params.iterations);
 			log(`About ${(xt_estimate / 1e3).toFixed(1)} seconds`);
 
+			// update progress based on sample
 			$yw_progress = [5, 100];
 	
+			s_info = ' ';
 			if(xt_estimate > 10e3) {
 				const n_minutes = Math.ceil(xt_estimate / 1e3 / 60);
-				s_info = `This could take up to ${n_minutes} minute${1 === n_minutes? '': 's'}. Do not leave this screen`;
+				s_info = `This could take up to ${n_minutes} minute${1 === n_minutes? '': 's'}.`;
 			}
 
 			f_cancel = make_progress_timer({
 				estimate: xt_estimate,
-				range: [5, 50],
+				range: [5, 100],
 			});
 		}
 
@@ -143,6 +161,8 @@
 		}
 		// handle error
 		catch(e_register) {
+			s_info = '';
+
 			if(e_register instanceof AlreadyRegisteredError) {
 				s_error = 'A passphrase is already registered';
 			}
@@ -153,19 +173,19 @@
 				s_error = `Unexpected error occurred while attempting to register:\n${e_register.stack || e_register.message}`;
 			}
 
-			// exit
-			return exit();
-		}
-		finally {
+			// cancel progress 
 			f_cancel();
+
+			//  exit
+			return exit();
 		}
 
 		log('Verifying passphrase');
 
-		f_cancel = make_progress_timer({
-			estimate: xt_estimate,
-			range: [50, 100],
-		});
+		// f_cancel = make_progress_timer({
+		// 	estimate: xt_estimate,
+		// 	range: [52, 100],
+		// });
 
 		// attempt login
 		try {
@@ -173,21 +193,26 @@
 		}
 		// failed to verify
 		catch(e_login) {
+			s_info = '';
 			s_error = `Failed to verify passphrase immediately after registration:\n${e_login.stack}`;
 
 			// reset vault
 			await Vault.eraseBase();
 
+			// cancel progress 
+			f_cancel();
+
 			// exit
 			return exit();
 		}
-		finally {
-			f_cancel();
-		}
+
+		// cancel progress
+		f_cancel();
 
 		log('Done');
 
 		// proceed
+		s_info = '';
 		s_error = 'Success';
 
 		// complete
@@ -274,14 +299,17 @@
 		</div>
 
 		<p class="narrow">
-			Create a new password to protect your wallet's data.
+			Create a new password for signing into your wallet.
 		</p>
 	</center>
 
 	<NewPassword b_disabled={b_busy} bind:sh_phrase={sh_phrase} bind:b_acceptable={b_password_acceptable} bind:c_resets={c_resets} />
 
 	{#if s_info}
-		<div class="registration-info">{s_info}</div>
+		<div class="registration-info">
+			{s_info}<br>
+			Do not leave this screen
+		</div>
 	{/if}
 
 	<Log latest bind:items={k_logger.items} />

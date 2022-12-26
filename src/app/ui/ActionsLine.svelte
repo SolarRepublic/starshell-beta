@@ -173,14 +173,14 @@
 <div class="actions-line">
 	<slot>
 		{#if b_cancel || b_back}
-			<button disabled={disabled || b_busy} on:click={() => cancel_action()}>
+			<button type="button" disabled={disabled || b_busy} on:click={() => cancel_action()}>
 				{deny? 'Deny': b_cancel? 'Cancel': 'Back'}
 			</button>
 		{/if}
 
 		<button
 			readonly={allowDisabledClicks? b_greyed_out: false}
-			disabled={allowDisabledClicks? false: b_greyed_out}
+			disabled={disabled || allowDisabledClicks? false: b_greyed_out}
 			class:primary={!noPrimary} on:click={() => confirm_action()}
 		>
 			{s_confirm_final}

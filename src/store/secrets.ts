@@ -1,20 +1,24 @@
+import type {O} from 'ts-toolbelt';
+
 import type {AppPath} from '#/meta/app';
 import type {Promisable} from '#/meta/belt';
 import type {Bech32, ChainPath} from '#/meta/chain';
-import type {SecretStruct, SecretPath, SecretType} from '#/meta/secret';
+import type {SecretStruct, SecretPath, SecretType, SecretSecurity} from '#/meta/secret';
 import type {Snip24Permission} from '#/schema/snip-24-def';
 
 import {fetch_cipher} from './_base';
 
+import type {Argon2Params} from '#/crypto/argon2';
+import {Argon2Type} from '#/crypto/argon2';
 import type {Bip44Path} from '#/crypto/bip44';
 
 import SensitiveBytes from '#/crypto/sensitive-bytes';
-import {Vault} from '#/crypto/vault';
+import {decrypt, encrypt, Vault} from '#/crypto/vault';
 
 import {storage_get_all} from '#/extension/public-storage';
 import {ResourceNonExistentError} from '#/share/errors';
 import {is_dict, ode, oderac} from '#/util/belt';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256, sha256d, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
 
 type PathFrom<
 	g_secret extends Pick<SecretStruct, 'type' | 'uuid'>,
@@ -27,6 +31,7 @@ interface SecretFilterConfig {
 	owner?: Bech32;
 	contract?: Bech32;
 	contracts?: Bech32[] | Record<Bech32, string>;
+	mnemonic?: SecretPath<'mnemonic'>;
 	name?: string;
 	bip44?: Bip44Path;
 	permissions?: Snip24Permission[];
@@ -41,7 +46,97 @@ type StructFromFilterConfig<
 		: SecretType
 	>;
 
+
+export const N_ARGON2_PIN_ITERATIONS = 64;
+export const NB_ARGON2_PIN_MEMORY = 64 << 10;
+
+export type SerializableArgon2Params = O.Merge<{
+	salt: string;
+}, Omit<Argon2Params, 'secret' | 'ad'>>;
+
 export const Secrets = {
+	/**
+	 * Encrypts arbitrary data using the given PIN
+	 * @param atu8_data 
+	 * @param atu8_pin 
+	 * @returns 
+	 */
+	async encryptWithPin(atu8_data: Uint8Array, atu8_pin: Uint8Array): Promise<[Uint8Array, SecretSecurity.Struct<'pin'>]> {
+		// generate random salt for hashing
+		const atu8_salt = crypto.getRandomValues(new Uint8Array(32));
+
+		// prep hashing params
+		const gc_params = {
+			salt: atu8_salt,
+			type: Argon2Type.Argon2id,
+			iterations: N_ARGON2_PIN_ITERATIONS,
+			memory: NB_ARGON2_PIN_MEMORY,
+		};
+
+		// perform hashing
+		const atu8_hash = await (await Vault.wasmArgonWorker()).hash({
+			phrase: atu8_pin,
+			hashLen: 32,
+			...gc_params,
+		});
+
+		// derive aes encryption key
+		const atu8_ikm = await sha256d(atu8_hash);
+
+		// create crypto key instance
+		const dk_encryption = await crypto.subtle.importKey('raw', atu8_ikm, 'AES-GCM', false, ['encrypt']);
+
+		// generate random salt for encryption
+		const atu8_salt_aes = crypto.getRandomValues(new Uint8Array(32));
+
+		// encrypt
+		const atu8_encrypted = await encrypt(atu8_data, dk_encryption, atu8_salt_aes);
+
+		// return encrypted data and complemetary security object
+		return [atu8_encrypted, {
+			type: 'pin',
+			hint: '',
+			encryption: {
+				algorithm: 'AES-GCM',
+				salt: buffer_to_base93(atu8_salt_aes),
+			},
+			hashing: {
+				algorithm: 'argon2',
+				...gc_params,
+				salt: buffer_to_base93(gc_params.salt),
+			},
+		}];
+	},
+
+	/**
+	 * Decrypts data that was previously encrypted using the given PIN
+	 * @param atu8_data 
+	 * @param atu8_pin 
+	 * @param g_security 
+	 * @returns 
+	 */
+	async decryptWithPin(atu8_data: Uint8Array, atu8_pin: Uint8Array, g_security: SecretSecurity.Struct<'pin'>): Promise<Uint8Array> {
+		// ref hashing params
+		const g_params_hashing = g_security.hashing;
+
+		// perform hashing
+		const atu8_hash = await (await Vault.wasmArgonWorker()).hash({
+			phrase: atu8_pin,
+			hashLen: 32,
+			...g_params_hashing,
+			salt: base93_to_buffer(g_params_hashing.salt),
+		});
+
+		// derive aes decryption key
+		const atu8_ikm = await sha256d(atu8_hash);
+
+		// create crypto key instance
+		const dk_decryption = await crypto.subtle.importKey('raw', atu8_ikm, 'AES-GCM', false, ['decrypt']);
+
+		// decrypt
+		return await decrypt(atu8_data, dk_decryption, base93_to_buffer(g_security.encryption.salt));
+	},
+
 	pathFrom(g_secret: Pick<SecretStruct, 'type' | 'uuid'>): PathFrom<typeof g_secret> {
 		return `/secret.${g_secret.type}/uuid.${g_secret.uuid}`;
 	},
@@ -359,64 +454,3 @@ export const Secrets = {
 		k_entry.release();
 	},
 };
-
-// export const Secrets = create_store_class({
-// 	store: SI_STORE_SECRETS,
-// 	extension: 'dict',
-// 	class: class SecretsI extends WritableStoreDict<typeof SI_STORE_SECRETS> {
-// 		static pathFrom(g_secret: SecretStruct): PathFrom<typeof g_secret> {
-// 			return `/secret.${g_secret.type}/uuid.${g_secret.uuid}`;
-// 		}
-
-// 		// for(p_resource: string): number[] {
-// 		// 	return this._w_cache.map[p_resource] ?? [];
-// 		// }
-
-// 		/**
-// 		 * Handles the extra security layer and returns the plaintext secret as SensitiveBytes
-// 		 * @param g_secret 
-// 		 * @returns 
-// 		 */
-// 		static async plaintext(g_secret: SecretStruct): Promise<SensitiveBytes> {
-// 			// ref data
-// 			const sx_data = g_secret.data;
-
-// 			// ref security type
-// 			const si_security = g_secret.security.type;
-
-// 			// prep to receive data
-// 			let kn_data: SensitiveBytes;
-
-// 			// otp security
-// 			if('otp' === si_security) {
-// 				kn_data = deserialize_private_key(sx_data, g_secret.security.data);
-// 			}
-// 			// none; deserialize raw
-// 			else if('none' === si_security) {
-// 				kn_data = new SensitiveBytes(base64_to_buffer(sx_data));
-// 			}
-// 			// other security
-// 			else {
-// 				throw new Error('Unknown security type');
-// 			}
-
-// 			return kn_data;
-// 		}
-
-// 		async put(g_secret: SecretStruct): Promise<PathFrom<typeof g_secret>> {
-// 			// prepare path
-// 			const p_res = SecretsI.pathFrom(g_secret);
-
-// 			// update cache
-// 			this._w_cache[p_res] = g_secret;
-
-// 			// attempt to save
-// 			await this.save();
-
-// 			// return path
-// 			return p_res;
-// 		}
-
-// 	},
-// });
-

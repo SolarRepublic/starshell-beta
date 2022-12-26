@@ -68,6 +68,14 @@ export default class SensitiveBytes {
 
 
 	/**
+	 * Getter for underyling buffers' byte length
+	 */
+	get byteLength(): number {
+		return this._atu8_data.byteLength;
+	}
+
+
+	/**
 	 * Getter for this instance's data
 	 */
 	get data(): Uint8Array {

@@ -434,11 +434,11 @@ export const crypto_random = (): number => crypto.getRandomValues(new Uint32Arra
  * Generate a random int within a given range
  */
 export function random_int(x_a: number, x_b=0): number {
-	const x_min = Math.ceil(Math.min(x_a));
-	const x_max = Math.floor(Math.max(x_b));
+	const x_min = Math.floor(Math.min(x_a, x_b));
+	const x_max = Math.ceil(Math.max(x_a, x_b));
 
 	// confine to range
-	return Math.floor(Math.random() * (x_max - x_min + 1)) + x_min;
+	return Math.floor(Math.random() * (x_max - x_min)) + x_min;
 }
 
 
@@ -446,18 +446,30 @@ export function random_int(x_a: number, x_b=0): number {
  * Generate a cryptographically strong random int within a given range
  */
 export function crypto_random_int(x_a: number, x_b=0): number {
-	const x_min = Math.ceil(Math.min(x_a));
-	const x_max = Math.floor(Math.max(x_b));
+	const x_min = Math.floor(Math.min(x_a, x_b));
+	const x_max = Math.ceil(Math.max(x_a, x_b));
 
 	// confine to range
-	return Math.floor(crypto_random() * (x_max - x_min + 1)) + x_min;
+	return Math.floor(crypto_random() * (x_max - x_min)) + x_min;
 }
 
+type TypedArray =
+	| Int8Array
+	| Uint8Array
+	| Uint8ClampedArray
+	| Int16Array
+	| Uint16Array
+	| Int32Array
+	| Uint32Array
+	| Float32Array
+	| Float64Array;
 
 /**
  * Shuffles an array
  */
-export function shuffle<w_value>(a_items: w_value[], f_random=random_int): w_value[] {
+export function shuffle<
+	w_list extends Array<any> | TypedArray,
+>(a_items: w_list, f_random=random_int): w_list {
 	let i_item = a_items.length;
 
 	while(i_item > 0) {
@@ -470,3 +482,14 @@ export function shuffle<w_value>(a_items: w_value[], f_random=random_int): w_val
 	return a_items;
 }
 
+/**
+ * Removes the first occurrence of the given item from the array
+ * @param a_items 
+ * @param w_item 
+ * @returns 
+ */
+export function remove<w_item>(a_items: w_item[], w_item: w_item): w_item[] {
+	const i_item = a_items.indexOf(w_item);
+	if(i_item >= 0) a_items.splice(i_item, 1);
+	return a_items;
+}

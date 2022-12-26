@@ -119,6 +119,10 @@
 			class: 'event-icon global_svg-icon icon-diameter_18px'
 				+(b_pending? ' global_pulse': '')
 				+(xt_when >= xt_last_seen? ' unseen-incident': ''),
+			style: sx_icon === SX_ICON_ERROR
+				? `
+					color: var(--theme-color-caution);
+				`: '',
 		});
 		dm_icon.innerHTML = sx_icon;
 		return dm_icon;
@@ -168,11 +172,12 @@
 			const b_pending = 'pending' === si_stage;
 			const b_synced = 'synced' === si_stage;
 			const b_absent = 'absent' === si_stage;
+			const b_error = xc_code !== 0;
 
 			const g_common = {
-				icon: mk_icon(b_absent? SX_ICON_ERROR: SX_ICON_SEND, xt_when, b_pending),
+				icon: mk_icon(b_absent || b_error? SX_ICON_ERROR: SX_ICON_SEND, xt_when, b_pending),
 				childClasses: b_absent? 'filter_desaturate opacity_32%': '',
-				pending: b_pending,
+				pending: b_pending || b_error,
 			};
 
 			// decode and convert messages to amino
@@ -197,35 +202,37 @@
 			if(a_msgs_amino.length > 1) {
 				return {
 					...g_common,
-					title: `Sen${b_pending? 'ding': 't'} Multi-Message Transaction${b_pending? '...': ''}`,
+					title: `Sen${b_pending || b_error? 'ding': 't'} Multi-Message Transaction${b_pending? '...': ''}`,
 					subtitle: format_time_ago(xt_when)+` / ${a_msgs_amino.length} Messages`,
 					name: g_chain.name,
 					pfp: g_chain.pfp,
 					// TODO: merge pfps?
 				};
 			}
-
-			// 
-			const g_msg_amino = a_msgs_amino[0];
-
-			// interpret message
-			const f_interpret = H_INTERPRETTERS[g_msg_amino.type];
-			if(f_interpret) {
-				const g_interpretted = await f_interpret(g_msg_amino.value as JsonObject, g_context_full);
-
+			// single message
+			else if(a_msgs_amino.length) {
 				// 
-				const g_reviewed = await g_interpretted?.review?.(b_pending);
+				const g_msg_amino = a_msgs_amino[0];
 
-				if(g_reviewed) {
-					const s_infos = (g_reviewed.infos || []).map(s => ` / ${s}`).join('');
+				// interpret message
+				const f_interpret = H_INTERPRETTERS[g_msg_amino.type];
+				if(f_interpret) {
+					const g_interpretted = await f_interpret(g_msg_amino.value as JsonObject, g_context_full);
 
-					return {
-						...g_common,
-						title: g_reviewed.title+(b_pending? '...': ''),
-						subtitle: format_time_ago(xt_when)+s_infos,
-						name: g_reviewed.resource.name,
-						pfp: g_reviewed.resource.pfp || '',
-					};
+					// 
+					const g_reviewed = await g_interpretted?.review?.(b_pending || b_error);
+
+					if(g_reviewed) {
+						const s_infos = (g_reviewed.infos || []).map(s => ` / ${s}`).join('');
+
+						return {
+							...g_common,
+							title: g_reviewed.title+(b_pending? '...': ''),
+							subtitle: format_time_ago(xt_when)+s_infos,
+							name: g_reviewed.resource.name,
+							pfp: g_reviewed.resource.pfp || '',
+						};
+					}
 				}
 			}
 
@@ -386,8 +393,16 @@
 				const h_history = g_cache.data;
 
 				const g_tx = h_history[si_tx];
-				if(g_tx?.action.transfer) {
-					const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_tx, {
+
+				// transfer action
+				const g_transfer = g_tx?.action.transfer;
+				if(g_transfer) {
+					const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer({
+						coins: g_tx.coins,
+						from: g_transfer.from,
+						receiver: g_transfer.recipient,
+						memo: g_tx.memo,
+					}, {
 						g_snip20: g_contract.interfaces.snip20!,
 						g_contract,
 						g_chain: g_chain!,

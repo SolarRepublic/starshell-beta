@@ -19,14 +19,13 @@
 	import type {Coin} from '@cosmjs/amino';
 	import type {SimulateResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 	
-	import type {O, U} from 'ts-toolbelt';
+	import type {U} from 'ts-toolbelt';
 	
 	import type {AccountStruct} from '#/meta/account';
 	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-	import type {CoinInfo, FeeConfig, FeeConfigAmount, FeeConfigPriced} from '#/meta/chain';
+	import type {Bech32, CoinInfo, FeeConfig, FeeConfigAmount, FeeConfigPriced} from '#/meta/chain';
 	import type {Cw} from '#/meta/cosm-wasm';
-	import type {MsgEventRegistry, TxPending} from '#/meta/incident';
-	import type {Vocab} from '#/meta/vocab';
+	import type {IncidentStruct, MsgEventRegistry, TxError, TxPending} from '#/meta/incident';
 	import type {AdaptedAminoResponse, AdaptedStdSignDoc, GenericAminoMessage} from '#/schema/amino';
 	import type {Snip24PermitMsg} from '#/schema/snip-24-def';
 	
@@ -42,17 +41,18 @@
 	
 	import {type LoadedAppContext, load_app_context} from '#/app/svelte';
 	import {Coins} from '#/chain/coin';
-	import {type ProtoMsg, proto_to_amino, encode_proto, amino_to_base} from '#/chain/cosmos-msgs';
+	import {type ProtoMsg, proto_to_amino, encode_proto, amino_to_base, recase_keys_camel_to_snake} from '#/chain/cosmos-msgs';
+	import {FeeGrants} from '#/chain/fee-grant';
 	import type {DescribedMessage} from '#/chain/messages/_types';
+	import {address_to_name} from '#/chain/messages/_util';
 	import type {AminoMsgSend} from '#/chain/messages/bank';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
-	import type {SecretNetwork} from '#/chain/secret-network';
 	import {signAmino, type SignedDoc} from '#/chain/signing';
 	import {pubkey_to_bech32} from '#/crypto/bech32';
 	import {decrypt_private_memo} from '#/crypto/privacy';
 	import {SecretWasm} from '#/crypto/secret-wasm';
 	import SensitiveBytes from '#/crypto/sensitive-bytes';
-	import type {IntraExt} from '#/script/messages';
+	import {ServiceClient} from '#/extension/service-comms';
 	import {open_flow} from '#/script/msg-flow';
 	import {global_broadcast, global_receive, global_wait} from '#/script/msg-global';
 	import {B_IOS_NATIVE, X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
@@ -60,14 +60,15 @@
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Incidents} from '#/store/incidents';
-	import {forever, F_NOOP, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
+	import {forever, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
 	import {base64_to_buffer, buffer_to_base93} from '#/util/data';
-	import {format_fiat} from '#/util/format';
+	import {camel_to_snake, format_fiat, snake_to_camel} from '#/util/format';
 	
 	import FatalError from './FatalError.svelte';
 	import SigningData from './SigningData.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
+	import CheckboxField from '../ui/CheckboxField.svelte';
 	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
@@ -75,9 +76,11 @@
 	import Load from '../ui/Load.svelte';
 	import Row from '../ui/Row.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
-    import type { Any } from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
-    import { TxResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
-    import { ServiceClient } from '#/extension/service-comms';
+    import type { TxResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
+    import { H_TX_ERROR_HANDLERS } from '#/script/service-tx-abcis';
+    import type { WsTxResultError } from '#/cosmos/tm-json-rpc-ws-def';
+    import { NotifyItemConfig, system_notify } from '#/extension/notifications';
+	
 
 	
 	const g_context = load_app_context<CompletedSignature | null>();
@@ -142,6 +145,8 @@
 	 */
 	let b_no_fee = false;
 
+	let b_no_gas = false;
+
 	let s_fee_total = '0';
 	let s_fee_total_display = '0';
 	let dp_fee_fiat: Promise<string> = forever();
@@ -150,9 +155,6 @@
 	let s_memo_decrypted = 'decrypting...';
 	let b_memo_show_raw = false;
 	let b_hide_memo = false;
-
-	export let executeMessage: JsonObject | null = null;
-	const h_wasm_exec = executeMessage;
 
 	let s_title = 'Sign Transaction';
 	let s_tooltip = '';
@@ -190,28 +192,6 @@
 				],
 			} as DescribedMessage;
 		},
-
-		// snip20ViewingKey() {
-		// 	a_viewing_key_items = [
-		// 		{
-		// 			value: '',
-		// 			primary: 'Create new viewing key',
-		// 		},
-		// 	];
-
-		// 	return {
-		// 		title: 'Add Viewing Key',
-		// 		tooltip: `Creates a single, revokable key for this specific token that allows anyone with access to view private data such as your token's balance, history, etc.`,
-		// 		fields: [
-		// 			{
-		// 				type: 'contracts',
-		// 				label: 'Token allowed to be queried',
-		// 				bech32s: [contractAddress!],
-		// 			},
-		// 		],
-		// 	};
-		// },
-
 	};
 
 	const S_WARN_TRICK = 'This is an unusual message and might have been designed to trick you.';
@@ -392,13 +372,6 @@
 			}
 		}
 
-		// else if(h_wasm_exec) {
-		// 	// check for well-known keys
-		// 	if('set_viewing_key' in h_wasm_exec) {
-		// 		validate_or_warn(h_wasm_exec);
-		// 	}
-		// }
-
 		b_loaded = true;
 
 		void simulate();
@@ -409,14 +382,30 @@
 
 		// proto
 		if(a_msgs?.length) {
-			// sign
-			const {
-				auth: atu8_auth,
-				signer: g_signer,
-			} = await $yw_network.authInfoDirect($yw_account, Fee.fromPartial({}));
+			// resolve account
+			const g_account = await dp_account;
+
+			let g_signed!: {auth: Uint8Array};
+			try {
+				// sign
+				g_signed = await $yw_network.authInfoDirect(g_account, Fee.fromPartial({
+					granter: await tx_granter(),
+				}));
+			}
+			catch(e_auth) {
+				if(/account .+ not found/.test((e_auth as Error)?.message || '')) {
+					s_err_sim = `No gas`;
+					b_no_gas = true;
+				}
+				else {
+					s_err_sim = e_auth.message;
+				}
+
+				return;
+			}
 
 			// simulate multiple times
-			return await repeat_simulation(a_msgs, atu8_auth, Infinity);
+			return await repeat_simulation(a_msgs, g_signed.auth, Infinity);
 		}
 	}
 
@@ -424,6 +413,49 @@
 	let c_samples = 0;
 	let s_gas_forecast = '';
 	let s_err_sim = '';
+
+	let b_granter_resolved = false;
+	let b_use_grant = true;
+	let s_granter: Bech32 | '' = '';
+	let yg_grant_amount = BigNumber(0);
+	let c_grants_checked = 0;
+
+	async function tx_granter(): Promise<string> {
+		// user disabled grant usage
+		if(!b_use_grant) return '';
+
+		// granter already resolved
+		if(b_granter_resolved) return s_granter;
+
+		// resolve account
+		const g_account = await dp_account;
+
+		// fetch fee grants
+		const k_fee_grants = await FeeGrants.forAccount(g_account, $yw_network);
+
+		// ref grant corresponding to fee coin
+		const g_sum = k_fee_grants.grants[si_coin];
+
+		// granter is now resolved
+		b_granter_resolved = true;
+
+		// prep fee denom by shifting fee coin decimals
+		const yg_fee_denom = BigNumber(s_fee_total).shiftedBy(-g_fee_coin_info.decimals);
+
+		// resolve granter
+		for(const [sa_granter, g_grant] of ode(g_sum?.granters || {})) {
+			c_grants_checked += 1;
+
+			// grant is enough to cover fee
+			const yg_amount = g_grant.amount;
+			if(yg_amount.gte(yg_fee_denom)) {
+				yg_grant_amount = yg_amount;
+				return s_granter = sa_granter;
+			}
+		}
+
+		return s_granter = '';
+	}
 
 	async function repeat_simulation(a_msgs: ProtoMsg[], atu8_auth: Uint8Array, n_repeats: number) {
 		if(n_repeats <= 0) return;
@@ -506,6 +538,11 @@
 				if(BigNumber(s_gas_forecast).gt(s_gas_limit)) {
 					s_gas_limit = s_gas_forecast;
 				}
+				// transaction was generated locally; estimate is likely safe
+				else if(local) {
+					s_gas_limit = s_gas_forecast;
+				}
+
 				// otherwise, do not risk spending below the amount
 				// TODO: leverage keplr's `preferNoSetFee`
 			}
@@ -522,7 +559,7 @@
 	async function view_data() {
 		const g_amino_equiv = amino || proto_to_amino(a_msgs_proto[0], g_chain.bech32s.acc);
 
-		let h_secret_wasm_exec: {};
+		let h_secret_wasm_exec!: {} | undefined;
 
 		if('wasm/MsgExecuteContract' === g_amino_equiv.type) {
 			const g_decrypted = await SecretWasm.decodeSecretWasmAmino(p_account, g_chain, g_amino_equiv.value.msg);
@@ -541,7 +578,7 @@
 
 	// cancel monitoring if [tx completes or already monitoring] and ui is still open
 	let b_cancel_monitor = false;
-	function monitor_tx(si_txn: string) {
+	async function monitor_tx(si_txn: string): Promise<void> {
 		// do not engage the monitor
 		if(b_cancel_monitor) return;
 
@@ -564,6 +601,64 @@
 				popout: true,
 			},
 		});
+
+		// give flow some time to load
+		await timeout(500);
+	}
+
+
+	/**
+	 * Handle when the cosmos CheckTx fails in sync mode
+	 * @param g_response
+	 */
+	async function handle_check_tx_error(g_response: TxResponse) {
+		const si_txn = g_response.txhash;
+
+		// notify tx failure
+		global_broadcast({
+			type: 'txError',
+			value: {
+				hash: si_txn,
+			},
+		});
+
+		// fetch pending tx from history
+		const p_incident = Incidents.pathFor('tx_out', si_txn);
+		const g_pending = await Incidents.at(p_incident) as IncidentStruct<'tx_out'>;
+
+		// update incident
+		await Incidents.mutateData(p_incident, {
+			...g_pending.data,
+			stage: 'synced',
+			gas_limit: g_response.gasWanted as Cw.Uint128,
+			gas_used: g_response.gasUsed as Cw.Uint128,
+			gas_wanted: g_response.gasWanted as Cw.Uint128,
+			code: g_response.code,
+			codespace: g_response.codespace,
+			timestamp: g_response.timestamp,
+			raw_log: g_response.rawLog,
+		});
+
+		// attempt tx error handling
+		const g_notify_tx = await H_TX_ERROR_HANDLERS[g_response.codespace]?.[g_response?.code]?.(recase_keys_camel_to_snake(g_response) as WsTxResultError);
+		if(g_notify_tx) {
+			void system_notify({
+				id: `@incident:${p_incident}`,
+				incident: p_incident,
+				item: g_notify_tx,
+			});
+		}
+		// not handled, fallback to raw log
+		else {
+			void system_notify({
+				id: `@incident:${p_incident}`,
+				incident: p_incident,
+				item: {
+					title: '❌ Transaction Failed',
+					message: g_response.rawLog,
+				},
+			});
+		}
 	}
 
 
@@ -591,9 +686,12 @@
 		if(g_amino) {
 			a_equivalent_amino_msgs = g_amino.msgs;
 
+			const s_granter_local = await tx_granter();
+
 			if(!b_no_fee) {
 				g_amino.fee.gas = s_gas_limit;
 				g_amino.fee.amount[0].amount = s_fee_total;
+				g_amino.fee.granter = s_granter_local;
 			}
 
 			// attempt to sign
@@ -629,6 +727,7 @@
 				const {auth:atu8_auth} = await $yw_network.authInfoAmino(g_account, {
 					amount: g_amino.fee.amount,
 					gasLimit: g_amino.fee.gas,
+					granter: s_granter,
 				});
 
 				const {
@@ -661,7 +760,7 @@
 						amount: s_fee_total,
 					}],
 					payer: '',
-					granter: '',
+					granter: await tx_granter(),
 				});
 
 				// set completed data
@@ -831,7 +930,7 @@
 				// service is dead or unreachable
 				catch(e_connect) {
 					// begin to monitor the tx and continue
-					monitor_tx(si_txn);
+					await monitor_tx(si_txn);
 
 					break CONTACTING_BACKGROUND;
 				}
@@ -845,7 +944,7 @@
 					// timed out
 					catch(e_timeout) {
 						// begin to monitor the tx and continue
-						monitor_tx(si_txn);
+						await monitor_tx(si_txn);
 
 						break CONTACTING_BACKGROUND;
 					}
@@ -853,33 +952,9 @@
 
 				// set a timeout to make sure something happens within time limit
 				setTimeout(() => {
-					monitor_tx(si_txn);
+					void monitor_tx(si_txn);
 				}, 15e3);
 			}
-
-			// // ensure service is alive
-			// const d_runtime = chrome.runtime as Vocab.TypedRuntime<IntraExt.GlobalVocab>;
-			// const [b_responded, xc_timeout] = await timeout_exec(1e3, () => d_runtime.sendMessage({
-			// 	type: 'wake',
-			// }));
-
-			// // service is dead
-			// if(xc_timeout) {
-			// 	// begin to monitor the tx and continue
-			// 	monitor_tx(si_txn);
-			// }
-			// // service not dead but it has been a while since the last block was observed
-			// else if(Date.now() - xt_prev_block > 12e3) {
-			// 	// wait for up to 6 more seconds
-			// 	try {
-			// 		await global_wait('blockInfo', g => p_chain === g.chain, 6e3);
-			// 	}
-			// 	// timed out
-			// 	catch(e_timeout) {
-			// 		// begin to monitor the tx and continue
-			// 		monitor_tx(si_txn);
-			// 	}
-			// }
 		}
 		// was just for signing
 		else {
@@ -912,12 +987,23 @@
 			if(broadcast) {
 				const g_proto = (g_completed as CompletedProtoSignature).proto;
 				if(g_proto) {
-					// broadcast transaction
-					await $yw_network.broadcastDirect({
-						body: g_proto.doc.bodyBytes,
-						auth: g_proto.doc.authInfoBytes,
-						signature: g_proto.signature,
-					});
+					let g_response: TxResponse;
+					try {
+						// broadcast transaction
+						[g_response] = await $yw_network.broadcastDirect({
+							body: g_proto.doc.bodyBytes,
+							auth: g_proto.doc.authInfoBytes,
+							signature: g_proto.signature,
+						});
+					}
+					catch(e_broadcast) {
+						throw syserr(e_broadcast as Error);
+					}
+
+					// error
+					if(g_response.code) {
+						await handle_check_tx_error(g_response);
+					}
 				}
 				else {
 					throw syserr({
@@ -1126,13 +1212,6 @@
 			</div>
 
 			<div class="fields">
-				<!-- special rules -->
-				<!-- {#if 'snip20ViewingKey' === si_preset}
-					<StarSelect showIndicator items={a_viewing_key_items} disabled={a_viewing_key_items.length < 2}>
-
-					</StarSelect>
-				{/if} -->
-
 				<!-- sent funds -->
 				{#each (g_overview.spends || []) as g_send}
 					<Field key='sent-funds' name='Send funds to contract'>
@@ -1161,7 +1240,7 @@
 	<Field short key='gas' name='Network Fee'>
 		{#if b_no_fee}
 			<div>
-				0.0 {Chains.feeCoin(g_chain)[0]}
+				0.0 {si_coin}
 			</div>
 			<div class="global_subvalue">
 				Offline signature has no fees
@@ -1221,6 +1300,28 @@
 			{/if}
 		{/if}
 	</Field>
+
+	{#if c_grants_checked}
+		<Field name='Fee Grant' short>
+			{#if s_granter}
+				<CheckboxField id='fee-grant' bind:checked={b_use_grant}>
+					{#await address_to_name(s_granter, g_chain)}
+						<Load forever />
+					{:then s_granter_name}
+						Use fee grant from {s_granter_name}
+					{/await}
+				</CheckboxField>
+			{:else}
+				<CheckboxField id='fee-grant' disabled>
+					{#if 1 === c_grants_checked}
+						Fee exceeds grant allowance
+					{:else}
+						None of current grants can cover this fee
+					{/if}
+				</CheckboxField>
+			{/if}
+		</Field>
+	{/if}
 
 	{#if memo && !b_hide_memo}
 		<Field key='memo' name={`${b_memo_encrypted? b_memo_show_raw? 'Decrypted': 'Raw': 'Public'} Memo`}>

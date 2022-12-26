@@ -458,6 +458,12 @@ export const ComputeMessages: MessageDict = {
 						}
 						catch(e) {}
 					}
+
+					// catch-all
+					return {
+						title: '❌ Execution Failure',
+						message: g_result.log,
+					};
 				}
 			},
 		};

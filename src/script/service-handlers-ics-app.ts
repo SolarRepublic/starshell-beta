@@ -10,16 +10,17 @@ import type {AdaptedAminoResponse, AdaptedStdSignDoc, GenericAminoMessage} from 
 import {Snip24} from '#/schema/snip-24-const';
 import type {Snip24Permission, Snip24PermitMsg} from '#/schema/snip-24-def';
 
+import {Snip2xMessageConstructor} from '#/schema/snip-2x-const';
+
 import {Contracts} from './ics-witness-imports';
 import {open_flow, RegisteredFlowError} from './msg-flow';
 import {page_info_from_sender, position_widow_over_tab} from './service-apps';
 
-import {syserr} from '#/app/common';
 import {produce_contracts} from '#/chain/contract';
 import {save_query_permit} from '#/chain/query-permit';
 import type {SecretNetwork} from '#/chain/secret-network';
-import {SecretWasm} from '#/crypto/secret-wasm';
 
+import type {SecretWasm} from '#/crypto/secret-wasm';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
@@ -44,47 +45,14 @@ async function use_secret_wasm<
 >(p_chain: ChainPath, p_account: AccountPath, fk_use: (k_wasm: SecretWasm) => Promisable<w_return>): Promise<w_return> {
 	const g_chain = (await Chains.at(p_chain))!;
 
-	let atu8_consensus_io_pk: Uint8Array;
-
-	// load existing consensus pubkey
-	const sx_consensus_io_pk = g_chain?.features.secretwasm?.consensusIoPubkey;
-	if(sx_consensus_io_pk) {
-		atu8_consensus_io_pk = base93_to_buffer(sx_consensus_io_pk);
-	}
-	// need to fetch consensus pubkey
-	else {
-		const k_network = await Providers.activateDefaultFor<SecretNetwork>(g_chain);
-
-		const atu8_cert = await k_network.secretConsensusIoPubkey();
-
-		atu8_consensus_io_pk = SecretWasm.extractConsensusIoPubkey(atu8_cert);
-
-		// serialize pubkey and save to cached object
-		g_chain.features = {
-			...g_chain.features,
-			secretwasm: {
-				...g_chain.features.secretwasm,
-				consensusIoPubkey: buffer_to_base93(atu8_consensus_io_pk),
-			},
-		};
-
-		// save to store
-		await Chains.open(ks => ks.put(g_chain));
-	}
+	// activate network
+	const k_network = await Providers.activateDefaultFor<SecretNetwork>(g_chain);
 
 	// fetch account's tx encryption seed
 	const g_account = (await Accounts.at(p_account))!;
-	const p_secret_wasm = g_account.utilityKeys.secretWasmTx;
 
-	if(!p_secret_wasm) {
-		throw syserr({
-			title: 'No tx encryption seed',
-			text: `Account "${p_account}" is missing a Secret WASM transaction encryption seed.`,
-		});
-	}
-
-	// instantiate
-	const k_wasm = await Secrets.borrowPlaintext(p_secret_wasm, kn_txk => new SecretWasm(atu8_consensus_io_pk, kn_txk.data));
+	// load secret wasm intance
+	const k_wasm = await k_network.secretWasm(g_account);
 
 	// attempt to use
 	let w_return: w_return;
@@ -451,14 +419,20 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 
 
 	async requestAddTokens(g_request, g_resolved, g_sender) {
+		const {
+			chainPath: p_chain,
+			accountPath: p_account,
+			bech32s: a_bech32s,
+		} = g_request;
+
 		const {answer:b_approved} = await open_flow({
 			flow: {
 				type: 'addSnip20s',
 				value: {
 					appPath: Apps.pathFrom(g_resolved.app),
-					chainPath: g_request.chainPath,
-					accountPath: g_request.accountPath,
-					bech32s: g_request.bech32s,
+					chainPath: p_chain,
+					accountPath: p_account,
+					bech32s: a_bech32s,
 				},
 				page: page_info_from_sender(g_sender),
 			},
@@ -496,7 +470,7 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 		}
 	},
 
-	async requestSecrePubKey(g_request, g_resolved, g_sender) {
+	async requestSecretPubKey(g_request, g_resolved, g_sender) {
 		throw new Error('Request rejected');
 	},
 

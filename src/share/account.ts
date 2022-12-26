@@ -1,20 +1,18 @@
-import type {AccountStruct, AccountPath, UtilityKeyType} from '#/meta/account';
+import type {AccountStruct, AccountPath, UtilityKeyType, UtilityKey} from '#/meta/account';
+import type {Promisable} from '#/meta/belt';
 import type {PfpTarget} from '#/meta/pfp';
 import type {SecretPath} from '#/meta/secret';
 
-import {Bip32} from '#/crypto/bip32';
-import {Bip39} from '#/crypto/bip39';
-import type {Bip44Path} from '#/crypto/bip44';
+import type {Bip32} from '#/crypto/bip32';
 import RuntimeKey from '#/crypto/runtime-key';
 import {Secp256k1Key} from '#/crypto/secp256k1';
-import SensitiveBytes from '#/crypto/sensitive-bytes';
-import {global_broadcast} from '#/script/msg-global';
+import type SensitiveBytes from '#/crypto/sensitive-bytes';
 import {ATU8_SHA256_STARSHELL} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 import {Secrets} from '#/store/secrets';
-import {buffer_to_base64, serialize_private_key, sha256_sync, text_to_buffer, uuid_v4, zero_out} from '#/util/data';
+import {buffer_to_base64, sha256_sync, text_to_buffer, uuid_v4, zero_out} from '#/util/data';
 
 
 export async function create_account(
@@ -114,122 +112,10 @@ export function bip32_test_signature(k_node: Bip32): Promise<string> {
 	});
 }
 
-export async function create_mnemonic(): Promise<AccountPath> {
-	// HD derivation path
-	const sx_hd_path: Bip44Path = `m/44'/529'/0'/0/0`;
-
-	// // test
-	// const kn_entropy_test = new SensitiveBytes(Uint8Array.from(new Array(32).fill(1)));
-
-	const kn_entropy = SensitiveBytes.random(32);
-
-	// create new mnemonic
-	const kn_padded = await Bip39.entropyToPaddedMnemonic(kn_entropy);
-
-	// const s_mnemonic_padded = buffer_to_base93(kn_padded.data);
-
-	const [atu8_mnemonic, sx_otp_mnemonic] = serialize_private_key(kn_padded.clone());
-
-	// save padded mnemonic to secrets store
-	const p_secret_mnemonic = await Secrets.put(atu8_mnemonic, {
-		type: 'mnemonic',
-		uuid: crypto.randomUUID(),
-		hint: '',
-		name: 'Mnemonic Key for Beta',
-		security: {
-			type: 'otp',
-			data: sx_otp_mnemonic,
-		},
-	});
-
-	// zero it out
-	zero_out(atu8_mnemonic);
-
-
-	// trim padded mnemonic
-	const kn_trimmed = Bip39.trimPaddedMnemonic(kn_padded);
-
-	// mnemonic passphrase
-	const atu8_passphrase = text_to_buffer('');
-
-	// generate 512-bit seed key
-	const kk_seed = await Bip39.mnemonicToSeed(() => kn_trimmed.data, () => Uint8Array.from(atu8_passphrase));
-
-	// prep signing verification
-	let s_signature_before = '';
-
-	// create master node from seed
-	const k_master = await kk_seed.access(atu8_seed => Bip32.masterKey(() => atu8_seed));
-
-	// traverse to given node
-	const k_node = await k_master.derivePath(sx_hd_path);
-
-	// set compressed public key
-	const atu8_pk33 = k_node.publicKey.slice();
-
-	// create a signature to verify the node gets serialized and stored correctly
-	s_signature_before = await bip32_test_signature(k_node);
-
-	// serialize node
-	const kn_node = await k_node.serializeNode();
-
-	// create otp in order to avoid serializing the raw node as a string
-	const [atu8_xor_node, sx_otp_node] = serialize_private_key(kn_node);
-
-	// compeletely destroy the whole bip32 tree
-	k_node.obliterate();
-
-	// create private key secret
-	const p_secret_node = await Secrets.put(atu8_xor_node, {
-		type: 'bip32_node',
-		uuid: crypto.randomUUID(),
-		mnemonic: p_secret_mnemonic,
-		bip44: sx_hd_path,
-		name: `Private key at ${sx_hd_path} for the mnemonic ${p_secret_mnemonic}`,
-		security: {
-			type: 'otp',
-			data: sx_otp_node,
-		},
-	});
-
-	// test the node was serialized and stored correctly
-	{
-		// access private node
-		(await Secrets.borrowPlaintext(p_secret_node, async(kn_node_test/* , g_secret*/) => {
-			// import as bip32 node
-			const k_node_test = await Bip32.import(kn_node_test);
-
-			// signatures do no match
-			if(s_signature_before !== await bip32_test_signature(k_node_test)) {
-				// obliterate the node
-				k_node_test.obliterate();
-
-				// error
-				throw new Error(`Failed to produce matching signatures for BIP-0032 node after round-trip serialization.`);
-			}
-		}))!;
-	}
-
-	// create account using new seed
-	const [p_account, g_account] = await create_account(p_secret_node, buffer_to_base64(atu8_pk33), '');
-
-	// initialize
-	await add_utility_key(g_account, 'transactionEncryptionKey', 'secretWasmTx');
-	await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
-	await add_utility_key(g_account, 'antiPhishingArt', 'antiPhishingArt');
-
-	// trigger login event globally to reload service tasks
-	global_broadcast({
-		type: 'login',
-	});
-
-	return p_account;
-}
-
-export async function add_utility_key(
+export async function add_root_utility_key(
 	g_account: AccountStruct,
-	si_use: string,
-	si_utility: UtilityKeyType
+	si_name: string,
+	s_description: string
 ): Promise<AccountPath> {
 	// intentionally not ADR-036 because apps should not be able to propose these messages
 	let atu8_ikm: Uint8Array;
@@ -239,11 +125,9 @@ export async function add_utility_key(
 
 		// custom starshell data to be signed
 		const g_doc_starshell = {
-			type: 'StarShell:scopedSignature',
-			use: si_use,
-			scope: {
-				caip2: 'cosmos:pulsar-2',
-			},
+			type: 'StarShell Utility Key Signature',
+			name: si_name,
+			description: s_description,
 
 			// sign using "secret" as bech32 hrp
 			signer: Chains.addressFor(g_account.pubkey, 'secret'),
@@ -283,13 +167,52 @@ export async function add_utility_key(
 	// update account cache
 	g_account.utilityKeys = {
 		...g_account.utilityKeys,
-		[si_utility]: p_secret_tx,
+		[si_name]: p_secret_tx,
 	};
 
 	// add key to account
 	return await Accounts.open(ks => ks.put(g_account));
 }
 
+
+export async function utility_key_child<
+	si_name extends UtilityKeyType,
+	w_return,
+>(
+	g_account: AccountStruct,
+	si_name: si_name,
+	si_child: UtilityKey.Children<si_name>,
+	fk_use: (atu8_key: Uint8Array) => Promisable<w_return>
+): Promise<undefined | w_return> {
+	const p_secret = g_account.utilityKeys[si_name];
+	if(!p_secret) return;
+
+	// borrow data from secrets store
+	return await Secrets.borrow(p_secret, async(kn_root) => {
+		// import root key
+		const dk_root = await crypto.subtle.importKey('raw', kn_root.data, 'HKDF', false, ['deriveBits']);
+
+		// use hkdf to derive child key
+		const ab_child_key = await crypto.subtle.deriveBits({
+			name: 'HKDF',
+			hash: 'SHA-256',
+			salt: ATU8_SHA256_STARSHELL,
+			info: text_to_buffer(si_child),
+		}, dk_root, 256);
+
+		// wrap as buffer
+		const atu8_child_key = new Uint8Array(ab_child_key);
+
+		// use child key
+		const w_return = await fk_use(atu8_child_key);
+
+		// zero out key
+		zero_out(atu8_child_key);
+
+		// return use response
+		return w_return;
+	}) as w_return;
+}
 
 export async function import_private_key(kn_sk: SensitiveBytes, s_name: string): Promise<[AccountPath, AccountStruct]> {
 	const atu8_sk = kn_sk.data;

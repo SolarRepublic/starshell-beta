@@ -4,7 +4,8 @@ import {Argon2, Argon2Type as Argon2Type} from './argon2';
 import RuntimeKey from './runtime-key';
 import SensitiveBytes from './sensitive-bytes';
 
-import {base64_to_buffer, buffer_to_base64, buffer_to_text, concat, sha256, sha256d, text_to_buffer, zero_out} from '#/util/data';
+import {fold} from '#/util/belt';
+import {base64_to_buffer, buffer_to_base64, buffer_to_text, concat, decode_length_prefix_u16, encode_length_prefix_u16, sha256, sha256d, text_to_buffer, zero_out} from '#/util/data';
 
 interface ExportedEntropy {
 	description?: string;
@@ -17,6 +18,21 @@ interface ExportedEntropy {
 	iterations: number;
 	ciphertextBase64?: string;
 }
+
+const A_BIP39_LENGTHS = Array.from({length:8-4+1}, (w, i) => i+4)
+	.map(ni_checksum => ({
+		ni_entropy: ni_checksum * 32,
+		ni_checksum,
+		nl_sentence: (ni_checksum * 33) / 11,
+	}));
+
+const H_ENTROPY_LENGTHS = fold(A_BIP39_LENGTHS, g_length => ({
+	[g_length.ni_entropy >>> 3]: g_length,
+}));
+
+const H_EXPANDED_LENGTHS = fold(A_BIP39_LENGTHS, g_length => ({
+	[Math.ceil((g_length.ni_entropy + g_length.ni_checksum) / 8)]: g_length,
+}));
 
 // cache unicode space value
 const XB_UNICODE_SPACE = ' '.charCodeAt(0);
@@ -40,10 +56,6 @@ type WordlistVariant = keyof typeof H_WORDLIST_SUPPLEMENTALS;
 
 function min_mnemonic_buffer_size(si_variant: WordlistVariant, nl_words=24) {
 	return nl_words * (H_WORDLIST_SUPPLEMENTALS[si_variant].min_word_length_bytes + 1);
-}
-
-function max_mnemonic_buffer_size(si_variant: WordlistVariant, nl_words=24) {
-	return nl_words * (H_WORDLIST_SUPPLEMENTALS[si_variant].max_word_length_bytes + 1);
 }
 
 
@@ -88,16 +100,6 @@ export async function load_word_list(s_variant='english'): Promise<string[]> {
 }
 
 
-/**
- * Encode a mnemonic string into a buffer
- */
-export function encodeMnemonicStringToBuffer(s_mnemonic: string): SensitiveBytes {
-	return new SensitiveBytes(text_to_buffer(s_mnemonic.trim().split(/\s+/g).join(' ').normalize('NFKD')));
-}
-
-export function encodePassphrase(s_passphrase=''): Uint8Array {
-	return text_to_buffer('mnemonic'+(s_passphrase || ''));
-}
 
 function locate_char(xb_find: number, ib_char: number, ib_lo: number, ib_hi: number): number {
 	// binary search
@@ -175,9 +177,66 @@ function concated_bits_to_indicies(atu8_range): Uint16Array {
 	]);
 }
 
+
+/**
+ * Terminology:
+ *  - entropy - the raw buffer of input bits (ENT)
+ *  - checksum - between 4 and 8 bits (CS)
+ *  - expanded - the concatenation of `entropy || checksum` (ENT+CS)
+ *  - paddedMnemonic - a buffer of utf8-encoded text occupying the maximum possible length for the given
+ * 		wordlist and phrase count, right-padded with zeroes to keep a consistent length when encrypted
+ * 
+ */
 export const Bip39 = {
-	encodeMnemonicStringToBuffer,
-	encodePassphrase,
+	/**
+	 * Encode a mnemonic string into a buffer
+	 */
+	encodeMnemonicStringToBuffer(s_mnemonic: string): SensitiveBytes {
+		return new SensitiveBytes(text_to_buffer(s_mnemonic.trim().toLowerCase().split(/\s+/g).join(' ').normalize('NFKD')));
+	},
+
+	// encodePassphrase(s_passphrase=''): Uint8Array {
+	// 	return text_to_buffer('mnemonic'+(s_passphrase || ''));
+	// },
+
+	maxMnemonicBufferSize(nl_words=24, si_variant: WordlistVariant='english'): number {
+		return nl_words * (H_WORDLIST_SUPPLEMENTALS[si_variant].max_word_length_bytes + 1);
+	},
+
+
+	/**
+	 * Encodes an extension into the first half of a 'package' buffer
+	 * @param atu8_extension 
+	 * @returns 
+	 */
+	encodeExtension(atu8_extension: Uint8Array): Uint8Array {
+		// cache extension byte length
+		const nb_extension = atu8_extension.byteLength;
+
+		// padding length
+		const nb_padding = (Math.ceil((nb_extension + 1) / 256) * 256) - nb_extension;
+
+		// prep buffer to serialize encoded extension
+		return encode_length_prefix_u16(concat([
+			encode_length_prefix_u16(atu8_extension),
+			new Uint8Array(nb_padding),
+		]));
+	},
+
+
+	/**
+	 * Decodes 'package' which includes padded forms of an extension and mnemonic
+	 * @param atu8_encoded 
+	 * @returns 
+	 */
+	decodePackage(atu8_encoded: Uint8Array): [Uint8Array, Uint8Array] {
+		const [atu8_data, atu8_after] = decode_length_prefix_u16(atu8_encoded);
+
+		return [
+			decode_length_prefix_u16(atu8_data)[0],
+			atu8_after,
+		];
+	},
 
 	/**
 	 * Finds the lexicographical position of the given text in the wordlist, returning 0.5 to indicate where
@@ -214,35 +273,41 @@ export const Bip39 = {
 		// ref padded data
 		const atu8_padded = kn_padded.data;
 
-		// not correct length
-		const nb_expect = max_mnemonic_buffer_size(si_variant, 24);
-		if(nb_expect !== atu8_padded.byteLength) {
-			throw new Error(`Expected padded mnemonic buffer to be ${nb_expect} bytes in length but received ${atu8_padded.byteLength}`);
-		}
-
 		// locate end (first null byte)
 		let ib_end = atu8_padded.indexOf(0);
 		if(-1 === ib_end) ib_end = atu8_padded.length;
 
-		// mnemonic is too short
-		if(ib_end < min_mnemonic_buffer_size(si_variant, 24)) {
-			throw new Error('Invalid padded mnemonic format; data is too short');
+		// minimum word byte gap
+		const nb_min_gap = H_WORDLIST_SUPPLEMENTALS[si_variant].min_word_length_bytes + 1;
+
+		// count the number of words
+		let c_words = 0;
+		let ib_prev = -1;
+		for(let ib_each=0; ib_each<ib_end; ib_each++) {
+			if(XB_UNICODE_SPACE === atu8_padded[ib_each]) {
+				if(ib_each - ib_prev < nb_min_gap) {
+					throw new Error('Invalid padded mnemonic format; data is too short');
+				}
+
+				c_words++;
+				ib_prev = ib_each;
+			}
+		}
+
+		// unacceptable word count
+		if(!H_EXPANDED_LENGTHS[Math.ceil((c_words * 11) / 8)]) {
+			throw new Error(`Invalid padded mnemonic; word count is not an acceptable BIP-39 variant`);
+		}
+
+		// not correct length (should always be max 24-word)
+		const nb_expect = Bip39.maxMnemonicBufferSize(24, si_variant);
+		if(nb_expect !== atu8_padded.byteLength) {
+			throw new Error(`Expected padded mnemonic buffer to be ${nb_expect} bytes in length but received ${atu8_padded.byteLength}`);
 		}
 
 		// verify the preceeding byte is a space
 		if(XB_UNICODE_SPACE !== atu8_padded[ib_end-1]) {
 			throw new Error('Invalid padded mnemonic format; missing terminal space');
-		}
-
-		// count the number of words
-		let c_words = 0;
-		for(let ib_each=0; ib_each<ib_end; ib_each++) {
-			if(XB_UNICODE_SPACE === atu8_padded[ib_each]) c_words++;
-		}
-
-		// assert word length
-		if(24 !== c_words) {
-			throw new Error('Invalid padded mnemonic format; not correct word length');
 		}
 
 		// copy out filled portion of mnemonic (excluding terminal space)
@@ -254,6 +319,7 @@ export const Bip39 = {
 		// return output mnemonic
 		return kn_mnemonic;
 	},
+
 
 	/**
 	 * Convert a decoded mnemonic key into a seed key
@@ -295,8 +361,8 @@ export const Bip39 = {
 		return await RuntimeKey.create(() => atu8_derived, 512);
 	},
 
+
 	/**
-	 * This verion expects exactly 32 bytes of entropy.
 	 * @param fk_entropy 
 	 * @returns 
 	 */
@@ -304,17 +370,21 @@ export const Bip39 = {
 		// load entropy bits
 		const atu8_entropy = await fk_entropy();
 
-		// assert length (must always be 256 bits); panic wipe and throw
-		if(32 !== atu8_entropy.byteLength) {
-			zero_out(atu8_entropy);
-			throw new Error('Bip39 generator did not receieve the expected number of bytes (32 bytes for 256 bits of entropy)');
+		// expect a valid length
+		const g_length = H_ENTROPY_LENGTHS[atu8_entropy.byteLength];
+		if(!g_length) {
+			throw new Error(`Invalid BIP-39 raw entropy byte length: ${atu8_entropy.byteLength}`);
 		}
 
 		// start by hashing the entropy for the checksum
 		const atu8_hash = await sha256(atu8_entropy);
 
+		// prep checksum byte
+		const ni_shift = 8 - g_length.ni_checksum;
+		const xb_checksum = atu8_hash[0] & ((0xff >> ni_shift) << ni_shift);
+
 		// produce expanded form: entropy || checksum
-		const atu8_concat = concat([atu8_entropy, atu8_hash.subarray(0, 1)]);
+		const atu8_concat = concat([atu8_entropy, Uint8Array.from([xb_checksum])]);
 		zero_out(atu8_entropy);
 		zero_out(atu8_hash);
 
@@ -324,7 +394,6 @@ export const Bip39 = {
 
 
 	/**
-	 * This verion expects exactly 32 bytes of entropy.
 	 * @param fk_entropy 
 	 * @returns 
 	 */
@@ -355,24 +424,30 @@ export const Bip39 = {
 		// ref expanded data
 		const atu8_expanded = kn_expanded.data;
 
-		// exepect 256 bits of entropy || 8 bits of checksum
-		if(33 !== atu8_expanded.byteLength) throw new Error(`Invalid StarShell bip39 expanded entropy; expected 33 bytes but received ${atu8_expanded.byteLength}`);
+		// expect a valid length
+		const g_length = H_EXPANDED_LENGTHS[atu8_expanded.byteLength];
+		if(!g_length) {
+			throw new Error(`Invalid BIP-39 expanded entropy byte length: ${atu8_expanded.byteLength}`);
+		}
 
 		// generate checksum
-		const atu8_hash = await sha256(atu8_expanded.subarray(0, 32));
+		const nb_entropy = g_length.ni_entropy >> 3;
+		const atu8_hash = await sha256(atu8_expanded.subarray(0, nb_entropy));
+
+		// compute checksum mask
+		const ni_shift = 8 - g_length.ni_checksum;
+		const xm_checksum = (0xff >>> ni_shift) << ni_shift;
 
 		// validity depends on checksums matching
-		const b_valid = atu8_hash[0] === atu8_expanded[32];
+		const b_valid = (atu8_hash[0] & xm_checksum) === (atu8_expanded[nb_entropy] & xm_checksum);
 
 		// zero out hash
 		zero_out(atu8_hash);
 
-		// assert validity
-		if(!b_valid) throw new Error(`Invalid StarShell bip39 expanded entropy; checksums do not match`);
-
 		// return validity
 		return b_valid;
 	},
+
 
 	async entropyToIndicies(kn_entropy: SensitiveBytes | null=null): Promise<Uint16Array> {
 		// use or generate new random entropy and expand
@@ -390,7 +465,7 @@ export const Bip39 = {
 		return await Bip39.expandedToIndicies(kn_expanded);
 	},
 
-	inndiciesToEntropy(atu16_indicies: Uint16Array): SensitiveBytes {
+	inndiciesToExpanded(atu16_indicies: Uint16Array): SensitiveBytes {
 		// cache number of words
 		const nl_words = atu16_indicies.length;
 
@@ -401,7 +476,7 @@ export const Bip39 = {
 		}
 
 		// prep entropy buffer
-		const atu8_entropy = new Uint8Array((nl_words * 11) >>> 3);
+		const atu8_entropy = new Uint8Array(Math.ceil((nl_words * 11) / 8));
 
 		// the pattern looks like this:
 		//      8 8 8 8 8 8 8 8 8 8 8
@@ -425,7 +500,9 @@ export const Bip39 = {
 
 		// attempt to transcode bits
 		try {
-			for(let i_group=0; i_group<4; i_group++) {
+			let i_word = 0;
+
+			for(let i_group=0; ; i_group++) {
 				const atu16_read = atu16_indicies.subarray(i_group*8);
 				const atu8_write = atu8_entropy.subarray(i_group*11);
 
@@ -433,35 +510,56 @@ export const Bip39 = {
 				atu8_write[0] = xb_secret >>> 3;
 				atu8_write[1] = (xb_secret & 0x07) << 5;
 
+				if(++i_word >= nl_words) break;
+
 				xb_secret = atu16_read[1];
 				atu8_write[1] |= xb_secret >>> 6;
 				atu8_write[2] = (xb_secret & 0x3f) << 2;
+
+				// 18 words checkpoint
+				if(++i_word >= nl_words) break;
 
 				xb_secret = atu16_read[2];
 				atu8_write[2] |= xb_secret >>> 9;
 				atu8_write[3] = (xb_secret >>> 1) & 0xff;
 				atu8_write[4] = (xb_secret & 0x01) << 7;
 
+				if(++i_word >= nl_words) break;
+
 				xb_secret = atu16_read[3];
 				atu8_write[4] |= xb_secret >>> 4;
 				atu8_write[5] = (xb_secret & 0x0f) << 4;
 
+				// 12 words checkpoint
+				if(++i_word >= nl_words) break;
+
 				xb_secret = atu16_read[4];
 				atu8_write[5] |= xb_secret >>> 7;
 				atu8_write[6] = (xb_secret & 0x7f) << 1;
+
+				// 21 words checkpoint
+				if(++i_word >= nl_words) break;
 
 				xb_secret = atu16_read[5];
 				atu8_write[6] |= xb_secret >>> 10;
 				atu8_write[7] = (xb_secret >> 2) & 0xff;
 				atu8_write[8] = (xb_secret & 0x03) << 6;
 
+				if(++i_word >= nl_words) break;
+
 				xb_secret = atu16_read[6];
 				atu8_write[8] |= xb_secret >>> 5;
 				atu8_write[9] = (xb_secret & 0x1f) << 3;
 
+				// 15 words checkpoint
+				if(++i_word >= nl_words) break;
+
 				xb_secret = atu16_read[7];
 				atu8_write[9] |= xb_secret >>> 8;
 				atu8_write[10] = xb_secret & 0xff;
+
+				// 24 words
+				if(++i_word >= nl_words) break;
 			}
 		}
 		// intercept any errors
@@ -489,6 +587,12 @@ export const Bip39 = {
 		// ref expanded data
 		const atu8_expanded = kn_expanded.data;
 
+		// lookup length definition
+		const g_length = H_EXPANDED_LENGTHS[atu8_expanded.byteLength];
+		if(!g_length) {
+			throw new Error(`Invalid BIP-39 expanded entropy byte length: ${atu8_expanded.byteLength}`);
+		}
+
 		// intercept any errors in order to release the lock
 		try {
 			// convert concatenated key bits to indices
@@ -512,13 +616,13 @@ export const Bip39 = {
 			zero_out(atu16_range_2);
 
 			// return indicies
-			return atu16_indicies;
+			return atu16_indicies.subarray(0, g_length.nl_sentence);
 		}
 		// intercept any errors
 		catch(e_any) {
 			zero_out(atu8_expanded);
 
-			throw new Error(`Unexpected error encountered while converting mnemonic`);
+			throw new Error(`Unexpected error encountered while converting mnemonic: ${e_any.message}`);
 		}
 	},
 
@@ -527,7 +631,7 @@ export const Bip39 = {
 		// intercept any errors in order to release the lock
 		try {
 			// upperbound byte length of mnemonic output buffer
-			const nb_mnemonic = max_mnemonic_buffer_size('english', 24);
+			const nb_mnemonic = Bip39.maxMnemonicBufferSize(24, 'english');
 
 			// load indicies
 			const atu16_indicies = await Bip39.expandedToIndicies(kn_expanded);
@@ -569,13 +673,16 @@ export const Bip39 = {
 		// load the word list
 		await load_word_list();
 
+		// number of entropy bits
+		const ni_entropy = (nl_words * 11) - (nl_words / 3);
+
 		// create runtime key
 		return RuntimeKey.create(async() => {
 			// convert mnemonic to indicies
 			const atu16_indicies = await Bip39.mnemonicToIndicies(fk_mnemonic);
 
 			// convert indicies to expanded form
-			const atu8_expanded = Bip39.inndiciesToEntropy(atu16_indicies).data;
+			const atu8_expanded = Bip39.inndiciesToExpanded(atu16_indicies).data;
 
 			// validate expanded
 			if(!await Bip39.validateExpanded(new SensitiveBytes(atu8_expanded))) {
@@ -584,12 +691,12 @@ export const Bip39 = {
 			}
 
 			// remove checksum
-			const atu8_entropy = atu8_expanded.slice(0, 32);
+			const atu8_entropy = atu8_expanded.slice(0, ni_entropy >>> 3);
 			zero_out(atu8_expanded);
 
 			// create key around raw entropy
 			return atu8_entropy;
-		}, (nl_words * 11) - (nl_words / 3));
+		}, ni_entropy);
 	},
 
 	async mnemonicToIndicies(fk_mnemonic: KeyProducer): Promise<Uint16Array> {
@@ -673,15 +780,15 @@ export const Bip39 = {
 			phrase: atu8_phrase,
 			salt: atu8_salt,
 			hashLen: nb_entropy,
-			mem: nkib_memory << 10,
-			time: n_iterations,
+			memory: nkib_memory << 10,
+			iterations: n_iterations,
 		});
 
 		// sha-256d
 		const atu8_hash_out = await sha256d(atu8_hash_phrase);
 
 		// convert indicies to entropy
-		const kn_entropy = Bip39.inndiciesToEntropy(await fk_indicies());
+		const kn_entropy = Bip39.inndiciesToExpanded(await fk_indicies());
 
 		// access the entropy key and create "one-time" pad
 		const kn_otp = new SensitiveBytes(atu8_hash_out).xor(kn_entropy);
@@ -707,8 +814,8 @@ export const Bip39 = {
 			phrase: atu8_phrase,
 			salt: base64_to_buffer(g_entropy.saltBase64),
 			hashLen: g_entropy.tagLengthBytes,
-			mem: g_entropy.memorySizeKib << 10,
-			time: g_entropy.iterations,
+			memory: g_entropy.memorySizeKib << 10,
+			iterations: g_entropy.iterations,
 		});
 
 		// sha-256d

@@ -50,6 +50,10 @@ import {
 	QueryClientImpl as BankQueryClient,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/query';
 
+import {
+	QueryClientImpl as FeeGrantQueryClient,
+} from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/query';
+
 import {ServiceClientImpl as TendermintServiceClient} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 import {QueryClientImpl as GovQueryClient} from '@solar-republic/cosmos-grpc/dist/cosmos/gov/v1beta1/query';
@@ -114,6 +118,10 @@ import {
 
 
 import {base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_hex, sha256_sync, sha256_sync_insecure, text_to_buffer, zero_out} from '#/util/data';
+import { utility_key_child } from '#/share/account';
+import { BasicAllowance, Grant, PeriodicAllowance } from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/feegrant';
+import type { O } from 'ts-toolbelt';
+import type { SecretNetwork } from './secret-network';
 
 
 
@@ -298,6 +306,18 @@ export interface PendingSend extends JsonObject {
 	msg: JsonMsgSend;
 	raw: string;
 }
+
+type KnownAllowancetype = 'BasicAllowance' | 'PeriodicAllowance';
+type DecodedAllowance = O.Merge<{
+	allowance: {
+		type: 'BasicAllowance';
+		value: BasicAllowance;
+	} | {
+		type: 'PeriodicAllowance';
+		value: PeriodicAllowance;
+	};
+}, Grant>;
+
 
 export class CosmosNetwork implements ActiveNetwork {
 	protected readonly _p_chain: ChainPath;
@@ -493,6 +513,45 @@ export class CosmosNetwork implements ActiveNetwork {
 		}
 
 		return h_outs;
+	}
+
+	async feeGrants(sa_owner: Bech32): Promise<DecodedAllowance[]> {
+		const g_response = await new FeeGrantQueryClient(this._y_grpc).allowances({
+			grantee: sa_owner,
+		});
+
+		const {
+			allowances: a_allowances,
+		} = g_response;
+
+		const a_grants: DecodedAllowance[] = [];
+
+		for(const g_allowance of a_allowances) {
+			const g_allowance_item = g_allowance.allowance;
+			if(!g_allowance_item) continue;
+
+			const m_type = /^\/cosmos\.feegrant\.v1beta1\.(.+)$/.exec(g_allowance_item.typeUrl);
+
+			if(!m_type || !['BasicAllowance', 'PeriodicAllowance'].includes(m_type[1])) continue;
+
+			const si_type = m_type[1] as KnownAllowancetype;
+
+			const H_ALLOWANCE_TYPES = {
+				BasicAllowance,
+				PeriodicAllowance,
+			};
+
+			a_grants.push({
+				grantee: g_allowance.grantee,
+				granter: g_allowance.granter,
+				allowance: {
+					type: si_type,
+					value: H_ALLOWANCE_TYPES[si_type].decode(g_allowance_item.value),
+				},
+			});
+		}
+
+		return a_grants;
 	}
 
 	get provider(): ProviderStruct {
@@ -1176,36 +1235,9 @@ export class CosmosNetwork implements ActiveNetwork {
 
 		const sa_owner = Chains.addressFor(g_account.pubkey, this._g_chain);
 
-
-		let si_amino_msg: string;
-
 		// secretwasm chain
 		if(h_features['secretwasm']) {
-			const sxb93_consensus_pk = this._g_chain.features.secretwasm?.consensusIoPubkey;
-			if(!sxb93_consensus_pk) {
-				throw syserr({
-					title: 'Missing Chain Information',
-					text: 'No consensus IO public key found.',
-				});
-			}
-
-			const atu8_consensus_pk = base93_to_buffer(sxb93_consensus_pk);
-
-			si_amino_msg = '/';
-
-			// prep wasm instance
-			let k_wasm!: SecretWasm;
-
-			// account has signed a wasm seed; load secretwasm
-			const p_secret_wasm = g_account.utilityKeys['secretWasmTx'];
-			if(p_secret_wasm) {
-				k_wasm = await Secrets.borrow(p_secret_wasm, kn_seed => new SecretWasm(atu8_consensus_pk, kn_seed.data));
-			}
-
-			// no pre-existing tx encryption key; generate a random seed
-			if(!k_wasm) {
-				k_wasm = new SecretWasm(atu8_consensus_pk);
-			}
+			const k_wasm = await (this as unknown as SecretNetwork).secretWasm(g_account, s_code_hash, g_msg);
 
 			atu8_msg = await k_wasm.encrypt(s_code_hash, g_msg);
 		}
@@ -1213,7 +1245,6 @@ export class CosmosNetwork implements ActiveNetwork {
 		else if(h_features['cosmwasm']) {
 			// TODO: implement
 			throw new Error('not yet implemented');
-			// atu8_msg
 		}
 		// does not support smart contracts
 		else {

@@ -32,7 +32,7 @@ export type FieldConfigRegistry = {
 		value: Promisable<string | HTMLElement>;
 		after?: HTMLElement[];
 		subvalue?: Promisable<string>;
-		render?: 'address' | 'mono';
+		render?: 'address' | 'mono' | 'error';
 		pfp?: PfpTarget;
 	};
 
@@ -76,6 +76,7 @@ export type FieldConfigRegistry = {
 		label?: string;
 		bech32s: Bech32[];
 		g_chain: ChainStruct;
+		short?: boolean;
 	};
 
 	accounts: {

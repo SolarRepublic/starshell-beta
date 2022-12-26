@@ -1,4 +1,3 @@
-import {add_utility_key} from './account';
 import {NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM} from './constants';
 import {AlreadyRegisteredError, CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from './errors';
 
@@ -7,10 +6,6 @@ import {PublicStorage, storage_clear, storage_remove} from '#/extension/public-s
 import {SessionStorage} from '#/extension/session-storage';
 import {global_broadcast} from '#/script/msg-global';
 import {set_keplr_compatibility_mode} from '#/script/scripts';
-import {Accounts} from '#/store/accounts';
-import {Chains} from '#/store/chains';
-import {ContractRole, Contracts} from '#/store/contracts';
-import {Secrets} from '#/store/secrets';
 import {F_NOOP, timeout} from '#/util/belt';
 import {text_to_buffer} from '#/util/data';
 
@@ -225,68 +220,6 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 
 
 async function run_migrations() {
-	let b_assets_new = false;
-
-	// migrate accounts
-	for(const [p_account, g_account] of (await Accounts.read()).entries()) {
-		// add utility keys
-		if(!g_account['utilityKeys']) {
-			await add_utility_key(g_account, 'snip20ViewingKey', 'snip20ViewingKey');
-		}
-
-		// add assets
-		if(!g_account['assets']) {
-			b_assets_new = true;
-			await Accounts.update(p_account, g_account_latest => ({
-				assets: g_account_latest.assets || {},
-			}));
-		}
-	}
-
-	// migrate assets
-	if(b_assets_new) {
-		const a_contracts = await Contracts.filterRole(ContractRole.TOKEN);
-		for(const [, g_contract] of a_contracts) {
-			const h_extra = g_contract.interfaces.snip20?.extra;
-			if(h_extra) {
-				// ref chain that contract exists on
-				const p_chain = g_contract.chain;
-
-				// load chain struct
-				const g_chain = (await Chains.at(p_chain))!;
-
-				// find viewing key for the exact contract
-				const a_vks = await Secrets.filter({
-					type: 'viewing_key',
-					contract: g_contract.bech32,
-					chain: g_contract.chain,
-				});
-
-				// each result
-				for(const g_vk of a_vks) {
-					// find the associated account
-					const [p_account] = await Accounts.find(g_vk.owner, g_chain);
-
-					// update the account's asset dict
-					await Accounts.update(p_account, g_account => ({
-						assets: {
-							...g_account.assets,
-							[p_chain]: {
-								...g_account.assets[p_chain],
-								fungibleTokens: [
-									...new Set([
-										...g_account.assets[p_chain]?.fungibleTokens || [],
-										g_vk.contract,
-									]),
-								],
-							},
-						},
-					}));
-				}
-			}
-		}
-	}
-
 	// mark as seen
 	await PublicStorage.markSeen();
 }
@@ -308,6 +241,11 @@ export async function reinstall(b_install=false): Promise<void> {
 	await PublicStorage.installed();
 
 	console.warn(`Performing ${b_install? 'full': 'partial'} installation`);
+
+	// set session storage access level
+	await chrome.storage?.session?.setAccessLevel?.({
+		accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS',
+	});
 
 	// for betas only
 	{

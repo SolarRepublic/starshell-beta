@@ -1,8 +1,10 @@
 <script>
 	import {yw_progress} from '##/mem';
 
-	// reactively assign percentage based on shared progress var. avoid divide by zero
-	$: x_width_pct_bar = 0 === $yw_progress[1]? 0: ($yw_progress[0] / $yw_progress[1]) * 100;
+	// reactively assign percentage based on shared progress bar. avoid divide by zero
+	$: x_width_pct_bar = 0 === $yw_progress[1]
+		? 0
+		: ($yw_progress[0] / (100 === $yw_progress[1]? 100: $yw_progress[1] + 1)) * 100;
 </script>
 
 <style lang="less">

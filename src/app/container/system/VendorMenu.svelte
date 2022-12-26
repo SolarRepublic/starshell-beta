@@ -4,10 +4,13 @@
 	import {onDestroy} from 'svelte';
 	
 	import {syserr} from '#/app/common';
+	import {system_notify} from '#/extension/notifications';
 	import {global_receive} from '#/script/msg-global';
+	import {NetworkFeed} from '#/script/service-feed';
 	import {SI_VERSION} from '#/share/constants';
 	
 	import {Chains} from '#/store/chains';
+	import {Histories} from '#/store/incidents';
 	import {ConnectionHealth, H_HEALTH_COLOR, Providers} from '#/store/providers';
 	import {ode} from '#/util/belt';
 	import {
@@ -15,12 +18,8 @@
 		yw_chain_ref,
 		yw_connection_health,
 		yw_chain,
+		yw_network,
 	} from '##/mem';
-
-	interface Item {
-		click: VoidFunction;
-		label: string;
-	}
 
 	interface ConnectionState {
 		xc_health: ConnectionHealth;
@@ -52,6 +51,8 @@
 	let n_txs = 0;
 	let xt_avg_block_time = 0;
 	let p_provider = '[...]';
+
+	let s_err_fix = '';
 
 	// initialize all states
 	(async function load() {
@@ -115,6 +116,9 @@
 					s_network_status: 'Service unresponsive',
 				});
 			}
+
+			// set fix
+			s_err_fix = 'restart';
 		},
 
 		blockInfo(g_info) {
@@ -122,6 +126,10 @@
 
 			if(g_connection) {
 				console.debug(`Received blockInfo for ${Chains.caip2From(g_connection.g_chain)} #${g_info.header.height} from <${g_connection.p_provider}>`);
+
+				// only interested in active chain
+				const p_chain = Chains.pathFrom(g_connection.g_chain);
+				if(p_chain !== $yw_chain_ref) return;
 
 				// debugger;
 				update_connection(g_connection, {
@@ -200,6 +208,46 @@
 		clearInterval(i_long_ago);
 	});
 
+	let s_resync_status = '';
+	async function force_resync() {
+		s_resync_status = 'resyncing....';
+
+		let k_feed: NetworkFeed;
+		try {
+			await Histories.resetSyncInfo($yw_chain_ref);
+
+			// create network feed
+			k_feed = await NetworkFeed.create($yw_chain, $yw_network.provider, {
+				notify: system_notify,
+			});
+		}
+		catch(e_resync) {
+			s_resync_status = 'failed to resync';
+			return;
+		}
+
+		// destroy it once sycs have completed
+		k_feed.destroy();
+
+		s_resync_status = 'done';
+
+		setTimeout(() => {
+			s_resync_status = '';
+		}, 10e3);
+	}
+
+	function restart(d_event: MouseEvent) {
+		chrome.runtime?.reload?.();
+	}
+
+	let b_shift_key = false;
+	document.addEventListener('keydown', (d_event) => {
+		b_shift_key = d_event.shiftKey;
+	});
+
+	document.addEventListener('keyup', () => {
+		b_shift_key = false;
+	});
 </script>
 
 <style lang="less">
@@ -341,6 +389,9 @@
 						}
 
 						.value {
+							display: flex;
+							justify-content: space-between;
+
 							padding-top: 4px;
 							padding-right: 6px;
 							margin-right: 6px;
@@ -428,6 +479,10 @@
 	.caip2-namespace {
 		opacity: 0.5;
 	}
+
+	.action {
+		.font(tiny);
+	}
 </style>
 
 <div
@@ -453,14 +508,22 @@
 					</div>
 
 					<div class="value">
-						<span class="state" style={`
-							background-color: ${sx_health_color};
-						`}>
-							&nbsp;
+						<span>
+							<span class="state" style={`
+								background-color: ${sx_health_color};
+							`}>
+								&nbsp;
+							</span>
+							<span class="text">
+								{s_network_status}
+							</span>
 						</span>
-						<span class="text">
-							{s_network_status}
-						</span>
+
+						{#if s_err_fix || b_shift_key}
+							<span class="action link" on:click={restart}>
+								{s_err_fix || 'restart'}
+							</span>
+						{/if}
 					</div>
 				</div>
 
@@ -501,7 +564,18 @@
 					</div>
 
 					<div class="value">
-						#{s_height}
+						<span>
+							#{s_height}
+						</span>
+						{#if s_resync_status}
+							<span class="action">
+								{s_resync_status}
+							</span>
+						{:else if b_shift_key}
+							<span class="action link" on:click={force_resync}>
+								force resync
+							</span>
+						{/if}
 					</div>
 				</div>
 
@@ -512,7 +586,7 @@
 
 					<div class="value">
 						{#if xt_avg_block_time}
-							{(xt_avg_block_time / 1e3).toFixed(2)} seconds
+							{(xt_avg_block_time / 1e3).toFixed(2)} seconds / block
 						{:else}
 							[...]
 						{/if}

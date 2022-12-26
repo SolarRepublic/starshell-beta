@@ -261,6 +261,9 @@ export type Chain<
 		testnet?: {
 			faucets?: string[];
 		};
+		mainnet?: {
+			feegrants?: string[];
+		};
 		blockExplorer: BlockExplorerConfig;
 	}, Nameable, Pfpable];
 }>;

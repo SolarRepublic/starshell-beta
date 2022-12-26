@@ -1,7 +1,7 @@
-import type {AminoMsg} from '@cosmjs/amino';
+import type {AminoMsg, Coin} from '@cosmjs/amino';
 
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-import type {ChainStruct} from '#/meta/chain';
+import type {Bech32, ChainStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 import type {IncidentStruct, IncidentType, TxError, TxSynced} from '#/meta/incident';
 
@@ -23,7 +23,10 @@ import {Incidents} from '#/store/incidents';
 
 import {fodemtv, oderac} from '#/util/belt';
 import {base64_to_buffer, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
-import {format_amount} from '#/util/format';
+import {format_amount, format_date_long} from '#/util/format';
+import { address_to_name } from '#/chain/messages/_util';
+import type { MsgGrantAllowance } from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/tx';
+import { Coins } from '#/chain/coin';
 
 
 export interface CosmosEvents {
@@ -44,6 +47,10 @@ export interface CosmosEvents {
 	'coin_spent.amount'?: Cw.Coin[];
 	'coin_received.receiver'?: Cw.Bech32[];
 	'coin_received.amount'?: Cw.Coin[];
+	'use_feegrant.granter'?: Cw.Bech32[];
+	'use_feegrant.grantee'?: Cw.Bech32[];
+	'set_feegrant.granter'?: Cw.Bech32[];
+	'set_feegrant.grantee'?: Cw.Bech32[];
 	'wasm.contract_address'?: Cw.Bech32[];
 }
 
@@ -93,7 +100,9 @@ export interface AbciConfig {
 
 
 
-const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<NotifyItemConfig | void>>> = {
+export const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<NotifyItemConfig | void>>> = {
+	// TODO: fill out rest of exception messages
+
 	sdk: {
 		// ErrTxDecode                = Register(testCodespace, 2, "tx parse error")
 		// ErrInvalidSequence         = Register(testCodespace, 3, "invalid sequence")
@@ -104,7 +113,13 @@ const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<N
 		// ErrInvalidPubKey           = Register(testCodespace, 8, "invalid pubkey")
 		// ErrUnknownAddress          = Register(testCodespace, 9, "unknown address")
 		// ErrInvalidCoins            = Register(testCodespace, 10, "invalid coins")
+
 		// ErrOutOfGas                = Register(testCodespace, 11, "out of gas")
+		11: g_result => ({
+			title: '❌ Not Enough Gas',
+			message: `The transaction failed because ${format_amount(Number(g_result.gas_wanted))} GAS was not enough.`,
+		}),
+
 		// ErrInsufficientFee         = Register(testCodespace, 13, "insufficient fee")
 		// ErrTooManySignatures       = Register(testCodespace, 14, "maximum number of signatures exceeded")
 		// ErrNoSignatures            = Register(testCodespace, 15, "no signatures supplied")
@@ -112,7 +127,13 @@ const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<N
 		// ErrJSONUnmarshal           = Register(testCodespace, 17, "failed to unmarshal JSON bytes")
 		// ErrInvalidRequest          = Register(testCodespace, 18, "invalid request")
 		// ErrMempoolIsFull           = Register(testCodespace, 20, "mempool is full")
+
 		// ErrTxTooLarge              = Register(testCodespace, 21, "tx too large")
+		21: g_result => ({
+			title: '❌ Transaction Too Large',
+			message: `The transaction was rejected because it is too large.`,
+		}),
+
 		// ErrKeyNotFound             = Register(testCodespace, 22, "key not found")
 		// ErrorInvalidSigner         = Register(testCodespace, 24, "tx intended signer does not match the given signer")
 		// ErrInvalidChainID          = Register(testCodespace, 28, "invalid chain-id")
@@ -124,16 +145,101 @@ const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promisable<N
 		// ErrNotSupported            = RegisterWithGRPCCode(testCodespace, 37, codes.Unimplemented, "feature not supported")
 		// ErrNotFound                = RegisterWithGRPCCode(testCodespace, 38, codes.NotFound, "not found")
 		// ErrIO                      = Register(testCodespace, 39, "Internal IO error")
+	},
 
-		11: g_result => ({
-			title: '❌ Not Enough Gas',
-			message: `The transaction failed because ${format_amount(Number(g_result.gas_wanted))} GAS was not enough.`,
+	secret_compute: {
+		// // ErrInstantiateFailed error for rust instantiate contract failure
+		// ErrInstantiateFailed = sdkErrors.Register(DefaultCodespace, 2, "instantiate contract failed")
+		2: g_result => ({
+			title: '❌ Instantiation Failed',
+			message: `The contract failed to instantiate.`,
 		}),
 
-		21: g_result => ({
-			title: '❌ Transaction Too Large',
-			message: `The transaction was rejected because it is too large.`,
+		// // ErrExecuteFailed error for rust execution contract failure
+		// ErrExecuteFailed = sdkErrors.Register(DefaultCodespace, 3, "execute contract failed")
+
+		// // ErrQueryFailed error for rust smart query contract failure
+		// ErrQueryFailed = sdkErrors.Register(DefaultCodespace, 4, "query contract failed")
+
+		// // ErrMigrationFailed error for rust execution contract failure
+		// ErrMigrationFailed = sdkErrors.Register(DefaultCodespace, 5, "migrate contract failed")
+
+		// // ErrAccountExists error for a contract account that already exists
+		// ErrAccountExists = sdkErrors.Register(DefaultCodespace, 6, "contract account already exists")
+		6: g_result => ({
+			title: '❌ Contract Account Exists',
+			message: `The contract account already exists.`,
 		}),
+
+		// // ErrGasLimit error for out of gas
+		// ErrGasLimit = sdkErrors.Register(DefaultCodespace, 7, "insufficient gas")
+
+		// // ErrInvalidGenesis error for invalid genesis file syntax
+		// ErrInvalidGenesis = sdkErrors.Register(DefaultCodespace, 8, "invalid genesis")
+
+		// // ErrNotFound error for an entry not found in the store
+		// ErrNotFound = sdkErrors.Register(DefaultCodespace, 9, "not found")
+
+		// // ErrInvalidMsg error when we cannot process the error returned from the contract
+		// ErrInvalidMsg = sdkErrors.Register(DefaultCodespace, 10, "invalid CosmosMsg from the contract")
+
+		// // ErrEmpty error for empty content
+		// ErrEmpty = sdkErrors.Register(DefaultCodespace, 11, "empty")
+
+		// // ErrLimit error for content that exceeds a limit
+		// ErrLimit = sdkErrors.Register(DefaultCodespace, 12, "exceeds limit")
+
+		// // ErrInvalid error for content that is invalid in this context
+		// ErrInvalid = sdkErrors.Register(DefaultCodespace, 13, "invalid")
+
+		// // ErrDuplicate error for content that exsists
+		// ErrDuplicate = sdkErrors.Register(DefaultCodespace, 14, "duplicate")
+
+		// // ErrCreateFailed error for wasm code that has already been uploaded or failed
+		// ErrCreateFailed = sdkErrors.Register(DefaultCodespace, 15, "create contract failed")
+
+		// // ErrSigFailed error for wasm code that has already been uploaded or failed
+		// ErrSigFailed = sdkErrors.Register(DefaultCodespace, 16, "parse signature failed")
+
+		// // ErrUnsupportedForContract error when a feature is used that is not supported for/ by this contract
+		// ErrUnsupportedForContract = sdkErrors.Register(DefaultCodespace, 17, "unsupported for this contract")
+
+		// // ErrUnknownMsg error by a message handler to show that it is not responsible for this message type
+		// ErrUnknownMsg = sdkErrors.Register(DefaultCodespace, 18, "unknown message from the contract")
+
+		// // ErrReplyFailed error for rust execution contract failure
+		// ErrReplyFailed = sdkErrors.Register(DefaultCodespace, 19, "reply to contract failed")
+
+		// // ErrInvalidEvent error if an attribute/event from the contract is invalid
+		// ErrInvalidEvent = sdkErrors.Register(DefaultCodespace, 21, "invalid event")
+
+		// // ErrMaxIBCChannels error for maximum number of ibc channels reached
+		// ErrMaxIBCChannels = sdkErrors.Register(DefaultCodespace, 22, "max transfer channels")
+	},
+
+	feegrant: {
+		// // ErrFeeLimitExceeded error if there are not enough allowance to cover the fees
+		// ErrFeeLimitExceeded = sdkerrors.Register(DefaultCodespace, 2, "fee limit exceeded")
+		2: g_result => ({
+			title: '❌ Fee Limit Exceeded',
+			message: `The fees for the attempted transaction exceed the limit set by the fee grant.`,
+		}),
+
+		// // ErrFeeLimitExpired error if the allowance has expired
+		// ErrFeeLimitExpired = sdkerrors.Register(DefaultCodespace, 3, "fee allowance expired")
+		3: g_result => ({
+			title: '❌ Fee Grant Expired',
+			message: `The fee grant attempting to be used has expired.`,
+		}),
+
+		// // ErrInvalidDuration error if the Duration is invalid or doesn't match the expiration
+		// ErrInvalidDuration = sdkerrors.Register(DefaultCodespace, 4, "invalid duration")
+		// // ErrNoAllowance error if there is no allowance for that pair
+		// ErrNoAllowance = sdkerrors.Register(DefaultCodespace, 5, "no allowance")
+		// // ErrNoMessages error if there is no message
+		// ErrNoMessages = sdkerrors.Register(DefaultCodespace, 6, "allowed messages are empty")
+		// // ErrMessageNotAllowed error if message is not allowed
+		// ErrMessageNotAllowed = sdkerrors.Register(DefaultCodespace, 7, "message not allowed")
 	},
 };
 
@@ -152,7 +258,7 @@ export function tx_abcis(g_chain: ChainStruct, h_abcis: Dict<TxAbciConfig>): Dic
 					height: s_height,
 					tx: sxb64_raw,
 					result: g_result,
-				} = g_value.TxResult as unknown as WsTxResponse;
+				} = g_value['TxResult'] as unknown as WsTxResponse;
 
 				// decode raw txn attempted
 				const atu8_raw = base64_to_buffer(sxb64_raw);
@@ -179,18 +285,9 @@ export function tx_abcis(g_chain: ChainStruct, h_abcis: Dict<TxAbciConfig>): Dic
 				// tx success
 				else if(g_result.gas_used) {
 					const {
-						// data: sxb64_data,
 						gas_used: s_gas_used,
 						gas_wanted: s_gas_wanted,
 					} = g_result;
-
-					console.log({
-						a_msgs_amino,
-						s_gas_wanted,
-						s_gas_used,
-						s_height,
-						g_extras,
-					});
 
 					// data callback with msgs as amino and extras
 					await gc_event.data?.(a_msgs_amino, {
@@ -263,7 +360,250 @@ export function account_abcis(
 		sa_owner: sa_agent,
 	} = g_context_vague;
 
-	// const sa_agent = Chains.addressFor(_g_account.pubkey, _g_chain);
+	async function sent_error(a_msgs: AminoMsg[], g_result: WsTxResultError, si_txn: string) {
+		// notify tx failure
+		global_broadcast({
+			type: 'txError',
+			value: {
+				hash: si_txn,
+			},
+		});
+
+		// copy context from outer scope
+		const g_context = {...g_context_vague};
+
+		// fetch pending tx from history
+		const p_incident = Incidents.pathFor('tx_out', si_txn);
+		const g_pending = await Incidents.at(p_incident) as IncidentStruct<'tx_out'>;
+
+		// prep error incident data
+		const g_incident_data: TxError = {
+			stage: 'synced',
+			account: _p_account,
+			app: _p_app,
+			chain: _p_chain,
+			gas_limit: g_result.gas_wanted as Cw.Uint128,
+			gas_used: g_result.gas_used as Cw.Uint128,
+			gas_wanted: g_result.gas_wanted as Cw.Uint128,
+			code: g_result.code,
+			codespace: g_result.codespace,
+			timestamp: g_result.timestamp,
+			raw_log: g_result['rawLog'] as string,
+			events: {},
+			hash: g_result['txhash'],
+			msgs: [],
+			log: g_result.log,
+		};
+
+		// pending tx exists
+		if(g_pending) {
+			// set app context from pending tx record
+			const p_app = g_pending.data.app!;
+			if(p_app) {
+				// load app
+				const g_app = await Apps.at(p_app);
+				if(g_app) {
+					Object.assign(g_context, {
+						p_app,
+						g_app,
+					});
+				}
+			}
+
+			// update incident
+			await Incidents.mutateData(p_incident, {
+				...g_pending.data,
+				...g_incident_data,
+				app: p_app || _p_app,
+			});
+		}
+		// insert incident
+		else {
+			await Incidents.record({
+				type: 'tx_out',
+				id: si_txn,
+				data: g_incident_data,
+			});
+		}
+
+		// attempt tx error handling
+		const g_notify_tx = await H_TX_ERROR_HANDLERS[g_result.codespace]?.[g_result?.code]?.(g_result);
+		if(g_notify_tx) {
+			fk_notify({
+				id: `@incident:${p_incident}`,
+				incident: p_incident,
+				item: g_notify_tx,
+			});
+		}
+		// not handled, forward to message handlers
+		else {
+			// notify configs
+			const a_notifies: NotifyItemConfig[] = [];
+
+			// route messages
+			for(const g_msg of a_msgs) {
+				const si_type = g_msg.type;
+
+				let g_notify: NotifyItemConfig | undefined;
+
+				// interpret message
+				const f_interpretter = H_INTERPRETTERS[si_type];
+				if(f_interpretter) {
+					const g_interpretted = await f_interpretter(g_msg.value as JsonObject, g_context);
+
+					// apply message
+					g_notify = await g_interpretted.fail?.(a_msgs.length, g_result);
+				}
+
+				// not interpretted
+				if(!g_notify) {
+					let s_reason = g_result.log;
+
+					// generic errors
+					if(R_TX_ERR_ACC_SEQUENCE.test(g_result.log)) {
+						s_reason = `Previous transaction stuck in mempool on provider.\n${g_result.log}`;
+					}
+
+					// 
+					g_notify = {
+						title: '❌ Transaction Failed',
+						message: s_reason,
+					};
+				}
+
+				if(g_notify) {
+					a_notifies.push(g_notify);
+				}
+			}
+
+			// merge notify items
+			const g_notify_merged = merge_notifies(a_notifies, _g_chain, '❌ Transaction Failed');
+
+			// notifcation
+			if(g_notify_merged) {
+				fk_notify({
+					id: `@incident:${p_incident}`,
+					incident: p_incident,
+					item: g_notify_merged,
+				});
+			}
+		}
+
+		// TODO: finish notification impl
+	}
+
+	async function sent_data(a_msgs: AminoMsg[], g_extra: TxDataExtra) {
+		// transaction hash
+		const {si_txn} = g_extra;
+
+		// notify tx success
+		global_broadcast({
+			type: 'txSuccess',
+			value: {
+				hash: si_txn,
+			},
+		});
+
+		// copy context from outer scope
+		const g_context = {...g_context_vague};
+
+		// fetch pending tx from history
+		const p_incident = Incidents.pathFor('tx_out', si_txn);
+		const g_pending = await Incidents.at(p_incident) as IncidentStruct<'tx_out'>;
+
+		// pending tx exists
+		if(g_pending) {
+			// set app context from pending tx record
+			const p_app = g_pending.data.app!;
+			if(p_app) {
+				// load app
+				const g_app = await Apps.at(p_app);
+				if(g_app) {
+					Object.assign(g_context, {
+						p_app,
+						g_app,
+					});
+				}
+			}
+		}
+
+		// download all transaction data from chain
+		let g_synced = g_extra.g_synced;
+		if(!g_synced) {
+			try {
+				g_synced = await k_network.downloadTxn(si_txn, g_context.p_account, g_context.p_app, g_pending?.data.events);
+			}
+			catch(e_download) {
+				if(e_download instanceof TransactionNotFoundError) {
+					await Incidents.mutateData(p_incident, {
+						stage: 'absent',
+					});
+				}
+				else {
+					console.error(e_download);
+				}
+
+				return;
+			}
+		}
+
+		// create/overwrite incident
+		await Incidents.record({
+			type: 'tx_out',
+			id: si_txn,
+			time: parse_date(g_synced.timestamp as string),
+			data: g_synced,
+		});
+
+		// notify configs
+		const a_notifies: NotifyItemConfig[] = [];
+
+		// route messages
+		for(const g_msg of a_msgs) {
+			const si_type = g_msg.type;
+
+			let g_notify: NotifyItemConfig | undefined;
+
+			// interpret message
+			const f_interpretter = H_INTERPRETTERS[si_type];
+			if(f_interpretter) {
+				const g_interpretted = await f_interpretter(g_msg.value as JsonObject, g_context);
+
+				// apply message
+				g_notify = await g_interpretted.apply?.(a_msgs.length, si_txn);
+			}
+			// no interpretter
+			else {
+				// 
+				g_notify = {
+					title: '✅ Transaction Complete',
+					message: '',
+				};
+			}
+
+			if(g_notify) {
+				a_notifies.push(g_notify);
+			}
+		}
+
+		// merge notify items
+		const g_notify_merged = merge_notifies(a_notifies, _g_chain, '🎳 Multi-Message Transaction Success');
+
+		// notifcation
+		if(g_notify_merged) {
+			fk_notify({
+				id: `@incident:${p_incident}`,
+				incident: p_incident,
+				item: g_notify_merged,
+				timeout: 0,  // automatically clear notification after default timeout
+			});
+		}
+
+		// broadcast reload
+		global_broadcast({
+			type: 'reload',
+		});
+	}
 
 	return tx_abcis(_g_chain, {
 		sent: {
@@ -271,250 +611,17 @@ export function account_abcis(
 
 			filter: `message.sender='${sa_agent}'`,
 
-			async error(a_msgs, g_result, si_txn) {
-				// notify tx failure
-				global_broadcast({
-					type: 'txError',
-					value: {
-						hash: si_txn,
-					},
-				});
+			error: sent_error,
+			data: sent_data,
+		},
 
-				// copy context from outer scope
-				const g_context = {...g_context_vague};
+		sent_with_grant: {
+			type: 'tx_out',
 
-				// fetch pending tx from history
-				const p_incident = Incidents.pathFor('tx_out', si_txn);
-				const g_pending = await Incidents.at(p_incident) as IncidentStruct<'tx_out'>;
+			filter: `use_feegrant.grantee='${sa_agent}'`,
 
-				// prep error incident data
-				const g_incident_data: TxError = {
-					stage: 'synced',
-					account: _p_account,
-					app: _p_app,
-					chain: _p_chain,
-					gas_limit: g_result.gas_wanted as Cw.Uint128,
-					gas_used: g_result.gas_used as Cw.Uint128,
-					gas_wanted: g_result.gas_wanted as Cw.Uint128,
-					code: g_result.code,
-					codespace: g_result.codespace,
-					timestamp: g_result.timestamp,
-					raw_log: g_result['rawLog'] as string,
-					events: {},
-					hash: g_result['txhash'],
-					msgs: [],
-					log: g_result.log,
-				};
-
-				// pending tx exists
-				if(g_pending) {
-					// set app context from pending tx record
-					const p_app = g_pending.data.app!;
-					if(p_app) {
-						// load app
-						const g_app = await Apps.at(p_app);
-						if(g_app) {
-							Object.assign(g_context, {
-								p_app,
-								g_app,
-							});
-						}
-					}
-
-					// update incident
-					await Incidents.mutateData(p_incident, {
-						...g_pending,
-						...g_incident_data,
-						app: p_app || _p_app,
-					});
-				}
-				// insert incident
-				else {
-					await Incidents.record({
-						type: 'tx_out',
-						id: si_txn,
-						data: g_incident_data,
-					});
-				}
-
-				// attempt tx error handling
-				const g_notify_tx = await H_TX_ERROR_HANDLERS[g_result.codespace]?.[g_result?.code]?.(g_result);
-				if(g_notify_tx) {
-					fk_notify({
-						id: `@incident:${p_incident}`,
-						incident: p_incident,
-						item: g_notify_tx,
-					});
-				}
-				// not handled, forward to message handlers
-				else {
-					// notify configs
-					const a_notifies: NotifyItemConfig[] = [];
-
-					// route messages
-					for(const g_msg of a_msgs) {
-						const si_type = g_msg.type;
-
-						let g_notify: NotifyItemConfig | undefined;
-
-						// interpret message
-						const f_interpretter = H_INTERPRETTERS[si_type];
-						if(f_interpretter) {
-							const g_interpretted = await f_interpretter(g_msg.value as JsonObject, g_context);
-
-							// apply message
-							g_notify = await g_interpretted.fail?.(a_msgs.length, g_result);
-						}
-
-						// not interpretted
-						if(!g_notify) {
-							let s_reason = g_result.log;
-
-							// generic errors
-							if(R_TX_ERR_ACC_SEQUENCE.test(g_result.log)) {
-								s_reason = `Previous transaction stuck in mempool on provider.\n${g_result.log}`;
-							}
-
-							// 
-							g_notify = {
-								title: '❌ Transaction Failed',
-								message: s_reason,
-							};
-						}
-
-						if(g_notify) {
-							a_notifies.push(g_notify);
-						}
-					}
-
-					// merge notify items
-					const g_notify_merged = merge_notifies(a_notifies, _g_chain, '❌ Transaction Failed');
-
-					// notifcation
-					if(g_notify_merged) {
-						fk_notify({
-							id: `@incident:${p_incident}`,
-							incident: p_incident,
-							item: g_notify_merged,
-						});
-					}
-				}
-
-				// TODO: finish notification impl
-			},
-
-			async data(a_msgs, g_extra) {
-				// transaction hash
-				const {si_txn} = g_extra;
-
-				// notify tx success
-				global_broadcast({
-					type: 'txSuccess',
-					value: {
-						hash: si_txn,
-					},
-				});
-
-				// copy context from outer scope
-				const g_context = {...g_context_vague};
-
-				// fetch pending tx from history
-				const p_incident = Incidents.pathFor('tx_out', si_txn);
-				const g_pending = await Incidents.at(p_incident) as IncidentStruct<'tx_out'>;
-
-				// pending tx exists
-				if(g_pending) {
-					// set app context from pending tx record
-					const p_app = g_pending.data.app!;
-					if(p_app) {
-						// load app
-						const g_app = await Apps.at(p_app);
-						if(g_app) {
-							Object.assign(g_context, {
-								p_app,
-								g_app,
-							});
-						}
-					}
-				}
-
-				// download all transaction data from chain
-				let g_synced = g_extra.g_synced;
-				if(!g_synced) {
-					try {
-						g_synced = await k_network.downloadTxn(si_txn, g_context.p_account, g_context.p_app, g_pending?.data.events);
-					}
-					catch(e_download) {
-						if(e_download instanceof TransactionNotFoundError) {
-							await Incidents.mutateData(p_incident, {
-								stage: 'absent',
-							});
-						}
-						else {
-							console.error(e_download);
-						}
-
-						return;
-					}
-				}
-
-				// create/overwrite incident
-				await Incidents.record({
-					type: 'tx_out',
-					id: si_txn,
-					time: parse_date(g_synced.timestamp as string),
-					data: g_synced,
-				});
-
-				// notify configs
-				const a_notifies: NotifyItemConfig[] = [];
-
-				// route messages
-				for(const g_msg of a_msgs) {
-					const si_type = g_msg.type;
-
-					let g_notify: NotifyItemConfig | undefined;
-
-					// interpret message
-					const f_interpretter = H_INTERPRETTERS[si_type];
-					if(f_interpretter) {
-						const g_interpretted = await f_interpretter(g_msg.value as JsonObject, g_context);
-
-						// apply message
-						g_notify = await g_interpretted.apply?.(a_msgs.length, si_txn);
-					}
-					// no interpretter
-					else {
-						// 
-						g_notify = {
-							title: '✅ Transaction Complete',
-							message: '',
-						};
-					}
-
-					if(g_notify) {
-						a_notifies.push(g_notify);
-					}
-				}
-
-				// merge notify items
-				const g_notify_merged = merge_notifies(a_notifies, _g_chain, '🎳 Multi-Message Transaction Success');
-
-				// notifcation
-				if(g_notify_merged) {
-					fk_notify({
-						id: `@incident:${p_incident}`,
-						incident: p_incident,
-						item: g_notify_merged,
-						timeout: 0,  // automatically clear notification after default timeout
-					});
-				}
-
-				// broadcast reload
-				global_broadcast({
-					type: 'reload',
-				});
-			},
+			error: sent_error,
+			data: sent_data,
 		},
 
 		receive: {
@@ -598,17 +705,97 @@ export function account_abcis(
 		granted: {
 			type: 'tx_in',
 
-			filter: `message.grantee='${sa_agent}'`,
+			filter: `set_feegrant.grantee='${sa_agent}'`,
 
-			data() {
-				const s_contact = 'Someone';
-				const s_account = _g_account.name;
-				const s_action = `send certain messages on their behalf`;
+			async data(a_msgs, g_extra, w_more) {
+				// transaction hash
+				const {si_txn} = g_extra;
 
-				const g_notify = {
-					title: `🤝 Received Authorization`,
-					text: `${s_contact} granted ${s_account} the ability to ${s_action}`,
-				};
+				// ref or download tx
+				let g_synced = g_extra.g_synced as TxSynced;
+				if(!g_synced) {
+					try {
+						g_synced = await k_network.downloadTxn(si_txn, g_context_vague.p_account);
+					}
+					catch(e_download) {
+						if(e_download instanceof TransactionNotFoundError) {
+							await Incidents.mutateData(Incidents.pathFor('tx_in', si_txn), {
+								stage: 'absent',
+							});
+						}
+
+						return;
+					}
+				}
+
+				// save incident
+				const p_incident = await Incidents.record({
+					type: 'tx_in',
+					id: si_txn,
+					time: parse_date(g_extra.g_synced?.timestamp as string),
+					data: g_synced,
+				});
+
+				// notify configs
+				const a_notifies: NotifyItemConfig[] = [];
+
+				// each message
+				for(const g_msg of a_msgs) {
+					if('cosmos-sdk/MsgGrantAllowance' === g_msg.type) {
+						const {
+							granter: sa_granter,
+							allowance: g_allowance,
+						} = g_msg.value as {
+							granter: Bech32;
+							allowance: AminoMsg;
+						};
+
+						const s_granter = await address_to_name(sa_granter, _g_chain);
+
+						let s_message = `${s_granter} granted ${_g_account.name} `;
+
+						if('cosmos-sdk/BasicAllowance' === g_allowance.type) {
+							const {
+								expiration: s_expiration,
+								spend_limit: a_coins,
+							} = g_allowance.value as {
+								expiration: string;
+								spend_limit: Coin[];
+							};
+
+							const s_amount = Coins.summarizeAmount(a_coins[0], _g_chain);
+
+							const xt_expires = new Date(s_expiration).getTime();
+
+							s_message += `with ${s_amount} worth of fees. Expires ${format_date_long(xt_expires)}`;
+						}
+						else if('cosmos-sdk/PeriodicAllowance' === g_allowance.type) {
+							s_message = `a periodic allowance.`;
+						}
+
+						a_notifies.push({
+							title: '💳 Received Fee Grant Allowance',
+							message: s_message,
+						});
+					}
+				}
+
+				// merge notify items
+				const g_notify_merged = merge_notifies(a_notifies, _g_chain, '💳 Multiple Fee Grants Received');
+
+				// notifcation
+				if(g_notify_merged) {
+					fk_notify({
+						id: `@incident:${p_incident}`,
+						incident: p_incident,
+						item: g_notify_merged,
+					});
+				}
+
+				// const g_notify = {
+					// title: `🤝 Received Authorization`,
+					// text: `${s_contact} granted ${s_account} the ability to ${s_action}`,
+				// };
 			},
 		},
 	});

@@ -85,7 +85,7 @@ export namespace Snip20 {
 				key: Cw.ViewingKey;
 				address: s_bech32 | Cw.String;
 				page_size: Cw.WholeNumber;
-				page?: Cw.NaturalNumber | undefined;
+				page?: Cw.WholeNumber | undefined;
 			};
 
 			response: {

@@ -21,6 +21,11 @@ import {dd} from '#/util/dom';
 import type {Page} from '##/nav/page';
 
 import PfpDisplay from './frag/PfpDisplay.svelte';
+import { Vault } from '#/script/ics-witness-imports';
+import { text_to_buffer } from '#/util/data';
+import { Argon2Type } from '#/crypto/argon2';
+import { NB_ARGON2_MEMORY } from '#/crypto/vault';
+import { NB_ARGON2_PIN_MEMORY, N_ARGON2_PIN_ITERATIONS } from '#/store/secrets';
 
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
@@ -229,39 +234,77 @@ export interface ProgressTimerConfig {
 	interval?: number;
 }
 
-export function make_progress_timer(gc_timer: ProgressTimerConfig): VoidFunction {
+export function make_progress_timer(gc_timer: ProgressTimerConfig): (b_no_reset?: boolean) => void {
 	const {
 		estimate: xt_estimate,
 		range: [x_range_lo, x_range_hi],
-		interval: xt_interval=500,
+		interval: xt_interval=250,
 	} = gc_timer;
 
-	const nl_iterations = Math.ceil(xt_estimate / xt_interval);
 	const x_range_gap = x_range_hi - x_range_lo;
-	const x_increment = x_range_gap / nl_iterations;
-
-	let i_iteration = 0;
 
 	let b_done = false;
 
+	const xt_start = performance.now();
 	const i_interval = setInterval(() => {
 		if(!b_done) {
+			// remove 400ms to offset css transition delay
+			const x_filled = ((performance.now() - xt_start) / (xt_estimate - 400)) * x_range_gap;
 			yw_progress.set([
-				Math.min(100, Math.round(x_range_lo + (i_iteration++ * x_increment))),
+				Math.min(x_range_hi, Math.round(x_range_lo + x_filled)),
 				100,
 			]);
 		}
 	}, xt_interval);
 
-	return () => {
+	return (b_no_reset=false) => {
 		b_done = true;
 
 		clearInterval(i_interval);
 
 		yw_progress.set([x_range_hi, 100]);
 
-		setTimeout(() => {
-			yw_progress.set([0, 0]);
-		}, 500);
+		if(!b_no_reset) {
+			setTimeout(() => {
+				// only clear if another part of the ui isn't using progress for steps
+				if(100 === yw_progress.get()[1]) {
+					yw_progress.set([0, 0]);
+				}
+			}, xt_interval);
+		}
 	};
+}
+
+export interface HashSampleConfig {
+	nl_input?: number;
+	nb_memory?: number;
+}
+
+// runs the hasher on fake data to estimate the time it will take with higher iteration count
+export async function argon_hash_sample(gc_sample: HashSampleConfig): Promise<void> {
+	await (await Vault.wasmArgonWorker()).hash({
+		phrase: text_to_buffer('0'.repeat(gc_sample.nl_input || 8)),
+		salt: crypto.getRandomValues(new Uint8Array(32)),
+		type: Argon2Type.Argon2id,
+		iterations: 2,
+		memory: gc_sample.nb_memory || NB_ARGON2_MEMORY,
+		hashLen: 32,
+	});
+}
+
+export async function estimate_pin_hash(): Promise<number> {
+	const gc_sample = {
+		nl_input: 8,
+		nb_memory: NB_ARGON2_PIN_MEMORY,
+	};
+
+	// warm up the worker
+	await argon_hash_sample(gc_sample);
+
+	// perform sample run
+	const xt_start = window.performance.now();
+	await argon_hash_sample(gc_sample);
+	const xt_elapsed = window.performance.now() - xt_start;
+
+	return 0.5 * xt_elapsed * N_ARGON2_PIN_ITERATIONS;
 }

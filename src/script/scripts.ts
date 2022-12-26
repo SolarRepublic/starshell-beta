@@ -83,6 +83,7 @@ export const H_CONTENT_SCRIPT_DEFS = {
 } as const;
 
 
+
 /**
  * Handles the (un)registration of content scripts 
  */
@@ -244,7 +245,7 @@ export async function set_keplr_compatibility_mode(b_enabled?: boolean): Promise
 				});
 
 				// compute set of distinct app origins for script registration
-				const as_origins = new Set(a_apps.map(g_app => Apps.scriptMatchPatternFrom(g_app)));
+				const as_origins = new Set(a_apps.map(([, g_app]) => Apps.scriptMatchPatternFrom(g_app)));
 
 				// at least one app is using keplr polyfil
 				if(as_origins.size) {

@@ -6,32 +6,34 @@
 	import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
 	import type {ChainStruct, ChainPath} from '#/meta/chain';
 	import type {FieldConfig} from '#/meta/field';
-	import type {Incident, IncidentStruct, IncidentPath, IncidentType, TxConfirmed, TxPending, TxSynced} from '#/meta/incident';
+	import type {Incident, IncidentStruct, IncidentPath, IncidentType} from '#/meta/incident';
+	
+	import type {TransactionHistoryItem} from '#/schema/snip-2x-def';
 	
 	import {MsgSend} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
 	import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 	import {Tx} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
-	import BigNumber from 'bignumber.js';
 	
 	import {Header, Screen} from './_screens';
-	import {syswarn} from '../common';
 	import {JsonPreviewer} from '../helper/json-previewer';
 	import {load_flow_context, load_page_context} from '../svelte';
 	
+	import {produce_contract} from '#/chain/contract';
 	import {proto_to_amino} from '#/chain/cosmos-msgs';
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import type {ReviewedMessage} from '#/chain/messages/_types';
+	import {H_SNIP_TRANSACTION_HISTORY_HANDLER} from '#/chain/messages/snip-history';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
-	import {R_TRANSFER_AMOUNT} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Apps, G_APP_EXTERNAL} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Incidents} from '#/store/incidents';
 	import {Providers} from '#/store/providers';
+	import {QueryCache} from '#/store/query-cache';
 	import {ode, oderac} from '#/util/belt';
 	import {base93_to_buffer, buffer_to_base64} from '#/util/data';
 	import {dd} from '#/util/dom';
-	import {format_amount, format_date_long, format_time} from '#/util/format';
+	import {format_date_long, format_time} from '#/util/format';
 	
 	import AppBanner from '../frag/AppBanner.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
@@ -39,11 +41,7 @@
 	import Spacer from '../ui/Spacer.svelte';
 	
 	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
-    import { QueryCache } from '#/store/query-cache';
-    import { H_SNIP_TRANSACTION_HISTORY_HANDLER } from '#/chain/messages/snip-history';
-    import { produce_contract } from '#/chain/contract';
-    import type { TransactionHistoryItem } from '#/schema/snip-2x-def';
-	
+
 
 	const {
 		completed,
@@ -70,6 +68,8 @@
 		account: AccountStruct;
 	};
 
+	let g_error: FieldConfig | undefined;
+
 	// determines view mode for app banner
 	const b_banner = true;
 
@@ -83,6 +83,26 @@
 		[si_type in IncidentType]: (g_data: Incident.Struct<si_type>['data'], g_context: LocalAppContext) => Promisable<EventViewConfig>;
 	} = {
 		async tx_out(g_data, g_context) {
+			// error code
+			if(g_data.code) {
+				g_error = {
+					type: 'key_value',
+					key: 'Error',
+					value: g_data.raw_log,
+					render: 'error',
+				};
+			}
+
+			// absent
+			if('absent' === g_data.stage) {
+				g_error = {
+					type: 'key_value',
+					key: 'Error',
+					value: `Transaction broadcast failed. You should be able to safely retry the same transaction, manually.`,
+					render: 'error',
+				};
+			}
+
 			// interpret raw messages
 			const a_reviewed = await Promise.all(g_data.msgs.map(async(g_msg_proto) => {
 				const g_msg_amino = proto_to_amino({
@@ -91,7 +111,7 @@
 				}, g_context.g_chain.bech32s.acc);
 
 				const g_interpretted = await H_INTERPRETTERS[g_msg_amino.type]?.(g_msg_amino.value, g_context);
-				return await g_interpretted?.review?.('pending' === g_data.stage);
+				return await g_interpretted?.review?.('pending' === g_data.stage || !!g_error);
 			}));
 
 			// common outbound fields to place above
@@ -290,7 +310,14 @@
 				const g_tx = h_data[si_tx] as TransactionHistoryItem;
 				const h_action = g_tx.action;
 				if(h_action.transfer) {
-					const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_tx, {
+					const g_transfer = h_action.transfer;
+
+					const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer({
+						coins: g_tx.coins,
+						from: g_transfer.from,
+						receiver: g_transfer.recipient,
+						memo: g_tx.memo,
+					}, {
 						g_snip20: g_contract.interfaces.snip20!,
 						g_contract,
 						g_chain,
@@ -593,6 +620,7 @@
 				<Fields
 					incident={g_incident}
 					configs={[
+						...g_error? [g_error]: [],
 						{
 							type: 'key_value',
 							key: 'Date',

@@ -18,11 +18,6 @@ import AsyncLockPool from '#/util/async-lock-pool';
 
 type MessageSender = chrome.runtime.MessageSender;
 
-type SendResponse = (w_data?: any) => void;
-
-type MessageHandler<w_msg=any> = (g_msg: w_msg, g_sender: MessageSender, fk_respond: SendResponse) => void | boolean;
-
-
 
 export enum RetryCode {
 	CONTINUE = 0,

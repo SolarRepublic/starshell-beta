@@ -4,7 +4,7 @@ import type {AccountStruct} from '#/meta/account';
 import type {Promisable} from '#/meta/belt';
 import type {ChainStruct, ContractStruct} from '#/meta/chain';
 import type {TokenStructDescriptor} from '#/meta/token';
-import type {TransactionHistoryItem} from '#/schema/snip-2x-def';
+import type {TransferHistoryItem} from '#/schema/snip-2x-def';
 
 import BigNumber from 'bignumber.js';
 
@@ -15,7 +15,9 @@ import {Chains} from '#/store/chains';
 import {format_amount} from '#/util/format';
 
 
-type HistoryHandler = Record<'transfer', (g_tx: TransactionHistoryItem, g_context: {
+type SelectTransactionHistoryItem = Pick<TransferHistoryItem, 'from' | 'receiver' | 'coins' | 'memo'>;
+
+type HistoryHandler = Record<'transfer', (g_tx: SelectTransactionHistoryItem, g_context: {
 	g_snip20: TokenStructDescriptor<'snip20'>['snip20'];
 	g_contract: ContractStruct;
 	g_chain: ChainStruct;
@@ -27,10 +29,8 @@ type HistoryHandler = Record<'transfer', (g_tx: TransactionHistoryItem, g_contex
 }>>;
 
 export const H_SNIP_TRANSACTION_HISTORY_HANDLER: HistoryHandler = {
-	async transfer(g_tx: TransactionHistoryItem, {g_snip20, g_contract, g_chain, g_account}) {
-		const g_transfer = g_tx.action.transfer!;
-
-		const sa_from = g_transfer.from;
+	async transfer(g_tx, {g_snip20, g_contract, g_chain, g_account}) {
+		const sa_from = g_tx.from!;
 
 		// attempt to parse the amount
 		const xg_amount = BigNumber(g_tx.coins.amount).shiftedBy(-g_snip20.decimals);
@@ -71,7 +71,7 @@ export const H_SNIP_TRANSACTION_HISTORY_HANDLER: HistoryHandler = {
 					},
 					{
 						type: 'memo',
-						value: g_tx.memo,
+						value: g_tx.memo || '',
 					},
 				],
 			}),

@@ -52,7 +52,7 @@
 		</div>
 		<div class="raw-json textarea no-flex">
 			<JsonView
-				--nodeColor='var(--theme-color-text-light)'
+				--jsonKeyColor='var(--theme-color-text-light)'
 				json={wasm}
 			/>
 		</div>
