@@ -180,7 +180,7 @@
 
 		<button
 			readonly={allowDisabledClicks? b_greyed_out: false}
-			disabled={disabled || allowDisabledClicks? false: b_greyed_out}
+			disabled={allowDisabledClicks? false: b_greyed_out}
 			class:primary={!noPrimary} on:click={() => confirm_action()}
 		>
 			{s_confirm_final}

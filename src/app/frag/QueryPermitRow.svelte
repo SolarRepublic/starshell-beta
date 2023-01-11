@@ -4,12 +4,12 @@
 	
 	import {load_page_context} from '../svelte';
 	
-	import {Apps} from '#/script/ics-witness-imports';
+	import {Apps} from '#/store/apps';
 	import {Secrets} from '#/store/secrets';
 	
+	import QueryPermitView from '../screen/QueryPermitView.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-	import QueryPermitView from '../screen/QueryPermitView.svelte';
 	
 	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
 

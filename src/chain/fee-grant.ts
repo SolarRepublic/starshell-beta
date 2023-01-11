@@ -1,4 +1,4 @@
-import type {CosmosNetwork} from './cosmos-network';
+import type {CosmosNetwork, DecodedAllowance} from './cosmos-network';
 
 import type {AccountStruct} from '#/meta/account';
 import type {Dict} from '#/meta/belt';
@@ -9,15 +9,15 @@ import BigNumber from 'bignumber.js';
 import {Coins} from './coin';
 
 import {Chains} from '#/store/chains';
-import { ode } from '#/util/belt';
 
 type FeeGrantStruct = {
 	amount: BigNumber;
 	expiration: number;
-	granters: Record<Bech32, {
+	grants: {
+		allowance: DecodedAllowance;
 		amount: BigNumber;
 		expiration: number;
-	}>;
+	}[];
 };
 
 
@@ -33,13 +33,13 @@ export class FeeGrants {
 	// coin id to struct mapping
 	protected _h_grants: Dict<FeeGrantStruct> = {};
 
-	protected _a_expired: FeeGrantStruct[] = [];
+	protected _a_expired: DecodedAllowance[] = [];
 
 	constructor(protected _g_account: AccountStruct, protected _k_network: CosmosNetwork) {
 		this._sa_owner = Chains.addressFor(_g_account.pubkey, _k_network.chain);
 	}
 
-	async _update(): Promise<void> {
+	protected async _update(): Promise<void> {
 		const {
 			_k_network: {
 				chain: g_chain,
@@ -73,20 +73,20 @@ export class FeeGrants {
 						balance: yg_balance,
 					} = Coins.detail(g_limit, g_chain);
 
-					// ref/make the grant descriptor for this coin
-					const g_grant = h_grants[si_coin] = h_grants[si_coin] || {
-						amount: BigNumber(0),
-						expiration: Infinity,
-						granters: {},
-					};
-
 					const xt_expiration = g_expiration? parseFloat(g_expiration.seconds) * 1e3: Infinity;
 
 					// expired; push and continue on
 					if(xt_expiration < xt_now) {
-						this._a_expired.push(g_grant);
+						this._a_expired.push(g_result);
 						continue;
 					}
+
+					// ref/make the grant descriptor for this coin
+					const g_grant = h_grants[si_coin] = h_grants[si_coin] || {
+						amount: BigNumber(0),
+						expiration: Infinity,
+						grants: [],
+					};
 
 					// upsert descriptor
 					Object.assign(g_grant, {
@@ -98,10 +98,11 @@ export class FeeGrants {
 					});
 
 					// save result to dict
-					g_grant.granters[g_result.granter] = {
+					g_grant.grants.push({
+						allowance: g_result,
 						amount: yg_balance,
 						expiration: xt_expiration,
-					};
+					});
 				}
 			}
 		}

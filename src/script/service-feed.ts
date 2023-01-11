@@ -2,12 +2,11 @@ import type {AbciConfig, ReceiverError} from './service-tx-abcis';
 
 import type {AccountStruct} from '#/meta/account';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-import type {ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
+import {Bech32, ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 
 import {Snip2xToken} from '#/schema/snip-2x-const';
 
-import {Chains} from './ics-witness-imports';
 import {global_broadcast, global_receive, global_wait} from './msg-global';
 import {account_abcis} from './service-tx-abcis';
 
@@ -20,12 +19,15 @@ import type {TjrwsResult, TjrwsValueNewBlock, TjrwsValueTxResult, WsTxResponse} 
 import type {NotificationConfig} from '#/extension/notifications';
 import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_EXTERNAL} from '#/store/apps';
+import {Chains} from '#/store/chains';
 import {ContractRole, Contracts} from '#/store/contracts';
 import {NetworkTimeoutError, Providers} from '#/store/providers';
 
 import {ode, timeout, timeout_exec} from '#/util/belt';
 import {buffer_to_base64} from '#/util/data';
 import {Limiter} from '#/util/limiter';
+import { Secrets } from './ics-witness-imports';
+import type { GetLatestBlockResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 
 
 const XT_ERROR_THRESHOLD_RESTART = 120e3;
@@ -39,6 +41,28 @@ interface FeedHooks {
 
 interface TokenState {
 	accounts: AccountStruct[];
+}
+
+async function average_rtt(g_provider: ProviderStruct, nl_trials=3): Promise<number> {
+	const a_trials: number[] = [];
+
+	for(let i_trial=0; i_trial<nl_trials; i_trial++) {
+		try {
+			const xt_start = performance.now();
+			const [, xc_timeout] = await timeout_exec(15e3, async() => await fetch(g_provider.grpcWebUrl+g_provider.healthCheckPath));
+
+			if(xc_timeout) throw new NetworkTimeoutError();
+
+			a_trials.push(performance.now() - xt_start);
+
+			await timeout(50);
+		}
+		catch(e_fetch) {
+			return Infinity;
+		}
+	}
+
+	return a_trials.reduce((c_out, xt_trial) => c_out + xt_trial) / a_trials.length;
 }
 
 const H_FEEDS: Record<ChainPath, NetworkFeed> = {};
@@ -92,17 +116,16 @@ export class NetworkFeed {
 					})
 					.map(p => ks_providers.at(p)!);
 
-				// append remainders in random order so as not to bias any one
-				a_providers.push(...a_contenders.sort(() => Math.random() - 0.5).map(([, g]) => g));
+				// append contenders
+				const a_contender_structs = a_contenders.map(([, g]) => g);
+				a_providers.push(...a_contender_structs);
 
-				// final provider selection
-				let g_selected: ProviderStruct | null = null;
+				// narrow down list of providers that are online
+				const a_providers_online: ProviderStruct[] = [];
 
 				// quick provider test
 				const a_failures: [ProviderStruct, Error][] = [];
-				for(let i_provider=0, nl_providers=a_providers.length; i_provider<nl_providers; i_provider++) {
-					const g_provider = a_providers[i_provider];
-
+				for(const g_provider of a_providers) {
 					// skip disabled provider
 					if(!g_provider.on) continue;
 
@@ -110,9 +133,8 @@ export class NetworkFeed {
 					try {
 						await Providers.quickTest(g_provider, g_chain);
 
-						// success, use it
-						g_selected = g_provider;
-						break;
+						// success, add to online list
+						a_providers_online.push(g_provider);
 					}
 					// provider test failed
 					catch(e_test) {
@@ -124,8 +146,8 @@ export class NetworkFeed {
 				const s_provider_errors = `Encountered errors on providers:\n\n${a_failures.map(([g, e]) => `${g.name}: ${e.message}`).join('\n\n')}`;
 
 				// no providers passed
-				if(!g_selected) {
-					console.error('All providers failed: %o', a_failures);
+				if(!a_providers_online.length) {
+					console.error(`All providers failed for ${p_chain}: %o`, a_failures);
 
 					throw syserr({
 						title: 'All providers offline',
@@ -137,6 +159,31 @@ export class NetworkFeed {
 				if(a_failures.length) {
 					console.warn(s_provider_errors);
 				}
+
+				// sort non-preferential contenders by latency
+				{
+					const i_contender = a_providers_online.indexOf(a_contender_structs[0]);
+
+					// reached contenders
+					if(0 === i_contender) {
+						const hm_latencies = new Map<ProviderStruct, number>();
+
+						for(const g_provider of a_providers_online) {
+							let xt_latency = Infinity;
+
+							if(g_provider.healthCheckPath) {
+								xt_latency = await average_rtt(g_provider);
+							}
+
+							hm_latencies.set(g_provider, xt_latency);
+						}
+
+						a_providers_online.sort((g_a, g_b) => hm_latencies.get(g_a)! - hm_latencies.get(g_b)!);
+					}
+				}
+
+				// final provider selection
+				const g_selected = a_providers_online[0];
 
 				// destroy old feed
 				H_FEEDS[p_chain]?.destroy?.();
@@ -224,6 +271,8 @@ export class NetworkFeed {
 	protected _b_subscriptions_busy = false;
 	protected _a_subscriptions_waiting: VoidFunction[] = [];
 
+	protected _as_accounts_following = new Set<Bech32>();
+
 	constructor(protected _g_chain: ChainStruct, protected _g_provider: ProviderStruct, protected _gc_hooks: FeedHooks) {
 		// infer paths
 		this._p_chain = Chains.pathFrom(_g_chain);
@@ -295,7 +344,7 @@ export class NetworkFeed {
 					if(!b_opened) return fe_reject(g_error);
 
 					console.error(`Attempting to recover from connection error on <${this.host}>: %o`, g_error);
-					debugger;
+					// debugger;
 
 					// infrequent error
 					if(Date.now() - xt_error_prev > XT_ERROR_THRESHOLD_RESTART) {
@@ -555,15 +604,22 @@ export class NetworkFeed {
 	// 	}
 	// }
 
-	async followAccounts(): Promise<void> {
-		// read accounts store
-		const ks_accounts = await Accounts.read();
-
-		// each account (on cosmos)
-		await Promise.all(ks_accounts.entries().map(([, g_account]) => this.followAccount(g_account)));
+	get accountsFollowing(): Bech32[] {
+		return Array.from(this._as_accounts_following);
 	}
 
-	async followAccount(g_account: AccountStruct): Promise<Dict<TmJsonRpcWebsocket>> {
+	async followAccounts(): Promise<void> {
+		// read accounts store
+		const a_accounts = await Accounts.entries();
+
+		// get latest block
+		const g_latest = await this._k_network.latestBlock();
+
+		// each account (on cosmos)
+		await Promise.all(a_accounts.map(([, g_account]) => this.followAccount(g_account, g_latest)));
+	}
+
+	async followAccount(g_account: AccountStruct, g_latest: GetLatestBlockResponse|null=null): Promise<Dict<TmJsonRpcWebsocket>> {
 		const {
 			_g_chain,
 			_g_provider,
@@ -580,6 +636,8 @@ export class NetworkFeed {
 
 		const sa_agent = Chains.addressFor(g_account.pubkey, _g_chain);
 
+		this._as_accounts_following.add(sa_agent);
+
 		const g_context_vague: LocalAppContext = {
 			g_app: G_APP_EXTERNAL,
 			p_app: Apps.pathFrom(G_APP_EXTERNAL),
@@ -587,7 +645,7 @@ export class NetworkFeed {
 			p_chain: Chains.pathFrom(_g_chain),
 			g_account,
 			p_account: Accounts.pathFrom(g_account),
-			sa_owner: Chains.addressFor(g_account.pubkey, _g_chain),
+			sa_owner: sa_agent,
 		};
 
 		const h_abcis: Dict<AbciConfig> = {
@@ -623,7 +681,7 @@ export class NetworkFeed {
 			});
 
 			// start to synchronize all txs since previous sync height
-			const di_synchronize = _k_network.synchronize(g_abci.type, g_abci.filter, g_context_vague.p_account);
+			const di_synchronize = _k_network.synchronize(g_abci.type, g_abci.filter, g_context_vague.p_account, g_latest);
 			for await(const {g_tx, g_result, g_synced} of di_synchronize) {
 				// TODO: don't imitate websocket data, make a canonicalizer for the two different data sources instead
 
@@ -672,16 +730,31 @@ export class NetworkFeed {
 		// read contracts store
 		const ks_contracts = await Contracts.read();
 
-		// select fungible tokens on this chain that are in use
-		const a_candidates = await ks_contracts.filterRole(ContractRole.FUNGIBLE, {
-			chain: _p_chain,
-			on: 1,
-		});
+		// // on non-secret chains
+		// await ks_contracts.filterRole(ContractRole.FUNGIBLE, {
+		// 	chain: _p_chain,
+		// 	on: 1,
+		// });
 
 		// on secretwasm
 		if(_g_chain.features.secretwasm) {
+			// select fungible tokens on this chain that are in use
+			const a_candidate_keys = await Secrets.filter({
+				type: 'viewing_key',
+				on: 1,
+				chain: _p_chain,
+			});
+
+			// reduce to map
+			const hm_tokens = new Map<ContractPath, ContractStruct>();
+			for(const g_secret of a_candidate_keys) {
+				const p_contract = Contracts.pathFor(_p_chain, g_secret.contract);
+
+				hm_tokens.set(p_contract, ks_contracts.at(p_contract)!);
+			}
+
 			// each token
-			for(const [p_contract, g_contract] of a_candidates) {
+			for(const [p_contract, g_contract] of hm_tokens.entries()) {
 				// prep list of accounts that follow this token
 				const g_state = h_tokens[p_contract] = {
 					accounts: [] as AccountStruct[],
@@ -708,6 +781,10 @@ export class NetworkFeed {
 			// new token added
 			global_receive({
 				async tokenAdded({p_contract, p_chain, p_account}) {
+					// different chain; ignore
+					if(p_chain !== k_self._p_chain) return;
+
+					// load structs
 					const [
 						g_contract,
 						g_chain,

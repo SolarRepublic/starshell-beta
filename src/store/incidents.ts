@@ -23,6 +23,7 @@ export interface IncidentFilterConfig {
 	owner?: Bech32;
 	stage?: IncidentDescriptor<'tx_in' | 'tx_out'>['data']['stage'];
 	app?: AppPath;
+	chain?: ChainPath;
 }
 
 type IncidentDict = Record<IncidentPath, Incident.Struct>;
@@ -276,6 +277,7 @@ export const Incidents = create_store_class({
 
 				if(gc_filter.type && gc_filter.type !== g_incident.type) continue;
 				if(gc_filter.account && gc_filter.account !== g_incident.data['account']) continue;
+				if(gc_filter.chain && gc_filter.chain !== g_incident.data['chain']) continue;
 				if(gc_filter.owner && gc_filter.owner !== g_incident.data['owner']) continue;
 				if(gc_filter.stage && gc_filter.stage !== g_incident.data['stage']) continue;
 				if(gc_filter.app && gc_filter.app !== g_incident.data['app']) continue;

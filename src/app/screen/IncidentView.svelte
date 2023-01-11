@@ -41,6 +41,8 @@
 	import Spacer from '../ui/Spacer.svelte';
 	
 	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
+    import { SecretWasm } from '#/crypto/secret-wasm';
+    import { _FAILED_MESSAGE_OVERRIDE } from '#/chain/messages/compute';
 
 
 	const {
@@ -88,7 +90,7 @@
 				g_error = {
 					type: 'key_value',
 					key: 'Error',
-					value: g_data.raw_log,
+					value: g_data.raw_log || JSON.stringify(g_data.log).replace(/^"|"$/g, ''),
 					render: 'error',
 				};
 			}
@@ -98,13 +100,13 @@
 				g_error = {
 					type: 'key_value',
 					key: 'Error',
-					value: `Transaction broadcast failed. You should be able to safely retry the same transaction, manually.`,
+					value: `Transaction has not yet been confirmed. Either the provider node failed to broadcast it, or it was never witnessed in the event stream. You can continue to wait or manually force a resync.`,
 					render: 'error',
 				};
 			}
 
 			// interpret raw messages
-			const a_reviewed = await Promise.all(g_data.msgs.map(async(g_msg_proto) => {
+			let a_reviewed = await Promise.all(g_data.msgs.map(async(g_msg_proto) => {
 				const g_msg_amino = proto_to_amino({
 					typeUrl: g_msg_proto.typeUrl,
 					value: base93_to_buffer(g_msg_proto.value),
@@ -113,6 +115,36 @@
 				const g_interpretted = await H_INTERPRETTERS[g_msg_amino.type]?.(g_msg_amino.value, g_context);
 				return await g_interpretted?.review?.('pending' === g_data.stage || !!g_error);
 			}));
+
+			// no messages, try to use starshell-generated events to describe instead
+			if(!a_reviewed.length) {
+				const h_events = g_data.events;
+
+				// contract execution
+				const a_executions = h_events.executions;
+				if(a_executions?.length) {
+					a_reviewed = a_reviewed.concat(await Promise.all(a_executions.map(async(g_exec) => {
+						const g_interpretted = await H_INTERPRETTERS['wasm/MsgExecuteContract']({
+							[_FAILED_MESSAGE_OVERRIDE]: g_exec,
+						}, g_context);
+						return await g_interpretted?.review?.('pending' === g_data.stage || !!g_error);
+					})));
+				}
+
+				// bank transfer
+				const a_transfers = h_events.transfer;
+				if(a_transfers?.length) {
+					a_reviewed = a_reviewed.concat(await Promise.all(a_transfers.map(async(g_transfer) => {
+						const g_interpretted = await H_INTERPRETTERS['cosmos-sdk/MsgSend']({
+							[_FAILED_MESSAGE_OVERRIDE]: g_transfer,
+						}, g_context);
+						return await g_interpretted?.review?.('pending' === g_data.stage || !!g_error);
+					})));
+				}
+
+				// TODO: implement other outgoing tx types
+			}
+
 
 			// common outbound fields to place above
 			const a_fields_outbound_above: FieldConfig[] = [
@@ -595,7 +627,7 @@
 </style>
 
 <Screen nav>
-	<Header
+	<Header plain
 		search={!completed}
 		pops={!completed}
 		title={s_title}

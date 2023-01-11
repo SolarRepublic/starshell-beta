@@ -1,16 +1,16 @@
 import type {Dict} from '#/meta/belt';
-import type {ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
+import type {Bech32, ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
 import type {PfpTarget} from '#/meta/pfp';
 
 import {fromBech32} from '@cosmjs/encoding';
 
-import {writableSync} from '../mem';
+import {writable} from '../mem-store';
 
 import {R_BECH32, R_CONTRACT_NAME, R_TOKEN_SYMBOL} from '#/share/constants';
 import {Chains} from '#/store/chains';
 import {Contracts, ContractRole} from '#/store/contracts';
 
-
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function validate_contract(_p_contract: ContractPath) {
 	// prep cache of existing contracts
 	const h_exists_bech32s: Dict<[ContractRole, string]> = {};
@@ -18,55 +18,42 @@ export function validate_contract(_p_contract: ContractPath) {
 	const h_exists_symbols: Dict<number> = {};
 
 	// prep edittable stores
-	const yw_contract = writableSync<ContractStruct | null>(null);
-	const yw_contract_chain = writableSync<ChainStruct | null>(null);
-	const yw_contract_name = writableSync('');
-	const yw_contract_bech32 = writableSync('');
-	const yw_contract_pfp = writableSync<PfpTarget>('');
-	const yw_contract_on = writableSync<0 | 1>(0);
-	const yw_contract_type = writableSync(ContractRole.UNKNOWN);
-	const yw_token_symbol = writableSync('');
-	const yw_token_decimals = writableSync(0);
-	const yw_token_coingecko = writableSync('');
+	const yw_contract = writable(null as unknown as ContractStruct);
+	const yw_contract_chain = writable(null as unknown as ChainStruct);
+	const yw_contract_name = writable('');
+	const yw_contract_bech32 = writable('' as Bech32);
+	const yw_contract_pfp = writable<PfpTarget>('');
+	const yw_contract_on = writable<0 | 1>(0);
+	const yw_contract_type = writable(ContractRole.UNKNOWN);
+	const yw_token_symbol = writable('');
+	const yw_token_decimals = writable(0);
+	const yw_token_coingecko = writable('');
 
 	// prep validation stores
-	const yw_err_contract_name = writableSync('');
-	const yw_err_contract_bech32 = writableSync('');
-	const yw_wrn_contract_bech32 = writableSync('');
-	const yw_err_token_symbol = writableSync('');
-	const yw_err_token_decimals = writableSync('');
+	const yw_err_contract_name = writable('');
+	const yw_err_contract_bech32 = writable('');
+	const yw_wrn_contract_bech32 = writable('');
+	const yw_err_token_symbol = writable('');
+	const yw_err_token_decimals = writable('');
 
 	// form locked state
-	const yw_locked = writableSync(true);
+	const yw_locked = writable(true);
 
 	// helper function
 	const is_token = () => 0 !== (ContractRole.TOKEN & yw_contract_type.get());
 
-	// go async
-	(async() => {
-		// load contract from store
-		const _g_contract = (await Contracts.at(_p_contract))!;
-		yw_contract.set(_g_contract);
+	// when contract chain is updated
+	yw_contract_chain.subscribe((g_chain: ChainStruct) => {
+		if(!g_chain) return;
 
-		// populate contract fields from contract def
-		yw_contract_name.set(_g_contract.name);
-		yw_contract_bech32.set(_g_contract.bech32);
-		yw_contract_pfp.set(_g_contract.pfp);
-		yw_contract_on.set(_g_contract.on);
-
-		// ref chain
-		const _p_chain = _g_contract.chain;
-
-		// load chain
-		const _g_chain = (await Chains.at(_p_chain))!;
-		yw_contract_chain.set(_g_chain);
+		const g_contract = yw_contract.get()!;
 
 		// chain supports secret wasm
-		if(_g_chain.features.secretwasm) {
+		if(g_chain.features.secretwasm) {
 			// contract implements secret fungible token
-			if(_g_contract.interfaces.snip20) {
+			if(g_contract.interfaces.snip20) {
 				// ref snip-20 def
-				const g_snip20 = _g_contract.interfaces.snip20;
+				const g_snip20 = g_contract.interfaces.snip20;
 
 				// set contract type
 				yw_contract_type.set(ContractRole.FUNGIBLE);
@@ -78,6 +65,37 @@ export function validate_contract(_p_contract: ContractPath) {
 			}
 		}
 
+		void validate_load(g_contract.chain, g_chain);
+	});
+
+	// when contract struct updates
+	yw_contract.subscribe(async(g_contract) => {
+		if(!g_contract) return;
+
+		// populate contract fields from contract def
+		yw_contract_name.set(g_contract.name);
+		yw_contract_bech32.set(g_contract.bech32);
+		yw_contract_pfp.set(g_contract.pfp);
+		yw_contract_on.set(g_contract.on);
+
+		// ref chain
+		const _p_chain = g_contract.chain;
+
+		// load chain
+		const _g_chain = (await Chains.at(_p_chain))!;
+		yw_contract_chain.set(_g_chain);
+	});
+
+	// go async
+	(async() => {
+		// load contract from store
+		const _g_contract = (await Contracts.at(_p_contract))!;
+
+		// write to store
+		yw_contract.set(_g_contract);
+	})();
+
+	async function validate_load(p_chain: ChainPath, g_chain: ChainStruct) {
 		// cache all existing contract defintions to check for conflicts
 		try {
 			for(const [p_contract, g_contract] of (await Contracts.read()).entries()) {
@@ -85,7 +103,7 @@ export function validate_contract(_p_contract: ContractPath) {
 				if(_p_contract === p_contract) continue;
 
 				// same chain
-				if(_p_chain === g_contract.chain) {
+				if(p_chain === g_contract.chain) {
 					// already a token
 					const g_snip20 = g_contract.interfaces.snip20;
 					if(g_snip20) {
@@ -120,8 +138,8 @@ export function validate_contract(_p_contract: ContractPath) {
 				const a_chains = h_exists_names[s_name];
 
 				// contract name already defined on target chain
-				if(a_chains?.includes(_p_chain)) {
-					yw_err_contract_name.set(`${is_token()? 'Token': 'Contract'} name already in use on ${_g_chain.name}`);
+				if(a_chains?.includes(p_chain)) {
+					yw_err_contract_name.set(`${is_token()? 'Token': 'Contract'} name already in use on ${g_chain.name}`);
 				}
 				// no conflict, but there was a previous validation error; force retest
 				else if(yw_err_contract_name.get()) {
@@ -145,7 +163,7 @@ export function validate_contract(_p_contract: ContractPath) {
 				let s_err_bech32 = '';
 
 				// invalid address for chain
-				if(!Chains.isValidAddressFor(_g_chain, sa_bech32)) {
+				if(!Chains.isValidAddressFor(g_chain, sa_bech32)) {
 					// address is incomplete
 					if(!R_BECH32.exec(sa_bech32)) {
 						s_err_bech32 = 'Incomplete address';
@@ -156,7 +174,7 @@ export function validate_contract(_p_contract: ContractPath) {
 							fromBech32(sa_bech32);
 
 							// didn't throw, must be hrp mismatch
-							s_err_bech32 = `Account address should start with "${_g_chain.bech32s.acc}1"`;
+							s_err_bech32 = `Account address should start with "${g_chain.bech32s.acc}1"`;
 						}
 						// parser threw; invalid checksum
 						catch(e_checksum) {
@@ -228,7 +246,7 @@ export function validate_contract(_p_contract: ContractPath) {
 				if(s_symbol) test_token_symbol(s_symbol);
 			});
 		}
-	})();
+	}
 
 	// validate the contract name
 	function test_contract_name(s_name=yw_contract_name.get()) {

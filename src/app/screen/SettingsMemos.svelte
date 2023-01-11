@@ -11,8 +11,9 @@
 	import {yw_account, yw_owner} from '../mem';
 	import {load_page_context} from '../svelte';
 	
+	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import {Chains} from '#/store/chains';
-	import {type ActiveNetwork, Providers, UnpublishedAccountError} from '#/store/providers';
+	import {Providers, UnpublishedAccountError} from '#/store/providers';
 	import {Settings, type SettingsRegistry} from '#/store/settings';
 	
 	import {microtask} from '#/util/belt';
@@ -21,7 +22,6 @@
 	import Header from '../ui/Header.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-	
 	
 
 	const {k_page} = load_page_context();
@@ -66,7 +66,7 @@
 			try {
 				// create network provider
 				const ks_providers = await Providers.read();
-				let k_network: ActiveNetwork | undefined;
+				let k_network: CosmosNetwork | undefined;
 				for(const [p_provider, g_provider] of ks_providers.entries()) {
 					const p_chain_test = g_provider.chain;
 					if(p_chain === p_chain_test) {

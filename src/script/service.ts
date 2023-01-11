@@ -74,6 +74,7 @@ import type { StoreKey } from '#/meta/store';
 import { Argon2 } from '#/crypto/argon2';
 import { SecretWasm } from '#/crypto/secret-wasm';
 import { SecretNetwork } from '#/chain/secret-network';
+import { FeeGrants } from '#/chain/fee-grant';
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
@@ -802,7 +803,19 @@ async function check_network_feeds() {
 			if(a_feeds.length) {
 				console.debug(`Checking on existing feeds`);
 
+				// fetch all accounts to discover new ones
+				const a_account_entries = await Accounts.entries();
+
+				// each feed
 				for(const k_feed of a_feeds) {
+					// remove all accounts that exist
+					for(const sa_account of k_feed.accountsFollowing) {
+						const i_account = a_account_entries.findIndex(
+							([, g_account]) => sa_account === Chains.addressFor(g_account.pubkey, k_feed.chain));
+
+						if(i_account >= 0) a_account_entries.splice(i_account, 1);
+					}
+
 					try {
 						await k_feed.wake(30e3, 10e3);
 					}
@@ -811,6 +824,13 @@ async function check_network_feeds() {
 						k_feed.destroy();
 
 						await k_feed.recreate();
+					}
+				}
+
+				// new accounts
+				for(const k_feed of a_feeds) {
+					for(const [sa_account, g_account] of a_account_entries) {
+						await k_feed.followAccount(g_account);
 					}
 				}
 			}
@@ -947,6 +967,8 @@ Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
 
 	Settings,
 	BigNumber,
+
+	FeeGrants,
 
 	deep_seal(w_thing) {
 		// blocking

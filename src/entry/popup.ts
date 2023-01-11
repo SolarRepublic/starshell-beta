@@ -1,7 +1,7 @@
 import type {SvelteComponent} from 'svelte';
 
 import type {AppStruct} from '#/meta/app';
-import type {Dict} from '#/meta/belt';
+import type {Dict, JsonObject, Values} from '#/meta/belt';
 import type {Vocab} from '#/meta/vocab';
 
 import {dm_log, domlog} from './fallback';
@@ -13,10 +13,11 @@ window.addEventListener('error', (d_event) => {
 	console.error(d_event.error);
 });
 
+import {AppApiMode} from '#/meta/app';
 
 import SystemSvelte from '#/app/container/System.svelte';
 import {ThreadId} from '#/app/def';
-import {initialize_caches, yw_navigator} from '#/app/mem';
+import {initialize_store_caches, yw_navigator} from '#/app/mem';
 import type {PageConfig} from '#/app/nav/page';
 import AccountCreateSvelte from '#/app/screen/AccountCreate.svelte';
 import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
@@ -31,23 +32,38 @@ import {Vault} from '#/crypto/vault';
 import {check_restrictions} from '#/extension/restrictions';
 import {ServiceClient} from '#/extension/service-comms';
 import {SessionStorage} from '#/extension/session-storage';
-import {Secrets} from '#/script/ics-witness-imports';
 import type {IntraExt} from '#/script/messages';
 import {global_broadcast, global_receive} from '#/script/msg-global';
 import {login, register} from '#/share/auth';
 import {B_LOCALHOST, B_IOS_NATIVE, XT_SECONDS, P_STARSHELL_DEFAULTS, R_CAIP_2} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
-import {Chains} from '#/store/chains';
-import {Providers} from '#/store/providers';
+import {Secrets} from '#/store/secrets';
+import {Settings, SettingsRegistry} from '#/store/settings';
 import type {StarShellDefaults} from '#/store/web-resource-cache';
 import {WebResourceCache} from '#/store/web-resource-cache';
 import {forever, F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
 import {parse_params, qs} from '#/util/dom';
+import { Chains } from '#/store/chains';
+import type { ChainPath } from '#/meta/chain';
 
-import {AppApiMode} from '#/meta/app';
 
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
+
+function parse_rate_limit_config(g_remote: JsonObject) {
+	const e_invalid = new Error('Invalid rate limit config');
+
+	if('number' !== typeof g_remote['concurrency']) throw e_invalid;
+	if('number' !== typeof g_remote['capacity']) throw e_invalid;
+	if('number' !== typeof g_remote['resolution']) throw e_invalid;
+
+	return {
+		concurrency: g_remote.concurrency,
+		capacity: g_remote.capacity,
+		resolution: g_remote.resolution,
+	};
+}
+
 
 // parse search params from URL
 const h_params = parse_params();
@@ -111,7 +127,7 @@ const dp_cause = (async() => {
 				g_app = {
 					on: 1,
 					api: AppApiMode.UNKNOWN,
-					name: (await SessionStorage.get(`profile:${d_url.origin}`))?.name!
+					name: (await SessionStorage.get(`profile:${d_url.origin}`))?.name
 						|| g_tab.title || s_host,
 					scheme: s_scheme,
 					host: s_host,
@@ -144,10 +160,10 @@ let i_health = 0;
 let b_busy = false;
 
 // init service client
-const dp_connect = B_IOS_NATIVE? forever(): ServiceClient.connect('self');
+const dp_connect = B_IOS_NATIVE? forever<ServiceClient>(): ServiceClient.connect('self');
 
 // reload the entire system
-async function reload() {
+async function reload(b_override_restriction=false) {
 	debug(`reload called; busy: ${b_busy}`);
 	if(b_busy) return;
 
@@ -182,15 +198,27 @@ async function reload() {
 	const h_context: Dict<any> = {
 		cause: g_cause,
 	};
-	debug('checking restrictions');
+
+	// try to update cache
+	debug('updating web resource cache');
+	try {
+		await WebResourceCache.updateAll();
+	}
+	catch(e_update) {
+		console.warn(`Failed to update web resource cache: ${e_update.message}`);
+	}
 
 	// restrictions
+	debug('checking restrictions');
 	const a_restrictions = await check_restrictions();
 
 	debug('checking vault');
-	if(a_restrictions.length) {
+	if(a_restrictions.length && !b_override_restriction) {
 		gc_page_start = {
 			creator: RestrictedSvelte,
+			props: {
+				f_override: () => reload(true),
+			},
 		};
 	}
 	// vault is unlocked
@@ -207,9 +235,9 @@ async function reload() {
 			},
 		});
 
+		// load store caches
 		debug('initializing caches');
-		// load caches
-		await initialize_caches();
+		await initialize_store_caches();
 
 		debug('reading account');
 		// check for account(s)
@@ -252,43 +280,57 @@ async function reload() {
 
 			// update defaults
 			try {
-				const ks_providers = await Providers.read();
-
 				const [g_defaults, xc_timeout] = await timeout_exec(10e3, () => WebResourceCache.get(P_STARSHELL_DEFAULTS));
 
 				if(!xc_timeout) {
-					const h_chains = (g_defaults as unknown as StarShellDefaults).chains;
-					for(const si_caip2 in h_chains) {
-						const {
-							providers: a_providers,
-						} = h_chains[si_caip2];
+					const {
+						queries: g_queries,
+						webApis: g_apis,
+						chainSettings: h_chain_settings_remote,
+					} = g_defaults as unknown as StarShellDefaults;
 
-						for(const gc_provider of a_providers!) {
-							const p_provider = Providers.pathFor(gc_provider.grpcWebUrl);
+					// update default rate limit for queries
+					if(g_queries?.defaultRateLimit) {
+						const gc_default = parse_rate_limit_config(g_queries.defaultRateLimit);
 
-							// provider is defined locally
-							const g_provider = ks_providers.at(p_provider);
-							if(g_provider) {
-								// state differs; update it
-								if(g_provider.on !== gc_provider.on) {
-									await Providers.update(p_provider, () => ({on:gc_provider.on}));
+						await Settings.set('gc_rate_limit_queries_default', gc_default);
+					}
+
+					// update default rate limit for queries for web apis
+					if(g_apis?.defaultRateLimit) {
+						const gc_default = parse_rate_limit_config(g_apis.defaultRateLimit);
+
+						await Settings.set('gc_rate_limit_webapis_default', gc_default);
+					}
+
+					// update chain settings
+					{
+						const h_chain_settings = await Settings.get('h_chain_settings') || {};
+						let b_update = false;
+						for(const [si_caip2, gc_chain] of ode(h_chain_settings_remote || {})) {
+							const m_caip2 = R_CAIP_2.exec(si_caip2);
+							if(m_caip2) {
+								const p_chain = Chains.pathFor(m_caip2[1] as 'cosmos', m_caip2[2]);
+
+								const g_settings = h_chain_settings[p_chain] = h_chain_settings[p_chain] || {};
+
+								if('number' === typeof gc_chain.simulationGasMultiplier) {
+									g_settings.x_gas_multiplier = gc_chain.simulationGasMultiplier;
+									b_update = true;
 								}
 							}
-							// provider is not defined locally, adopt it
-							else {
-								const [, si_namespace, si_reference] = R_CAIP_2.exec(si_caip2)!;
+						}
 
-								await Providers.putAt(p_provider, {
-									...gc_provider,
-									chain: Chains.pathFor(si_namespace as 'cosmos', si_reference),
-									pfp: '',
-								});
-							}
+						// update chain settings
+						if(b_update) {
+							await Settings.set('h_chain_settings', h_chain_settings);
 						}
 					}
 				}
 			}
-			catch(e_update) {}
+			catch(e_update) {
+				console.warn(`Defaults update failed: ${e_update.message}`);
+			}
 		}
 	}
 	// vault is locked
@@ -371,7 +413,7 @@ async function reload() {
 			}
 			// launch to init thread
 			else {
-				k_navigator.activateThread(ThreadId.INIT);
+				void k_navigator.activateThread(ThreadId.INIT);
 			}
 
 			// attempt to hide log

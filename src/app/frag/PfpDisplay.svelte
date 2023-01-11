@@ -4,7 +4,7 @@
 	
 	import {createEventDispatcher} from 'svelte';
 	
-	import {yw_store_medias} from '../mem';
+	import {yw_store_medias, yw_store_pfps} from '../mem';
 	
 	import {Medias} from '#/store/medias';
 	import {Pfps} from '#/store/pfps';
@@ -77,7 +77,7 @@
 			alt: name,
 			dim: dim,
 			medias: ks_medias,
-		});
+		}, $yw_store_pfps);
 
 		queueMicrotask(() => {
 			dispatch('loaded');

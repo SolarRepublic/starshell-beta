@@ -22,14 +22,8 @@
 	import Send from './Send.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
 	import Portrait, {type Actions} from '../frag/Portrait.svelte';
-	import Gap from '../ui/Gap.svelte';
+	import StakingResourceControl from '../frag/StakingResourceControl.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
-	
-	import SX_ICON_PERSONAL from '#/icon/account_box.svg?raw';
-	import SX_ICON_CONTRACT from '#/icon/analytics.svg?raw';
-	import SX_ICON_RECV from '#/icon/recv.svg?raw';
-	import SX_ICON_SEND from '#/icon/send.svg?raw';
-    import StakingResourceControl from '../frag/StakingResourceControl.svelte';
 	
 
 	const k_page = getContext<Page>('page');
@@ -219,7 +213,7 @@
 <style lang="less">
 	@import '../_base.less';
 
-	.txns {
+	.rows {
 		.row .icon {
 			:global(&) {
 				color: var(--theme-color-text-light);
@@ -285,116 +279,25 @@
 		circular
 	/>
 
-<!-- 
-	<div class="resource-controls">
-		<StakingResourceControl si_coin={si_coin} />
-	</div> -->
 
-	<Gap />
+	<div class="group" style="margin-bottom:-12px;">
+		<div class="resource-controls">
+			<hr class="no-margin">
+			<StakingResourceControl si_coin={si_coin} />
+		</div>
+	</div>
 
-	<div class="txns no-margin">
+	<div class="rows no-margin border-top_black-8px">
 		{#await load_incidents()}
 			<LoadingRows count={3} />
 		{:then a_incidents}
-			<IncidentsList incidents={a_incidents} />
-		{/await}
-
-		<!-- {#if k_ibct_native}
-			<div class="section">
-				<div class="bar">
-					<span class="left">
-						<div class="label">
-							Stake
-						</div>
-						<div class="info">
-							Earn up to 24% per year
-						</div>
-					</span>
-					<span class="right">
-						<button class="pill">
-							Stake {gd_token.symbol}
-						</button>
-					</span>
-				</div>
-			</div>
-			 -->
-		<!-- {:else if $yw_chain.def.id.startsWith('secret-')} -->
-<!-- 
-			<div class="section">
-				<div class="bar" style={a_allowances.length? "border-bottom: 1px solid var(--theme-color-border);": ''}>
-					<span class="left">
-						<div class="label">
-							Allowances ({gd_token.allowances.length})
-						</div>
-						<div class="info">
-							Accounts allowed to spend this token
-						</div>
-					</span>
-					<span class="right">
-						<button class="pill" on:click={() => push_screen(DeadEnd)}>
-							Manage
-						</button>
-					</span>
-				</div>
-
-				{#each a_allowances as g_allowance, i_allowance}
-					<Row
-						name={g_allowance.k_spender.def.label}
-						address={g_allowance.k_spender.def.address}
-						amount={g_allowance.s_amount}
-						fiat={g_allowance.s_expiry}
-						iconRef={g_allowance.k_spender.def.iconRef}
-						iconClass='site'
-						on:click={() => push_screen(DeadEnd)}
-						rootStyle={i_allowance === a_allowances.length-1? 'border-bottom: none;': ''}
-					>
-					</Row>
-				{/each}
-			</div> -->
-
-		<!-- {/if} -->
-<!-- 
-		{#each a_history as k_txn}
-			{@const g_bankish = k_txn.bankish($yw_account.address($yw_chain))}
-			{@const gd_txn = k_txn.def}
-			{@const g_detail = detail_bankish(g_bankish)}
-
-			{#if g_bankish}
-				<Row
-					icon={H_TXN_ICONS[g_bankish.type]}
-					iconClass={H_TXN_CLASSES[g_bankish.type] || ''}
-					name={H_SUMMARIZERS[g_bankish.type](k_txn)}
-					address={g_bankish.address}
-					detail={g_detail.name}
-					prefix={g_detail.prefix}
-					amount={format_amount(k_token.approx(g_bankish.amount))}
-					fiat={amount_to_fiat(k_token.approx(g_bankish.amount), k_token)}
-					on:click={() => push_screen(DeadEnd)}
-				>
-					<svelte:fragment slot="detail">
-						{#if g_detail.icon}
-							<span class="txn-type icon">
-								{@html g_detail.icon}
-							</span>
-						{/if}
-						{#if g_detail.name}
-							{g_detail.name}
-						{:else if g_bankish.address}
-							<Address address={g_bankish.address} />
-						{/if}
-					</svelte:fragment>
-				</Row>
+			{#if !a_incidents.length}
+				<center class="color_text-med">
+					No activity yet.
+				</center>
 			{:else}
-				<Row
-					icon={H_TXN_ICONS[gd_txn.type]}
-					iconClass={H_TXN_CLASSES[gd_txn.type] || ''}
-					name={H_SUMMARIZERS[gd_txn.type](k_txn)}
-					address={gd_txn.address}
-					amount={format_amount(k_token.approx(gd_txn.amount))}
-					fiat={amount_to_fiat(k_token.approx(gd_txn.amount), k_token)}
-					on:click={() => push_screen(DeadEnd)}
-				/>
+				<IncidentsList incidents={a_incidents} />
 			{/if}
-		{/each} -->
+		{/await}
 	</div>
 </Screen>

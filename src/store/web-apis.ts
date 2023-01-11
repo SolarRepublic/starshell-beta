@@ -6,11 +6,39 @@ import {
 	WritableStoreMap,
 } from './_base';
 
+import {Settings} from './settings';
+
 import {SI_STORE_WEB_APIS, XT_HOURS, XT_MINUTES} from '#/share/constants';
 
-import {fodemtv, ode} from '#/util/belt';
+import {HttpResponseError} from '#/share/errors';
+import {fodemtv, ode, timeout} from '#/util/belt';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
+import {RateLimitingPool} from '#/util/rate-limiting-pool';
 
+type CoinGeckoSimplePrice<
+	si_coin extends string=string,
+	si_versus extends CoinGeckoFiat=CoinGeckoFiat,
+> = Record<si_coin, {
+	[si_v in si_versus]: number;
+}>;
+
+type CoinGeckoCoinstList = {
+	id: string;
+	symbol: string;
+	name: string;
+	platforms: Dict;
+}[];
+
+const P_COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+
+const SI_CACHE_COINGECKO = 'coingecko';
+
+// default rate limits config reflects coingecko's 50 calls/minute rate limiting rule
+const GC_DEFAULT_RATE_LIMITS = {
+	concurrency: 10,
+	capacity: 20,
+	resolution: 60e3,
+};
 
 export const A_COINGECKO_VS = [
 	'btc',
@@ -78,32 +106,16 @@ export const A_COINGECKO_VS = [
 
 export type CoinGeckoFiat = Values<typeof A_COINGECKO_VS>;
 
-const P_COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+const h_limiters: Dict<RateLimitingPool> = {};
 
-
-type CoinGeckoSimplePrice<
-	si_coin extends string=string,
-	si_versus extends CoinGeckoFiat=CoinGeckoFiat,
-> = Record<si_coin, {
-	[si_v in si_versus]: number;
-}>;
-
-type CoinGeckoCoinstList = {
-	id: string;
-	symbol: string;
-	name: string;
-	platforms: Dict;
-}[];
-
-const SI_CACHE_COINGECKO = 'coingecko';
-
+const h_limits_hit: Dict<number> = {};
 
 async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Promise<Response> {
 	// open cache
 	const d_cache = await caches.open(SI_CACHE_COINGECKO);
 
 	// attempt to match cache
-	const d_res = await d_cache.match(p_url);
+	let d_res = await d_cache.match(p_url);
 
 	// cache hit
 	CACHE_HIT:
@@ -136,21 +148,64 @@ async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Pro
 		return d_res;
 	}
 
-	// prevent infinite loop; give up on cache and use fetch directly
-	if(c_retries) {
-		return await fetch(p_url);
+	// get request origin
+	const p_origin = new URL(p_url).origin;
+
+	// create/ref slots and lock pool
+	const k_limiter = h_limiters[p_origin] || await (async() => {
+		const gc_defaults = await Settings.get('gc_rate_limit_queries_default');
+		return h_limiters[p_origin] = h_limiters[p_origin] || new RateLimitingPool(gc_defaults || GC_DEFAULT_RATE_LIMITS);
+	})();
+
+	// wait for an opening
+	const f_release = await k_limiter.acquire();
+
+	// rate limit hit; cool off
+	if(h_limits_hit[p_origin]) {
+		await timeout(62e3 - (Date.now() - h_limits_hit[p_origin]));
 	}
 
-	// make new request and add to cache
-	await d_cache.add(p_url);
+	// make fetch
+	try {
+		d_res = await fetch(p_url);
+	}
+	finally {
+		f_release();
+	}
 
-	// save time of cache
-	sessionStorage.setItem(`@cache:${p_url}`, JSON.stringify({
-		time: Date.now(),
-	}));
+	// success
+	if(d_res.ok) {
+		// save to cache
+		await d_cache.put(p_url, d_res.clone());
 
-	// retry
-	return await cached_fetch(p_url, xt_max_age, c_retries+1);
+		// save time of cache
+		sessionStorage.setItem(`@cache:${p_url}`, JSON.stringify({
+			time: Date.now(),
+		}));
+
+		// retry
+		return await cached_fetch(p_url, xt_max_age, c_retries+1);
+	}
+	// haven't exceeded retries yet
+	else if(c_retries < 6) {
+		// rate-limiting
+		if(429 === d_res.status) {
+			h_limits_hit[p_origin] = Date.now();
+			await timeout(60e3);
+			h_limits_hit[p_origin] = 0;
+		}
+		else {
+			// exponential back-off
+			await timeout(5e3 * Math.pow(2, c_retries));
+		}
+
+		// retry
+		return await cached_fetch(p_url, xt_max_age, c_retries+1);
+	}
+	// throw
+	else {
+		throw new HttpResponseError(d_res);
+	}
 }
 
 const coingecko_url = (sr_url: string, h_params: Dict) => `${P_COINGECKO_BASE}${sr_url}?`+new URLSearchParams(ode(h_params));

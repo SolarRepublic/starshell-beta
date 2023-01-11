@@ -4,6 +4,7 @@ import type {Resource} from './resource';
 import type {SecretPath} from './secret';
 
 import type {Dict} from '#/meta/belt';
+import type { Cw } from './cosm-wasm';
 
 export interface UtilityKeyRegistry {
 	walletSecurity: {
@@ -71,7 +72,25 @@ export type Account<
 			 * Arbitrary data associated with the given account-contract pair
 			 */
 			data: Record<Bech32, {
+				/**
+				 * Path to the snip20's current viewing key
+				 */
 				viewingKeyPath?: SecretPath<'viewing_key'>;
+
+				/**
+				 * Cache of the allowances 
+				 */
+				allowances?: Record<Bech32, {
+					/**
+					 * Approved token amount
+					 */
+					amount: Cw.Uint128;
+
+					/**
+					 * Expiration of the entire allowance
+					 */
+					expiration: Cw.UnixTime;
+				}>;
 			}>;
 		}>;
 

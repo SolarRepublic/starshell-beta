@@ -1,9 +1,12 @@
 <script lang="ts">
 	import type {Promisable} from '#/meta/belt';
+	import type {Bech32} from '#/meta/chain';
 	import type {ParametricSvelteConstructor} from '#/meta/svelte';
 	
-	import {yw_account, yw_chain, yw_network} from '../mem';
+	import {yw_account, yw_chain, yw_network, yw_owner} from '../mem';
 	import {Screen, Header} from '../screen/_screens';
+	
+	import {request_feegrant} from '../svelte';
 	
 	import {FeeGrants} from '#/chain/fee-grant';
 	import {address_to_name} from '#/chain/messages/_util';
@@ -26,9 +29,9 @@
 		const k_fee_grants = await FeeGrants.forAccount($yw_account, $yw_network);
 
 		for(const [si_coin, g_struct] of ode(k_fee_grants.grants)) {
-			for(const [sa_granter, g_grant] of ode(g_struct.granters)) {
+			for(const g_grant of g_struct.grants) {
 				a_grants.push({
-					name: `${format_amount(g_grant.amount.toNumber())} ${si_coin} from ${await address_to_name(sa_granter, $yw_chain)}`,
+					name: `${format_amount(g_grant.amount.toNumber())} ${si_coin} from ${await address_to_name(g_grant.allowance.granter as Bech32, $yw_chain)}`,
 					detail: Number.isFinite(g_grant.expiration)
 						? `Automatically expires ${format_date_long(g_grant.expiration)}`
 						: 'No expiration set',
@@ -52,6 +55,15 @@
 	yw_network.subscribe(skip_init(reload));
 
 	void reload();
+
+	let b_requesting_feegrant = false;
+	async function do_request_feegrant() {
+		b_requesting_feegrant = true;
+
+		await request_feegrant($yw_owner!);
+
+		b_requesting_feegrant = false;
+	}
 </script>
 
 <style lang="less">
@@ -95,6 +107,15 @@
 				<p>
 					No allowances currently granted to {$yw_account.name}.
 				</p>
+				<center>
+					<button class="pill" disabled={b_requesting_feegrant} on:click={do_request_feegrant}>
+						{#if b_requesting_feegrant}
+							Requesting...
+						{:else}
+							Request fee allowance
+						{/if}
+					</button>
+				</center>
 			{/if}
 		{/if}
 	</div>

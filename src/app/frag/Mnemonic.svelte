@@ -7,7 +7,7 @@
 	import {Argon2, Argon2Type} from '#/crypto/argon2';
 	import {Bip39} from '#/crypto/bip39';
 	import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL} from '#/share/constants';
-	import {F_NOOP, microtask} from '#/util/belt';
+	import {F_NOOP, microtask, timeout} from '#/util/belt';
 	import {open_external_link} from '#/util/dom';
 	
 	import MnemonicInput from './MnemonicInput.svelte';
@@ -61,16 +61,16 @@
 		// loading
 		$yw_popup = null;
 
-		await microtask();
+		await timeout(10);
+
+		let x_progress = 0;
 
 		// estimate time to complete hashing
 		let xt_estimate = 0;
-		let f_cancel: VoidFunction;
 		{
-			$yw_progress = [1, 100];
-
 			$yw_context_popup = {
 				status: 'Estimating time to complete...',
+				progress: 0.01,
 			};
 
 			$yw_popup = PopupProcessing;
@@ -90,25 +90,33 @@
 				xt_estimate = xt_elapsed * 64;
 			}
 
-			$yw_progress = [2, 100];
-
 			$yw_context_popup = {
 				status: 'Hardening password...',
+				progress: x_progress=0.02,
 			};
-
-			// progress at estimated pace
-			f_cancel = make_progress_timer({
-				estimate: xt_estimate,
-				range: [2, 100],
-			});
 		}
 
+		// setup progress bar
+		let f_done!: VoidFunction;
+		{
+			const x_pre = x_progress;
+			const x_span = 1 - x_pre;
+			const xt_start = performance.now();
+			const i_interval = setInterval(() => {
+				x_progress = Math.min(1, x_pre + (((performance.now() - xt_start) / xt_estimate) * x_span));
+			}, 250);
+
+			f_done = () => {
+				clearInterval(i_interval);
+				x_progress = 1;
+			};
+		}
 
 		// mnemonic length
 		const g_exported = await Bip39.exportIndicies(() => atu16_indicies, atu8_phrase);
 
 		// done processing
-		f_cancel();
+		f_done();
 
 		// close popup
 		$yw_popup = null;
@@ -347,14 +355,14 @@
 			</span>
 
 			{#if b_readonly}
-				<span class="link" on:click={show_export_popup}>
+				<!-- <span class="link" on:click={show_export_popup}>
 					<span class="global_svg-icon icon-diameter_18px">
 						{@html SX_ICON_DOWNLOAD}
 					</span>
 					<span>
 						Save to backup file
 					</span>
-				</span>
+				</span> -->
 			{:else}
 				<span class="upload link" on:click={() => F_NOOP}>
 					<input type="file" name="import-mnemonic"
@@ -362,13 +370,6 @@
 						accept="application/json,text/plain"
 						on:change={import_file}
 					/>
-
-					<!-- <span class="global_svg-icon icon-diameter_18px">
-						{@html SX_ICON_UPLOAD}
-					</span>
-					<span class="text">
-						Import from file
-					</span> -->
 				</span>
 			{/if}
 		</div>

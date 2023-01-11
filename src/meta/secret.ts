@@ -121,6 +121,11 @@ type SecretTypeRegistry = {
 	viewing_key: {
 		struct: {
 			/**
+			 * Whether the viewing key is currently active
+			 */
+			on: 0 | 1;
+
+			/**
 			 * The chain that this viewing key exists on
 			 */
 			chain: ChainPath;

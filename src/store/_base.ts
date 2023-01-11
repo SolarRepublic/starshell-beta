@@ -218,6 +218,8 @@ export type StaticStore<
 	map: {
 		at(p_res: Store.Key<si_store>): Promise<null | Store[si_store][typeof p_res]>;
 
+		entries(): Promise<[Store.Key<si_store>, Store[si_store][Store.Key<si_store>]][]>;
+
 		delete(p_res: Store.Key<si_store>): Promise<boolean>;
 
 		update(
@@ -387,6 +389,10 @@ export function create_store_class<
 				return (await dc_store['read']()).at(si_key);
 			},
 
+			async entries(): Promise<[ItemPath, w_cache][]> {
+				return (await dc_store['read']()).entries();
+			},
+
 			async delete<si_key extends ItemPath>(si_key: si_key): Promise<boolean> {
 				return await dc_store['open'](ks_self => ks_self.delete(si_key));
 			},
@@ -448,13 +454,13 @@ export function create_store_class<
 
 export function subscribe_store(
 	z_key: StoreKey | StoreKey[],
-	f_callback: (b_init: boolean) => void,
+	f_callback: (b_init: boolean, si_store: StoreKey) => void,
 	f_destroyer?: (f: () => any) => void
 ): Unsubscriber {
 	const f_unsubscribe = global_receive({
 		updateStore({key:si_store, init:b_init}) {
 			if(Array.isArray(z_key)? z_key.includes(si_store): si_store === z_key) {
-				f_callback(b_init);
+				f_callback(b_init, si_store);
 			}
 		},
 	});
@@ -478,11 +484,14 @@ export function filter_applies(h_filter: Dict<FilterValue>, h_thing: unknown): b
 
 	// each criterion in filter
 	for(const [si_key, z_expected] of ode(h_filter)) {
-		// accept any
-		if(W_FILTER_ACCEPT_ANY === z_expected) continue;
-
 		// ref actual value
 		const z_actual = h_thing[si_key];
+
+		// accept anything not undefined
+		if(W_FILTER_ACCEPT_ANY === z_expected) {
+			if('undefined' === typeof z_actual) return false;
+			continue;
+		}
 
 		// primitive or null; use exact comparison
 		if(['string', 'number', 'boolean'].includes(typeof z_actual) || null === z_actual) {
@@ -504,11 +513,14 @@ export function filter_applies(h_filter: Dict<FilterValue>, h_thing: unknown): b
 		else if(is_dict(z_expected)) {
 			// each entry in expected
 			for(const [si_spec, z_expect_item] of ode(z_expected)) {
-				// expect is a special type meaning 'anything'
-				if(W_FILTER_ACCEPT_ANY === z_expect_item) continue;
-
 				// ref actual item
 				const z_actual_item = z_actual[si_spec];
+
+				// expect is a special type meaning 'anything'
+				if(W_FILTER_ACCEPT_ANY === z_expect_item) {
+					if('undefined' === typeof z_actual_item) return false;
+					continue;
+				}
 
 				// compare
 				if(z_actual_item !== z_expect_item) return false;

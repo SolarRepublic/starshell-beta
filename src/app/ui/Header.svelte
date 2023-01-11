@@ -2,12 +2,13 @@
 	import {AppApiMode} from '#/meta/app';
 	import type {Promisable} from '#/meta/belt';
 	
-	import {createEventDispatcher, getContext, onDestroy, onMount} from 'svelte';
+	import type {ChainPath} from '#/meta/chain';
+	
+	import {createEventDispatcher, onDestroy, onMount} from 'svelte';
 	
 	import {ThreadId} from '../def';
 	import {
 		yw_account,
-		yw_account_editted,
 		yw_account_ref,
 		yw_cancel_search,
 		yw_chain,
@@ -107,9 +108,13 @@
 	// event dispatcher for parent component
 	const dispatch = createEventDispatcher();
 
+	let c_pfp_updates = 0;
+
 	// subscribe to update writable and dispatch updates as necessary
 	yw_update.subscribe(() => {
 		dispatch('update');
+
+		c_pfp_updates++;
 	});
 
 	// dimension of the network icon
@@ -287,6 +292,15 @@
 		b_network? 'network': '',
 	].filter(s => s).join('-');
 
+	function select_chain(p_chain: ChainPath) {
+		return () => {
+			$yw_chain_ref = p_chain;
+			$yw_overlay_network = false;
+
+			// save selection
+			void Settings.set('p_chain_selected', p_chain);
+		};
+	}
 </script>
 
 <style lang="less">
@@ -675,6 +689,7 @@
 
 												{#await Secrets.filter({
 													type: 'viewing_key',
+													on: 1,
 													outlets: [p_app],
 												}) then a_keys}
 													{@const nl_keys = a_keys.length}
@@ -712,7 +727,7 @@
 								{#key $yw_account}
 									<PfpDisplay
 										resource={$yw_account}
-										updates={$yw_account_editted}
+										updates={c_pfp_updates}
 										{...overlay_pfp_account_props(!!g_cause?.app)}
 									/>
 								{/key}
@@ -788,10 +803,7 @@
 												<Row
 													resource={g_chain}
 													detail='Default Provider'
-													on:click={() => {
-														$yw_chain_ref = p_chain;
-														$yw_overlay_network = false;
-													}}
+													on:click={select_chain(p_chain)}
 												>
 													<svelte:fragment slot="right">
 														{#if $yw_chain_ref === p_chain}
@@ -813,10 +825,7 @@
 												<Row
 													resource={g_chain}
 													detail='Default Provider'
-													on:click={() => {
-														$yw_chain_ref = p_chain;
-														$yw_overlay_network = false;
-													}}
+													on:click={select_chain(p_chain)}
 												>
 													<svelte:fragment slot="right">
 														{#if $yw_chain_ref === p_chain}

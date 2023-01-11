@@ -21,16 +21,16 @@ import type {LoadedAppContext} from '#/app/svelte';
 import type {NotifyItemConfig} from '#/extension/notifications';
 
 import {global_broadcast} from '#/script/msg-global';
+import {Accounts} from '#/store/accounts';
 import {G_APP_STARSHELL} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {fodemtv} from '#/util/belt';
-import {text_to_buffer, uuid_v4} from '#/util/data';
+import {buffer_to_text, text_to_buffer, uuid_v4} from '#/util/data';
 
 import {format_amount} from '#/util/format';
-import { Accounts } from '#/store/accounts';
 
 
 
@@ -191,6 +191,9 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 		g_exec,
 	}) => ({
 		async apply() {
+			// whether this is a new token for the account
+			let b_new_token = false;
+
 			// contract exists
 			if(g_contract_loaded) {
 				// contract has snip-20 interface
@@ -198,8 +201,17 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 					// previous viewing key exists
 					const a_viewing_key = await Snip2xToken.viewingKeyFor(g_contract_loaded, g_chain, g_account);
 					if(a_viewing_key) {
-						// delete old viewing key
-						await Secrets.deleteByStruct(a_viewing_key[1]);
+						// // delete old viewing key
+						// await Secrets.deleteByStruct(a_viewing_key[1]);
+
+						// disable old viewing key
+						await Secrets.update({
+							...a_viewing_key[1],
+							on: 0,
+						});
+					}
+					else {
+						b_new_token = true;
 					}
 				}
 				// contract does not have snip-20 interface, exit
@@ -213,16 +225,19 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 				[p_contract, g_contract_loaded] = await Contracts.merge(g_contract);
 			}
 
+			const sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
+
 			// save new viewing key
 			const p_viewing_key_new = await Secrets.put(text_to_buffer(h_args.key), {
 				type: 'viewing_key',
+				on: 1,
 				uuid: uuid_v4(),
 				security: {
 					type: 'none' as const,
 				},
 				name: `Viewing Key for ${g_snip20!.symbol}`,
 				chain: p_chain,
-				owner: Chains.addressFor(g_account.pubkey, g_chain),
+				owner: sa_owner,
 				contract: g_contract.bech32,
 				outlets: g_app === G_APP_STARSHELL? []: [p_app],
 			});
@@ -268,15 +283,27 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 				};
 			});
 
-			// dispatch event
-			global_broadcast({
-				type: 'tokenAdded',
-				value: {
-					p_contract,
-					p_chain,
-					p_account,
-				},
-			});
+			// new token
+			if(b_new_token) {
+				// attempt to deduce interfaces automatically
+				try {
+					const k_network = await Providers.activateDefaultFor(g_chain);
+					const k_token = new Snip2xToken(g_contract, k_network as SecretNetwork, g_account);
+					await k_token.deduceInterfaces();
+				}
+				catch(e_deduce) {}
+
+				// dispatch event
+				global_broadcast({
+					type: 'tokenAdded',
+					value: {
+						p_contract,
+						sa_contract: g_contract.bech32,
+						p_chain,
+						p_account,
+					},
+				});
+			}
 
 			// notification summary
 			return {
@@ -349,6 +376,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 		p_chain, g_chain,
 		p_account, g_account,
 		p_contract, g_contract_loaded, g_contract: g_contract_pseudo,
+		sa_owner,
 		g_snip20,
 		g_exec,
 	}) => {
@@ -361,6 +389,16 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 
 		return {
 			apply() {
+				// broadcast event
+				global_broadcast({
+					type: 'fungibleSent',
+					value: {
+						p_chain,
+						sa_sender: sa_owner,
+						sa_contract: g_contract_pseudo.bech32,
+					},
+				});
+
 				// notification summary
 				return {
 					group: nl => `Token${1 === nl? '': 's'} Sent`,

@@ -7,17 +7,21 @@
 	
 	import {JsonPreviewer} from '../helper/json-previewer';
 	
+	import {yw_account} from '../mem';
+	
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
 	import {Chains} from '#/store/chains';
 	import {Contracts} from '#/store/contracts';
+	
+	import {ode} from '#/util/belt';
 	
 	import ChainToken from '../frag/ChainToken.svelte';
 	import Field from '../ui/Field.svelte';
 	import Fields from '../ui/Fields.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-
+	
 	import SX_ICON_DELETE from '#/icon/delete.svg?raw';
 	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
 
@@ -27,7 +31,7 @@
 	let p_chain: ChainPath;
 
 	const g_snip20 = contract.interfaces.snip20;
-	let a_allowances = g_snip20?.allowances || [];
+	$: h_allowances = $yw_account.assets[p_chain]?.data?.[contract.bech32]?.allowances || {};
 
 	let s_header_title: Promisable<string> = `Token`;
 	const s_header_post_title: Promisable<string> = 'Spending';
@@ -44,7 +48,7 @@
 				// set correct header title
 				s_header_title = 'SNIP-20';
 
-				a_allowances = g_snip20.allowances;
+
 				// for testing
 				//  = [
 				// 	'secret18kfwq9d2k9xa7f6e40wutd6a85sjuecwk78hv8',  // token
@@ -105,14 +109,13 @@
 
 	<ChainToken isToken contract={contract} />
 
-
 	{#if g_snip20}
-		{@const nl_allowances = a_allowances.length}
+		{@const nl_allowances = Object.keys(h_allowances).length}
 		<Field key="spenders" name="Spenders">
 			{0 === nl_allowances? 'No': nl_allowances} agent{1 === nl_allowances? ' is': 's are'} able to spend this token.
 		</Field>
 
-		{#each a_allowances as sa_spender, i_spender}
+		{#each ode(h_allowances) as [sa_spender, g_allowance], i_spender}
 			<Field key={`spender-${i_spender}`} name={`Spender #${i_spender+1}`} rootStyle={`
 				margin-bottom: var(--ui-padding);
 			`}>

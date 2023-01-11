@@ -1,14 +1,9 @@
-import type {AminoMsg} from '@cosmjs/amino';
 import type {Block as CosmosBlock} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/types';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
-import type {GetTxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
-import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
 import type {Block as TendermintBlock} from '@solar-republic/cosmos-grpc/dist/tendermint/types/block';
 
-import type {AccountPath, AccountStruct} from '#/meta/account';
-import type {AsJson, Dict, JsonObject, Promisable} from '#/meta/belt';
+import type {AsJson, JsonObject} from '#/meta/belt';
 import type {Bech32, ChainStruct, HoldingPath} from '#/meta/chain';
-import type {TxSynced} from '#/meta/incident';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 
 import {create_store_class, WritableStoreMap} from './_base';
@@ -16,7 +11,7 @@ import {Chains} from './chains';
 
 import {yw_chain} from '#/app/mem';
 
-import type {CosmosNetwork, ModWsTxResult} from '#/chain/cosmos-network';
+import type {CosmosNetwork} from '#/chain/cosmos-network';
 import {SecretNetwork} from '#/chain/secret-network';
 import {SI_STORE_PROVIDERS, XT_SECONDS} from '#/share/constants';
 import {timeout_exec} from '#/util/belt';
@@ -126,56 +121,6 @@ export class NetworkExchangeError extends Error {
 	constructor(e_original: Error) {
 		super(`Network exchange error: ${e_original.name}:: ${e_original.message}`);
 	}
-}
-
-export interface ActiveNetwork {
-	get provider(): ProviderStruct;
-
-	/**
-	 * Retrieves and updates the bank balance for a single coin
-	 */
-	bankBalance(sa_owner: Bech32, si_coin?: string): Promise<BalanceBundle>;
-
-	/**
-	 * Retrieves and updates the bank balance for all coins on this chain
-	 */
-	bankBalances(sa_owner: Bech32): Promise<Dict<BalanceBundle>>;
-
-	e2eInfoFor(sa_other: Bech32, s_max_height?: string): Promise<E2eInfo>;
-
-	ecdh(atu8_other_pubkey: Uint8Array, g_chain?: ChainStruct, g_account?: AccountStruct): Promise<CryptoKey>;
-
-	ecdhEncrypt(
-		atu8_other_pubkey: Uint8Array,
-		atu8_plaintext: Uint8Array,
-		atu8_nonce: Uint8Array,
-		g_chain?: ChainStruct,
-		g_account?: AccountStruct
-	): Promise<Uint8Array>;
-
-	ecdhDecrypt(
-		atu8_other_pubkey: Uint8Array,
-		atu8_ciphertext: Uint8Array,
-		atu8_nonce: Uint8Array,
-		g_chain?: ChainStruct,
-		g_account?: AccountStruct
-	): Promise<Uint8Array>;
-
-	isContract(sa_account: Bech32): Promise<boolean>;
-
-	listen(a_events: string[], fke_receive: (d_kill: Event | null, g_tx?: JsonObject, si_txn?: string) => Promisable<void>): Promise<() => void>;
-
-	get hasRpc(): boolean;
-
-	cachedCoinBalance(sa_owner: Bech32, si_coin: string): Cached<Coin> | null;
-
-	fetchTx(si_txn: string): Promise<GetTxResponse>;
-
-	downloadTxn(si_txn: string, p_account: AccountPath): Promise<TxSynced>;
-
-	encodeExecuteContract(g_account: AccountStruct, sa_contract: Bech32, h_exec: JsonObject, s_code_hash: string): Promise<{amino: AminoMsg; proto: Any}>;
-
-	secretConsensusIoPubkey(): Promise<Uint8Array>;
 }
 
 export const Providers = create_store_class({

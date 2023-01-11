@@ -70,6 +70,8 @@ export class TmJsonRpcWebsocket {
 	// subscription states
 	protected _h_subscriptions: Dict<SubscriptionState> = {};
 
+	protected _i_ping = 0;
+
 	constructor(protected _g_provider: ProviderStruct, protected _g_hooks: ReceiverHooks) {
 		const p_host = _g_provider.rpcHost;
 
@@ -86,6 +88,27 @@ export class TmJsonRpcWebsocket {
 
 	get host(): string {
 		return this._p_host;
+	}
+
+	protected _refresh(): void {
+		clearTimeout(this._i_ping);
+
+		this._i_ping = (globalThis as typeof window).setTimeout(() => {
+			void this.wake();
+		}, 55e3);
+	}
+
+	protected _send(g_send: {
+		id: string;
+		method: string;
+		params?: JsonObject;
+	}): void {
+		this._refresh();
+
+		this._d_ws.send(JSON.stringify({
+			jsonrpc: '2.0',
+			...g_send,
+		}));
 	}
 
 	restart(): void {
@@ -282,14 +305,13 @@ export class TmJsonRpcWebsocket {
 
 			try {
 				// send Tendermint ABCI subscribe message
-				this._d_ws.send(JSON.stringify({
-					jsonrpc: '2.0',
+				this._send({
 					id: si_subscription,
 					method: 'subscribe',
 					params: {
 						query: a_events.join(' AND '),
 					},
-				}));
+				});
 			}
 			catch(e_send) {
 				fe_reject(e_send);
@@ -329,11 +351,10 @@ export class TmJsonRpcWebsocket {
 
 			try {
 				// send health check message
-				this._d_ws.send(JSON.stringify({
-					jsonrpc: '2.0',
+				this._send({
 					id: si_health_check,
 					method: 'health',
-				}));
+				});
 			}
 			catch(e_send) {
 				fe_reject(e_send);

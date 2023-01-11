@@ -17,6 +17,7 @@
 
 <script lang="ts">
 	import type {Coin} from '@cosmjs/amino';
+	import type {TxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
 	import type {SimulateResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 	
 	import type {U} from 'ts-toolbelt';
@@ -48,21 +49,25 @@
 	import type {AminoMsgSend} from '#/chain/messages/bank';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 	import {signAmino, type SignedDoc} from '#/chain/signing';
+	import type {WsTxResultError} from '#/cosmos/tm-json-rpc-ws-def';
 	import {pubkey_to_bech32} from '#/crypto/bech32';
 	import {decrypt_private_memo} from '#/crypto/privacy';
 	import {SecretWasm} from '#/crypto/secret-wasm';
 	import SensitiveBytes from '#/crypto/sensitive-bytes';
+	import {system_notify} from '#/extension/notifications';
 	import {ServiceClient} from '#/extension/service-comms';
 	import {open_flow} from '#/script/msg-flow';
 	import {global_broadcast, global_receive, global_wait} from '#/script/msg-global';
-	import {B_IOS_NATIVE, X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
+	import {H_TX_ERROR_HANDLERS} from '#/script/service-tx-abcis';
+	import {B_IOS_NATIVE, XT_MINUTES, X_SIMULATION_GAS_MULTIPLIER} from '#/share/constants';
 	import {Accounts} from '#/store/accounts';
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Incidents} from '#/store/incidents';
+	import {Settings} from '#/store/settings';
 	import {forever, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
 	import {base64_to_buffer, buffer_to_base93} from '#/util/data';
-	import {camel_to_snake, format_fiat, snake_to_camel} from '#/util/format';
+	import {format_fiat} from '#/util/format';
 	
 	import FatalError from './FatalError.svelte';
 	import SigningData from './SigningData.svelte';
@@ -76,10 +81,6 @@
 	import Load from '../ui/Load.svelte';
 	import Row from '../ui/Row.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
-    import type { TxResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
-    import { H_TX_ERROR_HANDLERS } from '#/script/service-tx-abcis';
-    import type { WsTxResultError } from '#/cosmos/tm-json-rpc-ws-def';
-    import { NotifyItemConfig, system_notify } from '#/extension/notifications';
 	
 
 	
@@ -115,7 +116,9 @@
 	export let broadcast: {} | null = null;
 
 	export let local = false;
-	
+
+	const b_show_timeout_controls = false;
+
 
 	// get fee coin from chain
 	const [si_coin, g_info] = Chains.feeCoin(g_chain);
@@ -129,13 +132,39 @@
 	/**
 	 * Datetime the last block was witnessed by the service monitor
 	 */
+	let n_block_prev = 0;
 	let xt_prev_block = 0;
+	let xt_prev_witness = 0;
+	let xt_avg_block_time = 0;
+
+	const a_samples: number[] = [];
 
 	// start monitoring service broadcasts
 	onDestroy(global_receive({
 		blockInfo(g_block_info) {
 			if(p_chain === g_block_info.chain) {
-				xt_prev_block = Date.now();
+				xt_prev_witness = Date.now();
+
+				const n_block = parseInt(g_block_info.header.height);
+
+				// do not sample repeats
+				if(n_block === n_block_prev) return;
+
+				n_block_prev = n_block;
+
+				const xt_block = Date.parse(g_block_info.header.time);
+
+				if(xt_prev_block) a_samples.push(xt_block - xt_prev_block);
+
+				xt_prev_block = xt_block;
+
+				// recompute average block time
+				if(a_samples.length > 1) {
+					xt_avg_block_time = a_samples.reduce((c_out, x_value) => c_out + x_value, 0) / a_samples.length;
+
+					// update block wait
+					n_blocks_wait = Math.floor((5 * XT_MINUTES) / xt_avg_block_time);
+				}
 			}
 		},
 	}));
@@ -330,7 +359,7 @@
 
 					const g_send = a_msgs_amino[0].value as AminoMsgSend;
 					try {
-						s_memo_decrypted = await decrypt_private_memo(memo, $yw_network, g_send.to_address, `${g_signer.sequence}`);
+						s_memo_decrypted = await decrypt_private_memo(memo, $yw_network, g_send.to_address, `${g_signer.sequence}`, $yw_account);
 						b_memo_encrypted = true;
 						b_memo_show_raw = true;
 
@@ -414,43 +443,45 @@
 	let s_gas_forecast = '';
 	let s_err_sim = '';
 
-	let b_granter_resolved = false;
 	let b_use_grant = true;
 	let s_granter: Bech32 | '' = '';
 	let yg_grant_amount = BigNumber(0);
 	let c_grants_checked = 0;
+
+	let b_use_expiration = true;
+	let n_blocks_wait = 50;
+
+	// fetch fee grants
+	let k_fee_grants: FeeGrants;
 
 	async function tx_granter(): Promise<string> {
 		// user disabled grant usage
 		if(!b_use_grant) return '';
 
 		// granter already resolved
-		if(b_granter_resolved) return s_granter;
+		if(s_granter) return s_granter;
 
 		// resolve account
 		const g_account = await dp_account;
 
-		// fetch fee grants
-		const k_fee_grants = await FeeGrants.forAccount(g_account, $yw_network);
+		// load fee grants
+		if(!k_fee_grants) k_fee_grants = await FeeGrants.forAccount(g_account, $yw_network);
 
 		// ref grant corresponding to fee coin
 		const g_sum = k_fee_grants.grants[si_coin];
 
-		// granter is now resolved
-		b_granter_resolved = true;
-
 		// prep fee denom by shifting fee coin decimals
-		const yg_fee_denom = BigNumber(s_fee_total).shiftedBy(-g_fee_coin_info.decimals);
+		const yg_fee_denom = yg_fee.shiftedBy(-g_fee_coin_info.decimals);
 
 		// resolve granter
-		for(const [sa_granter, g_grant] of ode(g_sum?.granters || {})) {
+		for(const g_grant of g_sum?.grants || []) {
 			c_grants_checked += 1;
 
 			// grant is enough to cover fee
 			const yg_amount = g_grant.amount;
 			if(yg_amount.gte(yg_fee_denom)) {
 				yg_grant_amount = yg_amount;
-				return s_granter = sa_granter;
+				return s_granter = g_grant.allowance.granter as Bech32;
 			}
 		}
 
@@ -514,8 +545,11 @@
 				return yg_max;
 			}, BigNumber(0));
 
+			// load gas multiplier for chain
+			const x_simulation_gas_multiplier = (await Settings.get('h_chain_settings'))?.[p_chain]?.x_gas_multiplier || X_SIMULATION_GAS_MULTIPLIER;
+
 			// forecast appropriate gas limit
-			const yg_gas_forecast = yg_gas_used_sim.times(X_SIMULATION_GAS_MULTIPLIER).integerValue(BigNumber.ROUND_CEIL);
+			const yg_gas_forecast = yg_gas_used_sim.times(x_simulation_gas_multiplier).integerValue(BigNumber.ROUND_CEIL);
 
 			// save as string
 			s_gas_forecast = yg_gas_forecast.toString();
@@ -546,6 +580,9 @@
 				// otherwise, do not risk spending below the amount
 				// TODO: leverage keplr's `preferNoSetFee`
 			}
+
+			// update fee grant check
+			void tx_granter();
 		}
 
 		// wait for certain number of blocks
@@ -750,6 +787,7 @@
 				const atu8_body = encode_proto(TxBody, {
 					messages: a_msgs_proto,
 					memo: memo,
+					timeoutHeight: `${b_use_expiration && xt_prev_block? n_block_prev + n_blocks_wait: 0}`,
 				});
 
 				// sign direct
@@ -936,7 +974,7 @@
 				}
 
 				// service not dead but it has been a while since the last block was observed
-				if(Date.now() - xt_prev_block > 12e3) {
+				if(Date.now() - xt_prev_witness > 12e3) {
 					// wait for up to 6 more seconds
 					try {
 						await global_wait('blockInfo', g => p_chain === g.chain, 6e3);
@@ -1043,6 +1081,9 @@
 
 			dp_fee_fiat = Coins.displayInfo(g_coin, g_chain).then(g_display => `=${format_fiat(g_display.fiat, g_display.versus)}`);
 		}
+
+		// update fee grant check
+		void tx_granter();
 	}
 
 	// parse network fee
@@ -1248,76 +1289,102 @@
 		{:else}
 			<div style={`
 				display: flex;
-				justify-content: space-between;
+				flex-direction: column;
+				gap: 8px;
 			`}>
-				<div>
-					<div class="fee-denom">
-						{s_fee_total_display}
+				<div style={`
+					display: flex;
+					justify-content: space-between;
+				`}>
+					<div>
+						<div class="fee-denom">
+							{s_fee_total_display}
+						</div>
+						<div class="fee-fiat global_subvalue">
+							<Load input={dp_fee_fiat} />
+						</div>
 					</div>
-					<div class="fee-fiat global_subvalue">
-						<Load input={dp_fee_fiat} />
-					</div>
-				</div>
-				<div style="text-align:right;">
-					<div class="font-variant_tiny" style="color:var(--theme-color-{s_err_sim? 'caution': 'text-med'});">
-						{#if !a_sims.length}
-							{#if s_err_sim}
-								Simulation failed
+					<div style="text-align:right;">
+						<div class="font-variant_tiny" style="color:var(--theme-color-{s_err_sim? 'caution': 'text-med'});">
+							{#if !a_sims.length}
+								{#if s_err_sim}
+									Simulation failed
+								{:else}
+									Optimizing fee...
+								{/if}
+							{:else if s_gas_forecast}
+								✔️ Optimized fee ({
+									c_samples <= 10
+										? c_samples
+										: `>${Math.floor((c_samples-1) / 10) * 10}`
+								})
 							{:else}
-								Optimizing fee...
+								Optimization failed
 							{/if}
-						{:else if s_gas_forecast}
-							✔️ Optimized fee ({
-								c_samples <= 10
-									? c_samples
-									: `>${Math.floor((c_samples-1) / 10) * 10}`
-							})
-						{:else}
-							Optimization failed
-						{/if}
-					</div>
-					<div class="link font-variant_tiny" on:click={() => click_adjust_fee()}>
-						{s_adjust_fee_text}
+						</div>
+						<div class="link font-variant_tiny" on:click={() => click_adjust_fee()}>
+							{s_adjust_fee_text}
+						</div>
 					</div>
 				</div>
-			</div>
 
-			{#if b_show_fee_adjuster}
-				<div class="global_inline-form" style="margin-top: 6px;" transition:slide>
-					<span class="key">
-						Gas limit
-					</span>
-					<span class="value">
-						<input class="global_compact" required type="number" min="0" step="500" bind:value={s_gas_limit}>
-					</span>
-					<span class="key">
-						Gas price
-					</span>
-					<span class="value">
-						<input class="global_compact" required type="number" min="0" step="0.00125" bind:value={s_gas_price}>
-					</span>
-				</div>
-			{/if}
+				{#if b_show_fee_adjuster}
+					<div class="global_inline-form" style="margin-top: -2px;" transition:slide>
+						<span class="key">
+							Gas limit
+						</span>
+						<span class="value">
+							<input class="global_compact" required type="number" min="0" step="500" bind:value={s_gas_limit}>
+						</span>
+						<span class="key">
+							Gas price
+						</span>
+						<span class="value">
+							<input class="global_compact" required type="number" min="0" step="0.00125" bind:value={s_gas_price}>
+						</span>
+					</div>
+				{/if}
+
+				{#if c_grants_checked}
+					{#if s_granter}
+						<CheckboxField id='fee-grant' bind:checked={b_use_grant}>
+							<span class="font-variant_tiny color_text-med">
+								{#await address_to_name(s_granter, g_chain)}
+									<Load forever />
+								{:then s_granter_name}
+									Use allowance from {s_granter_name}
+								{/await}
+							</span>
+						</CheckboxField>
+					{:else}
+						<CheckboxField id='fee-grant' disabled>
+							<span class="font-variant_tiny color_text-med">
+								{#if 1 === c_grants_checked}
+									Fee exceeds grant allowance
+								{:else}
+									None of current grants can cover this fee
+								{/if}
+							</span>
+						</CheckboxField>
+					{/if}
+				{/if}
+			</div>
 		{/if}
 	</Field>
 
-	{#if c_grants_checked}
-		<Field name='Fee Grant' short>
-			{#if s_granter}
-				<CheckboxField id='fee-grant' bind:checked={b_use_grant}>
-					{#await address_to_name(s_granter, g_chain)}
-						<Load forever />
-					{:then s_granter_name}
-						Use fee grant from {s_granter_name}
-					{/await}
+	{#if b_show_timeout_controls}
+		<Field name='Timeout' short>
+			{#if xt_avg_block_time}
+				<CheckboxField id='timeout' bind:checked={b_use_expiration}>
+					<span class="font-variant_tiny color_text-med">
+						Abort after 5 minutes ({n_blocks_wait} blocks)
+					</span>
 				</CheckboxField>
 			{:else}
-				<CheckboxField id='fee-grant' disabled>
-					{#if 1 === c_grants_checked}
-						Fee exceeds grant allowance
-					{:else}
-						None of current grants can cover this fee
-					{/if}
+				<CheckboxField id='timeout' bind:checked={b_use_expiration}>
+					<span class="font-variant_tiny color_text-med">
+						Abort after {n_blocks_wait} blocks
+					</span>
 				</CheckboxField>
 			{/if}
 		</Field>
@@ -1337,7 +1404,7 @@
 		</Field>
 	{/if}
 
-	<ActionsLine disabled={b_approving} cancel={() => cancel()} confirm={['Approve', approve, !b_loaded || b_approving]} />
+	<ActionsLine disabled={b_approving} cancel={() => cancel()} confirm={['Approve', approve, !b_loaded]} />
 
 	<Curtain on:click={() => b_tooltip_showing = false} />
 </Screen>

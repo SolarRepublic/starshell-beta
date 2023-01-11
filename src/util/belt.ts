@@ -254,7 +254,9 @@ export function oderom<
 export function fodemtv<
 	w_out extends any,
 	w_value extends any,
->(h_thing: Dict<w_value>, f_transform: (w_value: w_value, si_key?: string) => w_out): Dict<w_out> {
+>(h_thing: Dict<w_value>, f_transform: (w_value: w_value, si_key?: string) => w_out): {
+	[si_key in keyof typeof h_thing]: w_out;
+} {
 	return Object.fromEntries(
 		ode(h_thing).map(([si_key, w_value]) => [si_key, f_transform(w_value, si_key)])
 	);

@@ -5,7 +5,8 @@
 	
 	import {Screen} from './_screens';
 	import {syserr} from '../common';
-	import {yw_account_editted, yw_account_ref, yw_chain, yw_navigator} from '../mem';
+	import {ThreadId} from '../def';
+	import {yw_account, yw_account_ref, yw_chain, yw_navigator} from '../mem';
 	import {load_flow_context} from '../svelte';
 	
 	import {utility_key_child} from '#/share/account';
@@ -29,7 +30,6 @@
 	import Tooltip from '../ui/Tooltip.svelte';
 	
 	import SX_ICON_ARROW from '#/icon/expand_more.svg?raw';
-	import { ThreadId } from '../def';
 	
 
 	export let accountPath: AccountPath;
@@ -208,7 +208,7 @@
 		}
 
 		// trigger account edit
-		$yw_account_editted++;
+		void yw_account.invalidate();
 
 		if(completed) {
 			completed(true);
@@ -217,7 +217,7 @@
 			k_page.reset();
 
 			if(fresh) {
-				$yw_navigator.activateThread(ThreadId.TOKENS);
+				void $yw_navigator.activateThread(ThreadId.TOKENS);
 
 				// switch to new account
 				$yw_account_ref = accountPath;

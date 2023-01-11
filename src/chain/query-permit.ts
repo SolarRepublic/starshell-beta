@@ -9,8 +9,12 @@ import type {Snip24Permission} from '#/schema/snip-24-def';
 import {SecretNetwork} from './secret-network';
 
 import {system_notify} from '#/extension/notifications';
-import {Accounts, Chains, fold, Secrets} from '#/script/ics-witness-imports';
+
+import {Accounts} from '#/store/accounts';
+import {Chains} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
+import {Secrets} from '#/store/secrets';
+import {fold} from '#/util/belt';
 import {json_to_buffer} from '#/util/data';
 
 export async function save_query_permit(

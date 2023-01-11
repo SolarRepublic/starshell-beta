@@ -5,6 +5,7 @@
 	import ResourceControl from '../ui/ResourceControl.svelte';
 	
 	import SX_ICON_CREDIT_CARD from '#/icon/credit-card.svg?raw';
+	import SX_ICON_ARROW from '#/icon/expand-right.svg?raw';
 	import SX_ICON_INFO from '#/icon/info.svg?raw';
 
 	export let s_summary = '';
@@ -16,6 +17,6 @@
 	}
 </script>
 
-<ResourceControl infoIcon={SX_ICON_CREDIT_CARD} actionIcon={SX_ICON_INFO} on:click={resource_click}>
+<ResourceControl infoIcon={SX_ICON_CREDIT_CARD} actionIcon={SX_ICON_ARROW} on:click={resource_click}>
 	<slot />
 </ResourceControl>

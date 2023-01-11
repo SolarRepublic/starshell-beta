@@ -104,6 +104,7 @@
 		// load all viewing keys
 		const a_viewing_keys = await Secrets.filter({
 			type: 'viewing_key',
+			on: 1,
 			chain: p_chain,
 			owner: sa_owner,
 		});

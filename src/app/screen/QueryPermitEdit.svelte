@@ -6,14 +6,14 @@
 	import {Screen, Header} from './_screens';
 	import {load_page_context} from '../svelte';
 	
-	import {Apps} from '#/script/ics-witness-imports';
+	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Secrets} from '#/store/secrets';
 	
+	import InlineTags from '../frag/InlineTags.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Field from '../ui/Field.svelte';
 	import Info from '../ui/Info.svelte';
-	import InlineTags from '../frag/InlineTags.svelte';
 	import Load from '../ui/Load.svelte';
 	
 	

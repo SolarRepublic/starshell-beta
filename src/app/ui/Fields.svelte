@@ -10,7 +10,6 @@
 	
 	import type {SecretPath} from '#/meta/secret';
 	
-	import {syserr} from '../common';
 	import {classify} from '../helper/json-previewer';
 	import {yw_chain} from '../mem';
 	
@@ -18,7 +17,7 @@
 	
 	import {produce_contract} from '#/chain/contract';
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
-	import {ecdh_nonce, extract_memo_ciphertext} from '#/crypto/privacy';
+	import {decrypt_private_memo} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
 	import {Agents} from '#/store/agents';
 	import {Apps} from '#/store/apps';
@@ -27,7 +26,6 @@
 	
 	import {Secrets} from '#/store/secrets';
 	import {fold, forever, ode, proper} from '#/util/belt';
-	import {buffer_to_text} from '#/util/data';
 	import {dd, open_external_link, qsa} from '#/util/dom';
 	import {phrase_to_hyphenated} from '#/util/format';
 	
@@ -69,8 +67,7 @@
 
 	async function decrypt_memo(s_memo: string): Promise<string> {
 		const {
-			chain: p_chain,
-			height: s_height,
+			signers: a_signers,
 			msgs: [
 				{
 					events: {
@@ -78,8 +75,6 @@
 					},
 				},
 			],
-			gas_wanted: s_gas_wanted,
-			signers: a_signers,
 		} = (incident as Incident.Struct<'tx_in' | 'tx_out'>).data as TxSynced;
 
 		const s_sequence = a_signers![0].sequence;
@@ -111,27 +106,7 @@
 		// wait for load to complete
 		await loaded;
 
-		// locate others's public key
-		let atu8_pubkey_65: Uint8Array;
-		try {
-			({
-				pubkey: atu8_pubkey_65,
-			} = await network.e2eInfoFor(sa_other));
-		}
-		catch(e_info) {
-			throw syserr({
-				title: 'Other Account Unpublished',
-				error: e_info,
-			});
-		}
-
-		const atu8_nonce = await ecdh_nonce([s_sequence]);
-
-		const atu8_ciphertext = extract_memo_ciphertext(s_memo);
-
-		const atu8_plaintext = await network.ecdhDecrypt(atu8_pubkey_65, atu8_ciphertext, atu8_nonce, chain, g_account);
-
-		return buffer_to_text(atu8_plaintext).replace(/\0+$/, '');
+		return await decrypt_private_memo(s_memo, network, sa_other, s_sequence, g_account);
 	}
 
 

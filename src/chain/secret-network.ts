@@ -23,6 +23,8 @@ import {SecretWasm} from '#/crypto/secret-wasm';
 import { utility_key_child } from '#/share/account';
 import {Chains} from '#/store/chains';
 import {base64_to_buffer, base93_to_buffer, buffer_to_base93, buffer_to_json, buffer_to_text} from '#/util/data';
+import { ContractDecryptionError } from '#/share/errors';
+import { R_SCRT_COMPUTE_ERROR } from '#/share/constants';
 
 
 
@@ -111,6 +113,9 @@ export class SecretNetwork extends CosmosNetwork {
 		return SecretWasm.decryptMsg(g_account, this._g_chain, atu8_msg);
 	}
 
+	decryptComputeError(g_account: AccountStruct, s_message: string, atu8_nonce: Uint8Array): Promise<string> {
+		return SecretWasm.decryptComputeError(g_account, this._g_chain, s_message, atu8_nonce);
+	}
 
 	async snip20Info(g_account: AccountStruct, g_contract: Queryable): Promise<Snip20TokenInfo> {
 		return await this.queryContract<Snip20TokenInfo>(g_account, g_contract, {

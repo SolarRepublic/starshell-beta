@@ -223,19 +223,6 @@
 		/>
 	{/await}
 
-
-<!-- 
-	<span class="icon" class:visibility_hidden={!!address} on:click={() => {
-		$yw_help = [
-			dd('br'),
-			dd('p', {}, [`No QR code scanner in MVP. But you can try copying the address text by using your device's built-in camera app.`]),
-			dd('br'),
-			dd('br'),
-		];
-	}}>
-		{@html SX_ICON_SCAN}
-	</span> -->
-
 	{#if error}
 		<span class="validation-message">
 			{error}

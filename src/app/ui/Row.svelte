@@ -3,9 +3,9 @@
 	import type {Dict, Promisable} from '#/meta/belt';
 	import type {PfpTarget} from '#/meta/pfp';
 	
-	import {onDestroy} from 'svelte';
+	import {createEventDispatcher, onDestroy} from 'svelte';
 	
-	import {yw_store_tags} from '../mem';
+	import {yw_nav_collapsed, yw_nav_visible, yw_store_tags} from '../mem';
 	
 	import {oderom} from '#/util/belt';
 	
@@ -73,7 +73,13 @@
 	 * Optional dict to use to create data attributes on root element
 	 */
 	export let data: Dict = {};
+
+	/**
+	 * Enables drag-and-drop reordering
+	 */
+	export let b_draggable = false;
 	
+
 	const h_data_attrs = oderom(data, (si_key, s_value) => ({
 		[`data-${si_key}`]: s_value,
 	}));
@@ -107,10 +113,14 @@
 
 	export let iconClass = '';
 
+	let dm_row: HTMLDivElement;
+
 	// load tags from resource path
 	const a_tags = resourcePath? $yw_store_tags?.getTagsFor(resourcePath) || []: [];
 	
 	const as_intervals = new Set<number>();
+
+	const dispatch = createEventDispatcher();
 
 	onDestroy(() => {
 		for(const i_interval of as_intervals) {
@@ -118,6 +128,94 @@
 		}
 	});
 
+
+	let b_restore_nav = false;
+	function drag_start(d_event: DragEvent) {
+		if(!b_draggable) return;
+
+		b_restore_nav = $yw_nav_visible && !$yw_nav_collapsed;
+		if(b_restore_nav) $yw_nav_collapsed = true;
+
+		const d_transfer = d_event.dataTransfer!;
+
+		d_transfer.dropEffect = 'move';
+		d_transfer.effectAllowed = 'move';
+
+		d_transfer.clearData();
+		d_transfer.setData('application/json', JSON.stringify({
+			p_resource: resourcePath,
+		}));
+	}
+
+	function drag_end() {
+		if(b_restore_nav) $yw_nav_collapsed = true;
+	}
+
+	let sx_style_drag = '';
+	let xl_mid_y = 0;
+
+	function drag_enter(d_event: DragEvent) {
+		if(!b_draggable) return;
+
+		const {
+			top: xl_top,
+			height: xl_height,
+		} = dm_row.getBoundingClientRect();
+
+		xl_mid_y = xl_top + (xl_height / 2);
+
+		d_event.preventDefault();
+	}
+
+	let xc_above_below: -1 | 0 | 1 = 0;
+	function drag_over(d_event: DragEvent) {
+		if(!b_draggable) return;
+
+		const xl_y = d_event.clientY;
+
+		if(xl_y <= xl_mid_y) {
+			if(-1 !== xc_above_below) {
+				xc_above_below = -1;
+				sx_style_drag = `
+					border-top: 2px solid var(--theme-color-primary);
+					margin-top: -1px;
+				`;
+			}
+		}
+		else if(1 !== xc_above_below) {
+			xc_above_below = 1;
+			sx_style_drag = `
+				border-bottom: 2px solid var(--theme-color-primary);
+				margin-bottom: -1px;
+			`;
+		}
+
+		d_event.preventDefault();
+	}
+
+	function drag_leave() {
+		if(!b_draggable) return;
+
+		xc_above_below = 0;
+		sx_style_drag = '';
+	}
+
+	function drop(d_event: DragEvent) {
+		if(!b_draggable) return;
+
+		// reset drag styling
+		sx_style_drag = '';
+
+		const g_src = JSON.parse(d_event.dataTransfer!.getData('application/json') || '{}');
+
+		dispatch('dropRow', {
+			src: g_src,
+			dst: {
+				p_resource: resourcePath,
+			},
+			relation: xc_above_below,
+		});
+	}
 </script>
 
 <style lang="less">
@@ -326,7 +424,17 @@
 <div class="row {rootClasses}"
 	class:cancelled={cancelled}
 	class:embedded={embedded}
-	style={rootStyle} {...h_data_attrs} on:click
+	style={rootStyle+sx_style_drag}
+	{...h_data_attrs}
+	on:click
+	draggable={b_draggable? 'true': 'false'}
+	on:dragstart={drag_start}
+	on:dragend={drag_end}
+	on:dragover={drag_over}
+	on:dragenter={drag_enter}
+	on:dragleave={drag_leave}
+	on:drop={drop}
+	bind:this={dm_row}
 >
 	<div class="banner {childClasses}">
 		{#if !noPfp}

@@ -267,7 +267,7 @@ export const P_PUBLIC_SUFFIX_LIST = 'https://raw.githubusercontent.com/publicsuf
 export const P_STARSHELL_DECREES = 'https://raw.githubusercontent.com/SolarRepublic/wallet-decrees/main/global.json';
 
 // defaults repo
-export const P_STARSHELL_DEFAULTS = 'https://raw.githubusercontent.com/SolarRepublic/wallet-defaults-registry/main/';
+export const P_STARSHELL_DEFAULTS = 'https://raw.githubusercontent.com/SolarRepublic/wallet-defaults-registry/main/global.json';
 
 // transfer amount string regex
 export const R_TRANSFER_AMOUNT = /^(\d+)(.+)/;
@@ -281,7 +281,7 @@ export const ATU8_DUMMY_PHRASE = text_to_buffer('32-character-long-dummy-passwor
 export const ATU8_DUMMY_VECTOR = new Uint8Array(crypto.getRandomValues(new Uint8Array(16)));
 
 // minimum password length
-export const NL_PASSPHRASE_MINIMUM = 5;
+export const NL_PASSPHRASE_MINIMUM = 8;
 
 // maximum password length
 export const NL_PASSPHRASE_MAXIMUM = 1024;
@@ -299,11 +299,10 @@ export const XT_INTERVAL_HEARTBEAT = 200;
 
 export const XG_64_BIT_MAX = (2n ** 64n) - 1n;
 
-export const X_SIMULATION_GAS_MULTIPLIER = 1.01;
+export const X_SIMULATION_GAS_MULTIPLIER = 1.1;
 
 export const XT_TIMEOUT_APP_PERMISSIONS = 5 * XT_MINUTES;
 export const XT_TIMEOUT_SERVICE_REQUEST = 5 * XT_MINUTES;
-
 
 // default chain namepsaces
 export const A_CHAIN_NAMESPACES = [
@@ -342,3 +341,7 @@ export {A_KEPLR_EMBEDDED_CHAINS, A_TESTNETS} from './keplr-exports';
 export const R_TX_ERR_ACC_SEQUENCE = /account sequence/;
 
 export const SI_EXTENSION_ID_KEPLR = 'dmkamcknogkgcdfhhbddcghachkejeap';
+
+export const A_COURTESY_ACCOUNTS = [
+	'secret13220hzfrxxd6zrdl5qm78xm4aacvyvlskx0jnn',
+];

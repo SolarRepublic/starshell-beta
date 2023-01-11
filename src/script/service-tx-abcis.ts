@@ -1,7 +1,7 @@
-import type {AminoMsg, Coin} from '@cosmjs/amino';
+import type {AminoMsg} from '@cosmjs/amino';
 
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-import type {Bech32, ChainStruct} from '#/meta/chain';
+import type {ChainStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 import type {IncidentStruct, IncidentType, TxError, TxSynced} from '#/meta/incident';
 
@@ -11,22 +11,19 @@ import {global_broadcast} from './msg-global';
 
 import type {LocalAppContext} from '#/app/svelte';
 import {proto_to_amino} from '#/chain/cosmos-msgs';
-import type {CosmosNetwork} from '#/chain/cosmos-network';
+import type {CosmosNetwork, TypedEvent} from '#/chain/cosmos-network';
 import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 import type {TmJsonRpcWebsocket} from '#/cosmos/tm-json-rpc-ws-const';
-import type {WsTxResponse, WsTxResultError} from '#/cosmos/tm-json-rpc-ws-def';
+import type {WsTxResponse, WsTxResultError, WsTxResultSuccess} from '#/cosmos/tm-json-rpc-ws-def';
 import type {NotificationConfig, NotifyItemConfig} from '#/extension/notifications';
 import {R_TX_ERR_ACC_SEQUENCE} from '#/share/constants';
 import {Apps} from '#/store/apps';
 import {parse_date, TransactionNotFoundError} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 
-import {fodemtv, oderac} from '#/util/belt';
-import {base64_to_buffer, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
-import {format_amount, format_date_long} from '#/util/format';
-import { address_to_name } from '#/chain/messages/_util';
-import type { MsgGrantAllowance } from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/tx';
-import { Coins } from '#/chain/coin';
+import {fodemtv, fold, oderac} from '#/util/belt';
+import {base64_to_buffer, base64_to_text, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
+import {format_amount} from '#/util/format';
 
 
 export interface CosmosEvents {
@@ -65,6 +62,8 @@ interface TxDataExtra extends AbciExtras {
 	s_height: string;
 	s_gas_used: string;
 	s_gas_wanted: string;
+	a_events: WsTxResultSuccess['events'];
+	s_log: string;
 }
 
 export interface TxAbciConfig {
@@ -287,6 +286,8 @@ export function tx_abcis(g_chain: ChainStruct, h_abcis: Dict<TxAbciConfig>): Dic
 					const {
 						gas_used: s_gas_used,
 						gas_wanted: s_gas_wanted,
+						events: a_events,
+						log: s_log,
 					} = g_result;
 
 					// data callback with msgs as amino and extras
@@ -296,6 +297,8 @@ export function tx_abcis(g_chain: ChainStruct, h_abcis: Dict<TxAbciConfig>): Dic
 						s_gas_wanted,
 						s_gas_used,
 						s_height,
+						a_events: a_events || [],
+						s_log,
 					});
 				}
 			},
@@ -621,7 +624,27 @@ export function account_abcis(
 			filter: `use_feegrant.grantee='${sa_agent}'`,
 
 			error: sent_error,
-			data: sent_data,
+			async data(a_msgs: AminoMsg[], g_extra: TxDataExtra) {
+				// cancel if message.sender is present in events
+				for(const g_event of g_extra.a_events) {
+					if('message' === g_event.type) {
+						for(const g_attr of g_event.attributes) {
+							if('sender' === base64_to_text(g_attr.key)) return;
+						}
+					}
+				}
+
+				const a_log = JSON.parse(g_extra.s_log);
+				for(const g_event of a_log[0].events) {
+					if('message' === g_event.type) {
+						for(const g_attr of g_event.attributes) {
+							if('sender' === g_attr.key) return;
+						}
+					}
+				}
+
+				return await sent_data(a_msgs, g_extra);
+			},
 		},
 
 		receive: {
@@ -641,9 +664,12 @@ export function account_abcis(
 					}
 					catch(e_download) {
 						if(e_download instanceof TransactionNotFoundError) {
-							await Incidents.mutateData(Incidents.pathFor('tx_in', si_txn), {
-								stage: 'absent',
-							});
+							try {
+								await Incidents.mutateData(Incidents.pathFor('tx_in', si_txn), {
+									stage: 'absent',
+								});
+							}
+							catch(e_mutate) {}
 						}
 
 						return;
@@ -707,9 +733,27 @@ export function account_abcis(
 
 			filter: `set_feegrant.grantee='${sa_agent}'`,
 
-			async data(a_msgs, g_extra, w_more) {
+			async data(a_msgs, g_extra) {
 				// transaction hash
-				const {si_txn} = g_extra;
+				const {si_txn, a_events} = g_extra;
+
+				// cosmos-sdk bug sometimes emits `set_feegrant` when it shouldn't
+				{
+					let sx_use_feegrant_attrs = '';
+					let sx_set_feegrant_attrs = '';
+
+					for(const g_event of a_events) {
+						if('use_feegrant' === g_event.type) {
+							sx_use_feegrant_attrs = JSON.stringify(g_event.attributes);
+						}
+						else if('set_feegrant' === g_event.type) {
+							sx_set_feegrant_attrs = JSON.stringify(g_event.attributes);
+						}
+					}
+
+					// identical events means one is false
+					if(sx_use_feegrant_attrs === sx_set_feegrant_attrs) return;
+				}
 
 				// ref or download tx
 				let g_synced = g_extra.g_synced as TxSynced;
@@ -719,9 +763,12 @@ export function account_abcis(
 					}
 					catch(e_download) {
 						if(e_download instanceof TransactionNotFoundError) {
-							await Incidents.mutateData(Incidents.pathFor('tx_in', si_txn), {
-								stage: 'absent',
-							});
+							try {
+								await Incidents.mutateData(Incidents.pathFor('tx_in', si_txn), {
+									stage: 'absent',
+								});
+							}
+							catch(e_mutate) {}
 						}
 
 						return;
@@ -739,45 +786,31 @@ export function account_abcis(
 				// notify configs
 				const a_notifies: NotifyItemConfig[] = [];
 
-				// each message
+				// scan messages for those that pertains to this account
 				for(const g_msg of a_msgs) {
-					if('cosmos-sdk/MsgGrantAllowance' === g_msg.type) {
-						const {
-							granter: sa_granter,
-							allowance: g_allowance,
-						} = g_msg.value as {
-							granter: Bech32;
-							allowance: AminoMsg;
-						};
+					const si_type = g_msg.type;
 
-						const s_granter = await address_to_name(sa_granter, _g_chain);
+					// prep notify item
+					let g_notify: NotifyItemConfig | undefined;
 
-						let s_message = `${s_granter} granted ${_g_account.name} `;
+					// interpret message
+					const f_interpretter = H_INTERPRETTERS[si_type];
+					if(f_interpretter) {
+						const g_interpretted = await f_interpretter(g_msg.value as JsonObject, g_context_vague);
 
-						if('cosmos-sdk/BasicAllowance' === g_allowance.type) {
-							const {
-								expiration: s_expiration,
-								spend_limit: a_coins,
-							} = g_allowance.value as {
-								expiration: string;
-								spend_limit: Coin[];
-							};
-
-							const s_amount = Coins.summarizeAmount(a_coins[0], _g_chain);
-
-							const xt_expires = new Date(s_expiration).getTime();
-
-							s_message += `with ${s_amount} worth of fees. Expires ${format_date_long(xt_expires)}`;
-						}
-						else if('cosmos-sdk/PeriodicAllowance' === g_allowance.type) {
-							s_message = `a periodic allowance.`;
-						}
-
-						a_notifies.push({
-							title: '💳 Received Fee Grant Allowance',
-							message: s_message,
-						});
+						// receive message
+						g_notify = await g_interpretted.receive?.(a_msgs.length);
 					}
+					// no interpretter; use fallback notifiy item
+					else {
+						g_notify = {
+							title: '💳 Received Fee Grant Allowance',
+							message: '',
+						};
+					}
+
+					// push notify item to list
+					if(g_notify) a_notifies.push(g_notify);
 				}
 
 				// merge notify items

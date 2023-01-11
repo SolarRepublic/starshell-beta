@@ -9,6 +9,7 @@ import BigNumber from 'bignumber.js';
 
 import {address_to_name, add_coins} from './_util';
 
+import {global_broadcast} from '#/script/msg-global';
 import {Chains} from '#/store/chains';
 import {ode} from '#/util/belt';
 import {format_amount} from '#/util/format';
@@ -36,7 +37,7 @@ function coin_to_payload(g_amount: Coin, g_chain: ChainStruct): Cw.Amount {
 
 
 export const BankMessages: MessageDict = {
-	'cosmos-sdk/MsgSend'(g_msg, {g_chain, g_account, sa_owner}) {
+	'cosmos-sdk/MsgSend'(g_msg, {p_chain, g_chain, g_account, sa_owner}) {
 		const {
 			from_address: sa_sender,
 			to_address: sa_recipient,
@@ -86,6 +87,16 @@ export const BankMessages: MessageDict = {
 			},
 
 			async apply() {
+				// broadcast event
+				global_broadcast({
+					type: 'coinSent',
+					value: {
+						p_chain,
+						sa_sender,
+						a_amounts: a_coins,
+					},
+				});
+
 				return {
 					group: nl => `Payment${1 === nl? '': 's'} Sent`,
 					title: `✅ Sent ${s_payload} on ${g_chain.name}`,
@@ -131,6 +142,16 @@ export const BankMessages: MessageDict = {
 			},
 
 			async receive() {
+				// broadcast event
+				global_broadcast({
+					type: 'coinReceived',
+					value: {
+						p_chain,
+						sa_recipient,
+						a_amounts: a_coins,
+					},
+				});
+
 				return {
 					group: nl => `Payment${1 === nl? '': 's'} Received`,
 					// 💵💸

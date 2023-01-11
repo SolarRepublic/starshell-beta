@@ -1,5 +1,7 @@
 import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
 
+import type {Caip2} from '#/meta/chain';
+
 import {storage_get, storage_set} from '#/extension/public-storage';
 import {
 	P_PUBLIC_SUFFIX_LIST,
@@ -10,9 +12,9 @@ import {
 	XT_MINUTES,
 } from '#/share/constants';
 
-const $_EXISTING = Symbol('use-existing-cache');
+const _EXISTING = Symbol('use-existing-cache');
 
-type $_EXISTING = typeof $_EXISTING;
+type _EXISTING = typeof _EXISTING;
 
 interface GenericEntry {
 	format: string;
@@ -22,7 +24,7 @@ interface GenericEntry {
 
 interface TextEntry extends GenericEntry {
 	format: 'text';
-	parse?(sx_data: string): $_EXISTING | JsonValue;
+	parse?(sx_data: string): _EXISTING | JsonValue;
 }
 
 interface JsonEntry extends GenericEntry {
@@ -39,17 +41,35 @@ type Entry = TextEntry | JsonEntry | BinaryEntry;
 export interface Decree extends JsonObject {
 	affects: string;
 	action: 'restrict';
-	suggestion: 'upgrade';
+	suggestion: 'upgrade' | 'wait';
+	details?: string;
+}
+
+export interface RateLimitConfig extends JsonObject {
+	concurrency: number;
+	capacity: number;
+	resolution: number;
 }
 
 export interface StarShellDefaults {
-	chains: Dict<{
-		providers?: {
-			name: string;
-			grpcWebUrl: string;
-			rpcHost?: string;
-			on: 0 | 1;
-		}[];
+	queries?: {
+		defaultRateLimit?: RateLimitConfig;
+
+		urls?: Dict<{
+			RateLimitConfig;
+		}>;
+	};
+
+	webApis?: {
+		defaultRateLimit?: RateLimitConfig;
+
+		origins?: Dict<{
+			RateLimitConfig;
+		}>;
+	};
+
+	chainSettings?: Record<Caip2.String, {
+		simulationGasMultiplier?: number;
 	}>;
 }
 
@@ -57,9 +77,9 @@ const H_REGISTRY = {
 	[P_PUBLIC_SUFFIX_LIST]: {
 		format: 'text',
 		lifespan: 1*XT_HOURS,
-		parse(sx_data): $_EXISTING | string[] {
+		parse(sx_data): _EXISTING | string[] {
 			// failed for some reason; not critical
-			if(!sx_data) return $_EXISTING;
+			if(!sx_data) return _EXISTING;
 
 			// parse suffix list
 			const a_suffixes: string[] = [];
@@ -83,7 +103,7 @@ const H_REGISTRY = {
 
 	[P_STARSHELL_DEFAULTS]: {
 		format: 'json',
-		lifespan: 30*XT_MINUTES,
+		lifespan: 15*XT_MINUTES,
 	},
 } as const;
 
@@ -126,7 +146,9 @@ export class WebResourceCache {
 			// }
 
 			// fetch the resource
-			const d_res = await fetch(p_res);
+			const d_res = await fetch(p_res, {
+				cache: 'reload',
+			});
 
 			// depending on format
 			switch(g_entry.format) {
@@ -138,7 +160,7 @@ export class WebResourceCache {
 					const z_parsed = g_entry.parse(s_data);
 
 					// do not update anything
-					if($_EXISTING === z_parsed) continue;
+					if(_EXISTING === z_parsed) continue;
 
 					// set/overwrite
 					await cache_put(p_res as CacheKey, {

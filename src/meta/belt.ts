@@ -187,7 +187,7 @@ export type Explode<h_object extends object> = {
 
 
 export type Values<
-	w_thing extends any[] | object,
+	w_thing extends any[] | object | Record<any, any>,
 > = w_thing extends Dict<infer w_value>
 	? w_value
 	: w_thing extends any[]

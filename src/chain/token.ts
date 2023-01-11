@@ -13,14 +13,16 @@ import {Chains} from '#/store/chains';
 import {CoinGecko} from '#/store/web-apis';
 import {format_amount, format_fiat} from '#/util/format';
 
-export async function token_balance(g_contract: ContractStruct, g_account: AccountStruct, k_network: CosmosNetwork): Promise<{
+export interface BalanceStruct {
 	yg_amount: BigNumber;
 	s_amount: string;
 	yg_worth: Promise<BigNumber>;
 	yg_fiat: Promise<BigNumber>;
 	s_fiat: Promise<string>;
 	s_worth: Promise<string>;
-} | null> {
+}
+
+export async function token_balance(g_contract: ContractStruct, g_account: AccountStruct, k_network: CosmosNetwork): Promise<BalanceStruct | null> {
 	// synchronously extract account space
 	const m_bech32 = R_BECH32.exec(g_contract.bech32)!;
 
@@ -36,28 +38,16 @@ export async function token_balance(g_contract: ContractStruct, g_account: Accou
 	// lookup viewing key
 	const p_viewing_key = g_account.assets[p_chain]?.data?.[g_contract.bech32]?.viewingKeyPath;
 	if(p_viewing_key) {
+		// instantiate snip token
 		const k_snip = Snip2xToken.from(g_contract, k_network as SecretNetwork, g_account);
 
+		// contract struct does not implement interface
 		if(!k_snip) {
 			throw new Error(`Not a SNIP-20 token`);
 		}
 
+		// query balance
 		const g_response = await k_snip.balance();
-
-		// // extract viewing key
-		// const s_viewing_key = await Secrets.borrowPlaintext(p_viewing_key, kn => buffer_to_text(kn.data));
-
-		// // construct query
-		// const g_query: Snip20.BaseQueryParameters<'balance'> = {
-		// 	balance: {
-		// 		key: s_viewing_key as Cw.String,
-		// 		address: sa_owner as Cw.Bech32,
-		// 	},
-		// };
-
-		// // query the secret contract
-		// const g_response = await (k_network as SecretNetwork).queryContract<Snip20.BaseQueryResponse<'balance'>>(g_account, g_contract, g_query);
-
 
 		// viewing key error
 		if(g_response['viewing_key_error']) {
@@ -84,19 +74,29 @@ export async function token_balance(g_contract: ContractStruct, g_account: Accou
 			s_amount: format_amount(yg_amount.toNumber()),
 			yg_worth: dp_worth.then(s => BigNumber(s)),
 			s_worth: (async() => {
-				const s_worth = await dp_worth;
+				try {
+					const s_worth = await dp_worth;
 
-				return s_worth? format_fiat(BigNumber(s_worth).toNumber(), 'usd'): '';
+					return s_worth? format_fiat(BigNumber(s_worth).toNumber(), 'usd'): '';
+				}
+				catch(e_worth) {
+					return 'temporarily unavailable';
+				}
 			})(),
 			yg_fiat: dp_worth.then(s => yg_amount.times(BigNumber(s || '0'))),
 			s_fiat: (async() => {
-				const s_worth = await dp_worth;
+				try {
+					const s_worth = await dp_worth;
 
-				if(!s_worth) return '';
+					if(!s_worth) return '';
 
-				const yg_fiat = yg_amount.times(s_worth);
+					const yg_fiat = yg_amount.times(s_worth);
 
-				return format_fiat(yg_fiat.toNumber(), 'usd');
+					return format_fiat(yg_fiat.toNumber(), 'usd');
+				}
+				catch(e_fiat) {
+					return 'temporarily unavailable';
+				}
 			})(),
 		};
 	}

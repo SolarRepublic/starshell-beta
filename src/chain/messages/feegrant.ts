@@ -5,12 +5,14 @@ import type {Bech32} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
 
 import {address_to_name, add_coins} from './_util';
-import { Coins } from '../coin';
-import { format_date_long } from '#/util/format';
+import {Coins} from '../coin';
+
+import {global_broadcast} from '#/script/msg-global';
+import {format_date_long} from '#/util/format';
 
 export const FeegrantMessages: MessageDict = {
 
-	async 'cosmos-sdk/MsgGrantAllowance'(g_msg, {g_chain, p_account}) {
+	async 'cosmos-sdk/MsgGrantAllowance'(g_msg, {p_chain, g_chain, p_account, g_account}) {
 		const {
 			granter: sa_granter,
 			grantee: sa_grantee,
@@ -41,49 +43,21 @@ export const FeegrantMessages: MessageDict = {
 
 		const s_granter = (await address_to_name(sa_granter, g_chain)).replace(/fee-?grant|faucet$/gi, '').trim();
 
+		const b_basic = 'cosmos-sdk/BasicAllowance' === g_allowance.type;
+
 		let a_coins: Coin[] = [];
+		let s_amount = '';
+		let xt_expires = Infinity;
 
-		let s_summary = '';
+		if(b_basic) {
+			a_coins = g_allowance.value.spend_limit;
 
-		let a_fields_review: FieldConfig[] = [];
+			s_amount = a_coins.map(g_coin => Coins.summarizeAmount(g_coin, g_chain)).join(' + ');
 
-		if('cosmos-sdk/BasicAllowance' === g_allowance.type) {
-			const {
-				expiration: s_expiration,
-				spend_limit: a_spend,
-			} = g_allowance.value;
-
-			a_coins = a_spend;
-
-			const s_amount = a_coins.map(g_coin => Coins.summarizeAmount(g_coin, g_chain)).join(' + ');
-
-			s_summary = `${s_granter} granted ${s_amount}`;
-
-			a_fields_review = a_fields_review.concat([
-				{
-					type: 'key_value',
-					key: 'Amount',
-					value: s_amount,
-				},
-				{
-					type: 'contacts',
-					bech32s: [sa_granter],
-					label: 'Granter',
-					short: true,
-					g_chain,
-				},
-				{
-					type: 'accounts',
-					paths: [p_account],
-					label: 'Grantee',
-					short: true,
-				},
-				{
-					type: 'key_value',
-					key: 'Expires',
-					value: s_expiration? format_date_long(new Date(s_expiration).getTime()): 'Never',
-				},
-			]);
+			const s_expiration = g_allowance.value.expiration;
+			if(s_expiration) {
+				xt_expires = new Date(s_expiration).getTime();
+			}
 		}
 
 		return {
@@ -107,6 +81,40 @@ export const FeegrantMessages: MessageDict = {
 			},
 
 			review() {
+				const a_fields_review: FieldConfig[] = [];
+
+				let s_summary = '';
+
+				if(b_basic) {
+					s_summary = `${s_granter} granted ${s_amount}`;
+
+					a_fields_review.push(...[
+						{
+							type: 'key_value',
+							key: 'Amount',
+							value: s_amount,
+						},
+						{
+							type: 'contacts',
+							bech32s: [sa_granter],
+							label: 'Granter',
+							short: true,
+							g_chain,
+						},
+						{
+							type: 'accounts',
+							paths: [p_account],
+							label: 'Grantee',
+							short: true,
+						},
+						{
+							type: 'key_value',
+							key: 'Expires',
+							value: Number.isFinite(xt_expires)? format_date_long(xt_expires): 'Never',
+						},
+					] as FieldConfig[]);
+				}
+
 				return {
 					title: `Received Fee Grant Allowance`,
 					infos: [
@@ -121,6 +129,29 @@ export const FeegrantMessages: MessageDict = {
 						},
 						...a_fields_review,
 					],
+				};
+			},
+
+			receive() {
+				const s_grant_summary = b_basic
+					? `with ${s_amount} worth of fees`
+					: `a periodic allowance`;
+
+				// broadcast
+				global_broadcast({
+					type: 'feegrantReceived',
+					value: {
+						p_chain,
+						sa_grantee,
+						sa_granter,
+					},
+				});
+
+				return {
+					group: nl => `Fee Grant Allowance${1 === nl? '': 's'} Received`,
+					title: `💳 Received Fee Grant Allowance`,
+					message: `${s_granter} granted ${g_account.name} ${s_grant_summary}.`
+						+(Number.isFinite(xt_expires)? `\nExpires ${format_date_long(xt_expires)}`: '\nNever expires'),
 				};
 			},
 		};

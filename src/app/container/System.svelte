@@ -78,15 +78,15 @@
 			await Promise.all([
 				// default chain
 				$yw_chain || once_store_updates(yw_chain, true),
-				Chains.read().then(ks => $yw_chain_ref = p_chain_selected || ode(ks.raw)[0][0]),
+				Chains.read().then(ks => yw_chain_ref.set(p_chain_selected || ode(ks.raw)[0][0])),
 
-				// default network
-				$yw_network || once_store_updates(yw_network, true),
-				Providers.read().then(ks => $yw_provider_ref = ode(ks.raw)[0][0]),
+				// // default network
+				// $yw_network || once_store_updates(yw_network, true),
+				// Providers.read().then(ks => yw_provider_ref.set(ode(ks.raw)[0][0])),
 
 				// default account
 				$yw_account || once_store_updates(yw_account, true),
-				Accounts.read().then(ks => $yw_account_ref = p_account_selected || ode(ks.raw)[0][0]),
+				Accounts.read().then(ks => yw_account_ref.set(p_account_selected || ode(ks.raw)[0][0])),
 			]);
 		}
 		catch(e_load_default) {

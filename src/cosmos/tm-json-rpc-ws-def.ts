@@ -76,7 +76,7 @@ export interface WsTxResultSuccess extends WsTxResultAny {
 			key: string;
 			value: string;
 			index?: boolean;
-		};
+		}[];
 	}[];
 	data?: string;
 }

@@ -19,16 +19,16 @@ import {JsonPreviewer} from '#/app/helper/json-previewer';
 import {svelte_to_dom} from '#/app/svelte';
 import {SecretWasm} from '#/crypto/secret-wasm';
 
-import {R_SCRT_COMPUTE_ERROR} from '#/share/constants';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {defer_many, is_dict, proper} from '#/util/belt';
-import {base64_to_buffer, buffer_to_hex, buffer_to_text, sha256_sync} from '#/util/data';
+import {base64_to_buffer, buffer_to_hex, sha256_sync} from '#/util/data';
 import {dd} from '#/util/dom';
 import {abbreviate_addr} from '#/util/format';
 
+export const _FAILED_MESSAGE_OVERRIDE = Symbol('failed-message-override');
 
 interface ExecContractMsg {
 	contract: Bech32;
@@ -233,34 +233,69 @@ export const ComputeMessages: MessageDict = {
 
 	async 'wasm/MsgExecuteContract'(g_msg, g_context) {
 		// cast msg arg
-		const g_exec = g_msg as unknown as ExecContractMsg;
+		let g_exec = g_msg as unknown as ExecContractMsg;
 
 		// destructure context arg
 		const {
+			p_chain,
 			g_chain,
 			g_account,
 			g_app,
 			p_app,
+			sa_owner,
 		} = g_context;
 
-		// ref init message json
-		let sx_json = g_exec.msg;
+		let sa_contract = g_exec.contract;
 
-		// prep nonce if on secret
-		let atu8_nonce: Uint8Array;
+		let a_sent_funds = g_exec.sent_funds;
+
+		let sx_json = '';
+		let h_exec!: JsonObject;
+		let si_action: string;
 
 		// secret wasm
 		const g_secret_wasm = g_chain.features.secretwasm;
-		if(g_secret_wasm) {
-			// decrypt secret wasm amino message
+
+		// message override
+		if(_FAILED_MESSAGE_OVERRIDE in g_exec) {
+			let h_msg!: JsonObject;
 			({
-				message: sx_json,
-				nonce: atu8_nonce,
-			} = await SecretWasm.decryptMsg(g_account, g_chain, base64_to_buffer(sx_json)));
+				msg: h_msg,
+				contract: sa_contract,
+				sent_funds: a_sent_funds=[],
+			} = g_exec[_FAILED_MESSAGE_OVERRIDE] as {
+				contract: Bech32;
+				msg: JsonObject;
+				sent_funds?: Coin[];
+			});
+
+			sx_json = JSON.stringify(h_msg);
+
+			// TODO: improve this mechanism
+			g_exec = {
+				contract: sa_contract,
+				msg: sx_json,
+				sent_funds: a_sent_funds,
+			};
+		}
+		// normal message
+		else {
+			// ref init message json
+			sx_json = g_exec.msg;
+
+			// prep nonce if on secret
+			let atu8_nonce: Uint8Array;
+
+			// secret wasm
+			if(g_secret_wasm) {
+				// decrypt secret wasm amino message
+				({
+					message: sx_json,
+					nonce: atu8_nonce,
+				} = await SecretWasm.decryptMsg(g_account, g_chain, base64_to_buffer(sx_json)));
+			}
 		}
 
-		let h_exec: JsonObject;
-		let si_action: string;
 		let h_args: JsonObject;
 		try {
 			h_exec = JSON.parse(sx_json) as JsonObject;
@@ -276,15 +311,12 @@ export const ComputeMessages: MessageDict = {
 			throw new AminoJsonError(sx_json);
 		}
 
-		const sa_contract = g_exec.contract;
-
 		const p_contract = Contracts.pathFor(g_context.p_chain, sa_contract);
 
 		const g_contract = await Contracts.at(p_contract);
 
 		const s_contract = g_contract?.name || abbreviate_addr(sa_contract);
 
-		const a_sent_funds = g_exec.sent_funds;
 
 		// map spends
 		const a_spends: SpendInfo[] = [];
@@ -312,7 +344,7 @@ export const ComputeMessages: MessageDict = {
 					fields: [
 						{
 							type: 'contracts',
-							bech32s: [g_exec.contract],
+							bech32s: [sa_contract],
 							label: 'Contract',
 							g_app,
 							g_chain,
@@ -332,7 +364,7 @@ export const ComputeMessages: MessageDict = {
 			approve: () => ({
 				executions: [
 					{
-						contract: g_exec.contract,
+						contract: sa_contract,
 						msg: h_exec,
 					},
 				],
@@ -432,32 +464,20 @@ export const ComputeMessages: MessageDict = {
 				// secret
 				if(g_chain.features.secretwasm) {
 					// parse contract error
-					const m_error = R_SCRT_COMPUTE_ERROR.exec(g_result.log || '')!;
-					if(m_error) {
-						const [, , sxb64_error_ciphertext] = m_error;
+					try {
+						const sx_error = await SecretWasm.decryptComputeError(g_account, g_chain, g_result.log, atu8_nonce);
 
-						const atu8_ciphertext = base64_to_buffer(sxb64_error_ciphertext);
+						const g_error = JSON.parse(sx_error);
 
-						// use nonce to decrypt
-						const atu8_plaintext = await SecretWasm.decryptBuffer(g_account, g_chain, atu8_ciphertext, atu8_nonce);
+						const w_msg = g_error.generic_err?.msg || sx_error;
 
-						// utf-8 decode
-						const sx_plaintext = buffer_to_text(atu8_plaintext);
-
-						// parse json
-						try {
-							const g_error = JSON.parse(sx_plaintext);
-
-							const w_msg = g_error.generic_err?.msg || sx_plaintext;
-
-							// ⛔ 📩 ❌ 🚫 🪃 ⚠️
-							return {
-								title: '⚠️ Contract Denied Request',
-								message: `${s_contract}: ${w_msg}`,
-							};
-						}
-						catch(e) {}
+						// ⛔ 📩 ❌ 🚫 🪃 ⚠️
+						return {
+							title: '⚠️ Contract Denied Request',
+							message: `${s_contract}: ${w_msg}`,
+						};
 					}
+					catch(e) {}
 
 					// catch-all
 					return {

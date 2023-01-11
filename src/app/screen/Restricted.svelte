@@ -1,12 +1,20 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
-	import {open_external_link} from '#/util/dom';
+	import {F_NOOP} from '#/util/belt';
 	
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Horizon from '../ui/Horizon.svelte';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
 	import StarShellTitle from '../ui/StarShellTitle.svelte';
+
+	export let f_override: VoidFunction = F_NOOP;
+
+	let c_override_clicks = 0;
+
+	$: if(c_override_clicks >= 20) {
+		f_override();
+	}
 </script>
 
 <style lang="less">
@@ -23,25 +31,29 @@
 		background-position: center top;
 		background-size: cover;
 
-		padding-top: calc(50vh - 150px);
+		padding-top: calc(35vh - 150px);
+	}
+
+	.large {
+		display: flex;
+		flex-direction: column;
+		gap: 1em;
 	}
 </style>
 
 <Screen root classNames='restricted'>
-	<StarShellLogo dim={96} />
+	<StarShellLogo dim={96} on:click={() => c_override_clicks++} />
 
 	<StarShellTitle />
 
 	<Horizon />
 
 	<div class="large">
-		<div>Please update to continue beta testing.</div>
-		<div>A new version has been released.</div>
+		<div>StarShell has issued an urgent restriction on the version you are currently running.</div>
+		<div>This restriction prevents you from running this version of the wallet. Depending on the reason, this restriction might be temporary but is most likely permanent.</div>
 	</div>
 
-	<p>
-		
-	</p>
-
-	<ActionsLine confirm={['See Instructions', () => open_external_link('https://github.com/SolarRepublic/starshell-beta-releases/blob/main/README.md#updating')]} />
+	<ActionsLine confirm={['Restart to check for Update', () => {
+		chrome.runtime?.reload?.();
+	}]} />
 </Screen>

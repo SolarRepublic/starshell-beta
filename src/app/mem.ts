@@ -1,5 +1,6 @@
 import type {ThreadId} from './def';
 
+import type {DerivedMemStore} from './mem-store';
 import type {Navigator} from './nav/navigator';
 
 import type {Page} from './nav/page';
@@ -8,32 +9,26 @@ import type {Thread} from './nav/thread';
 
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {Dict} from '#/meta/belt';
-import type {Bech32, ChainPath, ChainNamespaceKey, ChainStruct, ContractStruct} from '#/meta/chain';
-import type {Provider, ProviderStruct, ProviderPath} from '#/meta/provider';
+import type {ChainPath, ChainNamespaceKey, ChainStruct} from '#/meta/chain';
+import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 import type {StoreKey} from '#/meta/store';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
 
 import type {Vocab} from '#/meta/vocab';
 
-import {
-	derived,
-	writable,
-	type Readable,
-	type Writable,
-} from 'svelte/store';
-
+import {derived, writable} from './mem-store';
 import {once_store_updates} from './svelte';
 
 import type {CosmosNetwork} from '#/chain/cosmos-network';
 import type {Pwa} from '#/script/messages';
 import {global_receive} from '#/script/msg-global';
-import {B_FIREFOX_ANDROID, B_MOBILE, B_IOS_NATIVE, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, G_USERAGENT, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS} from '#/share/constants';
+import {B_FIREFOX_ANDROID, B_MOBILE, B_IOS_NATIVE, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, G_USERAGENT, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS, SI_STORE_PFPS, SI_STORE_ACCOUNTS, SI_STORE_CHAINS, SI_STORE_PROVIDERS} from '#/share/constants';
 import type {StoreRegistry} from '#/store/_registry';
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
 import {Medias} from '#/store/medias';
+import {Pfps} from '#/store/pfps';
 import {
-	type ActiveNetwork,
 	Providers,
 	ConnectionHealth,
 } from '#/store/providers';
@@ -44,234 +39,105 @@ import {F_NOOP, microtask, timeout} from '#/util/belt';
 import PopupReceive from './popup/PopupReceive.svelte';
 
 
-/**
- * Extended version of svelte's Writable that allows for synchronous `get()` calls.
- */
-export interface WritableSync<
-	w_value extends any=any,
-> extends Writable<w_value> {
-	get(): w_value;
-}
-
-/**
- * Creates an object that extends svelte Writable stores by allowing synchronous `get()`.
- */
-export function writableSync<
-	w_value extends any,
->(w_value: w_value): WritableSync<w_value> {
-	// create writable store
-	const yw_original = writable<w_value>(w_value);
-
-	// create a new object that inherits from the original store as a prototype
-	return Object.assign(Object.create(yw_original), {
-		// intercept call in order to update cache
-		set(w_set: w_value) {
-			w_value = w_set;
-			return yw_original.set(w_set);
-		},
-
-		// get the stored value
-		get(): w_value {
-			return w_value;
-		},
-	}) as WritableSync<w_value>;
-}
-
-/**
- * Extended version of svelte's Readable that allows for synchronous `get()` calls.
- */
-export interface ReadableSync<
-	w_value extends any=any,
-> extends Readable<w_value> {
-	get(): w_value;
-}
-
-// type DerivedCallback<
-// 	w_value extends any,
-// 	z_src extends WritableSync<w_value> | WritableSync<w_value>[],
-// > = z_src extends WritableSync<w_value>[]
-// 	? {
-// 		(w_value: w_value): w_value;
-// 	}
-// 	: {
-// 		(a_values: w_value[]): w_value;
-// 	};
-
-type Arrayable<w_type> = w_type | Array<w_type>;
-
-/**
- * Creates an object that extends svelte Derived stores by allowing synchronous `get()`.
- */
-// export function derivedSync<
-// 	w_out extends any,
-// 	w_value extends any,
-// 	a_srcs extends WritableSync<w_value>[]=WritableSync<w_value>[],
-// >(a_srcs: a_srcs, f_transform: (...a_inputs: w_value[]) => w_out): ReadableSync<w_out>;
-// export function derivedSync<
-// 	w_out extends any,
-// 	w_value extends any,
-// 	yw_src extends WritableSync<w_value>=WritableSync<w_value>,
-// >(yw_src: yw_src, f_transform: (yw_src: yw_src) => w_out): ReadableSync<w_out>;
-export function derivedSync<
-	w_out extends any,
-	w_value extends any=any,
-	z_src extends Arrayable<ReadableSync<w_value>>=Arrayable<ReadableSync<w_value>>,
->(
-	z_src: z_src,
-	f_transform: z_src extends ReadableSync[]
-		? (a_inputs: w_value[]) => w_out
-		: z_src extends ReadableSync<infer w_actual>
-			? (w_input: w_actual, f_set: (w_set: w_out) => void) => w_out
-			: never
-): ReadableSync<w_out> {
-	// writable source argument is an array
-	if(Array.isArray(z_src)) {
-		return Object.assign(Object.create(derived<z_src, w_out>(z_src, f_transform as (w_input: any) => w_out)), {
-			get(): w_out {
-				return f_transform(...z_src);
-			},
-		}) as ReadableSync<w_out>;
-	}
-	// single store
-	else {
-		// prep cache
-		let w_cache: w_out;
-
-		// create derived store
-		const yw_original = derived<z_src, w_out>(z_src, (w_input, fk_set) => {
-			f_transform(w_input, (w_output) => {
-				w_cache = w_output;
-				fk_set(w_output);
-			});
-		});
-
-		// create a new object that inherits from the original store as a prototype
-		return Object.assign(Object.create(yw_original), {
-			// get the stored value
-			get(): w_out {
-				return w_cache;
-			},
-		}) as ReadableSync<w_out>;
-	}
-}
 
 /**
  * The navigator object for this window
  */
-export const yw_navigator = writableSync<Navigator>(null! as Navigator);
-
-
-/**
- * Selects the active chain
- */
-export const yw_chain_ref = writableSync<ChainPath>('' as ChainPath);
-export const yw_chain = derivedSync<ChainStruct>(yw_chain_ref, (p_chain, fk_set) => {
-	void Chains.read().then(ks => fk_set(ks.at(p_chain as ChainPath)!))
-		.catch((e_auth) => {
-			fk_set(null);
-		});
-
-	// propagate change of chain to default provider
-	void Providers.read().then(ks => ks.entries().some(([p_provider, g_provider]) => {
-		if(p_chain === g_provider.chain) {
-			yw_provider_ref.set(p_provider);
-			return true;
-		}
-
-		return false;
-	})).catch((e_auth) => {
-		yw_provider_ref.set('');
-	});
-});
+export const yw_navigator = writable<Navigator>(null! as Navigator);
 
 
 /**
  * Selects the active provider
  */
-export const yw_provider_ref = writableSync<ProviderPath>('' as ProviderPath);
-export const yw_provider = writableSync<ProviderStruct>(null! as ProviderStruct);
-export const yw_network = derivedSync<CosmosNetwork>(yw_provider_ref, (p_provider, fk_set) => {
-	if(!p_provider) {
-		yw_provider.set(null as unknown as ProviderStruct);
-		fk_set(null as unknown as CosmosNetwork);
-	}
-	else {
-		(async() => {
-			const ks_providers = await Providers.read();
-			const g_provider = ks_providers.at(p_provider as ProviderPath)!;
-			yw_provider.set(g_provider);
+export const yw_provider_ref = writable<'' | ProviderPath>('' as ProviderPath);
+export const yw_provider = derived<ProviderStruct>(yw_provider_ref, p_provider => p_provider? Providers.at(p_provider as ProviderPath): null, true);
+export const yw_network = derived<CosmosNetwork>(yw_provider, async(g_provider) => {
+	if(!g_provider) return null as unknown as CosmosNetwork;
 
-			// chain differs; update
-			if(g_provider.chain !== yw_chain_ref.get()) {
-				yw_chain_ref.set(g_provider.chain);
+	const g_chain = await Chains.at(g_provider.chain as ChainPath)!;
+
+	return Providers.activate(g_provider, g_chain);
+}, true);
+
+
+/**
+ * Selects the active chain
+ */
+export const yw_chain_ref = writable<ChainPath>('' as ChainPath);
+export const yw_chain = derived<ChainStruct>(yw_chain_ref, async(p_chain) => {
+	(async() => {
+		// propagate change of chain to default provider
+		if(p_chain && p_chain !== yw_provider.get()?.chain) {
+			try {
+				for(const [p_provider, g_provider] of await Providers.entries()) {
+					// select first compatible provider (order-favorable default)
+					if(p_chain === g_provider.chain) {
+						await yw_provider_ref.set(p_provider);
+						return true;
+					}
+				}
 			}
+			catch(e_auth) {
+				await yw_provider_ref.set('');
+			}
+		}
+	})();
 
-			const ks_chains = await Chains.read();
-			const g_chain = ks_chains.at(g_provider.chain)!;
+	return await Chains.at(p_chain as ChainPath);
+}, true);
 
-			fk_set(Providers.activate(g_provider, g_chain));
-		})();
-	}
-});
 
-export const yw_connection_health = writableSync<ConnectionHealth>(ConnectionHealth.UNKNOWN);
-
-// export const yw_chain = writableSync<ChainStruct>(null! as ChainStruct);
-// yw_chain_ref.subscribe(async(p_chain) => {
-// 	const ks_chains = await Chains.read();
-// 	yw_chain.set(ks_chains.at(p_chain)!);
-// })
+export const yw_connection_health = writable<ConnectionHealth>(ConnectionHealth.UNKNOWN);
 
 /**
  * Derive namespace from chain
  */
-export const yw_chain_namespace = writableSync<ChainNamespaceKey>('' as ChainNamespaceKey);
-yw_chain.subscribe(g_chain => yw_chain_namespace.set(g_chain?.namespace || ''));
+export const yw_chain_namespace = derived<ChainNamespaceKey>(yw_chain, g => g?.namespace || '' as ChainNamespaceKey);
 
 
 /**
  * Selects the active account
  */
-export const yw_account_ref = writableSync<AccountPath>('' as AccountPath);
-export const yw_account = derivedSync<AccountStruct>(yw_account_ref, (p_account, fk_set) => {
-	void Accounts.read().then(ks => fk_set(ks.at(p_account as AccountPath)!))
+export const yw_account_ref = writable<AccountPath>('' as AccountPath);
+export const yw_account = derived<AccountStruct>(yw_account_ref, (p_account, fk_set) => {
+	void Accounts.at(p_account as AccountPath).then(g => fk_set(g!))
 		.catch((e_auth) => {
 			fk_set(null);
 		});
-});
-export const yw_account_editted = writableSync(0);
+}, true);
 
-// react to account edits
-yw_account_editted.subscribe(() => {
-	// reload account struct
-	yw_account_ref.set(yw_account_ref.get());
-});
 
-export const yw_owner: Readable<Bech32> = derived([yw_account, yw_chain], ([g_account, g_chain], fk_set) => {
-	fk_set(Chains.addressFor(g_account.pubkey, g_chain));
-});
-
+export const yw_owner = derived(
+	[yw_account, yw_chain] as [DerivedMemStore<AccountStruct>, DerivedMemStore<ChainStruct>],
+	([g_account, g_chain]) => {
+		if(g_account && g_chain) {
+			return Chains.addressFor(g_account.pubkey, g_chain);
+		}
+		else {
+			return null;
+		}
+	}, true);
 
 
 /**
  * Shows/hides the vendor menu
  */
-export const yw_menu_vendor = writableSync(false);
+export const yw_menu_vendor = writable(false);
 
 /**
  * Shows/hides the account selector overlay
  */
-export const yw_overlay_account = writableSync(false);
+export const yw_overlay_account = writable(false);
 
 /**
  * Shows/hides the network selector overlay
  */
-export const yw_overlay_network = writableSync(false);
+export const yw_overlay_network = writable(false);
 
 /**
  * Shows/hides the app selector overlay
  */
-export const yw_overlay_app = writableSync(false);
+export const yw_overlay_app = writable(false);
 
 /**
  * Store caches
@@ -279,37 +145,50 @@ export const yw_overlay_app = writableSync(false);
 
 const store_cache = <
 	si_store extends StoreKey,
->(si_store: si_store) => writableSync<InstanceType<StoreRegistry<si_store>> | null>(null);
+>(si_store: si_store) => writable<InstanceType<StoreRegistry<si_store>> | null>(null);
 
-const H_STORES_CACHED = {
+const H_STORE_INVALIDATORS = {
 	async [SI_STORE_MEDIA]() {
-		const ks_medias = await Medias.read();
-
-		yw_store_medias.update(() => ks_medias);
+		yw_store_medias.set(await Medias.read(), true);
 	},
 
 	async [SI_STORE_TAGS]() {
-		const ks_tags = await Tags.read();
+		yw_store_tags.set(await Tags.read(), true);
+	},
 
-		yw_store_tags.update(() => ks_tags);
+	async [SI_STORE_PFPS]() {
+		yw_store_pfps.set(await Pfps.read(), true);
+	},
+
+	async [SI_STORE_ACCOUNTS]() {
+		await yw_account.invalidate();
+	},
+
+	async [SI_STORE_CHAINS]() {
+		await yw_chain.invalidate();
+	},
+
+	async [SI_STORE_PROVIDERS]() {
+		await yw_network.invalidate();
 	},
 };
 
 // reload a given store
 async function reload_store(si_store?: StoreKey): Promise<void> {
 	if(si_store) {
-		if(si_store in H_STORES_CACHED) {
-			await H_STORES_CACHED[si_store]();
+		if(si_store in H_STORE_INVALIDATORS) {
+			await H_STORE_INVALIDATORS[si_store]();
 		}
 	}
 	else {
-		await Promise.all(Object.values(H_STORES_CACHED).map(f => f()));
+		await Promise.all(Object.values(H_STORE_INVALIDATORS).map(f => f()));
 	}
 }
 
 
 export const yw_store_medias = store_cache(SI_STORE_MEDIA);
 export const yw_store_tags = store_cache(SI_STORE_TAGS);
+export const yw_store_pfps = store_cache(SI_STORE_PFPS);
 
 
 // register for updates
@@ -327,76 +206,54 @@ global_receive({
 	},
 });
 
-export async function initialize_caches(): Promise<void> {
+export async function initialize_store_caches(): Promise<void> {
 	await Promise.all([
 		reload_store(SI_STORE_MEDIA),
 		reload_store(SI_STORE_TAGS),
+		reload_store(SI_STORE_PFPS),
 	]);
 }
 
 
-export const yw_page = writableSync<Page>(null! as Page);
+export const yw_page = writable<Page>(null! as Page);
 
-// export const yw_thread_id = writableSync(ThreadId.DEFAULT);
-
-export const yw_thread = writableSync<Thread>(null! as Thread);
-
-export const yw_path = writableSync('');
-
-export const yw_uri = derivedSync(yw_path, $yw => `s2r://root/${$yw}`);
-
-export const yw_pattern = writableSync('');
+export const yw_thread = writable<Thread>(null! as Thread);
 
 
-export const yw_notifications = writableSync<Array<string | ThreadId>>([]);
+export const yw_notifications = writable<Array<string | ThreadId>>([]);
 
 export const yw_nav_collapsed = writable(false);
 
-export const yw_nav_visible = writableSync(false);
+export const yw_nav_visible = writable(false);
 
-export const yw_progress = writableSync([0, 0] as [number, number]);
-
-// export const yw_path_parts = derivedSync(yw_path, $yw => ($yw as string).split('/'));
+export const yw_progress = writable([0, 0] as [number, number]);
 
 
 
 export const yw_search = writable('');
 
-export const yw_cancel_search = writableSync<VoidFunction>(F_NOOP);
+export const yw_cancel_search = writable<VoidFunction>(F_NOOP);
 
-// export const yw_fuse = writable<Fuse<SearchItem>>();
+export const yw_task = writable(0);
 
-export const yw_send_asset = writableSync<ContractStruct | null>(null);
+export const yw_header_props = writable<Dict>({});
 
+export const yw_exitting_dom = writable<HTMLElement>(null!);
 
-// export const yw_params = writableSync({
-// 	familyId: yw_family.get()?.def.id || '.default',
-// 	chainId: yw_chain.get()?.def.id || '*',
-// 	accountId: yw_account.get().def.id,
-// });
-
-export const yw_task = writableSync(0);
-
-export const yw_help = writableSync<HTMLElement[]>([]);
-
-export const yw_header_props = writableSync<Dict>({});
-
-export const yw_exitting_dom = writableSync<HTMLElement>(null!);
-
-export const yw_menu_expanded = writableSync(false);
+export const yw_menu_expanded = writable(false);
 
 
-export const yw_overscroll_pct = writableSync(0);
+export const yw_overscroll_pct = writable(0);
 
 /**
  * Provide arbitrary context to the popup
  */
-export const yw_context_popup = writableSync<Dict<any> | null>(null);
+export const yw_context_popup = writable<Dict<any> | null>(null);
 
 /**
  * Sets the component to use as the popup and shows it
  */
-export const yw_popup = writableSync<ParametricSvelteConstructor | null>(null);
+export const yw_popup = writable<ParametricSvelteConstructor | null>(null);
 
 
 export function popup_receive(p_account: AccountPath): void {
@@ -410,35 +267,22 @@ export function popup_receive(p_account: AccountPath): void {
 /**
  * Toggles the curtain flag for screens that use the Curtain component
  */
-export const yw_curtain = writableSync<boolean>(false);
+export const yw_curtain = writable<boolean>(false);
 
 /**
  * Incrementing declares all UI state as dirty as triggers reload on pages that support it 
  */
-export const yw_update = writableSync(0);
-
-// export const yw_popup_receive = writableSync<Account | null>(null);
+export const yw_update = writable(0);
 
 
-export const yw_blur = writableSync(false);
+export const yw_blur = writable(false);
 
-export const yw_doc_visibility = writableSync('unset');
+export const yw_doc_visibility = writable('unset');
 if('object' === typeof document) {
 	document.addEventListener('visibilitychange', () => {
 		yw_doc_visibility.set(document.visibilityState);
 	});
 }
-
-// export const yw_holding_send = derived([yw_asset_send, yw_account, yw_chain], ([$yw_asset, $yw_acc, $yw_ch]) => {
-// 	if($yw_asset && $yw_acc) {
-// 		const p_token = $yw_asset.def.iri;
-// 		const sa_holder = $yw_acc.address($yw_ch);
-// 		const p_holding = Holding.refFromTokenAccount(p_token, sa_holder);
-// 		return H_HOLDINGS[p_holding];
-// 	}
-
-// 	return null;
-// });
 
 
 export const hm_arrivals: WeakMap<HTMLElement, VoidFunction> = new Map();

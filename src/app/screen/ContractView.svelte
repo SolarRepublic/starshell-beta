@@ -106,7 +106,7 @@
 				k_page.push({
 					creator: ContractEdit,
 					props: {
-						contractPath: p_contract,
+						p_contract,
 					},
 				});
 			},
@@ -169,6 +169,7 @@
 					// load all outlets of secret
 					const [g_secret] = await Secrets.filter({
 						type: 'viewing_key',
+						on: 1,
 						chain: p_chain,
 						contract: sa_contract,
 						owner: $yw_owner,
@@ -352,7 +353,7 @@
 					});
 				}}>
 					{#if 0 === nl_permissions + nl_vk_outlets}
-						<div>
+						<div class="color_text-med">
 							No others are able to <em>view</em> this token
 						</div>
 					{:else}
@@ -384,7 +385,7 @@
 							},
 						});
 					}}>
-						<div>
+						<div class="color_text-med">
 							No others are able to <em>spend</em> this token
 						</div>
 					</ResourceControl>

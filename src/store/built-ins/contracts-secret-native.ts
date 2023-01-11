@@ -22,6 +22,7 @@ export const F_CONTRACTS_SECRET_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 	chain: '/family.cosmos/chain.secret-4',
 	origin: 'built-in',
 	interfaces: {
+		excluded: ['snip21', 'snip22', 'snip23', 'snip24'],
 		snip20: {
 			decimals: g['decimals'] || 6,
 			...g.snip20,

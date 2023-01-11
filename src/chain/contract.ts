@@ -5,7 +5,7 @@ import type {PfpTarget} from '#/meta/pfp';
 
 import {load_app_profile} from './app';
 
-import type {AppProfile} from '#/store/apps';
+import {AppProfile, G_APP_STARSHELL} from '#/store/apps';
 import {Apps, G_APP_EXTERNAL} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {Contracts} from '#/store/contracts';
@@ -42,7 +42,7 @@ export async function produce_contracts(a_contracts: Bech32[], g_chain: ChainStr
 		// definition does not exist in store
 		if(!g_contract) {
 			// no app profile loaded
-			if(g_app && !g_profile) {
+			if(g_app && !g_profile && 'wallet' !== g_app.scheme) {
 				// acquire lock on profile
 				// eslint-disable-next-line @typescript-eslint/no-loop-func
 				await navigator.locks.request('ui:fields:profile', async() => {

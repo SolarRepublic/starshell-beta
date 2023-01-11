@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type {O} from 'ts-toolbelt';
 	
-	import type {SecretPath, SecretSecurity} from '#/meta/secret';
+	import type {SecretPath} from '#/meta/secret';
 	
 	import {slide} from 'svelte/transition';
 	
@@ -14,12 +14,13 @@
 	import {Bip39} from '#/crypto/bip39';
 	import type {Bip44Path} from '#/crypto/bip44';
 	import SensitiveBytes from '#/crypto/sensitive-bytes';
-	import {microtask, Secrets} from '#/script/ics-witness-imports';
 	
 	import {global_broadcast} from '#/script/msg-global';
 	import {add_root_utility_key, bip32_test_signature, create_account} from '#/share/account';
 	
 	import {R_BIP_44} from '#/share/constants';
+	import {Secrets} from '#/store/secrets';
+	import {microtask} from '#/util/belt';
 	import {buffer_to_base64, serialize_private_key} from '#/util/data';
 	
 	import AccountEdit from './AccountEdit.svelte';
@@ -33,7 +34,7 @@
 	
 	import SX_ICON_ADD from '#/icon/add.svg?raw';
 	import SX_ICON_GEAR from '#/icon/settings.svg?raw';
-	
+
 
 	const {k_page} = load_page_context();
 
@@ -269,7 +270,7 @@
 			}
 
 			// update max account index
-			n_max_account = Math.max(n_max_account, +R_BIP_44.exec(sx_bip44_path)![2]);
+			n_max_account = Math.max(n_max_account, +R_BIP_44.exec(g_node.bip44 as string)![2]);
 		}
 
 		// path conflict

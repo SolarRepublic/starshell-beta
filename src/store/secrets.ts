@@ -26,6 +26,7 @@ type PathFrom<
 
 interface SecretFilterConfig {
 	type?: SecretType;
+	on?: 0 | 1;
 	app?: AppPath;
 	chain?: ChainPath;
 	owner?: Bech32;

@@ -1,8 +1,3 @@
-// import type {
-// 	Query as SecretQuerier,
-// } from '@solar-republic/cosmos-grpc/dist/secret/registration/v1beta1/query';
-
-
 
 // TODO: build a version that only has the crypto_scalar_mult function
 
@@ -23,12 +18,26 @@ import {
 	crypto_scalarmult,
 	crypto_scalarmult_base,
 } from 'libsodium-wrappers';
-import {SIV, WebCryptoProvider} from 'miscreant';
+
+// use compiled release so that inline-require doesn't pull ts source
+import {SIV, WebCryptoProvider} from 'miscreant/release/index';
 
 import {syserr} from '#/app/common';
 import {utility_key_child} from '#/share/account';
 import {Accounts} from '#/store/accounts';
-import {base64_to_buffer, base93_to_buffer, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, concat, hex_to_buffer, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
+import {
+	base64_to_buffer,
+	base93_to_buffer,
+	buffer_to_base64,
+	buffer_to_hex,
+	buffer_to_text,
+	concat,
+	hex_to_buffer,
+	text_to_buffer,
+	zero_out,
+} from '#/util/data';
+import { R_SCRT_COMPUTE_ERROR } from '#/share/constants';
+import { ContractDecryptionError } from '#/share/errors';
 
 export interface DecryptedMessage {
 	code_hash: string;
@@ -45,24 +54,6 @@ const y_provider = new WebCryptoProvider(globalThis.crypto);
 const NB_TX_BLOCK = 32;
 
 const ATU8_SALT_HKDF: Uint8Array = hex_to_buffer('000000000000000000024bead8df69990852c202db0e0097c1a12ea637d7e96d');
-
-// const ATU8_MAINNET_CONS_IO_PK = hex_to_buffer('083b1a03661211d5a4cc8d39a77795795862f7730645573b2bcc2c1920c53c04');
-
-// const AS_MAINNET_CHAIN_IDS = new Set(['secret-2', 'secret-3', 'secret-4']);
-
-// protected readonly _y_querier: SecretQuerier, 
-
-// if(si_chain && AS_MAINNET_CHAIN_IDS.has(si_chain)) {
-// 	g_privates.atu8_cons_io_pk = ATU8_MAINNET_CONS_IO_PK;
-// }
-// else {
-// 	// eslint-disable-next-line arrow-body-style
-// 	this._dp_cons_io_pk = _y_querier.txKey({}).then((g_response) => {
-// 		debugger;
-// 		return this._atu8_cons_io_pk = extract_cons_io_pubkey(g_response.key);
-// 	});
-// }
-
 
 
 interface PrivateFields {
@@ -252,6 +243,23 @@ export class SecretWasm {
 		};
 	}
 
+	static async decryptComputeError(g_account: AccountStruct, g_chain: ChainStruct, s_message: string, atu8_nonce: Uint8Array): Promise<string> {
+		// parse contract error
+		const m_error = R_SCRT_COMPUTE_ERROR.exec(s_message || '')!;
+		if(m_error) {
+			const [, , sxb64_error_ciphertext] = m_error;
+
+			const atu8_ciphertext = base64_to_buffer(sxb64_error_ciphertext);
+
+			// use nonce to decrypt
+			const atu8_plaintext = await SecretWasm.decryptBuffer(g_account, g_chain, atu8_ciphertext, atu8_nonce);
+
+			// utf-8 decode into plaintext
+			return buffer_to_text(atu8_plaintext);
+		}
+
+		throw new ContractDecryptionError('Failed to decrypt the error message returned by the contract');
+	}
 
 	constructor(protected _atu8_cons_io_pk: Uint8Array, atu8_seed?: Uint8Array) {
 		// correct and available consensus io pubkey
@@ -354,7 +362,7 @@ export class SecretWasm {
 		const y_siv = await SIV.importKey(atu8_txk, 'AES-SIV', y_provider);
 
 		// encrypt
-		const atu8_ciphertext = await y_siv.seal(atu8_plaintext, [new Uint8Array(0)]);
+		const atu8_ciphertext = (await y_siv.seal(atu8_plaintext, [new Uint8Array(0)])) as Uint8Array;
 
 		// get public key
 		const {atu8_pk} = hm_privates.get(this)!;

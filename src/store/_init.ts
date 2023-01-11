@@ -9,10 +9,7 @@ import type {Store, StoreKey} from '#/meta/store';
 import {TokenInterfaceRuntimeSchema} from '#/schema/token-interface-const';
 
 import {F_CONTRACTS_PULSAR_NATIVE} from './built-ins/contracts-pulsar-native';
-
 import {F_CONTRACTS_SECRET_GEN} from './built-ins/contracts-secret-gen';
-import {F_CONTRACTS_SECRET_IBC} from './built-ins/contracts-secret-ibc';
-
 import {F_CONTRACTS_SECRET_NATIVE} from './built-ins/contracts-secret-native';
 
 import {
@@ -172,9 +169,9 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			transaction: '/transactions/{hash}#overview',
 		},
 		mainnet: {
-			feegrants: [
-				'https://faucet.secretsaturn.net/',
-			],
+			feegrants: {
+				'https://faucet.starshell.net/': {},
+			},
 		},
 		providers: [],
 	},
@@ -270,12 +267,12 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			transaction: '/transactions/{hash}#overview',
 		},
 		testnet: {
-			faucets: [
-				'https://faucet.starshell.net/',
-				'https://faucet.pulsar.scrttestnet.com/',
-				'https://pulsar.faucet.trivium.network/',
-				'https://faucet.secrettestnet.io/',
-			],
+			faucets: {
+				'https://faucet.starshell.net/': {},
+				'https://faucet.pulsar.scrttestnet.com/': {},
+				'https://pulsar.faucet.trivium.network/': {},
+				'https://faucet.secrettestnet.io/': {},
+			},
 		},
 		providers: [],
 	},
@@ -333,7 +330,6 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold([
 	...F_CONTRACTS_PULSAR_NATIVE(H_LOOKUP_PFP),
 
-	// ...F_CONTRACTS_SECRET_IBC(H_LOOKUP_PFP),
 	...F_CONTRACTS_SECRET_NATIVE(H_LOOKUP_PFP),
 	...F_CONTRACTS_SECRET_GEN(H_LOOKUP_PFP),
 ], g_each => ({
@@ -341,91 +337,38 @@ export const H_STORE_INIT_CONTRACTS = type_check<typeof SI_STORE_CONTRACTS>(fold
 })));
 
 export const H_STORE_INIT_PROVIDERS = type_check<typeof SI_STORE_PROVIDERS>(fold([
-	// {
-	// 	name: 'StarShell Secret Mainnet',
-	// 	pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
-	// 	chain: '/family.cosmos/chain.secret-4',
-	// 	grpcWebUrl: 'https://secret-4..starshell.net',
-	// 	rpcHost: 'rpc.pulsar.scrttestnet.com',
-	// 	on: 1,
-	// },
-
+	// mainnet primary
 	{
-		name: '🪐 𝕊ecret 𝕊aturn Mainnet',
-		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
-		chain: '/family.cosmos/chain.secret-4',
-		grpcWebUrl: 'https://grpc.mainnet.secretsaturn.net',
-		rpcHost: 'rpc.spartanapi.dev',
-		on: 1,
-	},
-
-	{
-		name: 'secretnodes.com',
-		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
-		chain: '/family.cosmos/chain.secret-4',
-		grpcWebUrl: 'https://wgrpc.spartanapi.dev',
-		rpcHost: 'rpc.spartanapi.dev',
-		on: 1,
-	},
-
-	{
-		name: '[block pane]',
-		pfp: '',
-		chain: '/family.cosmos/chain.secret-4',
-		grpcWebUrl: 'http://scrt-rpc.blockpane.com:9091',
-		rpcHost: 'scrt-rpc.blockpane.com',
-		on: 1,
-	},
-
-	// {
-	// 	name: 'AgoraNodes.com',
-	// 	pfp: '',
-	// 	chain: '/family.cosmos/chain.secret-4',
-	// 	grpcWebUrl: 'https://scrt-grpc.agoranodes.com',
-	// 	rpcHost: 'scrt-rpc.agoranodes.com',
-	// 	on: 1,
-	// },
-
-	// {
-	// 	name: 'SCRT Testnet Committee',
-	// 	pfp: H_LOOKUP_PFP['/media/chain/secret-network.svg'],
-	// 	chain: '/family.cosmos/chain.pulsar-2',
-	// 	grpcWebUrl: 'https://grpc.pulsar.scrttestnet.com',
-	// 	rpcHost: 'rpc.pulsar.scrttestnet.com',
-	// 	on: 1,
-	// },
-	{
-		name: '🪐 𝕊ecret 𝕊aturn Testnet',
-		pfp: H_LOOKUP_PFP['/media/other/secret-saturn.png'],
-		chain: '/family.cosmos/chain.pulsar-2',
-		grpcWebUrl: 'https://grpc.testnet.secretsaturn.net',
-		rpcHost: 'rpc.testnet.secretsaturn.net',
-		on: 1,
-	},
-	// {
-	// 	name: 'Trivium',
-	// 	pfp: H_LOOKUP_PFP['/media/other/trivium.svg'],
-	// 	chain: '/family.cosmos/chain.pulsar-2',
-	// 	grpcWebUrl: 'https://pulsar-2.api.trivium.network:9091',
-	// 	rpcHost: 'pulsar-2.api.trivium.network:26657',
-	// 	on: 1,
-	// },
-	{
-		name: 'StarShell',
+		name: 'StarShell Secret Mainnet: Ajax',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
-		chain: '/family.cosmos/chain.theta-testnet-001',
-		grpcWebUrl: 'https://grpc-web.tactus-1.cosmos-theta.starshell.net/',
-		rpcHost: 'rpc.tactus-1.cosmos-theta.starshell.net',
+		chain: '/family.cosmos/chain.secret-4',
+		grpcWebUrl: 'https://grpc-web.secret.ajax.starshell.net',
+		rpcHost: 'rpc.secret.ajax.starshell.net',
+		healthCheckPath: '/health',
 		on: 1,
 	},
-	// {
-	// 	name: 'Polypore',
-	// 	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
-	// 	chain: '/family.cosmos/chain.theta-testnet-001',
-	// 	grpcWebUrl: 'https://grpc.sentry-01.theta-testnet.polypore.xyz/',
-	// 	rpcHost: 'rpc.sentry-01.theta-testnet.polypore.xyz',
-	// 	on: 0,
-	// },
+
+	// mainnet fallback
+	{
+		name: 'StarShell Secret Mainnet: Brynn',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+		chain: '/family.cosmos/chain.secret-4',
+		grpcWebUrl: 'https://grpc-web.secret.brynn.starshell.net',
+		rpcHost: 'rpc.secret.brynn.starshell.net',
+		healthCheckPath: '/health',
+		on: 1,
+	},
+
+	// testnet
+	{
+		name: 'StarShell Pulsar Testnet: Apex',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+		chain: '/family.cosmos/chain.pulsar-2',
+		grpcWebUrl: 'https://grpc-web.pulsar.apex.starshell.net',
+		rpcHost: 'rpc.pulsar.apex.starshell.net',
+		healthCheckPath: '/health',
+		on: 1,
+	},
 ], g_each => ({
 	[`/provider.${buffer_to_base64(sha256_sync_insecure(text_to_buffer(g_each.grpcWebUrl)))}`]: {
 		...g_each,
@@ -441,23 +384,12 @@ export const H_STORE_INIT_APPS = type_check<typeof SI_STORE_APPS>(fold([
 	// 	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 	// },
 
+	// pulsar faucet
 	{
 		host: 'faucet.starshell.net',
-		name: 'StarShell Pulsar-2 Faucet',
+		name: 'StarShell Pulsar Faucet',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 	},
-	// {
-	// 	host: 'faucet.pulsar.scrttestnet.com',
-	// 	name: 'Pulsar-2 Faucet',
-	// },
-	// {
-	// 	host: 'pulsar.faucet.trivium.network',
-	// 	name: 'Trivium Pulsar-2 Faucet',
-	// },
-	// {
-	// 	host: 'faucet.secrettestnet.io',
-	// 	name: 'Pulsar-2 Faucet Alternative',
-	// },
 ], g_each => ({
 	[`/scheme.${g_each['scheme'] || 'https'}/host.${g_each.host.replace(/:/g, '+')}`]: {
 		scheme: 'https',
@@ -481,12 +413,36 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 		chains: ['/family.cosmos/chain.secret-4'],
 		agentType: ContactAgentType.ROBOT,
 		addressSpace: 'acc',
-		addressData: 'tq6y8waegggp4fv2fcxk3zmpsmlfadyc',
+		addressData: '3220hzfrxxd6zrdl5qm78xm4aacvyvls',
 		origin: 'built-in',
-		name: 'Secret Network Faucet',
+		name: 'StarShell Courtesy Feegrant',
 		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
 		notes: '',
 	} as ContactStruct,
+
+	{
+		namespace: 'cosmos',
+		chains: ['/family.cosmos/chain.secret-4'],
+		agentType: ContactAgentType.ROBOT,
+		addressSpace: 'acc',
+		addressData: 'tq6y8waegggp4fv2fcxk3zmpsmlfadyc',
+		origin: 'built-in',
+		name: 'Secret Network Faucet',
+		pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
+		notes: '',
+	} as ContactStruct,
+
+	{
+		namespace: 'cosmos',
+		chains: ['/family.cosmos/chain.pulsar-2'],
+		agentType: ContactAgentType.ROBOT,
+		addressSpace: 'acc',
+		addressData: 't6qpwwtfdxtgxyhfaevcxsd6gtp447dw',
+		origin: 'built-in',
+		name: 'StarShell Pulsar Faucet',
+		pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+		notes: '',
+	},
 
 	// {
 	// 	namespace: 'cosmos',
@@ -537,8 +493,6 @@ export const H_STORE_INIT_AGENTS = type_check<typeof SI_STORE_AGENTS>(fold([
 ], g_contact => ({
 	[`/family.${g_contact.namespace}/agent.${g_contact.addressData}/as.contact`]: g_contact,
 })) as Record<ContactPath, ContactStruct>);
-
-// export const H_STORE_INIT_ENTITIES = type_check<typeof SI_STORE_ENTITIES>(fold([]));
 
 const H_TAGS_DEFAULT = {
 	// pink: '#D500F9',

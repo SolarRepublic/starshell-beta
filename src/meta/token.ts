@@ -191,6 +191,10 @@ export type TokenStructRegistry = {
 	snip24: {
 		struct: {};
 	};
+
+	snip721: {
+		struct: {};
+	};
 };
 
 export type TokenStructKey = keyof TokenStructRegistry;

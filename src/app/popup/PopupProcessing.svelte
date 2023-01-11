@@ -1,5 +1,7 @@
 <script lang="ts">
 	import {yw_context_popup} from '../mem';
+	
+	import ProgressBar from '../ui/ProgressBar.svelte';
 </script>
 
 <h3>
@@ -13,3 +15,5 @@
 <p>
 	{$yw_context_popup?.status || ''}
 </p>
+
+<ProgressBar x_progress={$yw_context_popup?.progress || 0} />

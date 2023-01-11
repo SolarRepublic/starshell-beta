@@ -10,9 +10,6 @@ import type {AdaptedAminoResponse, AdaptedStdSignDoc, GenericAminoMessage} from 
 import {Snip24} from '#/schema/snip-24-const';
 import type {Snip24Permission, Snip24PermitMsg} from '#/schema/snip-24-def';
 
-import {Snip2xMessageConstructor} from '#/schema/snip-2x-const';
-
-import {Contracts} from './ics-witness-imports';
 import {open_flow, RegisteredFlowError} from './msg-flow';
 import {page_info_from_sender, position_widow_over_tab} from './service-apps';
 
@@ -24,6 +21,7 @@ import type {SecretWasm} from '#/crypto/secret-wasm';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
+import {Contracts} from '#/store/contracts';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {is_dict, ode, oderom} from '#/util/belt';

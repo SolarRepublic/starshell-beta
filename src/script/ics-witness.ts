@@ -10,12 +10,14 @@ import type {DirectSignResponse} from '@cosmjs/proto-signing';
 import type {ProxyRequest, ProxyRequestResponse} from '@keplr-wallet/provider';
 import type {
 	BroadcastMode,
+	ChainInfoWithoutEndpoints,
 	Keplr,
 	Key as KeplrKey,
 	StdSignature,
 } from '@keplr-wallet/types';
 import type {KeplrGetKeyWalletCoonectV1Response as KeplrExportedKey} from '@keplr-wallet/wc-client';
 
+import type {TxRaw} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/tx';
 import type {L} from 'ts-toolbelt';
 import type {Function} from 'ts-toolbelt/out/Function/Function';
 
@@ -29,7 +31,11 @@ import type {Vocab} from '#/meta/vocab';
 import type {AdaptedAminoResponse} from '#/schema/amino';
 
 import type {InternalConnectionsResponse, InternalSessionResponse} from '#/provider/connection';
-import type {AppProfile} from '#/store/apps';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import type {Apps, AppProfile} from '#/store/apps';
+import type {Chains} from '#/store/chains';
+import type {Contracts} from '#/store/contracts';
+/* eslint-enable */
 import type {Consolidator} from '#/util/consolidator';
 
 
@@ -138,7 +144,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 		});
 
 		if(g_response.error) {
-			throw g_response.error;
+			throw g_response.error;  // eslint-disable-line @typescript-eslint/no-throw-literal
 		}
 		else {
 			return fold(a_tokens, (sa_token) => {
@@ -621,14 +627,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 	/* eslint-disable class-methods-use-this */
 	class KeplrHandler implements ImplementedProxiedMethods {
-		signEthereum(): KeplrResponse<string> {
-			throw new Error(`Not supported`);
-		}
-
-		experimentalSignEIP712CosmosTx_v0(): KeplrResponse<AdaptedAminoResponse> {
-			throw new Error(`Not supported`);
-		}
-
+		// dapp is requesting to enable connection for a specific chain
 		async enable(a_args: ProxyArgs<'enable'>): AsyncKeplrResponse<undefined> {
 			const z_arg_0 = a_args[0];
 
@@ -670,6 +669,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return G_RETURN_VOID;
 		}
 
+		// dapp is suggesting a chain
 		async experimentalSuggestChain(a_args: ProxyArgs<'experimentalSuggestChain'>): AsyncKeplrResponse<void> {
 			const [g_suggest] = a_args;
 
@@ -690,6 +690,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			throw `Refusing chain suggestion "${si_chain}" in StarShell beta`;
 		}
 
+		// dapp is requesting the public key for the currently connected account on the given chain
 		getKey(a_args: ProxyArgs<'getKey'>): KeplrResponse<DeKeplrified<KeplrKey>> {
 			// emulate Keplr's response (yes, it includes the "parmas" typo!)
 			if(1 !== a_args.length) throw 'Invalid parmas';
@@ -709,6 +710,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			};
 		}
 
+		// dapp is requesting a signature of the given amino document
 		async signAmino(a_args: ProxyArgs<'signAmino'>): AsyncKeplrResponse<AdaptedAminoResponse> {
 			const [si_chain, sa_signer, g_doc] = a_args;
 
@@ -746,6 +748,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return app_to_keplr(g_response);
 		}
 
+		// dapp is requesting a signature of the given proto document
 		async signDirect(a_args: ProxyArgs<'signDirect'>): AsyncKeplrResponse<DirectSignResponse> {
 			const [si_chain, sa_signer, g_doc] = a_args;
 
@@ -785,6 +788,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return app_to_keplr(g_response);
 		}
 
+		// dapp is requesting the wallet broadcast the given transaction to the chain
 		async sendTx(a_args: ProxyArgs<'sendTx'>): AsyncKeplrResponse<string> {
 			const [si_chain, sx_tx, xc_broadcast_mode] = a_args;
 
@@ -821,34 +825,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			);
 		}
 
-		async signArbitrary(a_args: ProxyArgs<'signArbitrary'>): AsyncKeplrResponse<DeKeplrified<StdSignature>> {
-			const [si_chain, sa_signer, z_data] = a_args;
-
-			debugger;
-
-			console.log({
-				si_chain,
-				sa_signer,
-				z_data,
-			});
-
-			throw `ADR-36 not supported`;
-		}
-
-		verifyArbitrary(a_args: ProxyArgs<'verifyArbitrary'>): AsyncKeplrResponse<boolean> {
-			const [si_chain, sa_signer, z_data] = a_args;
-
-			debugger;
-
-			console.log({
-				si_chain,
-				sa_signer,
-				z_data,
-			});
-
-			throw `ADR-36 not supported`;
-		}
-
+		// dapp is suggesting a token be added to the user's wallet
 		async suggestToken(a_args: ProxyArgs<'suggestToken'>): AsyncKeplrResponse<void> {
 			const [si_chain, sa_contract] = a_args as [string, Bech32];
 
@@ -876,6 +853,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return app_to_keplr(g_suggest);
 		}
 
+		// dapp is requesting a SNIP-20 viewing key
 		async getSecret20ViewingKey(a_args: ProxyArgs<'getSecret20ViewingKey'>): AsyncKeplrResponse<string> {
 			const [si_chain, sa_contract] = a_args as [string, Bech32];
 
@@ -917,6 +895,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			// look for existing viewing key
 			const a_vks = await Secrets.filter({
 				type: 'viewing_key',
+				on: 1,
 				chain: p_chain,
 				contract: sa_contract,
 				owner: k_connection.address,
@@ -948,6 +927,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			}
 		}
 
+		// dapp is requesting the secretwasm chain's public key
 		async getEnigmaPubKey(a_args: ProxyArgs<'getEnigmaPubKey'>): AsyncKeplrResponse<string> {
 			const [si_chain] = a_args;
 
@@ -981,6 +961,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return app_to_keplr(g_response, base93_to_keplr_str);
 		}
 
+		// dapp is requesting a user's private transaction encryption key for some given nonce
 		async getEnigmaTxEncryptionKey(a_args: ProxyArgs<'getEnigmaTxEncryptionKey'>): AsyncKeplrResponse<string> {
 			const [si_chain, sx_nonce] = a_args;
 
@@ -997,7 +978,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 				throw `Refusing encryption key request for non-secretwasm compatible chain "${si_chain}"`;
 			}
 
-			// ask service to encrypt
+			// ask service for encryption key
 			const g_response = await f_runtime_app().sendMessage({
 				type: 'requestSecretEncryptionKey',
 				value: {
@@ -1012,6 +993,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return app_to_keplr(g_response, base93_to_keplr_str);
 		}
 
+		// dapp is requesting to encrypt some contract execution JSON for some given contract's code hash
 		async enigmaEncrypt(a_args: ProxyArgs<'enigmaEncrypt'>): AsyncKeplrResponse<string> {
 			const [si_chain, s_code_hash, h_exec] = a_args;
 
@@ -1042,6 +1024,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			return app_to_keplr(g_encrypt, base93_to_keplr_str);
 		}
 
+		// dapp is requesting to decrypt some contract execution response JSON for some given nonce
 		async enigmaDecrypt(a_args: ProxyArgs<'enigmaDecrypt'>): AsyncKeplrResponse<string> {
 			const [si_chain, sx_ciphertext, sx_nonce] = a_args;
 
@@ -1070,14 +1053,77 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 			return app_to_keplr(g_decrypt, base93_to_keplr_str);
 		}
+
+		// dapp is requesting ADR-36 "arbitrary content" signature
+		signArbitrary(a_args: ProxyArgs<'signArbitrary'>): AsyncKeplrResponse<DeKeplrified<StdSignature>> {
+			const [si_chain, sa_signer, z_data] = a_args;
+
+			debugger;
+
+			console.log({
+				si_chain,
+				sa_signer,
+				z_data,
+			});
+
+			throw `ADR-36 not supported`;
+		}
+
+		// dapp is requesting the wallet to verify an ADR-36 "arbitrary content" signature
+		verifyArbitrary(a_args: ProxyArgs<'verifyArbitrary'>): AsyncKeplrResponse<boolean> {
+			const [si_chain, sa_signer, z_data] = a_args;
+
+			debugger;
+
+			console.log({
+				si_chain,
+				sa_signer,
+				z_data,
+			});
+
+			throw `ADR-36 not supported`;
+		}
+
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		signICNSAdr36(args_0: [
+			chainId: string,
+			contractAddress: string,
+			owner: string,
+			username: string,
+			addressChainIds: string[],
+		]): Promisable<
+			{error: string;}
+			| {
+				return: {
+					chainId: string;
+					bech32Prefix: string;
+					bech32Address: string;
+					addressHash: 'cosmos' | 'ethereum';
+					pubKey: Uint8Array;
+					signatureSalt: number;
+					signature: Uint8Array;
+				}[];
+			} | undefined
+		> {
+			throw new Error(`Not supported.`);
+		}
+
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		getChainInfosWithoutEndpoints(args_0: []): Promisable<{error: string} | {return: ChainInfoWithoutEndpoints[];} | undefined> {
+			throw new Error(`Not supported.`);
+		}
+
+		signEthereum(): KeplrResponse<string> {
+			throw new Error(`Not supported`);
+		}
+
+		experimentalSignEIP712CosmosTx_v0(): KeplrResponse<AdaptedAminoResponse> {
+			throw new Error(`Not supported`);
+		}
 	}
 
-	// const h_handlers_keplr: Record<string, (a_args: unknown[]) => Promisable<KeplrResponse>> = {,
 
 	const h_handlers_keplr = new KeplrHandler();
-
-	// };
-	/* eslint-enable */
 
 	// whether to cancel polyfill after the witness has loaded
 	let b_cancel_polyfill = false;

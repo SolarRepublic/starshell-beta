@@ -1,18 +1,18 @@
 <script context="module" lang="ts">
 	import type {Promisable} from '#/meta/belt';
-	import type {ChainStruct} from '#/meta/chain';
+	import type {Bech32, ChainStruct} from '#/meta/chain';
+	import type {Incident, TxSynced} from '#/meta/incident';
 	import type {PfpTarget} from '#/meta/pfp';
 
-	import type {Incident, TxSynced} from '#/meta/incident';
-	import type { CosmosNetwork } from '#/chain/cosmos-network';
+	import type {CosmosNetwork} from '#/chain/cosmos-network';
 
 	import {forever} from '#/util/belt';
 	import {open_external_link} from '#/util/dom';
 
 	import Address from './Address.svelte';
+	import MemoReview from './MemoReview.svelte';
 	import Field from '../ui/Field.svelte';
 	import Load from '../ui/Load.svelte';
-	import MemoReview from './MemoReview.svelte';
 	
 
 	export type SimpleField = {
@@ -38,10 +38,8 @@
 
 
 <script lang="ts">
-	import {syserr} from '../common';
-	import {ecdh_nonce, extract_memo_ciphertext} from '#/crypto/privacy';
+	import {decrypt_private_memo} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
-	import {buffer_to_text} from '#/util/data';
 	import {yw_chain} from '../mem';
 	import PfpDisplay from './PfpDisplay.svelte';
 
@@ -53,8 +51,6 @@
 
 	async function decrypt_memo(s_memo: string): Promise<string> {
 		const {
-			chain: p_chain,
-			height: s_height,
 			msgs: [
 				{
 					events: {
@@ -62,7 +58,6 @@
 					},
 				},
 			],
-			gas_wanted: s_gas_wanted,
 			signers: a_signers,
 		} = (incident as Incident.Struct<'tx_in' | 'tx_out'>).data as TxSynced;
 
@@ -71,42 +66,17 @@
 		const {
 			recipient: sa_recipient,
 			sender: sa_sender,
-		} = g_transfer!;
+		} = g_transfer;
 
 
-		const b_outgoing = 'tx_out' === incident.type;
+		const b_outgoing = 'tx_out' === incident!.type;
 
-		const sa_owner = (b_outgoing? sa_sender: sa_recipient) as string;
-		const sa_other = (b_outgoing? sa_recipient: sa_sender) as string;
+		const sa_owner = (b_outgoing? sa_sender: sa_recipient) as Bech32;
+		const sa_other = (b_outgoing? sa_recipient: sa_sender) as Bech32;
 
 		const [, g_account] = await Accounts.find(sa_owner, $yw_chain);
 
-		// const g_chain = (await Chains.at(p_chain))!;
-
-		// wait for load to complete
-		await loaded;
-
-		// locate others's public key
-		let atu8_pubkey_65: Uint8Array;
-		try {
-			({
-				pubkey: atu8_pubkey_65,
-			} = await network.e2eInfoFor(sa_other));
-		}
-		catch(e_info) {
-			throw syserr({
-				title: 'Other Account Unpublished',
-				error: e_info,
-			});
-		}
-
-		const atu8_nonce = await ecdh_nonce(s_sequence, s_gas_wanted);
-
-		const atu8_ciphertext = extract_memo_ciphertext(s_memo);
-
-		const atu8_plaintext = await network.ecdhDecrypt(atu8_pubkey_65, atu8_ciphertext, atu8_nonce, chain, g_account);
-
-		return buffer_to_text(atu8_plaintext).replace(/\0+$/, '');
+		return await decrypt_private_memo(s_memo, network!, sa_other, s_sequence, g_account);
 	}
 
 </script>

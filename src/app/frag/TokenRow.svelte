@@ -6,7 +6,7 @@
 	
 	import BigNumber from 'bignumber.js';
 	
-	import {createEventDispatcher} from 'svelte';
+	import {createEventDispatcher, onDestroy, onMount} from 'svelte';
 	
 	import {yw_account, yw_account_ref, yw_chain, yw_network, yw_owner} from '../mem';
 	import {load_page_context} from '../svelte';
@@ -47,6 +47,26 @@
 	export let pending = false;
 
 	export let error = '';
+
+	export let b_draggable = false;
+
+	export let d_intersection: IntersectionObserver | null = null;
+
+	let dm_row: HTMLElement;
+
+	export let s_debug = '';
+
+	onMount(() => {
+		if(d_intersection) {
+			d_intersection.observe(dm_row.children[0]);
+		}
+	});
+
+	onDestroy(() => {
+		if(d_intersection) {
+			d_intersection.unobserve(dm_row.children[0]);
+		}
+	});
 
 	$: w_amount = balance? balance?.s_amount || forever(''): '';
 
@@ -114,52 +134,54 @@
 	}
 </script>
 
-{#if unauthorized || mintable || pending}
-	<Row postnameTags
-		name={g_snip20.symbol}
-		resourcePath={p_contract}
-		detail={contract.name}
-		pfp={contract.pfp}
-		on:click={click_row}
-	>
-		<svelte:fragment slot="right">
-			{#if unauthorized}
-				<button class="pill" on:click|stopPropagation={() => authorize_token()}>
-					Authorize
+<div style="display: contents" bind:this={dm_row} data-contract-path={p_contract}>
+	{#if unauthorized || mintable || pending}
+		<Row postnameTags b_draggable on:dropRow
+			name={g_snip20.symbol}
+			resourcePath={p_contract}
+			detail={contract.name}
+			pfp={contract.pfp}
+			on:click={click_row}
+		>
+			<svelte:fragment slot="right">
+				{#if unauthorized}
+					<button class="pill" on:click|stopPropagation={() => authorize_token()}>
+						Authorize
+					</button>
+				{:else if mintable}
+					<button class="pill" on:click|stopPropagation={() => mint_token()}>
+						Mint
+					</button>
+				{:else if pending}
+					<button class="pill" disabled>
+						Pending
+					</button>
+				{/if}
+			</svelte:fragment>
+		</Row>
+	{:else if error}
+		<Row postnameTags b_draggable on:dropRow
+			name={g_snip20.symbol}
+			resourcePath={p_contract}
+			detail={contract.name}
+			pfp={contract.pfp}
+			on:click={click_row}
+		>
+			<svelte:fragment slot="right">
+				<button class="pill caution" on:click|stopPropagation={() => dispatch('click_error')}>
+					{error}
 				</button>
-			{:else if mintable}
-				<button class="pill" on:click|stopPropagation={() => mint_token()}>
-					Mint
-				</button>
-			{:else if pending}
-				<button class="pill" disabled>
-					Pending
-				</button>
-			{/if}
-		</svelte:fragment>
-	</Row>
-{:else if error}
-	<Row postnameTags
-		name={g_snip20.symbol}
-		resourcePath={p_contract}
-		detail={contract.name}
-		pfp={contract.pfp}
-		on:click={click_row}
-	>
-		<svelte:fragment slot="right">
-			<button class="pill caution" on:click|stopPropagation={() => dispatch('click_error')}>
-				{error}
-			</button>
-		</svelte:fragment>
-	</Row>
-{:else}
-	<Row postnameTags
-		name={g_snip20.symbol}
-		resourcePath={p_contract}
-		detail={contract.name}
-		pfp={contract.pfp}
-		amount={w_amount}
-		{...g_fields}
-		on:click={click_row}
-	/>
-{/if}
+			</svelte:fragment>
+		</Row>
+	{:else}
+		<Row postnameTags b_draggable on:dropRow
+			name={g_snip20.symbol}
+			resourcePath={p_contract}
+			detail={contract.name}
+			pfp={contract.pfp}
+			amount={w_amount}
+			{...g_fields}
+			on:click={click_row}
+		/>
+	{/if}
+</div>

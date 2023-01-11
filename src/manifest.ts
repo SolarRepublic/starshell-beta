@@ -63,6 +63,7 @@ const A_MATCH_LAUNCH = [
 ];
 
 const A_MATCH_LINK = [
+	'https://m.s2r.sh/*',
 	'https://link.starshell.net/*',
 ];
 
@@ -329,22 +330,23 @@ export const H_BROWSERS = {
 				'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
 				'connect-src': [
 					SX_CSP_SELF,
-					'https://raw.githubusercontent.com',
-					'https://api.coingecko.com',
 					...[
 						'githubusercontent.com',
-						'secretsaturn.net',
-						'api.trivium.network',
 						'starshell.net',
 					].flatMap(s => [`https://*.${s}`, `https://${s}`]),
 					...[
+						'raw.githubusercontent.com',
+						'api.coingecko.com',
+						'ping.starshell.net',
+						'feegrant.starshell.net',
+						'grpc-web.secret.ajax.starshell.net',
+						'grpc-web.secret.brynn.starshell.net',
+						'grpc-web.pulsar.apex.starshell.net',
 						'faucet.starshell.net',
-						'faucet.pulsar.scrttestnet.com',
-						'pulsar.faucet.trivium.network',
-						'faucet.secrettetnet.io',
 					].map(s => `https://${s}`),
-					'wss://rpc.testnet.secretsaturn.net',
-					'wss://pulsar-2.api.trivium.network',
+					'wss://rpc.secret.ajax.starshell.net',
+					'wss://rpc.secret.brynn.starshell.net',
+					'wss://rpc.pulsar.apex.starshell.net',
 					'wss:',
 					'data:',
 				],

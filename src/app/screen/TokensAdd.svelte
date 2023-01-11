@@ -46,6 +46,7 @@
 		// create list of all accessible tokens
 		const a_accessible = (await Secrets.filter({
 			type: 'viewing_key',
+			on: 1,
 			owner: Chains.addressFor($yw_account.pubkey, $yw_chain),
 			chain: $yw_chain_ref,
 		})).map(g => g.contract);

@@ -256,6 +256,13 @@
 		outline: 1px solid var(--theme-color-primary);
 		background: radial-gradient(ellipse farthest-side at bottom right, #07080a, #0f1317);
 	}
+
+	.empty-state {
+		text-align: center;
+		padding: 1.5em 0;
+		color: var(--theme-color-text-med);
+		font-size: 13px;
+	}
 </style>
 
 <div class="rows">
@@ -264,11 +271,7 @@
 	{:then a_list}
 		{#if !a_list.length}
 			<!-- TODO: empty state -->
-			<div style={`
-				display: flex;
-				justify-content: center;
-				margin: 1em;
-			`}>
+			<div class="empty-state">
 				No contacts of this type yet
 			</div>
 		{:else}

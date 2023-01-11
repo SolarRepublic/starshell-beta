@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type {Promisable} from '#/meta/belt';
-	import type {ChainStruct, ChainPath, ContractStruct} from '#/meta/chain';
+	import type {ChainStruct, ContractStruct} from '#/meta/chain';
 
-	import {Contracts} from '#/script/ics-witness-imports';
+	
 	import {Chains} from '#/store/chains';
+	import {Contracts} from '#/store/contracts';
 	import {forever} from '#/util/belt';
 	
 	import PfpDisplay from './PfpDisplay.svelte';
@@ -20,14 +21,12 @@
 	export let concise = false;
 
 	let g_chain: ChainStruct;
-	let p_chain: ChainPath;
 
 	let s_token_name: Promisable<string> = forever('');
 	let s_token_detail = contract.name;
 
 	(async() => {
 		g_chain = (await Chains.at(contract.chain))!;
-		p_chain = Chains.pathFrom(g_chain);
 
 		const g_snip20 = contract.interfaces.snip20;
 		if(g_snip20) {
@@ -99,11 +98,13 @@
 		</Field>
 
 		<Field key="contract" name={isToken? 'Token': 'Contract'} rootStyle="flex:auto;">
-			<Row embedded
-				resource={contract}
-				name={s_token_name}
-				detail={s_token_detail}
-			/>
+			{#key s_token_name}
+				<Row embedded
+					resource={contract}
+					name={s_token_name}
+					detail={s_token_detail}
+				/>
+			{/key}
 		</Field>
 	</div>
 {/if}

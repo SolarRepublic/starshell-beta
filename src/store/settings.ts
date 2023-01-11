@@ -7,6 +7,7 @@ import {
 } from './_base';
 
 import {SI_STORE_SETTINGS} from '#/share/constants';
+import type { RateLimitConfig } from './web-resource-cache';
 
 
 export enum KeplrCompatibilityMode {
@@ -40,6 +41,14 @@ export type SettingsRegistry = {
 	 * For persisting the selected chain
 	 */
 	p_chain_selected?: ChainPath;
+
+	gc_rate_limit_queries_default?: RateLimitConfig;
+
+	gc_rate_limit_webapis_default?: RateLimitConfig;
+
+	h_chain_settings?: Record<ChainPath, {
+		x_gas_multiplier?: number;
+	}>;
 };
 
 export type SettingsKey = keyof SettingsRegistry;

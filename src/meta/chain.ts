@@ -259,10 +259,10 @@ export type Chain<
 		fungibleTokenInterfaces: TokenSpecKey[];
 		nonFungibleTokenInterfaces: TokenSpecKey[];
 		testnet?: {
-			faucets?: string[];
+			faucets?: Dict<{}>;
 		};
 		mainnet?: {
-			feegrants?: string[];
+			feegrants?: Dict<{}>;
 		};
 		blockExplorer: BlockExplorerConfig;
 	}, Nameable, Pfpable];
@@ -501,7 +501,12 @@ export type Contract<
 		hash: string;
 
 		// interfaces the contract implements
-		interfaces: Partial<TokenStructDescriptor<as_tokens>>;
+		interfaces: O.Merge<
+			Partial<TokenStructDescriptor<as_tokens>>,
+			{
+				excluded: TokenStructKey[];
+			}
+		>;
 
 		// log events associate this contract with sites that have used it
 		// ...

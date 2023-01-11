@@ -17,6 +17,7 @@
 	import {Chains} from '#/store/chains';
 	import {Secrets} from '#/store/secrets';
 	
+	import AppView from './AppView.svelte';
 	import QueryPermitCreate from './QueryPermitCreate.svelte';
 	import RequestSignature from './RequestSignature.svelte';
 	import ChainToken from '../frag/ChainToken.svelte';
@@ -27,7 +28,6 @@
 	import PasswordField from '../ui/PasswordField.svelte';
 	import Row from '../ui/Row.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
-    import AppView from './AppView.svelte';
 	
 	
 	const {
@@ -39,7 +39,7 @@
 	let g_chain: ChainStruct;
 	let p_chain: ChainPath;
 
-	let k_token = new Snip2xToken(contract, $yw_network as SecretNetwork, $yw_account);
+	const k_token = new Snip2xToken(contract, $yw_network as SecretNetwork, $yw_account);
 
 
 	const b_snip20 = !!contract.interfaces.snip20;
@@ -82,7 +82,7 @@
 
 		a_permits = await Secrets.filter({
 			type: 'query_permit',
-			owner: $yw_owner,
+			owner: $yw_owner!,
 			contracts: {
 				[contract.bech32]: '',
 			},
@@ -127,39 +127,6 @@
 			},
 		});
 	}
-
-	const H_INTERFACES = {
-		snip20: {
-			title: 'SNIP-20',
-			label: 'Fungible Token',
-			checked: true,
-			disabled: true,
-		},
-		snip21: {
-			title: 'SNIP-21',
-			label: 'Improved SNIP-20',
-			checked: !!contract.interfaces.snip21,
-			disabled: true,
-		},
-		snip22: {
-			title: 'SNIP-22',
-			label: 'Batch Operations',
-			checked: !!contract.interfaces.snip22,
-			disabled: true,
-		},
-		snip23: {
-			title: 'SNIP-23',
-			label: 'Enhanced Send',
-			checked: !!contract.interfaces.snip23,
-			disabled: true,
-		},
-		snip24: {
-			title: 'SNIP-24',
-			label: 'Query Permits',
-			checked: !!contract.interfaces.snip24,
-			disabled: true,
-		},
-	};
 
 	let b_tooltip_showing = false;
 </script>
@@ -248,29 +215,6 @@
 			This token does not support query permits
 		{/if}
 	</Field>
-
-<!-- 
-	<Field key="interfaces" name="Contract Interfaces">
-		{#each ode(H_INTERFACES) as [si_interface, g_interface]}
-			<div class="interface-option">
-				<CheckboxField id={si_interface}
-					checked={!!g_interface['checked']}
-					disabled={!!g_interface['disabled']}
-					rootStyle={`
-						margin: 1em 0;
-						display: inline-flex;
-					`}
-				>
-					<span class="title" style="min-width:6.5ch;">
-						{g_interface.title}
-					</span>
-					<span class="label" style="color:var(--theme-color-text-med);">
-						- {g_interface.label}
-					</span>
-				</CheckboxField>
-			</div>
-		{/each}
-	</Field> -->
 
 	<Fields configs={a_fields} />
 

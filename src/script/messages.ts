@@ -611,13 +611,43 @@ export namespace IntraExt {
 		};
 
 		// transfer receive
-		transferReceive: {
-			value: TxConfirmed | TxSynced;
+		coinReceived: {
+			value: {
+				p_chain: ChainPath;
+				sa_recipient: Bech32;
+				a_amounts: {
+					denom: string;
+					amount: string;
+				}[];
+			};
 		};
 
 		// transfer send
-		transferSend: {
-			value: TxConfirmed | TxSynced;
+		coinSent: {
+			value: {
+				p_chain: ChainPath;
+				sa_sender: Bech32;
+				a_amounts: {
+					denom: string;
+					amount: string;
+				}[];
+			};
+		};
+
+		fungibleReceived: {
+			value: {
+				p_chain: ChainPath;
+				sa_recipient: Bech32;
+				sa_contract: Bech32;
+			};
+		};
+
+		fungibleSent: {
+			value: {
+				p_chain: ChainPath;
+				sa_sender: Bech32;
+				sa_contract: Bech32;
+			};
 		};
 
 		debug: {
@@ -641,9 +671,27 @@ export namespace IntraExt {
 		// token was added
 		tokenAdded: {
 			value: {
+				sa_contract: Bech32;
 				p_contract: ContractPath;
 				p_chain: ChainPath;
 				p_account: AccountPath;
+			};
+		};
+
+		// fee grant received
+		feegrantReceived: {
+			value: {
+				p_chain: ChainPath;
+				sa_granter: Bech32;
+				sa_grantee: Bech32;
+			};
+		};
+
+		contractExecuted: {
+			value: {
+				p_chain: ChainPath;
+				sa_owner: Bech32;
+				sa_contract: Bech32;
 			};
 		};
 	}>;

@@ -75,6 +75,7 @@
 
 		const a_secrets = await Secrets.filter({
 			type: 'viewing_key',
+			on: 1,
 			chain: $yw_chain_ref,
 			contract: g_contract.bech32,
 			owner: $yw_owner,

@@ -10,22 +10,26 @@ import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import {getContext} from 'svelte';
 import {cubicOut} from 'svelte/easing';
 
-import {yw_progress} from './mem';
+import {yw_network, yw_progress} from './mem';
 
+import {Argon2Type} from '#/crypto/argon2';
+import {NB_ARGON2_MEMORY, Vault} from '#/crypto/vault';
 import type {IntraExt} from '#/script/messages';
+import {global_receive} from '#/script/msg-global';
 import {Apps, G_APP_STARSHELL} from '#/store/apps';
 import {Chains} from '#/store/chains';
-import {ode, ofe} from '#/util/belt';
+import {NB_ARGON2_PIN_MEMORY, N_ARGON2_PIN_ITERATIONS} from '#/store/secrets';
+import {ode, ofe, timeout, timeout_exec} from '#/util/belt';
+import {text_to_buffer} from '#/util/data';
 import {dd} from '#/util/dom';
 
 import type {Page} from '##/nav/page';
 
 import PfpDisplay from './frag/PfpDisplay.svelte';
-import { Vault } from '#/script/ics-witness-imports';
-import { text_to_buffer } from '#/util/data';
-import { Argon2Type } from '#/crypto/argon2';
-import { NB_ARGON2_MEMORY } from '#/crypto/vault';
-import { NB_ARGON2_PIN_MEMORY, N_ARGON2_PIN_ITERATIONS } from '#/store/secrets';
+import { FeeGrants } from '#/chain/fee-grant';
+import { Accounts } from '#/store/accounts';
+import { syserr } from './common';
+import { A_COURTESY_ACCOUNTS } from '#/share/constants';
 
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
@@ -307,4 +311,71 @@ export async function estimate_pin_hash(): Promise<number> {
 	const xt_elapsed = window.performance.now() - xt_start;
 
 	return 0.5 * xt_elapsed * N_ARGON2_PIN_ITERATIONS;
+}
+
+export async function request_feegrant(sa_owner: Bech32): Promise<void> {
+	const k_network = yw_network.get();
+
+	const f_cancel_progress_req = make_progress_timer({
+		estimate: 2e3,
+		range: [0, 25],
+	});
+
+	try {
+		await fetch('https://feegrant.starshell.net/claim', {
+			method: 'POST',
+			headers: {
+				'accept': 'application/json, text/plain, */*',
+				'content-type': 'application/json;charset=UTF-8',
+			},
+			body: JSON.stringify({
+				address: sa_owner,
+			}),
+			mode: 'cors',
+		});
+	}
+	catch(e_fetch) {
+		return;
+	}
+	finally {
+		f_cancel_progress_req();
+	}
+
+	const f_cancel_chain = make_progress_timer({
+		estimate: 6e3,
+		range: [25, 90],
+	});
+
+	// listen for fee grant event on chain
+	const [, xc_timeout] = await timeout_exec(15e3, () => new Promise((fk_resolve) => {
+		global_receive({
+			feegrantReceived() {
+				fk_resolve(void 0);
+			},
+		});
+	}));
+
+	// clear progress bar
+	f_cancel_chain();
+
+	// done
+	if(!xc_timeout) return;
+
+	// timed out, check manually
+	const g_chain = await Chains.at('/family.cosmos/chain.secret-4');
+	const [, g_account] = await Accounts.find(sa_owner, g_chain!);
+	const k_feegrants = await FeeGrants.forAccount(g_account, k_network);
+
+	const a_grants = k_feegrants.grants['SCRT']?.grants;
+
+	for(const g_grant of a_grants || []) {
+		if(A_COURTESY_ACCOUNTS.includes(g_grant.allowance.granter)) {
+			return;
+		}
+	}
+
+	throw syserr({
+		title: 'Fee grant failed',
+		text: 'The request operation timed out',
+	});
 }

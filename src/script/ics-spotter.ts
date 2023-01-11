@@ -243,7 +243,7 @@ import type {Vocab} from '#/meta/vocab';
 					border-color: #ffb61a;
 
 					display: flex;
-					${b_multiaccount
+					${b_multiaccount /* eslint-disable @typescript-eslint/indent */
 						? `
 							min-width: 70%;
 							justify-content: space-between;
@@ -252,13 +252,13 @@ import type {Vocab} from '#/meta/vocab';
 							min-width: 60%;
 							padding: 3px 8px;
 							justify-content: center;
-						`}
+						` /* eslint-enable */}
 				`,
 			}, b_multiaccount
 				? [
 					dd('span', {
 						'data-starshell': 'account-name',
-						style: `
+						'style': `
 							padding: 3px 3px 3px 8px;
 							flex: auto;
 						`,
@@ -266,7 +266,7 @@ import type {Vocab} from '#/meta/vocab';
 
 					dd('span', {
 						'data-starshell': 'next',
-						style: `
+						'style': `
 							border-left: 1px solid #ffb61a;
 							padding: 0px 11px 0px 0px;
 							flex-basis: 23px;

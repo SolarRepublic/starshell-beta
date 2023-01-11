@@ -158,7 +158,7 @@ export const Pfps = create_store_class({
 		// 	return `/template.pfp/id.${hash_json(g_pfp)}`;
 		// }
 
-		static async load(p_pfp: PfpTarget, gc_render: RenderConfig): Promise<HTMLPictureElement | null> {
+		static async load(p_pfp: PfpTarget, gc_render: RenderConfig, ks_pfps?: PfpI | null): Promise<HTMLPictureElement | null> {
 			// session storage ref
 			if(p_pfp.startsWith('pfp:')) {
 				// load data URL from session storage
@@ -187,7 +187,7 @@ export const Pfps = create_store_class({
 			}
 			// store ref
 			else {
-				const g_pfp = await Pfps.at(p_pfp as Resource.Path<Pfp>);
+				const g_pfp = ks_pfps? ks_pfps.at(p_pfp as Resource.Path<Pfp>): await Pfps.at(p_pfp as Resource.Path<Pfp>);
 
 				if(!g_pfp) return null;
 
