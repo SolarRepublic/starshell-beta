@@ -1,5 +1,5 @@
 <script lang="ts" context="module">
-	export type Status = 'connected' | 'disconnected' | 'blocked';
+	export type Status = 'connected' | 'no_permissions' | 'disconnected' | 'blocked';
 </script>
 
 <script lang="ts">
@@ -30,6 +30,9 @@
 	const H_LOCALIZATION: Record<Status, {text:string}> = {
 		connected: {
 			text: 'Connected',
+		},
+		no_permissions: {
+			text: 'No Permissions',
 		},
 		disconnected: {
 			text: 'Disconnected',
@@ -128,11 +131,21 @@
 						}
 					}
 
-					&.blocked {
+					&.no_permissions {
 						color: var(--theme-color-caution);
 
 						&::before {
+							position: relative;
 							.status-bulb(var(--theme-color-caution));
+						}
+					}
+
+					&.blocked {
+						color: var(--theme-color-red);
+
+						&::before {
+							position: relative;
+							.status-bulb(var(--theme-color-red));
 						}
 					}
 				}

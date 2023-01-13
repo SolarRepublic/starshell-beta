@@ -19,6 +19,13 @@
 
 			console.log('suggesting...');
 			await keplr.suggestToken('secret-4', 'secret1yxwnyk8htvvq25x2z87yj0r5tqpev452fk6h5h');
+			// await keplr.suggestToken('secret-4', 'secret1jxryqg50gxppm6rukju22hw3g2rar4det40935');
+
+			const vk = await Promise.all([
+				keplr.getSecret20ViewingKey('secret-4', 'secret1yxwnyk8htvvq25x2z87yj0r5tqpev452fk6h5h'),
+				// keplr.getSecret20ViewingKey('secret-4', 'secret1jxryqg50gxppm6rukju22hw3g2rar4det40935'),
+				keplr.getSecret20ViewingKey('secret-4', 'secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek'),
+			]);
 
 			console.log('done');
 

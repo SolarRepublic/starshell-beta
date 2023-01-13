@@ -12,13 +12,18 @@
 	import {Contracts} from '#/store/contracts';
 	import {Providers} from '#/store/providers';
 	
+	import {F_NOOP} from '#/util/belt';
+	
 	import RequestSignature from './RequestSignature.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 
 	const {
 		g_chain,
 		p_chain,
 		p_account,
 		k_page,
+		g_app,
+		completed,
 	} = load_app_context();
 
 	export let bech32s: Bech32[] = [];
@@ -29,7 +34,7 @@
 			const g_account = await Accounts.at(p_account);
 
 			// instantiate network
-			const k_network = await Providers.activateDefaultFor<SecretNetwork>(g_chain);
+			const k_network = await Providers.activateStableDefaultFor<SecretNetwork>(g_chain);
 
 			// do a quick test
 			try {
@@ -69,12 +74,57 @@
 			});
 		}
 	})();
+
+	function reject() {
+		completed(false);
+	}
 </script>
 
 <style lang="less">
-	
+	@keyframes spin {
+		0% {
+			transform: rotate(0deg);
+		}
+
+		100% {
+			transform: rotate(360deg);
+		}
+	}
+
+	section {
+		margin-top: 42% !important;
+		display: flex;
+		flex-direction: column;
+
+		.loading {
+			margin: 0 auto;
+			width: 60%;
+
+			img {
+				width: 100%;
+				animation: spin 3s linear infinite;
+			}
+		}
+
+		p {
+			margin-top: 4em;
+			text-align: center;
+		}
+	}
 </style>
 
 <Screen>
+	<!-- <Header title='App Suggestion' /> -->
 
+	<section>
+		<span class="loading">
+			<img src="/media/vendor/loading.svg" alt="Loading">
+		</span>
+
+		<p>
+			Loading app request to add new token...
+		</p>
+	</section>
+
+	<ActionsLine deny cancel={reject} confirm={['Wait', F_NOOP, true]} />
 </Screen>

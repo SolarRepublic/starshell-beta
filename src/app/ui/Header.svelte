@@ -610,7 +610,11 @@
 							</span>
 
 							{#if $yw_overlay_app}
-								{@const s_app_status = g_cause.registered? 'connected': 'disconnected'}
+								{@const s_app_status = g_cause.registered
+									? Object.keys(g_cause.app.connections).length
+										? 'connected'
+										: 'no_permissions'
+									: 'disconnected'}
 
 								<OverlaySelect
 									title='Current App'

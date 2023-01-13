@@ -1,4 +1,5 @@
 import type {Promisable} from '#/meta/belt';
+import { camel_to_phrase } from '#/util/format';
 
 export interface ErrorReport {
 	title: string;
@@ -37,9 +38,15 @@ export function syserr(z_error: Error | ErrorReport): Error {
 	let g_error = z_error as ErrorReport;
 
 	if(z_error instanceof Error) {
+		let si_title = z_error['title'];
+		if(!si_title) {
+			si_title = camel_to_phrase(z_error.constructor.name);
+			if('Error' === si_title) si_title = 'Runtime error';
+		}
+
 		g_error = {
 			error: z_error,
-			title: z_error['title'] || `Runtime error: ${z_error.name}`,
+			title: si_title,
 			text: z_error['message'],
 		};
 	}

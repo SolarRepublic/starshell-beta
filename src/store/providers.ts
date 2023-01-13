@@ -16,6 +16,8 @@ import {SecretNetwork} from '#/chain/secret-network';
 import {SI_STORE_PROVIDERS, XT_SECONDS} from '#/share/constants';
 import {timeout_exec} from '#/util/belt';
 import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
+import TimeAgo from 'javascript-time-ago';
+import { format_time_ago } from '#/util/format';
 
 
 export type BalanceBundle = {
@@ -106,20 +108,24 @@ export class NetworkTimeoutError extends Error {
 }
 
 export class ProviderHealthError extends Error {
-	constructor() {
-		super(`Provider in poor health.`);
+	constructor(g_provider: ProviderStruct) {
+		super(`Provider ${g_provider.name} in poor health.`);
 	}
 }
 
 export class StaleBlockError extends Error {
-	constructor() {
-		super(`Most recent block is pretty old. Possible chain or network fault.`);
+	constructor(g_provider: ProviderStruct, xt_when: number) {
+		super(`Most recent block from ${g_provider.name} is pretty old (${format_time_ago(xt_when)}). Possible chain, node, or network fault.`);
 	}
 }
 
 export class NetworkExchangeError extends Error {
-	constructor(e_original: Error) {
-		super(`Network exchange error: ${e_original.name}:: ${e_original.message}`);
+	constructor(protected _e_original: Error) {
+		super(`${_e_original.constructor.name}:: ${_e_original.message}`);
+	}
+
+	get original(): Error {
+		return this._e_original;
 	}
 }
 
@@ -153,6 +159,40 @@ export const Providers = create_store_class({
 			throw new Error(`No network provider found for chain ${p_chain}`);
 		}
 
+		static async activateStableDefaultFor<k_network extends CosmosNetwork=CosmosNetwork>(g_chain: ChainStruct=yw_chain.get()): Promise<k_network> {
+			const p_chain = Chains.pathFrom(g_chain);
+
+			const ks_providers = await Providers.read();
+
+			let e_reason!: Error;
+
+			for(const [p_provider, g_provider] of ks_providers.entries()) {
+				if(p_chain === g_provider.chain) {
+					try {
+						await ProviderI.quickTest(g_provider, g_chain);
+					}
+					catch(e_test) {
+						// if(e_test instanceof NetworkExchangeError) {
+						// 	if(e_test.original instanceof StaleBlockError) {
+						// 		e_reason = e_test;
+						// 	}
+						// 	else if(e_test.original instanceof ProviderHealthError) {
+						// 		if(!(e_reason instanceof NetworkExchangeError)) e_reason = e_test;
+						// 	}
+						// }
+
+						e_reason = e_test;
+
+						continue;
+					}
+
+					return ProviderI.activate(g_provider, g_chain) as unknown as k_network;
+				}
+			}
+
+			throw e_reason || new Error(`No network provider found for chain ${p_chain}`);
+		}
+
 		static async quickTest(g_provider: ProviderStruct, g_chain: ChainStruct) {
 			const k_network = ProviderI.activate(g_provider, g_chain);
 
@@ -170,12 +210,12 @@ export const Providers = create_store_class({
 
 					// more than a minute old
 					if(Date.now() - xt_when > 60e3) {
-						throw new StaleBlockError();
+						throw new StaleBlockError(g_provider, xt_when);
 					}
 				}
 				// no block info
 				else {
-					throw new ProviderHealthError();
+					throw new ProviderHealthError(g_provider);
 				}
 			}
 			catch(e_latest) {

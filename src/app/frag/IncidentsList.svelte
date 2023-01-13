@@ -40,8 +40,6 @@
 	import type {TransactionHistoryItem} from '#/schema/snip-2x-def';
 	
 	import BigNumber from 'bignumber.js';
-	import TimeAgo from 'javascript-time-ago';
-	import english_locale from 'javascript-time-ago/locale/en';
 	import {getContext} from 'svelte';
 	
 	import {yw_account, yw_account_ref} from '../mem';
@@ -61,7 +59,7 @@
 	import {oderac} from '#/util/belt';
 	import {base93_to_buffer} from '#/util/data';
 	import {dd, open_external_link} from '#/util/dom';
-	import {format_amount} from '#/util/format';
+	import {format_amount, format_time_ago} from '#/util/format';
 	
 	import type {Page} from '##/screen/_screens';
 	
@@ -128,13 +126,6 @@
 		return dm_icon;
 	};
 
-	TimeAgo.setDefaultLocale(english_locale.locale);
-	TimeAgo.addLocale(english_locale);
-	const y_ago = new TimeAgo('en-US');
-
-	function format_time_ago(xt_when: number): string {
-		return y_ago.format(xt_when, 'twitter');
-	}
 
 	const H_INCIDENT_MAP: {
 		[si_type in IncidentType]: IncidentHandler<si_type>;

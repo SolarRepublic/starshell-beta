@@ -1,6 +1,10 @@
+import TimeAgo from 'javascript-time-ago';
+import english_locale from 'javascript-time-ago/locale/en';
+
 import {fold, F_IDENTITY} from './belt';
 
 import type {CoinGeckoFiat} from '#/store/web-apis';
+
 
 const D_INTL_USD = new Intl.NumberFormat('en-US', {
 	style: 'currency',
@@ -236,8 +240,23 @@ export function snake_to_camel(s_snake: string): string {
 
 export function camel_to_snake(s_camel: string): string {
 	return s_camel.replace(/([a-z0-9])([A-Z]+)/g, (_ignore, s_before, s_cap) => `${s_before}_${s_cap}`).toLowerCase();
+	// return camel_to_phrase(s_camel).toLowerCase();
+}
+
+export function camel_to_phrase(s_camel: string): string {
+	return s_camel.replace(/([a-z0-9])([A-Z]+)/g, (_ignore, s_before, s_cap) => `${s_before} ${s_cap}`)
+		.replace(/([A-Z])([A-Z])([a-z0-9])/g, (_ignore, s_before, s_cap, s_after) => `${s_before} ${s_cap}${s_after}`);
 }
 
 export function phrase_to_hyphenated(s_phrase: string): string {
 	return s_phrase.toLowerCase().split(/\s+/g).join('-');
+}
+
+
+TimeAgo.setDefaultLocale(english_locale.locale);
+TimeAgo.addLocale(english_locale);
+const y_ago = new TimeAgo('en-US');
+
+export function format_time_ago(xt_when: number): string {
+	return y_ago.format(xt_when, 'twitter');
 }
