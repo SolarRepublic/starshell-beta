@@ -367,7 +367,13 @@ export class CosmosNetwork {
 		this._p_chain = Chains.pathFrom(_g_chain);
 
 		this._y_grpc = new GrpcWebImpl(_g_provider.grpcWebUrl, {
-			transport: grpc.CrossBrowserHttpTransport({withCredentials:false}),
+			// transport: grpc.CrossBrowserHttpTransport({
+			// 	withCredentials: false,
+			// }),
+			transport: grpc.FetchReadableStreamTransport({
+				keepalive: true,
+				credentials: 'omit',
+			}),
 		});
 
 		void this.reloadCached();

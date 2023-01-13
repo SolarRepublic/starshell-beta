@@ -18,4 +18,5 @@
 **/.vscode/
 
 # sanctioned directory for anything that doesn't belong in git repo
+/local/
 /scrap/
