@@ -17,10 +17,9 @@
 	import AccountCreate from './AccountCreate.svelte';
 	import AccountView from './AccountView.svelte';
 	import Address from '../frag/Address.svelte';
+	import Load from '../ui/Load.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-    import Load from '../ui/Load.svelte';
-    import { forever } from '#/util/belt';
 	
 
 	const {

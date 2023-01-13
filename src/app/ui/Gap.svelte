@@ -2,6 +2,10 @@
 	export let plain = false;
 
 	export let rootStyle = '';
+
+	if(!plain) {
+		rootStyle += `margin: -15px 0;`;
+	}
 </script>
 
 <style lang="less">

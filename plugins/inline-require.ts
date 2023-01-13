@@ -9,6 +9,7 @@ import type {
 import path from 'path';
 
 import commonjs from '@rollup/plugin-commonjs';
+import nodeExternals from 'rollup-plugin-node-externals';
 import nodeResolve from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
 import {createFilter} from '@rollup/pluginutils';
@@ -178,9 +179,22 @@ export function inlineRequire(gc_import: Options={}) {
 				try {
 					y_bundle = await rollup({
 						input: si_load.replace(/\?commonjs-entry$/, ''),
+						external: ['fs', 'path', 'crypto'],
+						output: {
+							format: 'iife',
+						},
 						plugins: [
-							nodeResolve(),
-							commonjs(),
+							nodeExternals({
+								builtins: false,
+								deps: false,
+							}),
+							commonjs({
+								ignore: ['fs', 'path', 'crypto'],
+							}),
+							nodeResolve({
+								browser: true,
+								// preferBuiltins: false,
+							}),
 
 							// apply the `inline_require()` substitution
 							inlineRequire({

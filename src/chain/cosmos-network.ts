@@ -114,12 +114,14 @@ import {QueryCache} from '#/store/query-cache';
 import {
 	fodemtv,
 	oderom,
+	timeout,
 	with_timeout,
 } from '#/util/belt';
 
 
 
 import {buffer_to_base64, buffer_to_base93, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
+import { wgrpc_retry } from '#/extension/network';
 
 
 
@@ -414,9 +416,9 @@ export class CosmosNetwork {
 
 	async signerData(sa_sender: string): Promise<SignerData> {
 		// get account data
-		const g_response = await new AuthQueryClient(this._y_grpc).account({
+		const g_response = await wgrpc_retry(() => new AuthQueryClient(this._y_grpc).account({
 			address: sa_sender,
-		});
+		}));
 
 		// destructure response
 		const {
@@ -447,7 +449,7 @@ export class CosmosNetwork {
 	}
 
 	async latestBlock(): Promise<GetLatestBlockResponse> {
-		return await new TendermintServiceClient(this._y_grpc).getLatestBlock({});
+		return await wgrpc_retry(() => new TendermintServiceClient(this._y_grpc).getLatestBlock({}));
 	}
 
 	cachedCoinBalance(sa_owner: Bech32, si_asset: string): Cached<Coin> | null {
@@ -483,10 +485,10 @@ export class CosmosNetwork {
 		// acquire lock before loading balance
 		await navigator.locks.request(`net:balance:${si_coin}:${sa_owner}:${this._p_chain}`, async() => {
 			// no response cache; query balance
-			g_response = await new BankQueryClient(this._y_grpc).balance({
+			g_response = await wgrpc_retry(() => new BankQueryClient(this._y_grpc).balance({
 				address: sa_owner,
 				denom: this._g_chain.coins[si_coin!].denom,
-			});
+			}));
 		});
 
 		// destructure response
@@ -513,9 +515,9 @@ export class CosmosNetwork {
 	async bankBalances(sa_owner: Bech32): Promise<Dict<BalanceBundle>> {
 		const xt_req = Date.now();
 
-		const g_response = await new BankQueryClient(this._y_grpc).allBalances({
+		const g_response = await wgrpc_retry(() => new BankQueryClient(this._y_grpc).allBalances({
 			address: sa_owner,
-		});
+		}));
 
 		const {
 			balances: a_balances,
@@ -551,9 +553,9 @@ export class CosmosNetwork {
 	}
 
 	async feeGrants(sa_owner: Bech32): Promise<DecodedAllowance[]> {
-		const g_response = await new FeeGrantQueryClient(this._y_grpc).allowances({
+		const g_response = await wgrpc_retry(() => new FeeGrantQueryClient(this._y_grpc).allowances({
 			grantee: sa_owner,
-		});
+		}));
 
 		const {
 			allowances: a_allowances,
@@ -651,7 +653,7 @@ export class CosmosNetwork {
 			duration: 10e3,
 			trip: () => new NetworkTimeoutError(),
 			run: async() => {
-				const g_response = await new TxServiceClient(this._y_grpc).getTxsEvent({
+				const g_response = await wgrpc_retry(() => new TxServiceClient(this._y_grpc).getTxsEvent({
 					events: [
 						`message.sender='${sa_other}'`,
 						...s_height_max? [`block.height<${s_height_max}`]: [],
@@ -660,7 +662,7 @@ export class CosmosNetwork {
 						limit: '1',
 					},
 					orderBy: OrderBy.ORDER_BY_DESC,
-				});
+				}));
 
 				if(!g_response?.txs?.length) {
 					throw new UnpublishedAccountError(sa_other, this._g_chain);
@@ -697,7 +699,7 @@ export class CosmosNetwork {
 	}
 
 	async isContract(sa_account: string): Promise<boolean> {
-		const g_response = await new TxServiceClient(this._y_grpc).getTxsEvent({
+		const g_response = await wgrpc_retry(() => new TxServiceClient(this._y_grpc).getTxsEvent({
 			events: [
 				`message.contract_address='${sa_account}'`,
 			],
@@ -705,7 +707,7 @@ export class CosmosNetwork {
 			pagination: {
 				limit: '1',
 			},
-		});
+		}));
 
 		return g_response.txResponses.length > 0;
 	}
@@ -844,19 +846,19 @@ export class CosmosNetwork {
 		switch(xc_mode) {
 			// sync mode
 			case BroadcastMode.BROADCAST_MODE_SYNC: {
-				g_response = await new TxServiceClient(this._y_grpc).broadcastTx({
+				g_response = await wgrpc_retry(() => new TxServiceClient(this._y_grpc).broadcastTx({
 					txBytes: atu8_tx,
 					mode: BroadcastMode.BROADCAST_MODE_SYNC,
-				});
+				}));
 				break;
 			}
 
 			// async mode
 			case BroadcastMode.BROADCAST_MODE_ASYNC: {
-				g_response = await new TxServiceClient(this._y_grpc).broadcastTx({
+				g_response = await wgrpc_retry(() => new TxServiceClient(this._y_grpc).broadcastTx({
 					txBytes: atu8_tx,
 					mode: BroadcastMode.BROADCAST_MODE_ASYNC,
-				});
+				}));
 				break;
 			}
 
@@ -888,32 +890,32 @@ export class CosmosNetwork {
 
 
 	async networkParam(gc_params: ParamsQueryConfig): Promise<ParamChange | undefined> {
-		const g_response = await new ParamsQueryClient(this._y_grpc).params(gc_params);
+		const g_response = await wgrpc_retry(() => new ParamsQueryClient(this._y_grpc).params(gc_params));
 
 		return g_response.param;
 	}
 
 	async proposal(si_proposal: string): Promise<Proposal | undefined> {
-		const g_response = await new GovQueryClient(this._y_grpc).proposal({
+		const g_response = await wgrpc_retry(() => new GovQueryClient(this._y_grpc).proposal({
 			proposalId: si_proposal,
-		});
+		}));
 
 		return g_response?.proposal;
 	}
 
 
 	async tallyResult(si_proposal: string): Promise<TallyResult | undefined> {
-		const g_response = await new GovQueryClient(this._y_grpc).tallyResult({
+		const g_response = await wgrpc_retry(() => new GovQueryClient(this._y_grpc).tallyResult({
 			proposalId: si_proposal,
-		});
+		}));
 
 		return g_response.tally;
 	}
 
 	fetchTx(si_txn: string): Promise<GetTxResponse> {
-		return new TxServiceClient(this._y_grpc).getTx({
+		return wgrpc_retry(() => new TxServiceClient(this._y_grpc).getTx({
 			hash: si_txn,
-		});
+		}));
 	}
 
 	async downloadTxn(si_txn: string, p_account: AccountPath, p_app?: AppPath | null, h_events?: Partial<MsgEventRegistry>): Promise<TxSynced> {
@@ -1010,7 +1012,8 @@ export class CosmosNetwork {
 
 		for(;;) {
 			// fetch in batch
-			const g_response: GetTxsEventResponse = await y_service.getTxsEvent({
+			// eslint-disable-next-line @typescript-eslint/no-loop-func
+			const g_response: GetTxsEventResponse = await wgrpc_retry(() => y_service.getTxsEvent({
 				events: a_events,
 				orderBy: OrderBy.ORDER_BY_DESC,
 				pagination: atu8_key
@@ -1022,7 +1025,7 @@ export class CosmosNetwork {
 						limit: ''+xg_limit,
 						offset: ''+xg_offset,
 					},
-			});
+			}));
 
 			// destructure response
 			const {
@@ -1153,15 +1156,15 @@ export class CosmosNetwork {
 		redelegating: RedelegationResponse[];
 	}> {
 		const [g_response_bonded, g_response_unbonding, g_response_redelegating] = await Promise.all([
-			new StakingQueryClient(this._y_grpc).delegatorDelegations({
+			wgrpc_retry(() => new StakingQueryClient(this._y_grpc).delegatorDelegations({
 				delegatorAddr: sa_owner,
-			}),
-			new StakingQueryClient(this._y_grpc).delegatorUnbondingDelegations({
+			})),
+			wgrpc_retry(() => new StakingQueryClient(this._y_grpc).delegatorUnbondingDelegations({
 				delegatorAddr: sa_owner,
-			}),
-			new StakingQueryClient(this._y_grpc).redelegations({
+			})),
+			wgrpc_retry(() => new StakingQueryClient(this._y_grpc).redelegations({
 				delegatorAddr: sa_owner,
-			}),
+			})),
 		]);
 
 		return {
@@ -1184,8 +1187,13 @@ export class CosmosNetwork {
 		params: Params;
 		pool: Pool;
 	}> {
-		const g_params = await new StakingQueryClient(this._y_grpc).params({});
-		const g_pool = await new StakingQueryClient(this._y_grpc).pool({});
+		const [
+			g_params,
+			g_pool,
+		] = await Promise.all([
+			wgrpc_retry(() => new StakingQueryClient(this._y_grpc).params({})),
+			wgrpc_retry(() => new StakingQueryClient(this._y_grpc).pool({})),
+		]);
 
 		const g_bundle = {
 			...g_params,
@@ -1206,31 +1214,31 @@ export class CosmosNetwork {
 
 
 	async validators(): Promise<Validator[]> {
-		const g_response = await new StakingQueryClient(this._y_grpc).validators({
+		const g_response = await wgrpc_retry(() => new StakingQueryClient(this._y_grpc).validators({
 			status: bondStatusToJSON(BondStatus.BOND_STATUS_BONDED),
-		});
+		}));
 
 		return g_response.validators;
 	}
 
 	async codeInfo(si_code: `${bigint}`): Promise<CodeInfoResponse | undefined> {
-		return (await new ComputeQueryClient(this._y_grpc).code({
+		return (await wgrpc_retry(() => new ComputeQueryClient(this._y_grpc).code({
 			codeId: si_code,
-		})).codeInfo;
+		}))).codeInfo;
 	}
 
 	async contractsByCode(si_code: `${bigint}`): Promise<ContractInfoWithAddress[]> {
-		const g_response = await new ComputeQueryClient(this._y_grpc).contractsByCodeId({
+		const g_response = await wgrpc_retry(() => new ComputeQueryClient(this._y_grpc).contractsByCodeId({
 			codeId: si_code,
-		});
+		}));
 
 		return g_response.contractInfos;
 	}
 
 	async codeHashByContractAddress(sa_contract: Bech32): Promise<string> {
-		const g_response = await new ComputeQueryClient(this._y_grpc).codeHashByContractAddress({
+		const g_response = await wgrpc_retry(() => new ComputeQueryClient(this._y_grpc).codeHashByContractAddress({
 			contractAddress: sa_contract,
-		});
+		}));
 
 		return g_response.codeHash;
 	}
@@ -1412,9 +1420,9 @@ export class CosmosNetwork {
 			signatures: [atu8_signature],
 		});
 
-		const g_simulated = await new TxServiceClient(this._y_grpc).simulate({
+		const g_simulated = await wgrpc_retry(() => new TxServiceClient(this._y_grpc).simulate({
 			txBytes: atu8_tx,
-		});
+		}));
 
 		return g_simulated;
 	}

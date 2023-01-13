@@ -215,10 +215,8 @@
 
 	.rows {
 		.row .icon {
-			:global(&) {
-				color: var(--theme-color-text-light);
-				border-radius: 32px;
-			}
+			color: var(--theme-color-text-light);
+			border-radius: 32px;
 		}
 	}
 

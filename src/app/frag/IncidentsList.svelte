@@ -237,10 +237,9 @@
 			}
 
 			return {
+				...g_common,
 				title: 'Outgoing Transaction',
-				pending: b_pending,
 				name: '',
-				icon: mk_icon(SX_ICON_SEND, xt_when, b_pending),
 			};
 		},
 

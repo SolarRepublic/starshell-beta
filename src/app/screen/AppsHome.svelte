@@ -111,6 +111,12 @@
 					</Row>
 				{/each}
 
+				{#if !a_apps.length}
+					<div class="other-apps">
+						You don't have any apps on this chain yet.
+					</div>
+				{/if}
+
 				<div class="other-apps">
 					{0 === nl_other_apps? 'No': nl_other_apps}{a_apps.length? ' more': ''} app{1 === nl_other_apps? '': 's'} on other chain{1 === nl_chains? '': 's'}.
 				</div>

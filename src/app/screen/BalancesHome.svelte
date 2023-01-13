@@ -464,9 +464,11 @@
 				}
 				// other network error
 				else {
+					debugger;
+
 					syserr({
 						title: 'Network Error',
-						error: e_network,
+						text: `While trying to retrieve your account balance on ${yw_network.get().chain.name}: ${e_network.metadata?.statusCode}`,
 					});
 				}
 			}

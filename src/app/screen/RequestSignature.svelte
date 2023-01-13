@@ -499,26 +499,16 @@
 			}, atu8_auth);
 		}
 		catch(e_sim) {
+			if(e_sim instanceof Error) {
+				// ignore account sequence mismatch errors
+				if(e_sim.message.startsWith('account sequence mismatch')) return;
+			}
+
 			console.error(e_sim);
 
 			s_err_sim = e_sim.message;
 			return;
 		}
-
-		// log sim response
-		console.log(g_sim);
-
-		// // decode data
-		// try {
-		// 	const atu8_data = g_sim.result?.data!;
-		// 	const tx_body = TxBody.decode(atu8_data);
-		// 	for(const g_msg_proto of tx_body.messages) {
-		// 		const g_msg_amino = proto_to_amino(g_msg_proto, null);
-		// 		debugger;
-		// 	}
-		// 	console.log(tx_body);
-		// }
-		// catch(e_decode) {}
 
 		// add to responses
 		a_sims = a_sims.concat([g_sim]);

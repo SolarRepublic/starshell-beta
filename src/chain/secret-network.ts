@@ -20,11 +20,12 @@ import {CosmosNetwork} from './cosmos-network';
 
 import {syserr} from '#/app/common';
 import {SecretWasm} from '#/crypto/secret-wasm';
-import { utility_key_child } from '#/share/account';
+import {wgrpc_retry} from '#/extension/network';
+import {utility_key_child} from '#/share/account';
+import {R_SCRT_COMPUTE_ERROR} from '#/share/constants';
+import {ContractDecryptionError} from '#/share/errors';
 import {Chains} from '#/store/chains';
 import {base64_to_buffer, base93_to_buffer, buffer_to_base93, buffer_to_json, buffer_to_text} from '#/util/data';
-import { ContractDecryptionError } from '#/share/errors';
-import { R_SCRT_COMPUTE_ERROR } from '#/share/constants';
 
 
 
@@ -52,7 +53,9 @@ export class SecretNetwork extends CosmosNetwork {
 			throw new Error(`Cannot get consensus IO pubkey on non-secret chain "${this._g_chain.reference}"`);
 		}
 
-		return SecretWasm.extractConsensusIoPubkey((await new RegistrationQueryClient(this._y_grpc).registrationKey({})).key);
+		const g_registration = await wgrpc_retry(() => new RegistrationQueryClient(this._y_grpc).registrationKey({}));
+
+		return SecretWasm.extractConsensusIoPubkey(g_registration.key);
 	}
 
 	async secretWasm(g_account: AccountStruct): Promise<SecretWasm> {
@@ -141,10 +144,10 @@ export class SecretNetwork extends CosmosNetwork {
 		if(g_writeback) g_writeback.atu8_nonce = atu8_nonce;
 
 		// submit to provider
-		const g_response = await new ComputeQueryClient(this._y_grpc).querySecretContract({
+		const g_response = await wgrpc_retry(() => new ComputeQueryClient(this._y_grpc).querySecretContract({
 			contractAddress: g_contract.bech32,
 			query: atu8_query,
-		});
+		}));
 
 		// decrypt response
 		const atu8_plaintetxt = await SecretWasm.decryptBuffer(g_account, this._g_chain, g_response.data, atu8_nonce);

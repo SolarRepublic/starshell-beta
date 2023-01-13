@@ -107,15 +107,18 @@
 				<p>
 					No allowances currently granted to {$yw_account.name}.
 				</p>
-				<center>
-					<button class="pill" disabled={b_requesting_feegrant} on:click={do_request_feegrant}>
-						{#if b_requesting_feegrant}
-							Requesting...
-						{:else}
-							Request fee allowance
-						{/if}
-					</button>
-				</center>
+
+				{#if Object.keys($yw_chain.mainnet?.feegrants || {}).length}
+					<center>
+						<button class="pill" disabled={b_requesting_feegrant} on:click={do_request_feegrant}>
+							{#if b_requesting_feegrant}
+								Requesting...
+							{:else}
+								Request fee allowance
+							{/if}
+						</button>
+					</center>
+				{/if}
 			{/if}
 		{/if}
 	</div>
