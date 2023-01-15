@@ -597,7 +597,7 @@
 		// coins
 		[ClassType.COIN]: {
 			fuse: ({ks_chains}) => fuzey(ks_chains.entries().flatMap(([p_chain, g_chain]) => oderac(g_chain.coins, (si_coin, g_coin) => {
-				const s_name = g_coin.name || proper(g_coin.extra?.coingecko_id || 'Unknown');
+				const s_name = g_coin.name || proper(g_coin.extra?.coingeckoId || 'Unknown');
 
 				return {
 					class: ClassType.COIN,
@@ -612,7 +612,7 @@
 					details: {
 						symbol: `${si_coin} coin`,
 						denom: `(${g_coin.denom})`,
-						coingecko: g_coin.extra?.coingecko_id || '',
+						coingecko: g_coin.extra?.coingeckoId || '',
 					},
 				};
 			})), ['coingecko']),

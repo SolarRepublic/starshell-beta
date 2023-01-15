@@ -10,6 +10,8 @@
 	import {Pfps} from '#/store/pfps';
 	import {F_NOOP} from '#/util/belt';
 	
+	import {dd} from '#/util/dom';
+	
 	import Put from '../ui/Put.svelte';
 	
 	
@@ -45,6 +47,11 @@
 	const s_classes = (circular? '': appRelated? 'square app': 'square')+classes;
 
 	export let updates = 0;
+
+	export let filter: ''|'testnet' = '';
+	
+	// reactively assign filter when resource changes
+	$: s_autofilter = resource?.['testnet']? 'testnet': '';
 
 	/**
 	 * Applies a predetermined styling to the background
@@ -83,7 +90,19 @@
 			dispatch('loaded');
 		});
 
-		return dm_pfp;
+		if(dm_pfp) return dm_pfp;
+
+		// fallback to icon dom
+		return dd('span', {
+			class: 'global_icon-dom',
+			style: sx_dom_style,
+		}, [name[0] as string || '']);
+
+
+		// <!-- TODO: error placeholder -->
+		// 			<!-- <span class="error">
+		// 				⚠️
+		// 			</span> -->
 	}
 
 	function settle_inner(): Promise<never> {
@@ -134,16 +153,54 @@
 	// 	}
 	// }
 
-	.icon-dom {
-		color: var(--theme-color-text-light);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 30px;
+	.filter-testnet {
+		position: relative;
 
-		background-color: var(--theme-color-bg);
-		background: radial-gradient(ellipse farthest-side at bottom right, darken(@theme-color-black, 50%), var(--theme-color-bg));
-		outline: 1px solid var(--theme-color-border);
+		>* {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+
+			&.original {
+				filter: invert(1);
+			}
+
+			&.border {
+				background: rgb(131,58,180);
+				background: linear-gradient(90deg, rgba(131,58,180,1) 0%, rgba(253,29,29,1) 50%, rgba(252,176,69,1) 100%);
+
+				// "T" border
+				clip-path: polygon(
+					01.32% 42.35%,
+					18.58% 19.93%,
+					104.06% 19.93%,
+					86.80% 42.35%,
+					62.52% 42.35%,
+					62.52% 94.74%,
+					36.61% 94.74%,
+					36.61% 42.35%
+				);
+			}
+
+			&.overlay {
+				filter: contrast(0.5) blur(1.25px) contrast(2.5);
+				opacity: 0.5;
+
+				// "T" shape
+				clip-path: polygon(
+					5.38% 40.35%,
+					19.56% 21.93%,
+					100% 21.93%,
+					85.81% 40.35%,
+					60.52% 40.35%,
+					60.52% 92.74%,
+					38.61% 92.74%,
+					38.61% 40.35%
+				);
+			}
+		}
 	}
 </style>
 
@@ -157,31 +214,33 @@
 	>
 		{#if path}
 			{#await load_pfp()}
-				<span class="icon-dom global_loading dynamic-pfp" style={sx_dom_style} data-pfp-args={JSON.stringify({
+				<span class="global_icon-dom global_loading dynamic-pfp" style={sx_dom_style} data-pfp-args={JSON.stringify({
 					alt: name,
 					dim: dim,
 				})}>
 					⊚
 				</span>
 			{:then dm_pfp}
-				{#if dm_pfp}
-					<Put element={dm_pfp} />
-				{:else}
-					<!-- fallback to icon dom -->
-					<span class="icon-dom" style={sx_dom_style}>
-						{name[0] || ''}
+				{#if 'testnet' === filter || 'testnet' === s_autofilter}
+					<span class="filter-testnet" style="width:{dim}px; height:{dim}px;">
+						<span class="original">
+							<Put element={dm_pfp} />
+						</span>
+						<span class="border">
+							
+						</span>
+						<span class="overlay">
+							<Put element={dm_pfp} />
+						</span>
 					</span>
-
-					<!-- TODO: error placeholder -->
-					<!-- <span class="error">
-						⚠️
-					</span> -->
+				{:else}
+					<Put element={dm_pfp} />
 				{/if}
 
 				{#await settle_inner() then _}_{/await}
 			{/await}
 		{:else}
-			<span class="icon-dom" style={sx_style_gen}>
+			<span class="global_icon-dom" style={sx_style_gen}>
 				{name[0] || ''}
 			</span>
 			{#await settle_inner() then _}_{/await}

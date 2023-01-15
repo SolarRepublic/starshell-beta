@@ -1,4 +1,5 @@
 import type {Values, Dict} from '#/meta/belt';
+import type {Bech32, ChainStruct, ContractStruct} from '#/meta/chain';
 import type {WebApi, WebApiPath} from '#/meta/web-api';
 
 import {
@@ -110,7 +111,7 @@ const h_limiters: Dict<RateLimitingPool> = {};
 
 const h_limits_hit: Dict<number> = {};
 
-async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Promise<Response> {
+async function cached_fetch(p_url: string, gc_req: RequestInit, xt_max_age: number, c_retries=0): Promise<Response> {
 	// open cache
 	const d_cache = await caches.open(SI_CACHE_COINGECKO);
 
@@ -167,7 +168,7 @@ async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Pro
 
 	// make fetch
 	try {
-		d_res = await fetch(p_url);
+		d_res = await fetch(p_url, gc_req);
 	}
 	finally {
 		f_release();
@@ -184,7 +185,7 @@ async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Pro
 		}));
 
 		// retry
-		return await cached_fetch(p_url, xt_max_age, c_retries+1);
+		return await cached_fetch(p_url, gc_req, xt_max_age, c_retries+1);
 	}
 	// haven't exceeded retries yet
 	else if(c_retries < 6) {
@@ -200,7 +201,7 @@ async function cached_fetch(p_url: string, xt_max_age: number, c_retries=0): Pro
 		}
 
 		// retry
-		return await cached_fetch(p_url, xt_max_age, c_retries+1);
+		return await cached_fetch(p_url, gc_req, xt_max_age, c_retries+1);
 	}
 	// throw
 	else {
@@ -217,7 +218,7 @@ export const CoinGecko = {
 			ids: a_coins.join(','),
 			vs_currencies: si_versus,
 			include_last_updated_at: 'true',
-		}), xt_max_age);
+		}), {}, xt_max_age);
 
 		// load response
 		const h_response = await d_res.json() as CoinGeckoSimplePrice;
@@ -230,10 +231,46 @@ export const CoinGecko = {
 		// fetch from api
 		const d_res = await cached_fetch(coingecko_url('/coins/list', {
 			include_platform: 'false',
-		}), xt_max_age);
+		}), {}, xt_max_age);
 
 		// load response
 		return await d_res.json() as CoinGeckoCoinstList;
+	},
+};
+
+
+interface ContractStats {
+	accounts_count: number;
+	address: Bech32;
+	chain_id: number;
+	code_id: number;
+	contract_category: number;
+	creator: Bech32;
+	data_hash: string;
+	description: null|string;
+	discussion_url: null|string;
+	id: number;
+	label: string;
+	source_url: null|string;
+	txs_count: number;
+	value_locked: string;
+}
+
+export const SecretNodes = {
+	urlFor(g_chain: ChainStruct, g_contract: ContractStruct): string {
+		return `https://core.spartanapi.dev/secret/chains/${g_chain.reference}/contracts/${g_contract.bech32}`;
+	},
+
+	async contractStats(g_chain: ChainStruct, g_contract: ContractStruct, xt_max_age=6*XT_HOURS): Promise<ContractStats> {
+		// fetch from api
+		const d_res = await cached_fetch(SecretNodes.urlFor(g_chain, g_contract), {
+			headers: {
+				accept: 'application/json',
+			},
+		}, xt_max_age);
+
+		// load response
+		return await d_res.json() as ContractStats;
 	},
 };
 

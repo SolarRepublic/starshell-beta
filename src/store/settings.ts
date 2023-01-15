@@ -1,3 +1,5 @@
+import type {RateLimitConfig} from './web-resource-cache';
+
 import type {AccountPath} from '#/meta/account';
 import type {ChainPath} from '#/meta/chain';
 
@@ -7,7 +9,6 @@ import {
 } from './_base';
 
 import {SI_STORE_SETTINGS} from '#/share/constants';
-import type { RateLimitConfig } from './web-resource-cache';
 
 
 export enum KeplrCompatibilityMode {
@@ -47,6 +48,7 @@ export type SettingsRegistry = {
 	gc_rate_limit_webapis_default?: RateLimitConfig;
 
 	h_chain_settings?: Record<ChainPath, {
+		x_default_gas_price?: number;
 		x_gas_multiplier?: number;
 	}>;
 };

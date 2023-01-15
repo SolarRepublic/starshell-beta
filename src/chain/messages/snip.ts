@@ -5,7 +5,7 @@ import type {Coin} from '@cosmjs/amino';
 import type {Promisable, Values} from '#/meta/belt';
 import type {Bech32, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
 import type {Snip20} from '#/schema/snip-20-def';
-import {Snip2xToken} from '#/schema/snip-2x-const';
+import {deduce_token_interfaces, Snip2xToken} from '#/schema/snip-2x-const';
 
 import type {Snip2x} from '#/schema/snip-2x-def';
 
@@ -181,6 +181,9 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 		};
 	},
 
+	/**
+	 * Although intended for snip20, this is also compatible with snip721
+	 */
 	set_viewing_key: ({
 		h_args,
 		p_app, g_app,
@@ -188,6 +191,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 		p_account, g_account,
 		p_contract, g_contract_loaded, g_contract,
 		g_snip20,
+		g_snip721,
 		g_exec,
 	}) => ({
 		async apply() {
@@ -197,7 +201,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 			// contract exists
 			if(g_contract_loaded) {
 				// contract has snip-20 interface
-				if(g_snip20) {
+				if(g_snip20 || g_snip721) {
 					// previous viewing key exists
 					const a_viewing_key = await Snip2xToken.viewingKeyFor(g_contract_loaded, g_chain, g_account);
 					if(a_viewing_key) {
@@ -246,19 +250,31 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 			await Accounts.update(p_account, (g_account_latest) => {
 				// refset assets
 				const g_assets = g_account_latest.assets[p_chain] || {
+					totalFiatCache: '??',
 					fungibleTokens: [],
 					data: {},
 				};
 
-				// destructure fungibles list
+				// destructure (non)fungibles list
 				let a_fungibles = g_assets.fungibleTokens;
+				let a_nonfungibles = g_assets.nonFungibleTokens;
 
 				// ref contract address
 				const sa_contract = g_contract.bech32;
 
-				// fungibles is currently lacking contract; append to list
-				if(!a_fungibles.includes(sa_contract)) {
-					a_fungibles = [...a_fungibles, sa_contract];
+				// snip20
+				if(g_snip20) {
+					// fungibles is currently lacking contract; append to list
+					if(!a_fungibles.includes(sa_contract)) {
+						a_fungibles = [...a_fungibles, sa_contract];
+					}
+				}
+				// snip721
+				else if(g_snip721) {
+					// nonfungibles is currently lacking contract; append to list
+					if(!a_nonfungibles.includes(sa_contract)) {
+						a_nonfungibles = [...a_nonfungibles, sa_contract];
+					}
 				}
 
 				// ref asset data
@@ -271,6 +287,7 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 						[p_chain]: {
 							...g_account_latest.assets[p_chain],
 							fungibleTokens: a_fungibles,
+							nonFungibleTokens: a_nonfungibles,
 							data: {
 								...h_data,
 								[sa_contract]: {
@@ -287,9 +304,9 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 			if(b_new_token) {
 				// attempt to deduce interfaces automatically
 				try {
-					const k_network = await Providers.activateDefaultFor(g_chain);
-					const k_token = new Snip2xToken(g_contract, k_network as SecretNetwork, g_account);
-					await k_token.deduceInterfaces();
+					const k_network: SecretNetwork = await Providers.activateDefaultFor(g_chain);
+
+					const a_deductions = await deduce_token_interfaces(g_contract, k_network, g_account);
 				}
 				catch(e_deduce) {}
 

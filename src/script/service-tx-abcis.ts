@@ -5,23 +5,26 @@ import type {ChainStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 import type {IncidentStruct, IncidentType, TxError, TxSynced} from '#/meta/incident';
 
+import type {StoreKey} from '#/meta/store';
+
 import {decodeTxRaw} from '@cosmjs/proto-signing';
 
-import {global_broadcast} from './msg-global';
+import {global_broadcast, global_receive} from './msg-global';
 
 import type {LocalAppContext} from '#/app/svelte';
 import {proto_to_amino} from '#/chain/cosmos-msgs';
-import type {CosmosNetwork, TypedEvent} from '#/chain/cosmos-network';
+import type {CosmosNetwork} from '#/chain/cosmos-network';
 import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 import type {TmJsonRpcWebsocket} from '#/cosmos/tm-json-rpc-ws-const';
 import type {WsTxResponse, WsTxResultError, WsTxResultSuccess} from '#/cosmos/tm-json-rpc-ws-def';
 import type {NotificationConfig, NotifyItemConfig} from '#/extension/notifications';
 import {R_TX_ERR_ACC_SEQUENCE} from '#/share/constants';
+import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
-import {parse_date, TransactionNotFoundError} from '#/store/chains';
+import {Chains, parse_date, TransactionNotFoundError} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 
-import {fodemtv, fold, oderac} from '#/util/belt';
+import {fodemtv, oderac} from '#/util/belt';
 import {base64_to_buffer, base64_to_text, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
 import {format_amount} from '#/util/format';
 
@@ -242,6 +245,32 @@ export const H_TX_ERROR_HANDLERS: Dict<Dict<(g_result: WsTxResultError) => Promi
 	},
 };
 
+/**
+ * Update parts of the context when underlying store changes
+ */
+function register_context_updates(g_context: LocalAppContext): typeof g_context {
+	const h_updaters: Partial<Record<StoreKey, () => Promise<void>>> = {
+		async accounts() {
+			g_context.g_account = (await Accounts.at(g_context.p_account))!;
+		},
+		async chains() {
+			g_context.g_chain = (await Chains.at(g_context.p_chain))!;
+		},
+		async apps() {
+			g_context.g_app = (await Apps.at(g_context.p_app))!;
+		},
+	};
+
+	// register for general store updates
+	global_receive({
+		updateStore({key:si_store}) {
+			void h_updaters[si_store]?.();
+		},
+	});
+
+	return g_context;
+}
+
 export function tx_abcis(g_chain: ChainStruct, h_abcis: Dict<TxAbciConfig>): Dict<AbciConfig> {
 	return fodemtv(h_abcis, gc_event => ({
 		type: gc_event.type,
@@ -354,14 +383,14 @@ export function account_abcis(
 	fk_notify: (gc_notify: NotificationConfig) => void
 ): Dict<AbciConfig> {
 	const {
-		g_app: _g_app,
 		p_app: _p_app,
-		g_chain: _g_chain,
 		p_chain: _p_chain,
-		g_account: _g_account,
 		p_account: _p_account,
 		sa_owner: sa_agent,
 	} = g_context_vague;
+
+	// update parts of the context when underlying store changes
+	register_context_updates(g_context_vague);
 
 	async function sent_error(a_msgs: AminoMsg[], g_result: WsTxResultError, si_txn: string) {
 		// notify tx failure
@@ -373,7 +402,7 @@ export function account_abcis(
 		});
 
 		// copy context from outer scope
-		const g_context = {...g_context_vague};
+		const g_context = register_context_updates({...g_context_vague});
 
 		// fetch pending tx from history
 		const p_incident = Incidents.pathFor('tx_out', si_txn);
@@ -480,7 +509,7 @@ export function account_abcis(
 			}
 
 			// merge notify items
-			const g_notify_merged = merge_notifies(a_notifies, _g_chain, '❌ Transaction Failed');
+			const g_notify_merged = merge_notifies(a_notifies, g_context_vague.g_chain, '❌ Transaction Failed');
 
 			// notifcation
 			if(g_notify_merged) {
@@ -508,7 +537,7 @@ export function account_abcis(
 		});
 
 		// copy context from outer scope
-		const g_context = {...g_context_vague};
+		const g_context = register_context_updates({...g_context_vague});
 
 		// fetch pending tx from history
 		const p_incident = Incidents.pathFor('tx_out', si_txn);
@@ -590,7 +619,7 @@ export function account_abcis(
 		}
 
 		// merge notify items
-		const g_notify_merged = merge_notifies(a_notifies, _g_chain, '🎳 Multi-Message Transaction Success');
+		const g_notify_merged = merge_notifies(a_notifies, g_context_vague.g_chain, '🎳 Multi-Message Transaction Success');
 
 		// notifcation
 		if(g_notify_merged) {
@@ -608,7 +637,7 @@ export function account_abcis(
 		});
 	}
 
-	return tx_abcis(_g_chain, {
+	return tx_abcis(g_context_vague.g_chain, {
 		sent: {
 			type: 'tx_out',
 
@@ -715,7 +744,7 @@ export function account_abcis(
 				}
 
 				// merge notify items
-				const g_notify_merged = merge_notifies(a_notifies, _g_chain, '💰 Multiple Transfers Received');
+				const g_notify_merged = merge_notifies(a_notifies, g_context_vague.g_chain, '💰 Multiple Transfers Received');
 
 				// notifcation
 				if(g_notify_merged) {
@@ -814,7 +843,7 @@ export function account_abcis(
 				}
 
 				// merge notify items
-				const g_notify_merged = merge_notifies(a_notifies, _g_chain, '💳 Multiple Fee Grants Received');
+				const g_notify_merged = merge_notifies(a_notifies, g_context_vague.g_chain, '💳 Multiple Fee Grants Received');
 
 				// notifcation
 				if(g_notify_merged) {

@@ -22,7 +22,7 @@ import {once_store_updates} from './svelte';
 import type {CosmosNetwork} from '#/chain/cosmos-network';
 import type {Pwa} from '#/script/messages';
 import {global_receive} from '#/script/msg-global';
-import {B_FIREFOX_ANDROID, B_MOBILE, B_IOS_NATIVE, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, G_USERAGENT, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS, SI_STORE_PFPS, SI_STORE_ACCOUNTS, SI_STORE_CHAINS, SI_STORE_PROVIDERS} from '#/share/constants';
+import {B_FIREFOX_ANDROID, B_MOBILE, B_IOS_NATIVE, B_SAFARI_MOBILE, B_WITHIN_PWA, B_WITHIN_WEBEXT_POPOVER, G_USERAGENT, H_PARAMS, N_PX_FIREFOX_TOOLBAR, SI_STORE_MEDIA, SI_STORE_TAGS, SI_STORE_PFPS, SI_STORE_ACCOUNTS, SI_STORE_CHAINS, SI_STORE_PROVIDERS, SI_STORE_SETTINGS} from '#/share/constants';
 import type {StoreRegistry} from '#/store/_registry';
 import {Accounts} from '#/store/accounts';
 import {Chains} from '#/store/chains';
@@ -37,6 +37,7 @@ import {F_NOOP, microtask, timeout} from '#/util/belt';
 
 
 import PopupReceive from './popup/PopupReceive.svelte';
+import { Settings, SettingsRegistry } from '#/store/settings';
 
 
 
@@ -119,6 +120,7 @@ export const yw_owner = derived(
 	}, true);
 
 
+
 /**
  * Shows/hides the vendor menu
  */
@@ -149,15 +151,19 @@ const store_cache = <
 
 const H_STORE_INVALIDATORS = {
 	async [SI_STORE_MEDIA]() {
-		yw_store_medias.set(await Medias.read(), true);
+		await yw_store_medias.set(await Medias.read(), true);
 	},
 
 	async [SI_STORE_TAGS]() {
-		yw_store_tags.set(await Tags.read(), true);
+		await yw_store_tags.set(await Tags.read(), true);
 	},
 
 	async [SI_STORE_PFPS]() {
-		yw_store_pfps.set(await Pfps.read(), true);
+		await yw_store_pfps.set(await Pfps.read(), true);
+	},
+
+	async [SI_STORE_SETTINGS]() {
+		await yw_store_settings.set(await Settings.read(), true);
 	},
 
 	async [SI_STORE_ACCOUNTS]() {
@@ -189,6 +195,10 @@ async function reload_store(si_store?: StoreKey): Promise<void> {
 export const yw_store_medias = store_cache(SI_STORE_MEDIA);
 export const yw_store_tags = store_cache(SI_STORE_TAGS);
 export const yw_store_pfps = store_cache(SI_STORE_PFPS);
+export const yw_store_settings = store_cache(SI_STORE_SETTINGS);
+
+// expose settings as live registry
+export const yw_settings = derived(yw_store_settings, ks_settings => ks_settings?.raw || {});
 
 
 // register for updates
@@ -202,7 +212,7 @@ global_receive({
 		await reload_store();
 
 		// trigger updates on pages
-		yw_update.update(c_updates => c_updates + 1);
+		await yw_update.update(c_updates => c_updates + 1);
 	},
 });
 
@@ -211,6 +221,7 @@ export async function initialize_store_caches(): Promise<void> {
 		reload_store(SI_STORE_MEDIA),
 		reload_store(SI_STORE_TAGS),
 		reload_store(SI_STORE_PFPS),
+		reload_store(SI_STORE_SETTINGS),
 	]);
 }
 
@@ -314,11 +325,19 @@ function fit_viewport(xl_offset_height=0) {
 function continually_adjust_height(xl_offset=0, fk_resized?: VoidFunction) {
 	// anytime browser resizes the visual viewport (e.g., keyboard overlay or toolbar visibility)
 	d_viewport.addEventListener?.('resize', () => {
-		// adjust window height variable
-		document.documentElement.style.setProperty('--app-window-height', Math.floor(d_viewport.height+xl_offset)+'px');
+		function readjust() {
+			// adjust window height variable
+			document.documentElement.style.setProperty('--app-window-height', Math.floor(d_viewport.height+xl_offset)+'px');
+		}
+
+		readjust();
 
 		// callback
 		fk_resized?.();
+
+		setTimeout(() => {
+			readjust();
+		}, 1e3);
 	});
 }
 

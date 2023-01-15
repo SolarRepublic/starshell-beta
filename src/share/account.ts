@@ -13,6 +13,7 @@ import {Chains} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 import {Secrets} from '#/store/secrets';
 import {buffer_to_base64, sha256_sync, text_to_buffer, uuid_v4, zero_out} from '#/util/data';
+import { fodemtv, fold } from '#/util/belt';
 
 
 export async function create_account(
@@ -34,13 +35,22 @@ export async function create_account(
 		i_citizen += 1;
 	}
 
+	// read chains
+	const a_chains = await Chains.entries();
+
 	// open accounts store and save new account
 	const p_account = await Accounts.open(ks_accounts => ks_accounts.put({
 		family: 'cosmos',
 		pubkey: sxb64_pubkey,
 		secret: p_secret,
 		name: `Citizen ${i_citizen}`,
-		assets: {},
+		assets: fold(a_chains, ([p_chain]) => ({
+			[p_chain]: {
+				totalFiatCache: '??',
+				fungibleTokens: [],
+				data: {},
+			},
+		})),
 		utilityKeys: {},
 		pfp: p_pfp,
 	}));

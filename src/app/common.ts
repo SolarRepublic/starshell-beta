@@ -1,5 +1,6 @@
 import type {Promisable} from '#/meta/belt';
-import { camel_to_phrase } from '#/util/format';
+
+import {camel_to_phrase} from '#/util/format';
 
 export interface ErrorReport {
 	title: string;
@@ -55,6 +56,12 @@ export function syserr(z_error: Error | ErrorReport): Error {
 	const si_error = JSON.stringify(g_error);
 	if(!a_errors.find(g => si_error === JSON.stringify(g))) {
 		a_errors.push(g_error);
+
+		// automatically expire
+		setTimeout(() => {
+			const i_error = a_errors.indexOf(g_error);
+			if(i_error >= 0) a_errors.splice(i_error, 1);
+		}, 2e3);
 
 		for(const fk_listener of a_error_listeners) {
 			void fk_listener(g_error);

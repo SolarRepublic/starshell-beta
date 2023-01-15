@@ -53,10 +53,10 @@
 	function check_password(): boolean {
 		if(sh_phrase && !acceptable(sh_phrase)) {
 			if(sh_phrase.length < NL_PASSPHRASE_MINIMUM) {
-				s_err_password = 'Password must be at least 5 characters';
+				s_err_password = `Password must be at least ${NL_PASSPHRASE_MINIMUM} characters`;
 			}
 			else if(sh_phrase.length > NL_PASSPHRASE_MAXIMUM) {
-				s_err_password = 'Password must be 1024 characters or fewer';
+				s_err_password = `Password must be ${NL_PASSPHRASE_MAXIMUM} characters or fewer`;
 			}
 			else {
 				s_err_password = 'Password is not acceptable';

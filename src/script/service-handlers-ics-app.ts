@@ -214,7 +214,7 @@ const H_AMINO_SANITIZERS = {
 					// app is already an outlet
 					if(g_secret.outlets.includes(g_resolved.appPath)) {
 						// return existing permit
-						return await Secrets.borrowPlaintext(Secrets.pathFrom(g_secret), kn => buffer_to_json(kn.data)) as AdaptedAminoResponse;
+						return await Secrets.borrowPlaintext(g_secret, kn => buffer_to_json(kn.data)) as AdaptedAminoResponse;
 					}
 					// different app
 					else {

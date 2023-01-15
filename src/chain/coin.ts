@@ -21,7 +21,7 @@ export async function coin_to_fiat(g_balance: Coin, g_coin: CoinInfo, si_versus=
 	if('0' === g_balance.amount) return new BigNumber(0);
 
 	// lookup price
-	const si_gecko = g_coin.extra!.coingecko_id;
+	const si_gecko = g_coin.extra!.coingeckoId;
 	const g_versus = await CoinGecko.coinsVersus([si_gecko], si_versus);
 
 	// parse balance and multiply by value
@@ -53,7 +53,7 @@ export interface CoinFormats {
 
 export async function coin_formats(g_balance: Coin, g_coin: CoinInfo, si_versus='usd'): Promise<CoinFormats> {
 	// lookup price
-	const si_gecko = g_coin.extra!.coingecko_id;
+	const si_gecko = g_coin.extra!.coingeckoId;
 	const g_versus = await CoinGecko.coinsVersus([si_gecko], si_versus);
 
 	const x_worth = g_versus[si_gecko];
@@ -166,7 +166,7 @@ export const Coins = {
 		const [, g_info] = coin_info(g_coin, g_chain);
 
 		// lookup price
-		const si_gecko = g_info.extra!.coingecko_id;
+		const si_gecko = g_info.extra!.coingeckoId;
 		const g_versus = await CoinGecko.coinsVersus([si_gecko], si_versus);
 
 		// get fiat value

@@ -48,6 +48,9 @@
 
 	export let error = '';
 
+	/**
+	 * Enables drag-and-drop reordering
+	 */
 	export let b_draggable = false;
 
 	export let d_intersection: IntersectionObserver | null = null;
@@ -144,19 +147,21 @@
 			on:click={click_row}
 		>
 			<svelte:fragment slot="right">
-				{#if unauthorized}
-					<button class="pill" on:click|stopPropagation={() => authorize_token()}>
-						Authorize
-					</button>
-				{:else if mintable}
-					<button class="pill" on:click|stopPropagation={() => mint_token()}>
-						Mint
-					</button>
-				{:else if pending}
-					<button class="pill" disabled>
-						Pending
-					</button>
-				{/if}
+				<slot name="right">
+					{#if unauthorized}
+						<button class="pill" on:click|stopPropagation={() => authorize_token()}>
+							Authorize
+						</button>
+					{:else if mintable}
+						<button class="pill" on:click|stopPropagation={() => mint_token()}>
+							Mint
+						</button>
+					{:else if pending}
+						<button class="pill" disabled>
+							Pending
+						</button>
+					{/if}
+				</slot>
 			</svelte:fragment>
 		</Row>
 	{:else if error}
@@ -168,9 +173,11 @@
 			on:click={click_row}
 		>
 			<svelte:fragment slot="right">
-				<button class="pill caution" on:click|stopPropagation={() => dispatch('click_error')}>
-					{error}
-				</button>
+				<slot name="right">
+					<button class="pill caution" on:click|stopPropagation={() => dispatch('click_error')}>
+						{error}
+					</button>
+				</slot>
 			</svelte:fragment>
 		</Row>
 	{:else}
@@ -182,6 +189,8 @@
 			amount={w_amount}
 			{...g_fields}
 			on:click={click_row}
-		/>
+		>
+			<slot name="right" />
+		</Row>
 	{/if}
 </div>

@@ -61,7 +61,7 @@ export async function token_balance(g_contract: ContractStruct, g_account: Accou
 		const yg_amount = BigNumber(g_response.balance.amount).shiftedBy(-g_snip20.decimals);
 
 		const dp_worth = (async() => {
-			const si_coingecko = g_snip20.extra?.coingecko_id;
+			const si_coingecko = g_snip20.extra?.coingeckoId;
 			if(!si_coingecko) return '';
 
 			const h_versus = await CoinGecko.coinsVersus([si_coingecko], 'usd', 60e3);

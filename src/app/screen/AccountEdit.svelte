@@ -45,7 +45,7 @@
 	let s_name = '';
 	let sa_account: Bech32 | string;
 	let p_pfp: PfpTarget;
-	let p_pfp_custom: PfpTarget;
+	let b_pfp_custom: 0 | 1 = 0;
 
 	$: b_form_valid = !!s_name;
 
@@ -74,7 +74,7 @@
 		}
 
 		// propagate custom pfp
-		p_pfp_custom = g_account?.extra?.['customPfp'];
+		b_pfp_custom = g_account?.extra?.['customPfp'] || 0;
 
 		// copy out art key
 		await utility_key_child(g_account, 'walletSecurity', 'antiPhishingArt', atu8 => atu8_art_seed = atu8.slice());
@@ -87,7 +87,7 @@
 
 	async function save_account() {
 		// custom pfp not defined
-		if(!p_pfp_custom) {
+		if(!b_pfp_custom) {
 			// prep the square icons
 			try {
 				const h_renders = await render_svg_squarely(dm_svg_pfpg, [
@@ -226,7 +226,7 @@
 	}
 
 	function pfpg_updated() {
-		if(!g_account?.extra?.['customPfp'] && !p_pfp_custom) {
+		if(!g_account?.extra?.['customPfp'] && !b_pfp_custom) {
 			// clone aura element
 			const dm_svg_clone = dm_svg_pfpg.cloneNode(true) as SVGSVGElement;
 
@@ -362,7 +362,8 @@
 				<IconEditor intent='person' name={s_name}
 					bind:pfpPath={p_pfp}
 					on:upload={(d_event) => {
-						p_pfp = p_pfp_custom = d_event.detail;
+						b_pfp_custom = 1;
+						p_pfp = d_event.detail;
 						g_account.extra = {
 							...g_account.extra,
 							customPfp: 1,

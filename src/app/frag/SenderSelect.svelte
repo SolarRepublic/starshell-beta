@@ -1,28 +1,30 @@
 <script lang="ts">
-	import {yw_account_ref} from '##/mem';
-	import type {Account, AccountStruct, AccountPath} from '#/meta/account';
+	import type {AccountStruct, AccountPath} from '#/meta/account';
+	
+	import {createEventDispatcher} from 'svelte';
+	
 	import {Accounts} from '#/store/accounts';
 	import {oderac} from '#/util/belt';
-	import { createEventDispatcher } from 'svelte';
-    import Load from '../ui/Load.svelte';
-
-	const dispatch = createEventDispatcher();
-
+	
+	import {yw_account_ref, yw_chain_ref} from '##/mem';
+	
+	import Load from '../ui/Load.svelte';
 	import StarSelect, {type SelectOption} from '../ui/StarSelect.svelte';
 
-	export let accountPath: AccountPath = $yw_account_ref;
-	// const p_account = accountPath;
 
+	export let accountPath: AccountPath = $yw_account_ref;
+	
+	const dispatch = createEventDispatcher();
 
 	const mk_account = (p_acc: AccountPath, g_acc: AccountStruct) => ({
 		value: p_acc,
 		primary: g_acc.name,
-		secondary: g_acc.extra?.total_fiat_cache || '(?)',
+		secondary: g_acc.assets[$yw_chain_ref]?.totalFiatCache || '(?)',
 		// secondary: format_fiat(g_acc.holdings(H_HOLDINGS, $yw_chain)
 			// .reduce((c_sum, k_holding) => c_sum + k_holding.toUsd(H_TOKENS, H_VERSUS_USD), 0)),
 	});
 
-	let g_selected: SelectOption<AccountPath>;  // = mk_account($yw_account_ref, $yw_account);
+	let g_selected: SelectOption<AccountPath>;
 	let a_options: typeof g_selected[];
 
 	// reactively update the exported account ref binding

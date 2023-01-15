@@ -8,7 +8,7 @@
 	
 	import {Screen} from './_screens';
 	import {syserr} from '../common';
-	import {yw_account, yw_owner} from '../mem';
+	import {yw_account, yw_owner, yw_settings} from '../mem';
 	import {load_page_context} from '../svelte';
 	
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
@@ -31,10 +31,10 @@
 	let b_busy = false;
 
 	// cached memo settings
-	let h_settings: NonNullable<SettingsRegistry['e2e_encrypted_memos']> = {};
-	(async function load() {
-		h_settings = await Settings.get('e2e_encrypted_memos') || {};
-	})();
+	let h_settings: NonNullable<SettingsRegistry['e2e_encrypted_memos']> = $yw_settings.e2e_encrypted_memos || {};
+	// (async function load() {
+	// 	h_settings = $yw_settings.e2e_encrypted_memos || {};
+	// })();
 
 	async function toggle_chain(p_chain: ChainPath, g_chain: ChainStruct, b_state: boolean) {
 		// do not apply if busy
@@ -44,7 +44,7 @@
 		b_busy = true;
 
 		// refetch memo setting per chain
-		h_settings = await Settings.get('e2e_encrypted_memos') || {};
+		h_settings = $yw_settings.e2e_encrypted_memos || {};
 
 		// setting does not yet exist for chain; initialize
 		if(!h_settings[p_chain]) {
@@ -55,7 +55,7 @@
 		}
 
 		// ref context
-		const g_setting = h_settings[p_chain];
+		const g_setting = h_settings[p_chain]!;
 
 		// update enabled state
 		g_setting.enabled = b_state;
@@ -80,7 +80,7 @@
 				}
 
 				// lookup account
-				await k_network.e2eInfoFor($yw_owner);
+				await k_network.e2eInfoFor($yw_owner!);
 
 				// set published status
 				g_setting.published = true;

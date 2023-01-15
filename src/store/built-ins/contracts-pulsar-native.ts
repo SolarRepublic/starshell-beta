@@ -9,7 +9,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'sSCRT',
 			extra: {
-				coingecko_id: 'secret',
+				coingeckoId: 'secret',
 			},
 		},
 		hash: '9587D60B8E6B078ACE12014CEEEE089530B9FABCD76535D93666A6C127AD8813',
@@ -21,7 +21,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pUSDC',
 			extra: {
-				coingecko_id: 'usd-coin',
+				coingeckoId: 'usd-coin',
 			},
 		},
 	},
@@ -32,7 +32,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pETH',
 			extra: {
-				coingecko_id: 'ethereum',
+				coingeckoId: 'ethereum',
 			},
 		},
 	},
@@ -43,7 +43,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pUSDT',
 			extra: {
-				coingecko_id: 'tether',
+				coingeckoId: 'tether',
 			},
 		},
 	},
@@ -54,7 +54,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pBNB',
 			extra: {
-				coingecko_id: 'binancecoin',
+				coingeckoId: 'binancecoin',
 			},
 		},
 	},
@@ -65,7 +65,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pBUSD',
 			extra: {
-				coingecko_id: 'binance-usd',
+				coingeckoId: 'binance-usd',
 			},
 		},
 	},
@@ -76,7 +76,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pATOM',
 			extra: {
-				coingecko_id: 'cosmos',
+				coingeckoId: 'cosmos',
 			},
 		},
 	},
@@ -87,7 +87,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pDOGE',
 			extra: {
-				coingecko_id: 'dogecoin',
+				coingeckoId: 'dogecoin',
 			},
 		},
 	},
@@ -98,7 +98,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pDAI',
 			extra: {
-				coingecko_id: 'dai',
+				coingeckoId: 'dai',
 			},
 		},
 	},
@@ -109,7 +109,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pWBTC',
 			extra: {
-				coingecko_id: 'bitcoin',
+				coingeckoId: 'bitcoin',
 			},
 		},
 	},
@@ -120,7 +120,7 @@ export const F_CONTRACTS_PULSAR_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'pXMR',
 			extra: {
-				coingecko_id: 'monero',
+				coingeckoId: 'monero',
 			},
 		},
 	},

@@ -42,6 +42,8 @@ import type {Consolidator} from '#/util/consolidator';
 // amount of time to wait for page to request an advertisement from StarShell before applying keplr polyfill
 const XT_POLYFILL_DELAY = 1.5e3;
 
+// regex responsible for detecting keplr use in source code
+const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 
 /**
  * The witness script listens for Keplr requests from the page and forwards them to the service.
@@ -412,7 +414,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 								pfp: '' as PfpTarget,
 								extra: {
 									...g_coin['coinGeckoId'] && {
-										coingecko_id: g_coin['coinGeckoId'],
+										coingeckoId: g_coin['coinGeckoId'],
 									},
 								},
 							},
@@ -845,7 +847,12 @@ const XT_POLYFILL_DELAY = 1.5e3;
 			// contract already exists
 			const p_contract = Contracts.pathOn('cosmos', si_chain, sa_contract);
 			const g_contract = await Contracts.at(p_contract);
-			if(g_contract) return G_RETURN_VOID;
+			if(g_contract) {
+				// account has token in assets dict
+				if(k_connection.account.assets[p_chain]?.data[sa_contract]) {
+					return G_RETURN_VOID;
+				}
+			}
 
 			// suggest token
 			const g_suggest = await k_connection.suggestToken(sa_contract);
@@ -1378,7 +1385,7 @@ const XT_POLYFILL_DELAY = 1.5e3;
 
 			// find target string
 			// const b_keplr_window = /window(\.keplr|\[['"`]keplr['"`]\])/.test(sx_content);
-			const b_keplr_window = /(\.keplr\b|\[['"`]keplr['"`]\])/.test(sx_content);
+			const b_keplr_window = RT_KEPLR_DETECTOR.test(sx_content);
 
 			// found
 			if(b_keplr_window) {

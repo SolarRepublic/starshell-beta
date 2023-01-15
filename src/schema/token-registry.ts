@@ -8,40 +8,60 @@ type TokenEntry = {
 };
 
 export const TokenRegistry: Record<TokenSpecKey, TokenEntry> = {
-	'cw-20': {
+	cw20: {
 		attributes: {
 			fungible: false,
 		},
 	},
 
-	'snip-20': {
+	snip20: {
 		attributes: {
 			fungible: true,
 		},
 	},
 
-	'snip-21': {
-		extends: 'snip-20',
+	snip21: {
+		extends: 'snip20',
 		attributes: {
 			fungible: true,
 		},
 	},
 
-	'snip-24': {
-		extends: 'snip-20',
+	snip22: {
+		extends: 'snip20',
 		attributes: {
 			fungible: true,
 		},
 	},
 
-	'snip-721': {
+	snip23: {
+		extends: 'snip20',
+		attributes: {
+			fungible: true,
+		},
+	},
+
+	snip24: {
+		extends: 'snip20',
+		attributes: {
+			fungible: true,
+		},
+	},
+
+	snip721: {
 		attributes: {
 			fungible: false,
 		},
 	},
 
-	'snip-722': {
-		extends: 'snip-721',
+	snip722: {
+		extends: 'snip721',
+		attributes: {
+			fungible: false,
+		},
+	},
+
+	snip1155: {
 		attributes: {
 			fungible: false,
 		},

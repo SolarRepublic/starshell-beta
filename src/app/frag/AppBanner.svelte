@@ -292,7 +292,7 @@
 			{#if account?.extra?.aura}
 				<div class="aura">
 					<!-- svelte-ignore a11y-missing-attribute -->
-					<img src={`data:image/svg+xml;base64,${text_to_base64(account.extra.aura)}`}>
+					<img src={`data:image/svg+xml;base64,${text_to_base64(account.extra?.aura || '')}`}>
 				</div>
 			{/if}
 

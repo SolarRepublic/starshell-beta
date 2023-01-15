@@ -134,7 +134,7 @@
 
 		// each coin in chain
 		for(const [si_coin, g_coin] of ode(g_chain.coins)) {
-			const sa_wrapper = g_coin.extra?.native_bech32;
+			const sa_wrapper = g_coin.extra?.nativeBech32;
 			if(sa_wrapper && sa_wrapper === sa_contract) {
 				s_wrapper_for = si_coin;
 

@@ -35,6 +35,7 @@
 		yw_navigator,
 		yw_network,
 		yw_owner,
+        yw_settings,
 	} from '##/mem';
 	
 	import CheckboxField from '##/ui/CheckboxField.svelte';
@@ -199,7 +200,7 @@
 
 	// 
 	async function reload_settings() {
-		const h_e2es = await Settings.get('e2e_encrypted_memos') || null;
+		const h_e2es = $yw_settings.e2e_encrypted_memos || null;
 		if(h_e2es?.[$yw_chain_ref]) {
 			const g_config = h_e2es[$yw_chain_ref];
 			({

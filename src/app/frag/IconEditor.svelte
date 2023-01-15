@@ -52,6 +52,9 @@
 		return process_files(a_files);
 	}
 
+	/**
+	 * Processes uploaded images, neutering SVGs by rasterizing them
+	 */
 	async function process_files(a_files: File[]) {
 		if(!a_files.length) {
 			s_drop_error = 'No files';

@@ -61,7 +61,7 @@ export function validate_contract(_p_contract: ContractPath) {
 				// populate token fields from snip-20 def
 				yw_token_symbol.set(g_snip20.symbol);
 				yw_token_decimals.set(g_snip20.decimals);
-				yw_token_coingecko.set(g_snip20.extra?.coingecko_id || '');
+				yw_token_coingecko.set(g_snip20.extra?.coingeckoId || '');
 			}
 		}
 

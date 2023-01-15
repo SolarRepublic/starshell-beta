@@ -101,8 +101,8 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 				name: 'Secret',
 				pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
 				extra: {
-					coingecko_id: 'secret',
-					native_bech32: 'secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek',
+					coingeckoId: 'secret',
+					nativeBech32: 'secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek',
 				},
 			},
 		},
@@ -158,8 +158,8 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			'ibc-go': {},
 			'ibc-transfer': {},
 		},
-		fungibleTokenInterfaces: ['snip-20', 'snip-21', 'snip-22', 'snip-23', 'snip-24'],
-		nonFungibleTokenInterfaces: ['snip-721', 'snip-722'],
+		fungibleTokenInterfaces: ['snip20', 'snip21', 'snip22', 'snip23', 'snip24'],
+		nonFungibleTokenInterfaces: ['snip721', 'snip722'],
 		blockExplorer: {
 			base: 'https://secretnodes.com/{chain_prefix}',
 			block: '/blocks/{height}',
@@ -196,8 +196,8 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 				name: 'Secret',
 				pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
 				extra: {
-					coingecko_id: 'secret',
-					native_bech32: 'secret18vd8fpwxzck93qlwghaj6arh4p7c5n8978vsyg',
+					coingeckoId: 'secret',
+					nativeBech32: 'secret18vd8fpwxzck93qlwghaj6arh4p7c5n8978vsyg',
 				},
 			},
 		},
@@ -256,8 +256,8 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 			'ibc-go': {},
 			'ibc-transfer': {},
 		},
-		fungibleTokenInterfaces: ['snip-20', 'snip-21', 'snip-22', 'snip-23', 'snip-24'],
-		nonFungibleTokenInterfaces: ['snip-721', 'snip-722'],
+		fungibleTokenInterfaces: ['snip20', 'snip21', 'snip22', 'snip23', 'snip24'],
+		nonFungibleTokenInterfaces: ['snip721', 'snip722'],
 		blockExplorer: {
 			base: 'https://secretnodes.com/{chain_prefix}',
 			block: '/blocks/{height}',
@@ -292,7 +292,7 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 	// 			name: 'Cosmos',
 	// 			pfp: H_LOOKUP_PFP['/media/chain/cosmos-hub.svg'],
 	// 			extra: {
-	// 				coingecko_id: 'cosmos-hub',
+	// 				coingeckoId: 'cosmos-hub',
 	// 			},
 	// 		},
 	// 	},

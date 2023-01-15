@@ -8,6 +8,7 @@
 	
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import SX_ICON_ERROR from '#/icon/error.svg?raw';
+    import { yw_settings } from '../mem';
 	
 
 	const dispatch = createEventDispatcher();
@@ -47,14 +48,22 @@
 	export let rootStyle = '';
 
 	let b_display = !si_setting;
-	(async function load() {
-		if(si_setting) {
-			const b_dismissed = await Settings.get(si_setting);
-			if(true !== b_dismissed) {
-				b_display = true;
-			}
+
+	if(si_setting) {
+		if(true !== $yw_settings[si_setting]) {
+			b_display = true;
 		}
-	})();
+	}
+
+	// TODO: delete if above settings gette rworks
+	// (async function load() {
+	// 	if(si_setting) {
+	// 		const b_dismissed = await Settings.get(si_setting);
+	// 		if(true !== b_dismissed) {
+	// 			b_display = true;
+	// 		}
+	// 	}
+	// })();
 
 	async function dismiss() {
 		dispatch('dismiss');

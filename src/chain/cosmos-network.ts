@@ -37,6 +37,7 @@ import type {
 	ChainPath,
 	HoldingPath,
 	ChainStruct,
+	ContractStruct,
 } from '#/meta/chain';
 
 import type {Cw} from '#/meta/cosm-wasm';
@@ -557,6 +558,16 @@ export class CosmosNetwork {
 
 		return h_outs;
 	}
+
+	// async contractTransactionCount(g_contract: ContractStruct, s_limit='1'): Promise<void> {
+	// 	const g_count = await new TxServiceClient(this._y_grpc).getTxsEvent({
+	// 		events: [`wasm.contract_address='${g_contract.bech32}'`],
+	// 		limit: s_limit,
+	// 	});
+
+	// 	debugger;
+	// 	console.log(g_count.total);
+	// }
 
 	async feeGrants(sa_owner: Bech32): Promise<DecodedAllowance[]> {
 		const g_response = await wgrpc_retry(() => new FeeGrantQueryClient(this._y_grpc).allowances({

@@ -56,7 +56,7 @@ export function open_flow_query<
 			// target port connected
 			if(si_key === d_port.name) {
 				// remove port listener now that the target port has been acquired
-				chrome.runtime.onConnect.removeListener(f_port_listener);
+				chrome.runtime?.onConnect?.removeListener?.(f_port_listener);
 
 				// verbose
 				console.warn(`Service accepted connection from ${d_port.name}`);
@@ -165,7 +165,7 @@ export function open_flow_query<
 					console.warn(`Service noticed port disconnected on ${d_port.name}`);
 
 					const i_shutdown = setTimeout(() => {
-						chrome.runtime.onConnect.removeListener(reloaded_connection);
+						chrome.runtime?.onConnect?.removeListener?.(reloaded_connection);
 
 						shutdown();
 					}, 1e3);
@@ -174,7 +174,7 @@ export function open_flow_query<
 					function reloaded_connection() {
 						console.warn(`Port re-established on ${d_port.name}`);
 
-						chrome.runtime.onConnect.removeListener(reloaded_connection);
+						chrome.runtime?.onConnect?.removeListener?.(reloaded_connection);
 
 						// cancel monitor
 						k_monitor.cancel();
@@ -182,7 +182,7 @@ export function open_flow_query<
 						clearTimeout(i_shutdown);
 					}
 
-					chrome.runtime.onConnect.addListener(reloaded_connection);
+					chrome.runtime?.onConnect?.addListener?.(reloaded_connection);
 				});
 			}
 			else {
@@ -193,7 +193,7 @@ export function open_flow_query<
 		console.log(`Service monitoring for port connections from ${si_key}`);
 
 		// register connect listener
-		chrome.runtime.onConnect.addListener(f_port_listener);
+		chrome.runtime?.onConnect?.addListener?.(f_port_listener);
 
 		// launch flow
 		await launch_flow({
@@ -223,7 +223,7 @@ export async function open_flow<
 
 	// flow originates from tab
 	const i_tab = gc_prompt.flow.page?.tabId;
-	if('number' === typeof i_tab) {
+	if('number' === typeof i_tab && i_tab > 0) {
 		// encode intent
 		const si_intent = JSON.stringify(gc_prompt.flow);
 
@@ -262,8 +262,8 @@ export async function open_flow<
 			}
 		}
 
-		chrome.tabs.onRemoved.addListener(tab_removed);
-		chrome.tabs.onUpdated.addListener(tab_update);
+		chrome.tabs?.onRemoved?.addListener?.(tab_removed);
+		chrome.tabs?.onUpdated?.addListener?.(tab_update);
 
 		// set lane clear function
 		g_lane.clear = () => {
@@ -271,8 +271,8 @@ export async function open_flow<
 			console.debug(`Clearing lane for ${gc_prompt.flow.page?.href}`);
 
 			// remove listeners
-			chrome.tabs.onRemoved.removeListener(tab_removed);
-			chrome.tabs.onUpdated.removeListener(tab_update);
+			chrome.tabs?.onRemoved?.removeListener?.(tab_removed);
+			chrome.tabs?.onUpdated?.removeListener?.(tab_update);
 
 			// reset timer
 			g_lane.time = 0;

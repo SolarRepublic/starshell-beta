@@ -20,8 +20,14 @@
 	 * If `true`, display copy icon and binds to click events
 	 */
 	export let copyable: boolean | string = false;
+
+	/**
+	 * If `true`, hides copy icon
+	 */
+	export let discreet = false;
+
 	const b_copyable = !!copyable;
-	const s_copy_style = copyable? 'icon': copyable || '';
+	const s_copy_style = copyable? discreet? 'no-icon': 'icon': copyable || '';
 
 
 	let b_copy_confirm = false;
@@ -153,7 +159,7 @@
 			<span class="copy icon">
 				{@html SX_ICON_COPY}
 			</span>
-		{:else}
+		{:else if 'no-icon' !== s_copy_style}
 			<span class="copy">
 				Copy
 			</span>

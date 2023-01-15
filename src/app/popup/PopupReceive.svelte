@@ -43,7 +43,7 @@
 		object: g_account,
 		value: p_account,
 		primary: g_account.name,
-		secondary: g_account.extra?.total_fiat_cache || '(?)',
+		secondary: g_account.assets[$yw_chain_ref]?.totalFiatCache || '(?)',
 	});
 
 	// prep account pfps

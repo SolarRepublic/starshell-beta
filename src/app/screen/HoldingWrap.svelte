@@ -45,7 +45,7 @@
 	
 	const g_coin = $yw_chain.coins[si_coin];
 
-	const sa_token = g_coin?.extra?.native_bech32;
+	const sa_token = g_coin?.extra?.nativeBech32;
 
 	let s_token_symbol = 'destination';
 

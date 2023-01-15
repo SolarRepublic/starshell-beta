@@ -48,6 +48,7 @@
 	import Portrait from '../frag/Portrait.svelte';
 	import TokenRow from '../frag/TokenRow.svelte';
 	import Row from '../ui/Row.svelte';
+    import { HttpResponseError } from '#/share/errors';
 	
 	const G_RETRYING_TOKEN = {
 		name: 'Retrying...',
@@ -314,29 +315,41 @@
 
 	// whenever the fiats dict is updated, begin awaiting for all to resolve
 	$: if(h_fiats) {
-		void navigator.locks.request('ui:holdings:total-balance', () => timeout_exec(30e3, async() => {
-			// resolve all fiat promises
-			const a_fiats = await Promise.all(ode(h_fiats).map(([, dp_fiat]) => dp_fiat));
+		const p_account = $yw_account_ref;
+		const g_account = $yw_account;
+		const p_chain = $yw_chain_ref;
 
-			// no fiats yet; wait for some to populate
-			if(!a_fiats.length) return;
+		if(p_account !== Accounts.pathFrom(g_account)) {
+			debugger;
+		}
+		else {
+			void navigator.locks.request('ui:holdings:total-balance', () => timeout_exec(30e3, async() => {
+				// resolve all fiat promises
+				const a_fiats = await Promise.all(ode(h_fiats).map(([, dp_fiat]) => dp_fiat));
 
-			// reduce to sum
-			const yg_total = a_fiats.reduce((yg_sum, yg_balance) => yg_sum.plus(yg_balance), BigNumber(0));
+				// no fiats yet; wait for some to populate
+				if(!a_fiats.length) return;
 
-			// format to string and resolve
-			const s_total = dp_total = format_fiat(yg_total.toNumber(), 'usd');
+				// reduce to sum
+				const yg_total = a_fiats.reduce((yg_sum, yg_balance) => yg_sum.plus(yg_balance), BigNumber(0));
 
-			// save to cache if different
-			if(s_total !== yw_account.get().extra?.total_fiat_cache) {
-				void Accounts.update(yw_account_ref.get(), g_account => ({
-					extra: {
-						...g_account.extra,
-						total_fiat_cache: dp_total,
-					},
-				}));
-			}
-		}));
+				// format to string and resolve
+				const s_total = dp_total = format_fiat(yg_total.toNumber(), 'usd');
+
+				// save to cache if different
+				if(s_total !== g_account.assets[p_chain]?.totalFiatCache) {
+					void Accounts.update(p_account, _g_account => ({
+						assets: {
+							..._g_account.assets,
+							[p_chain]: {
+								..._g_account.assets[p_chain],
+								totalFiatCache: dp_total,
+							},
+						},
+					}));
+				}
+			}));
+		}
 	}
 
 	let c_updates = 0;
@@ -898,9 +911,12 @@
 	async function do_request_feegrant() {
 		b_requesting_feegrant = true;
 
-		await request_feegrant(sa_owner);
-
-		b_requesting_feegrant = false;
+		try {
+			await request_feegrant(sa_owner);
+		}
+		finally {
+			b_requesting_feegrant = false;
+		}
 	}
 
 	async function drop_row(d_event: CustomEvent<{
@@ -950,7 +966,7 @@
 		// save token display order to account storage
 		await Accounts.update($yw_account_ref, (g_account) => {
 			// ref latest list
-			const a_tokens_latest = g_account.assets[$yw_chain_ref].fungibleTokens;
+			const a_tokens_latest = g_account.assets[$yw_chain_ref]?.fungibleTokens || [];
 
 			// prep replacement
 			const a_tokens_replace = a_tokens.map(g => g.bech32);

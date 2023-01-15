@@ -1,6 +1,9 @@
 <script lang="ts">
 	import {slide} from 'svelte/transition';
 	
+	import {NL_PIN_MAXIMUM, NL_PIN_MINIMUM} from '#/share/constants';
+	
+	
 	import Field from './Field.svelte';
 
 
@@ -21,7 +24,7 @@
 
 	export let b_no_verify = false;
 
-	$: b_valid = sh_pin.length >= 4 && sh_pin.length <= 8 && !s_err_password && (b_no_verify || sh_pin === sh_verify);
+	$: b_valid = sh_pin.length >= NL_PIN_MINIMUM && sh_pin.length <= NL_PIN_MAXIMUM && !s_err_password && (b_no_verify || sh_pin === sh_verify);
 
 	$: if(b_locked) sh_verify = sh_pin = '0'.repeat(64);
 
@@ -39,12 +42,12 @@
 		if(b_locked) return false;
 
 		if(sh_pin) {
-			if(sh_pin.length < 4) {
-				s_err_password = 'PIN must be at least 4 digits';
+			if(sh_pin.length < NL_PIN_MINIMUM) {
+				s_err_password = `PIN must be at least ${NL_PIN_MINIMUM} digits`;
 				return false;
 			}
-			else if(sh_pin.length > 8) {
-				s_err_password = 'PIN must be no more than 8 digits';
+			else if(sh_pin.length > 10) {
+				s_err_password = `PIN should be no more than ${NL_PIN_MAXIMUM} digits`;
 				return false;
 			}
 		}
@@ -71,8 +74,8 @@
 		<input
 			type="password"
 			inputmode="numeric"
-			maxlength="8"
-			placeholder="PIN code between 4 to 8 digits"
+			maxlength="{NL_PIN_MAXIMUM}"
+			placeholder="PIN code between {NL_PIN_MINIMUM} to {NL_PIN_MAXIMUM} digits"
 			on:blur={() => check_pin()}
 			bind:value={sh_pin}
 			disabled={b_disabled}
@@ -90,7 +93,7 @@
 			<input
 				type="password"
 				inputmode="numeric"
-				maxlength="8"
+				maxlength="{NL_PIN_MAXIMUM}"
 				placeholder="Re-enter same PIN code"
 				on:blur={() => check_verify()}
 				bind:value={sh_verify}

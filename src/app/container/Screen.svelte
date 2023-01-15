@@ -359,7 +359,7 @@
 			Copied from screen.less
 		*/
 		* {
-			&:not([class^="font-variant"]) {
+			:where(&:not([class^="font-variant"])) {
 				:global(&) {
 					font-family: inherit;
 					user-select: none;

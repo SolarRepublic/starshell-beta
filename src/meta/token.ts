@@ -7,7 +7,7 @@ import type {Dict} from '#/meta/belt';
 
 
 export type TokenSpecRegistry = {
-	'snip-20': {
+	snip20: {
 		queries: {
 			balance: {
 				private: true;
@@ -80,15 +80,16 @@ export type TokenSpecRegistry = {
 			};
 		};
 	};
-	'snip-21': {};
-	'snip-22': {};
-	'snip-23': {};
-	'snip-24': {};
-	'snip-721': {
+	snip21: {};
+	snip22: {};
+	snip23: {};
+	snip24: {};
+	snip721: {
 		// chains: KnownChain.SecretNetwork;
 	};
-	'snip-722': {};
-	'cw-20': {};
+	snip722: {};
+	snip1155: {};
+	cw20: {};
 } extends infer gc_registry
 	? {
 		[si_each in keyof gc_registry]: si_each extends `${infer si_spec}`
@@ -171,7 +172,7 @@ export type TokenStructRegistry = {
 			symbol: string;
 			decimals: L.UnionOf<N.Range<0, 18>>;
 			extra?: {
-				coingecko_id: string;
+				coingeckoId: string;
 			} & Dict;
 		};
 	};
@@ -193,6 +194,14 @@ export type TokenStructRegistry = {
 	};
 
 	snip721: {
+		struct: {};
+	};
+
+	snip722: {
+		struct: {};
+	};
+
+	snip1155: {
 		struct: {};
 	};
 };

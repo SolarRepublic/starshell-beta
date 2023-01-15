@@ -50,6 +50,7 @@ import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
 import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
 import { Snip2xMessageConstructor } from '#/schema/snip-2x-const';
 import RequestTokenAdd from '#/app/screen/RequestTokenAdd.svelte';
+import RestartService from '#/app/screen/RestartService.svelte';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -303,6 +304,8 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 	illegalChains: g_value => completed_render(NoticeIllegalChainsSvelte, g_value),
 
 	reloadAppTab: g_value => completed_render(ReloadPage, g_value),
+
+	restartService: () => completed_render(RestartService),
 
 	monitorTx: g_value => completed_render(MonitorTx, g_value),
 

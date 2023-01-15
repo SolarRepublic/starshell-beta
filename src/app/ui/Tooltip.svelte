@@ -55,6 +55,7 @@
 			top: 28px;
 			width: 75vw;
 			font-size: 13px;
+			text-align: left;
 		}
 
 		.overlay {

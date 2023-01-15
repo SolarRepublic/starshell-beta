@@ -22,7 +22,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sAAVE',
 				extra: {
-					coingecko_id: 'aave',
+					coingeckoId: 'aave',
 				},
 			},
 		},
@@ -41,7 +41,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sAKT',
 				extra: {
-					coingecko_id: 'akash-network',
+					coingeckoId: 'akash-network',
 				},
 			},
 			snip21: {},
@@ -62,7 +62,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'ALTER',
 				extra: {
-					coingecko_id: 'alter',
+					coingeckoId: 'alter',
 				},
 			},
 			snip21: {},
@@ -83,7 +83,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'AMBER',
 				extra: {
-					coingecko_id: '',
+					coingeckoId: '',
 				},
 			},
 			snip21: {},
@@ -109,7 +109,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sBAND',
 				extra: {
-					coingecko_id: 'band-protocol',
+					coingeckoId: 'band-protocol',
 				},
 			},
 		},
@@ -130,7 +130,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sBNB(BSC)',
 				extra: {
-					coingecko_id: 'binancecoin',
+					coingeckoId: 'binancecoin',
 				},
 			},
 			snip21: {},
@@ -152,7 +152,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sBUSD(BSC)',
 				extra: {
-					coingecko_id: 'binance-usd',
+					coingeckoId: 'binance-usd',
 				},
 			},
 			snip21: {},
@@ -174,7 +174,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'BUTT',
 				extra: {
-					coingecko_id: 'buttcoin-2',
+					coingeckoId: 'buttcoin-2',
 				},
 			},
 			snip21: {},
@@ -196,7 +196,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sADA(BSC)',
 				extra: {
-					coingecko_id: 'cardano',
+					coingeckoId: 'cardano',
 				},
 			},
 			snip21: {},
@@ -221,7 +221,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sLINK',
 				extra: {
-					coingecko_id: 'chainlink',
+					coingeckoId: 'chainlink',
 				},
 			},
 		},
@@ -240,7 +240,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sHUAHUA',
 				extra: {
-					coingecko_id: 'chihuahua-token',
+					coingeckoId: 'chihuahua-token',
 				},
 			},
 			snip21: {},
@@ -261,7 +261,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sATOM',
 				extra: {
-					coingecko_id: 'cosmos',
+					coingeckoId: 'cosmos',
 				},
 			},
 			snip21: {},
@@ -287,7 +287,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sDAI',
 				extra: {
-					coingecko_id: 'dai',
+					coingeckoId: 'dai',
 				},
 			},
 		},
@@ -311,7 +311,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sMANA',
 				extra: {
-					coingecko_id: 'decentraland',
+					coingeckoId: 'decentraland',
 				},
 			},
 		},
@@ -335,7 +335,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sETH',
 				extra: {
-					coingecko_id: 'ethereum',
+					coingeckoId: 'ethereum',
 				},
 			},
 		},
@@ -356,7 +356,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sETH(BSC)',
 				extra: {
-					coingecko_id: 'ethereum',
+					coingeckoId: 'ethereum',
 				},
 			},
 			snip21: {},
@@ -376,7 +376,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sEVMOS',
 				extra: {
-					coingecko_id: 'evmos',
+					coingeckoId: 'evmos',
 				},
 			},
 			snip21: {},
@@ -397,7 +397,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sJUNO',
 				extra: {
-					coingecko_id: 'juno-network',
+					coingeckoId: 'juno-network',
 				},
 			},
 			snip21: {},
@@ -418,7 +418,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sKUJI',
 				extra: {
-					coingecko_id: 'kujira',
+					coingeckoId: 'kujira',
 				},
 			},
 			snip21: {},
@@ -441,7 +441,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 12,
 				symbol: 'sXMR',
 				extra: {
-					coingecko_id: 'monero',
+					coingeckoId: 'monero',
 				},
 			},
 			snip21: {},
@@ -463,7 +463,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sOCEAN',
 				extra: {
-					coingecko_id: 'ocean-protocol',
+					coingeckoId: 'ocean-protocol',
 				},
 			},
 			snip21: {},
@@ -483,7 +483,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sOSMO',
 				extra: {
-					coingecko_id: 'osmosis',
+					coingeckoId: 'osmosis',
 				},
 			},
 			snip21: {},
@@ -506,7 +506,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sDOT(BSC)',
 				extra: {
-					coingecko_id: 'polkadot',
+					coingeckoId: 'polkadot',
 				},
 			},
 			snip21: {},
@@ -531,7 +531,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sRSR',
 				extra: {
-					coingecko_id: 'reserve-rights-token',
+					coingeckoId: 'reserve-rights-token',
 				},
 			},
 		},
@@ -552,7 +552,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sSCRT(BSC)',
 				extra: {
-					coingecko_id: 'secret',
+					coingeckoId: 'secret',
 				},
 			},
 			snip21: {},
@@ -572,7 +572,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sDVPN',
 				extra: {
-					coingecko_id: 'sentinel',
+					coingeckoId: 'sentinel',
 				},
 			},
 			snip21: {},
@@ -593,7 +593,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 8,
 				symbol: 'SHD',
 				extra: {
-					coingecko_id: 'shade-protocol',
+					coingeckoId: 'shade-protocol',
 				},
 			},
 			snip21: {},
@@ -619,7 +619,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'SIENNA',
 				extra: {
-					coingecko_id: 'sienna',
+					coingeckoId: 'sienna',
 				},
 			},
 		},
@@ -640,7 +640,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'stkd-SCRT',
 				extra: {
-					coingecko_id: 'secret',
+					coingeckoId: 'secret',
 				},
 			},
 			snip24: {},
@@ -665,7 +665,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'seSCRT',
 				extra: {
-					coingecko_id: 'secret',
+					coingeckoId: 'secret',
 				},
 			},
 		},
@@ -684,7 +684,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sSTARS',
 				extra: {
-					coingecko_id: 'stargaze',
+					coingeckoId: 'stargaze',
 				},
 			},
 			snip21: {},
@@ -710,7 +710,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sUSDT',
 				extra: {
-					coingecko_id: 'tether',
+					coingeckoId: 'tether',
 				},
 			},
 		},
@@ -731,7 +731,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sUSDT(BSC)',
 				extra: {
-					coingecko_id: 'tether',
+					coingeckoId: 'tether',
 				},
 			},
 			snip21: {},
@@ -756,7 +756,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sRUNE',
 				extra: {
-					coingecko_id: 'thorchain',
+					coingeckoId: 'thorchain',
 				},
 			},
 		},
@@ -780,7 +780,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sUNI',
 				extra: {
-					coingecko_id: 'uniswap',
+					coingeckoId: 'uniswap',
 				},
 			},
 		},
@@ -804,7 +804,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 6,
 				symbol: 'sUSDC',
 				extra: {
-					coingecko_id: 'usd-coin',
+					coingeckoId: 'usd-coin',
 				},
 			},
 		},
@@ -825,7 +825,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sUSDC(BSC)',
 				extra: {
-					coingecko_id: 'usd-coin',
+					coingeckoId: 'usd-coin',
 				},
 			},
 			snip21: {},
@@ -850,7 +850,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 8,
 				symbol: 'sWBTC',
 				extra: {
-					coingecko_id: 'bitcoin',
+					coingeckoId: 'bitcoin',
 				},
 			},
 		},
@@ -874,7 +874,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 				decimals: 18,
 				symbol: 'sYFI',
 				extra: {
-					coingecko_id: 'yearn-finance',
+					coingeckoId: 'yearn-finance',
 				},
 			},
 		},

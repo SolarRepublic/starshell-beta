@@ -12,8 +12,14 @@
 
 	export let buttons: string[] = [];
 
+	/**
+	 * Disables the automatic "Add New" button
+	 */
 	export let bare = false;
 
+	/**
+	 * Enables an "X" to close/pop the page
+	 */
 	export let closes = false;
 	const b_closes = closes;
 

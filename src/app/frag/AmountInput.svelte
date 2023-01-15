@@ -201,7 +201,7 @@
 				// silly workaround for svelte reactive update
 				decimals = coin.decimals;
 				symbol = si_coin;
-				si_coingecko = coin.extra?.coingecko_id || '';
+				si_coingecko = coin.extra?.coingeckoId || '';
 
 				// set fee buffer
 				yg_fee_buffer_approx = BigNumber(feeBuffers[si_coin] || 0);
@@ -300,7 +300,7 @@
 						// set properties
 						decimals = g_snip20.decimals;
 						symbol = g_snip20.symbol;
-						si_coingecko = g_snip20.extra?.coingecko_id || '';
+						si_coingecko = g_snip20.extra?.coingeckoId || '';
 					}
 				}
 			}

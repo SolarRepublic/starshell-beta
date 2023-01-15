@@ -4,7 +4,7 @@
 	import type {Dict} from '#/meta/belt';
 	import type {Bech32, ChainPath, ContractPath, ContractStruct} from '#/meta/chain';
 	
-	import {Snip2xToken} from '#/schema/snip-2x-const';
+	import {deduce_token_interfaces, Snip2xToken} from '#/schema/snip-2x-const';
 	
 	import {getContext} from 'svelte';
 	
@@ -136,6 +136,24 @@
 					label: 'Query Permits',
 					checked: !!h_interfaces.snip24,
 					disabled: a_excluded.includes('snip24'),
+				},
+				snip721: {
+					title: 'SNIP-721',
+					label: 'Non-Fungible Token',
+					checked: !!h_interfaces.snip721,
+					disabled: a_excluded.includes('snip721'),
+				},
+				snip722: {
+					title: 'SNIP-722',
+					label: 'Badges, POAPS & Non-Transferable',
+					checked: !!h_interfaces.snip722,
+					disabled: a_excluded.includes('snip722'),
+				},
+				snip1155: {
+					title: 'SNIP-1155',
+					label: 'Multitoken',
+					checked: !!h_interfaces.snip1155,
+					disabled: a_excluded.includes('snip1155'),
 				},
 			};
 		}
@@ -291,7 +309,7 @@
 		b_deducing_interfaces = true;
 
 		try {
-			await new Snip2xToken(yw_contract.get()!, yw_network.get() as SecretNetwork, yw_account.get()).deduceInterfaces();
+			await deduce_token_interfaces(yw_contract.get()!, yw_network.get() as SecretNetwork, yw_account.get());
 		}
 		catch(e_deduce) {}
 

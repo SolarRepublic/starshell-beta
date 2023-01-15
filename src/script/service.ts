@@ -970,6 +970,11 @@ Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
 
 	FeeGrants,
 
+	async network(si_chain='secret-4') {
+		const g_chain = await Chains.at(`/family.cosmos/chain.${si_chain}`);
+		return await Providers.activateStableDefaultFor(g_chain!);
+	},
+
 	deep_seal(w_thing) {
 		// blocking
 		if(Object.isSealed(w_thing)) return w_thing;

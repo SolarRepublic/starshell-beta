@@ -210,9 +210,9 @@ export namespace Secret {
 		>
 	}[si_type];
 
-	export type StructFromPath<
-		p_secret extends SecretPath<si_type>,
-	> = p_secret extends SecretPath<'query_permit'> ? SecretStruct<'query_permit'> : SecretStruct;
+	// export type StructFromPath<
+	// 	p_secret extends SecretPath<si_type>,
+	// > = p_secret extends SecretPath<'query_permit'> ? SecretStruct<'query_permit'> : SecretStruct;
 }
 
 

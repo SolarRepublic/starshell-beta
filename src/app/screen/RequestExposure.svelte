@@ -5,27 +5,29 @@
 	
 	import {Snip2xToken} from '#/schema/snip-2x-const';
 	
+	import BigNumber from 'bignumber.js';
+	
 	import {load_app_context} from '../svelte';
 	
 	import {produce_contracts} from '#/chain/contract';
 	import {Accounts} from '#/store/accounts';
 	import {Chains} from '#/store/chains';
+	import {QueryCache} from '#/store/query-cache';
 	import {Secrets} from '#/store/secrets';
 	
 	import {buffer_to_text} from '#/util/data';
 	
+	import {format_amount} from '#/util/format';
+	
 	import Screen from '../container/Screen.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
 	import TokenRow from '../frag/TokenRow.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
+	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
-	import Curtain from '../ui/Curtain.svelte';
-	import ActionsLine from '../ui/ActionsLine.svelte';
-	import { QueryCache } from '#/store/query-cache';
-	import { parse_coin_amount } from '#/chain/coin';
-	import BigNumber from 'bignumber.js';
-	import { format_amount } from '#/util/format';
+	
 	
 
 	const g_context = load_app_context();
@@ -49,7 +51,7 @@
 	$: s_title = 'Expose Viewing Key';
 
 	let b_loaded = false;
-	let b_allowing = false;
+	const b_allowing = false;
 
 	let b_tooltip_showing = false;
 
@@ -89,19 +91,34 @@
 		return a_contracts;
 	}
 
+	/**
+	 * Since it's possible for users to reuse viewing keys for different tokens,
+	 * this method finds all 'secondary' tokens affected by revealing viewing keys
+	 * for the primary tokens
+	 */
 	async function load_secondary_contracts() {
-		// load viewing key for each contract8
+		// set of viewing keys exposed to app
 		const as_export_keys = new Set<string>();
+
+		// set of primary contracts being exported to app
 		const as_export_bech32s = new Set<Bech32>();
+
+		// each primary token
 		for(const g_contract of a_contracts) {
+			// load viewing key
 			const [sh_export, g_export] = (await Snip2xToken.viewingKeyFor(g_contract, g_chain, g_account))!;
+
+			// add viewing key text to set of exposed keys
 			as_export_keys.add(sh_export);
+
+			// add token to set of exported contracts
 			as_export_bech32s.add(g_export.contract);
 
+			// prepare to update viewing key's outlets
 			a_secrets.push(g_export);
 		}
 
-		// load all viewing keys
+		// load all enabled viewing keys belonging to owner on current chain
 		const a_viewing_keys = await Secrets.filter({
 			type: 'viewing_key',
 			on: 1,
@@ -109,31 +126,34 @@
 			owner: sa_owner,
 		});
 
+		// set of secondary tokens affected by viewing key reveals
 		const as_secondaries = new Set<Bech32>();
 
 		// each viewing key
 		for(const g_viewing_key of a_viewing_keys) {
 			// load its secret
-			const p_secret = Secrets.pathFrom(g_viewing_key);
-			const [sh_key, g_secret] = await Secrets.borrowPlaintext(p_secret, (kn, g) => [
+			const [sh_key, g_secret] = await Secrets.borrowPlaintext(g_viewing_key, (kn, g) => [
 				buffer_to_text(kn.data),
 				g as SecretStruct<'viewing_key'>,
 			] as const);
 
-			// already accounted for
+			// contract already accounted for
 			if(as_export_bech32s.has(g_secret.contract)) continue;
 
 			// key is being exported
 			if(as_export_keys.has(sh_key)) {
+				// add token to secondary set
 				as_secondaries.add(g_secret.contract);
-			}
 
-			a_secrets.push(g_secret);
+				// add secret to list for update
+				a_secrets.push(g_secret);
+			}
 		}
 
-		// 
+		// produce list of secondaries affected
 		a_contracts_secondary = await produce_contracts([...as_secondaries], g_chain, g_app);
 
+		// done
 		b_loaded = true;
 	}
 

@@ -1,5 +1,7 @@
 import type {IcsToService} from './messages';
 
+import type {PromptConfig} from './msg-flow';
+
 import type {ConnectionManifestV1, SessionRequest} from '#/meta/api';
 import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
 import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ContractStruct} from '#/meta/chain';
@@ -13,13 +15,29 @@ import toml from 'toml';
 import {load_icon_data} from './utils';
 
 import {load_word_list} from '#/crypto/bip39';
+// import {open_window} from '#/extension/browser';
 import {SessionStorage} from '#/extension/session-storage';
-import {A_CHAIN_NAMESPACES, N_PX_DIM_ICON, RT_CAIP_2_NAMESPACE, RT_CAIP_2_REFERENCE, RT_UINT, R_BECH32, R_CAIP_10, R_CAIP_19, R_CAIP_2, R_CHAIN_ID_VERSION, R_CHAIN_NAME, R_CONTRACT_NAME, R_DATA_IMAGE_URL_WEB, R_TOKEN_SYMBOL} from '#/share/constants';
+import {
+	A_CHAIN_NAMESPACES,
+	N_PX_DIM_ICON,
+	RT_CAIP_2_NAMESPACE,
+	RT_CAIP_2_REFERENCE,
+	RT_UINT,
+	R_BECH32,
+	R_CAIP_10,
+	R_CAIP_19,
+	R_CAIP_2,
+	R_CHAIN_ID_VERSION,
+	R_CHAIN_NAME,
+	R_CONTRACT_NAME,
+	R_DATA_IMAGE_URL_WEB,
+	R_TOKEN_SYMBOL,
+} from '#/share/constants';
 import type {AppProfile} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {ode, is_dict} from '#/util/belt';
 import {concat, sha256_sync, text_to_buffer, uuid_v4} from '#/util/data';
-import {qsa} from '#/util/dom';
+import {qsa, stringify_params} from '#/util/dom';
 
 
 // verbose
@@ -32,6 +50,26 @@ const error = logger('error');
 
 const R_CHAIN_ID_WHITELIST = /^(?:(kava_[1-9]\d*-|shentu-[1-9][0-9]*\.|evmos_[0-9]+-)[1-9]\d*|bostrom)$/;
 
+
+function open_flow_mini<
+	gc_prompt extends PromptConfig=PromptConfig,
+>(gc_prompt: gc_prompt) {
+	// create response key
+	const si_key = `flow:${uuid_v4()}`;
+
+	// get flow URL
+	const p_flow = chrome.runtime.getURL('src/entry/flow.html');
+
+	// indicate via query params method of communication
+	const p_connect = p_flow+'?'+stringify_params({
+		comm: 'query',
+		key: si_key,
+		data: JSON.stringify(gc_prompt.flow),
+	});
+
+	// // open connect window
+	// return open_window(p_connect, gc_prompt.open);
+}
 
 const f_runtime = () => chrome.runtime as Vocab.TypedRuntime<IcsToService.PublicVocab>;
 
@@ -334,15 +372,38 @@ export const ServiceRouter = {
 
 		// go async
 		return new Promise((fk_resolve, fe_reject) => {
-			// send connection requestion to service
+			// service timeout
+			const i_whoami = setTimeout(() => {
+				void open_flow_mini({
+					flow: {
+						type: 'restartService',
+						page: {
+							href: location.href,
+							tabId: -1,
+							windowId: -1,
+						},
+						value: {},
+					},
+				});
+			}, 3e3);
+
+			// contact service
 			f_runtime().sendMessage({
-				type: 'requestConnection',
-				value: {
-					chains: h_chains_valid,
-					sessions: h_sessions_valid,
-				},
-			}, (w_response) => {
-				fk_resolve(w_response);
+				type: 'whoami',
+			}, () => {
+				// cancel timeout
+				clearTimeout(i_whoami);
+
+				// send connection requestion to service
+				f_runtime().sendMessage({
+					type: 'requestConnection',
+					value: {
+						chains: h_chains_valid,
+						sessions: h_sessions_valid,
+					},
+				}, (w_response) => {
+					fk_resolve(w_response);
+				});
 			});
 		});
 	},

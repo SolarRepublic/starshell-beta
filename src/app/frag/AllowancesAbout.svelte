@@ -60,9 +60,12 @@
 	async function do_request_feegrant() {
 		b_requesting_feegrant = true;
 
-		await request_feegrant($yw_owner!);
-
-		b_requesting_feegrant = false;
+		try {
+			await request_feegrant($yw_owner!);
+		}
+		finally {
+			b_requesting_feegrant = false;
+		}
 	}
 </script>
 

@@ -89,6 +89,7 @@
 	export let symbol = '';
 	export let lockIcon = false;
 	export let address = '';
+	export let copyable = false;
 	export let detail = '';
 	export let prefix = '';
 
@@ -443,7 +444,7 @@
 					{#await name}
 						<PfpDisplay path={pfp} name={'?'} dim={pfpDim} {appRelated} />
 					{:then s_name}
-						<PfpDisplay path={pfp} name={s_name} dim={pfpDim} {appRelated} />
+						<PfpDisplay path={pfp} name={s_name} dim={pfpDim} filter={resource?.['testnet']? 'testnet': ''} {appRelated} />
 					{/await}
 				</slot>
 			</span>
@@ -503,7 +504,7 @@
 								</slot>
 							</span>
 						{:else if address}
-							<Address address={address} />
+							<Address address={address} copyable={!!copyable} discreet  />
 						{/if}
 					</div>
 				{/if}

@@ -1,3 +1,5 @@
+import type {Bech32} from '#/meta/chain';
+
 import TimeAgo from 'javascript-time-ago';
 import english_locale from 'javascript-time-ago/locale/en';
 
@@ -139,7 +141,8 @@ const D_INTL_AMOUNT_I1E3 = new Intl.NumberFormat('en-US', {
 
 export function format_amount(x_amount: number, b_shorter=false): string {
 	// shortening
-	const shorten = b_shorter? (s: string) => s.replace(/(?:(\.)|(\.\d+?))0+(\s+.*)?$/, '$2$3'): F_IDENTITY;
+	const shorten = b_shorter? (s: string) => s.replace(/(?:(\.)|(\.\d+?))0+(\s+.*)?$/, '$2$3')
+		.replace(/(\.\d)\d+(\s+.*)?$/, '$1$2'): F_IDENTITY;
 
 	// zero
 	if(0 === x_amount) return '0';
@@ -192,7 +195,7 @@ export function format_fiat(x_amount: number, si_fiat: CoinGeckoFiat='usd', b_om
 // 	return format_fiat(H_VERSUS_USD[k_token.def.iri].value * x_amount, b_omit_sign);
 // }
 
-export function abbreviate_addr(sa_addr: string): string {
+export function abbreviate_addr(sa_addr: Bech32): string {
 	return sa_addr.replace(/^(\w+1...).+(.{5})/, '$1[…]$2');
 }
 

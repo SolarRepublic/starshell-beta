@@ -1,10 +1,8 @@
 import type {Nameable, Pfpable} from './able';
-import type {Bech32, ChainNamespace, ChainNamespaceKey, ChainPath, ContractPath} from './chain';
+import type {Bech32, ChainNamespace, ChainNamespaceKey, ChainPath} from './chain';
+import type {Cw} from './cosm-wasm';
 import type {Resource} from './resource';
 import type {SecretPath} from './secret';
-
-import type {Dict} from '#/meta/belt';
-import type { Cw } from './cosm-wasm';
 
 export interface UtilityKeyRegistry {
 	walletSecurity: {
@@ -62,14 +60,19 @@ export type Account<
 		/**
 		 * Assets belonging to this account
 		 */
-		assets: Record<ChainPath, {
+		assets: Partial<Record<ChainPath, {
+			/**
+			 * Total fiat worth of account on given chain
+			 */
+			totalFiatCache: string;
+
 			/**
 			 * Ordered list of fungible tokens this account wants to appear in their balance screen
 			 */
 			fungibleTokens: Bech32[];
 
 			/**
-			 * Arbitrary data associated with the given account-contract pair
+			 * Arbitrary data associated with the given account-contract pair (includes all non-fungible tokens as well)
 			 */
 			data: Record<Bech32, {
 				/**
@@ -92,12 +95,29 @@ export type Account<
 					expiration: Cw.UnixTime;
 				}>;
 			}>;
-		}>;
+		}>>;
 
 		/**
 		 * Custom data extensions
 		 */
-		extra?: Dict<any>;
+		extra?: {
+			/**
+			 * Aura background SVG string
+			 */
+			aura?: string;
+
+			/**
+			 * Pfp generation params
+			 */
+			pfpg?: {
+				offset?: number;
+			};
+
+			/**
+			 * Custom pfp status
+			 */
+			customPfp?: 0 | 1;
+		};
 	}, Nameable, Pfpable];
 }>;
 

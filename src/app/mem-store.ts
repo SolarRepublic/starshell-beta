@@ -3,7 +3,8 @@ import type {Readable, Writable} from 'svelte/store';
 import type {F, L} from 'ts-toolbelt';
 
 import type {Arrayable, Dict, Promisable} from '#/meta/belt';
-import {fodemtv, ode, oderom} from '#/util/belt';
+import {fodemtv, ode, oderom, timeout} from '#/util/belt';
+import type { onDestroy } from 'svelte';
 
 type Subscriber<
 	w_value extends any=any,
@@ -122,6 +123,8 @@ export class DerivedMemStore<
 
 	protected _a_values: w_value[];
 
+	protected _f_unsubscribe: VoidFunction;
+
 	constructor(protected _z_src: z_src, protected _f_transform: DeriveTransform<w_out, w_value, z_src>, b_skip_init=false) {
 		super();
 
@@ -135,11 +138,11 @@ export class DerivedMemStore<
 			const f_transform = _f_transform as DeriveTransform<w_out, w_value, Subscribable<w_value>>;
 
 			// subscribe to source
-			const f_unsubscribe = _z_src.subscribe(async(w_value) => {
+			this._f_unsubscribe = _z_src.subscribe(async(w_value) => {
 				this._w_latest = w_value;
 
 				// transform has single-value callback
-				if(1 === _f_transform.length) {
+				if(_f_transform.length <= 1) {
 					const w_response = f_transform(w_value);
 
 					// tranform is asynchronous
@@ -206,12 +209,12 @@ export class DerivedMemStore<
 				const f_transform = _f_transform as DeriveTransform<w_out, w_value, MemStore<w_value>[]>;
 
 				// subscribe to source
-				const f_unsubscribe = k_src.subscribe(async(w_value) => {
+				this._f_unsubscribe = k_src.subscribe(async(w_value) => {
 					// update cached values list
 					a_values[i_src] = w_value;
 
 					// transform has single-value callback
-					if(1 === f_transform.length) {
+					if(f_transform.length <= 1) {
 						const w_response = f_transform(a_values);
 
 						// tranform is asynchronous
@@ -307,6 +310,10 @@ export class DerivedMemStore<
 			}
 		});
 	}
+
+	destroy(): void {
+		this._f_unsubscribe();
+	}
 }
 
 
@@ -332,4 +339,78 @@ export function derivations<
 	return fodemtv(h_rule, f_rule => derived(z_src, f_rule)) as {
 		[si_key in keyof h_rule]: DerivedMemStore<any, w_value, typeof z_src>;
 	};
+}
+
+export interface ReloadConfig {
+	sources: Subscribable[];
+	action: Function;
+}
+
+export function reloadable(h_defs: Dict<ReloadConfig>, f_on_destroy?: typeof onDestroy, xt_debounce=0): void {
+	const a_destroys: VoidFunction[] = [];
+
+	// each mapping
+	for(const [, gc_reload] of ode(h_defs)) {
+		// cache of previous sources
+		let a_cached = new Array(gc_reload.sources.length);
+
+		// whether first update has fired
+		let b_init = false;
+
+		// previous debounce timer
+		let i_debounce = 0;
+
+		// used to indicate change occurred
+		let w_change = Symbol('init');
+
+		// create derived store
+		const yw_reload = derived(gc_reload.sources, (a_sources) => {
+			// find change in source before triggering update
+			for(let i_source=0; i_source<a_sources.length; i_source++) {
+				// source changed
+				if(a_cached[i_source] !== a_sources[i_source]) {
+					// update sources cache
+					a_cached = a_sources.slice();
+
+					// trigger update to derived store
+					return w_change = Symbol('change');
+				}
+			}
+
+			// no change
+			return w_change;
+		});
+
+		// subscribe to changes
+		const f_unsubscribe = yw_reload.subscribe(() => {
+			// always fire the first update immediately
+			if(!b_init || !xt_debounce) {
+				gc_reload.action();
+				b_init = true;
+				return;
+			}
+
+			// debounce
+			clearTimeout(i_debounce);
+			i_debounce = (globalThis as typeof window).setTimeout(() => {
+				void gc_reload.action();
+			}, xt_debounce);
+		});
+
+		// create destroy routine
+		a_destroys.push(() => {
+			// unsubscribe from derived updates
+			f_unsubscribe();
+
+			// destroy derived store to free source subscription
+			yw_reload.destroy();
+		});
+	}
+
+	// setup the destroy callback
+	f_on_destroy?.(() => {
+		for(const f_destroy of a_destroys) {
+			f_destroy();
+		}
+	});
 }

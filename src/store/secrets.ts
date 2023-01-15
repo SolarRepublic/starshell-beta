@@ -264,7 +264,8 @@ export const Secrets = {
 	 * @param g_secret 
 	 * @returns 
 	 */
-	borrowPlaintext<w_return extends any=any>(p_secret: SecretPath, fk_use: (kn_data: SensitiveBytes, g_secret: SecretStruct) => Promisable<w_return>): Promise<Awaited<w_return>> {
+	borrowPlaintext<w_return extends any=any>(z_secret: SecretPath | SecretStruct, fk_use: (kn_data: SensitiveBytes, g_secret: SecretStruct) => Promisable<w_return>): Promise<Awaited<w_return>> {
+		const p_secret = 'string' === typeof z_secret? z_secret: Secrets.pathFrom(z_secret);
 		return Secrets.borrow(p_secret, (kn, g) => Secrets.plaintext(kn, g, fk_use));
 	},
 

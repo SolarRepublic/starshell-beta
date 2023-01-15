@@ -18,6 +18,7 @@
 		yw_overlay_account,
 		yw_overlay_app,
 		yw_overlay_network,
+		yw_owner,
 		yw_progress,
 		yw_search,
 		yw_update,
@@ -42,13 +43,13 @@
 	import AppView from '../screen/AppView.svelte';
 	
 	import SX_ICON_ARROW_LEFT from '#/icon/arrow-left.svg?raw';
-	import SX_CHECKED from '#/icon/checked-circle.svg?raw';
+	import SX_ICON_CHECKED from '#/icon/checked-circle.svg?raw';
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
-	import SX_CONFIRMATION from '#/icon/confirmation.svg?raw';
-	import SX_ARROW_DOWN from '#/icon/expand_more.svg?raw';
+	import SX_ICON_CONFIRMATION from '#/icon/confirmation.svg?raw';
+	import SX_ICON_ARROW_DOWN from '#/icon/expand_more.svg?raw';
 	import SX_ICON_NARROW from '#/icon/narrow.svg?raw';
 	import SX_ICON_SEARCH from '#/icon/search.svg?raw';
-	import SX_VISIBILITY from '#/icon/visibility.svg?raw';
+	import SX_ICON_VISIBILITY from '#/icon/visibility.svg?raw';
 	
 	
 
@@ -604,7 +605,6 @@
 							}}>
 								<PfpDisplay
 									resource={g_cause.app}
-									name={g_cause.app.host}
 									{...overlay_pfp_network_props('left')}
 								/>
 							</span>
@@ -623,8 +623,7 @@
 								>
 									<svelte:fragment slot="rows">
 										<Row
-											name={g_cause.app.host}
-											pfp={g_cause.app.pfp}
+											resource={g_cause.app}
 											detail={g_cause.app.name}
 											on:click={async(d_event) => {
 												if(g_cause.registered) {
@@ -655,7 +654,7 @@
 											<svelte:fragment slot="right">
 												{#if g_cause.registered}
 													<span class="overlay-select icon rotate_-90deg" style="--icon-color: var(--theme-color-primary);">
-														{@html SX_ARROW_DOWN}
+														{@html SX_ICON_ARROW_DOWN}
 													</span>
 												{/if}
 											</svelte:fragment>
@@ -676,33 +675,38 @@
 										{:else}
 											{#if p_app}
 												{#await Secrets.filter({
-													type: 'query_permit',
+													type: 'viewing_key',
+													on: 1,
+													owner: $yw_owner,
+													chain: $yw_chain_ref,
 													outlets: [p_app],
-												}) then a_permits}
-													{@const nl_permits = a_permits.length}
-													<div class="global_header-overlay-overview permits">
+												}) then a_keys}
+													{@const nl_keys = a_keys.length}
+													<div class="global_header-overlay-overview viewing-keys">
 														<span class="global_svg-icon icon-diameter_16px">
-															{@html SX_CONFIRMATION}
+															{@html SX_ICON_VISIBILITY}
 														</span>
 														<span class="title">
-															{nl_permits} query permit{1 === nl_permits? '': 's'} in use
+															{nl_keys} viewing key{1 === nl_keys? '': 's'} shared with app
 														</span>
 													</div>
 													<hr>
 												{/await}
 
 												{#await Secrets.filter({
-													type: 'viewing_key',
+													type: 'query_permit',
 													on: 1,
+													owner: $yw_owner,
+													chain: $yw_chain_ref,
 													outlets: [p_app],
-												}) then a_keys}
-													{@const nl_keys = a_keys.length}
-													<div class="global_header-overlay-overview viewing-keys">
+												}) then a_permits}
+													{@const nl_permits = a_permits.length}
+													<div class="global_header-overlay-overview permits">
 														<span class="global_svg-icon icon-diameter_16px">
-															{@html SX_VISIBILITY}
+															{@html SX_ICON_CONFIRMATION}
 														</span>
 														<span class="title">
-															{nl_keys} viewing key{1 === nl_keys? '': 's'} shared with app
+															{nl_permits} query permit{1 === nl_permits? '': 's'} in use
 														</span>
 													</div>
 													<hr>
@@ -751,7 +755,7 @@
 												<Row
 													resource={g_account}
 													resourcePath={p_account}
-													detail={g_account.extra?.total_fiat_cache ?? '(?)'}
+													detail={g_account.assets[$yw_chain_ref]?.totalFiatCache ?? '(?)'}
 													on:click={() => {
 														$yw_account_ref = p_account;
 														$yw_overlay_account = false;
@@ -763,7 +767,7 @@
 													<svelte:fragment slot="right">
 														{#if $yw_account_ref === p_account}
 															<span class="overlay-select icon" style="--icon-color: var(--theme-color-primary);">
-																{@html SX_CHECKED}
+																{@html SX_ICON_CHECKED}
 															</span>
 														{/if}
 													</svelte:fragment>
@@ -812,7 +816,7 @@
 													<svelte:fragment slot="right">
 														{#if $yw_chain_ref === p_chain}
 															<span class="overlay-select icon" style="--icon-color: var(--theme-color-primary);">
-																{@html SX_CHECKED}
+																{@html SX_ICON_CHECKED}
 															</span>
 														{/if}
 													</svelte:fragment>
@@ -834,7 +838,7 @@
 													<svelte:fragment slot="right">
 														{#if $yw_chain_ref === p_chain}
 															<span class="overlay-select icon" style="--icon-color: var(--theme-color-primary);">
-																{@html SX_CHECKED}
+																{@html SX_ICON_CHECKED}
 															</span>
 														{/if}
 													</svelte:fragment>

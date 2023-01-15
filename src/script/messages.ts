@@ -788,7 +788,9 @@ export namespace IntraExt {
 			};
 		};
 
-		// suggest to reload an app's tab
+		/**
+		 * suggest to reload an app's tab
+		 */
 		reloadAppTab: {
 			value: {
 				app: AppStruct;
@@ -797,14 +799,25 @@ export namespace IntraExt {
 			};
 		};
 
-		// QR code scan
+		/**
+		 * suggest to restart the background service
+		 */
+		restartService: {
+			value: {};
+		};
+
+		/**
+		 * QR code scan
+		 */
 		scanQr: {
 			value: {
 				id: string;
 			};
 		};
 
-		// deep link
+		/**
+		 * deep link
+		 */
 		deepLink: {
 			value: DeepLinkMessage;
 		};

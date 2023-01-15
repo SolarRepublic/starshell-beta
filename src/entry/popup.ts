@@ -314,6 +314,11 @@ async function reload(b_override_restriction=false) {
 
 								const g_settings = h_chain_settings[p_chain] = h_chain_settings[p_chain] || {};
 
+								if('number' === typeof gc_chain.defaultGasPrice) {
+									g_settings.x_default_gas_price = gc_chain.defaultGasPrice;
+									b_update = true;
+								}
+
 								if('number' === typeof gc_chain.simulationGasMultiplier) {
 									g_settings.x_gas_multiplier = gc_chain.simulationGasMultiplier;
 									b_update = true;

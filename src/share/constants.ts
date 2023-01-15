@@ -286,6 +286,9 @@ export const NL_PASSPHRASE_MINIMUM = 8;
 // maximum password length
 export const NL_PASSPHRASE_MAXIMUM = 1024;
 
+export const NL_PIN_MINIMUM = 4;
+
+export const NL_PIN_MAXIMUM = 10;
 
 // sha256("starshell")
 export const ATU8_SHA256_STARSHELL = sha256_sync_insecure(text_to_buffer('starshell'));

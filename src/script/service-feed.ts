@@ -1,8 +1,10 @@
 import type {AbciConfig, ReceiverError} from './service-tx-abcis';
 
+import type {GetLatestBlockResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
+
 import type {AccountStruct} from '#/meta/account';
 import type {Dict, JsonObject, Promisable} from '#/meta/belt';
-import {Bech32, ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
+import type {Bech32, ChainPath, ChainStruct, ContractPath, ContractStruct} from '#/meta/chain';
 import type {ProviderStruct, ProviderPath} from '#/meta/provider';
 
 import {Snip2xToken} from '#/schema/snip-2x-const';
@@ -20,14 +22,13 @@ import type {NotificationConfig} from '#/extension/notifications';
 import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_EXTERNAL} from '#/store/apps';
 import {Chains} from '#/store/chains';
-import {ContractRole, Contracts} from '#/store/contracts';
+import {Contracts} from '#/store/contracts';
 import {NetworkTimeoutError, Providers} from '#/store/providers';
+import {Secrets} from '#/store/secrets';
 
 import {ode, timeout, timeout_exec} from '#/util/belt';
 import {buffer_to_base64} from '#/util/data';
 import {Limiter} from '#/util/limiter';
-import { Secrets } from './ics-witness-imports';
-import type { GetLatestBlockResponse } from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 
 
 const XT_ERROR_THRESHOLD_RESTART = 120e3;
@@ -766,7 +767,7 @@ export class NetworkFeed {
 				// each account
 				for(const [, g_account] of ks_accounts.entries()) {
 					// account does not hold this token
-					if(!g_account.assets[_p_chain]?.fungibleTokens.includes(g_contract.bech32)) continue;
+					if(!g_account.assets[_p_chain]?.data[g_contract.bech32]) continue;
 
 					// add account to list
 					a_accounts.push(g_account);

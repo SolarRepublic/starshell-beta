@@ -10,7 +10,7 @@ export const F_CONTRACTS_SECRET_NATIVE = (H_LOOKUP_PFP: Dict): ContractStruct[] 
 		snip20: {
 			symbol: 'sSCRT',
 			extra: {
-				coingecko_id: 'secret',
+				coingeckoId: 'secret',
 			},
 		},
 	},

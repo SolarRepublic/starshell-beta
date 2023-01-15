@@ -30,6 +30,7 @@ import { FeeGrants } from '#/chain/fee-grant';
 import { Accounts } from '#/store/accounts';
 import { syserr } from './common';
 import { A_COURTESY_ACCOUNTS } from '#/share/constants';
+import { HttpResponseError } from '#/share/errors';
 
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
@@ -321,8 +322,9 @@ export async function request_feegrant(sa_owner: Bech32): Promise<void> {
 		range: [0, 25],
 	});
 
+	let d_res: Response;
 	try {
-		await fetch('https://feegrant.starshell.net/claim', {
+		d_res = await fetch('https://feegrant.starshell.net/claim', {
 			method: 'POST',
 			headers: {
 				'accept': 'application/json, text/plain, */*',
@@ -335,10 +337,20 @@ export async function request_feegrant(sa_owner: Bech32): Promise<void> {
 		});
 	}
 	catch(e_fetch) {
-		return;
+		throw syserr({
+			title: 'Network error',
+			text: ``,
+		});
 	}
 	finally {
 		f_cancel_progress_req();
+	}
+
+	if(!d_res.ok) {
+		throw syserr({
+			title: 'Server denied request',
+			text: `Server said: ${await d_res.text()}`,
+		});
 	}
 
 	const f_cancel_chain = make_progress_timer({

@@ -18,6 +18,7 @@
 
 <Screen nav slides>
 	<Header pops search network account
+		title='Provider Details'
 	>
 	</Header>
 

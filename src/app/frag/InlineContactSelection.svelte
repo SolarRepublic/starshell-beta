@@ -102,7 +102,7 @@
 						align-items: center;
 					}
 	
-					.icon-dom {
+					.global_icon-dom {
 						:global(&) {
 							height: unset;
 							font-size: 14px; 

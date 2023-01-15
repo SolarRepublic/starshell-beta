@@ -283,6 +283,216 @@ const GC_DEFAULT_RATE_LIMITS: RateLimitConfig = {
 
 const h_limiters: Dict<RateLimitingPool> = {};
 
+
+/**
+ * Queries the given snip
+ */
+async function query_snip<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey>(
+	g_query: Snip2x.AnyQueryParameters<si_key>,
+	g_contract: ContractStruct,
+	k_network: SecretNetwork,
+	g_chain: ChainStruct,
+	g_account: AccountStruct
+): QueryRes<si_key> {
+	const g_writeback: {atu8_nonce?: Uint8Array} = {};
+
+	// ref grpc-web URL
+	const p_host = k_network.provider.grpcWebUrl;
+
+	// create/ref slots and lock pool
+	const k_limiter = h_limiters[p_host] || await (async() => {
+		const gc_defaults = await Settings.get('gc_rate_limit_queries_default');
+		return h_limiters[p_host] = h_limiters[p_host] || new RateLimitingPool(gc_defaults || GC_DEFAULT_RATE_LIMITS);
+	})();
+
+	// wait for an opening
+	const f_release = await k_limiter.acquire();
+
+	try {
+		return await k_network.queryContract<Snip2x.AnyQueryResponse<si_key>>(g_account, {
+			bech32: g_contract.bech32,
+			hash: g_contract.hash,
+		}, g_query, g_writeback);
+	}
+	catch(e_query) {
+		// ref query nonce
+		const atu8_nonce = g_writeback.atu8_nonce;
+
+		// compute error
+		if(2 === e_query['code']) {
+			// parse contract error
+			const m_error = R_SCRT_QUERY_ERROR.exec(e_query['message'] as string || '');
+
+			// able to decrypt
+			if(m_error && atu8_nonce) {
+				const [, sxb64_error_ciphertext] = m_error;
+
+				const atu8_ciphertext = base64_to_buffer(sxb64_error_ciphertext);
+
+				// use nonce to decrypt
+				const atu8_plaintext = await SecretWasm.decryptBuffer(g_account, g_chain, atu8_ciphertext, atu8_nonce);
+
+				// utf-8 decode
+				const sx_plaintext = buffer_to_text(atu8_plaintext);
+
+				// throw decrypted error
+				throw new ContractQueryError(sx_plaintext);
+			}
+		}
+
+		throw e_query;
+	}
+	finally {
+		f_release();
+	}
+}
+
+type DeductionConfig = {
+	queries: string[];
+	extensions?: Partial<Record<TokenStructKey, DeductionConfig>>;
+};
+
+const H_DEDUCTIONS: NonNullable<DeductionConfig['extensions']> = {
+	snip20: {
+		queries: [
+			'token_info',
+			'exchange_rate',
+			'allowance',
+			'balance',
+			'transfer_history',
+		],
+		extensions: {
+			snip21: {
+				queries: [
+					'transaction_history',
+				],
+			},
+
+			snip24: {
+				queries: [
+					'with_permit',
+				],
+			},
+		},
+	},
+
+	snip721: {
+		queries: [
+			'contract_info',
+			'num_tokens',
+			'owner_of',
+			'nft_info',
+			'all_nft_info',
+			'private_metadata',
+			'nft_dossier',
+			'token_approvals',
+			'approved_for_all',
+			'inventory_approvals',
+			'tokens',
+			'transaction_history',
+			// 'with_permit',  // allow snip24 interface to separately discover
+			'all_tokens',
+			'minters',
+			'royalty_info',
+			'is_unwrapped',
+			'verify_transfer_approval',
+		],
+		extensions: {
+			snip722: {
+				queries: [
+					'implements_token_subtype',
+					'nft_dossier',
+					'is_transferable',
+					'implements_non_transferable_tokens',
+				],
+			},
+		},
+	},
+
+	snip1155: {
+		queries: [
+			'contract_info',
+			'token_id_public_info',
+			'registered_code_hash',
+		],
+	},
+};
+
+/**
+ * Attempt to deduce which interfaces the contract implements
+ */
+export async function deduce_token_interfaces(
+	g_contract: ContractStruct,
+	k_network: SecretNetwork,
+	g_account: AccountStruct
+): Promise<string[]> {
+	// destructure chain from network
+	const g_chain = k_network.chain;
+
+	// promote the contract's implementation set
+	async function _promote(si_interface: Exclude<TokenStructKey, 'snip20'>): Promise<void> {
+		g_contract.interfaces[si_interface] = {};
+		await Contracts.merge(g_contract);
+	}
+
+	// demote the contract's implementation set and exclude the given interface
+	async function _demote(si_interface: TokenStructKey): Promise<void> {
+		const as_excluded = new Set<TokenStructKey>(g_contract.interfaces.excluded || []);
+		as_excluded.add(si_interface);
+		g_contract.interfaces.excluded = [...as_excluded];
+		await Contracts.merge(g_contract);
+	}
+
+
+	const a_deductions: TokenStructKey[] = [];
+
+	const si_foreign = `__interface_check_${uuid_v4().replaceAll('-', '_').slice(-7)}`;
+
+	// TODO: add simulation to deduce interfaces that do not specify queries
+
+	// attempt transaction history query
+	try {
+		// @ts-expect-error intentionally foreign query id
+		await query_snip({
+			[si_foreign]: {},
+		}, g_contract, k_network, g_chain, g_account);
+	}
+	catch(e_info) {
+		if(e_info instanceof Error) {
+			const m_queries = /unknown variant `([^`]+)`, expected one of ([^"]+)"/.exec(e_info.message);
+			if(m_queries) {
+				if(si_foreign !== m_queries[1]) {
+					throw new Error(`Contract returned suspicious error`);
+				}
+
+				// get accepted query ids
+				const a_queries = m_queries[2].split(/,\s+/g).map(s => s.replace(/^`|`$/g, ''));
+
+				// each deductable interface
+				for(const [si_interface, g_deduction] of ode(H_DEDUCTIONS)) {
+					// each query in spec
+					for(const si_query of g_deduction!.queries) {
+						// query not present in contract
+						if(!a_queries.includes(si_query)) {
+							await _demote(si_interface);
+							break;
+						}
+					}
+
+					// contract implements all queries in spec
+					if('snip20' !== si_interface) {
+						await _promote(si_interface);
+						a_deductions.push(si_interface);
+					}
+				}
+			}
+		}
+	}
+
+	return a_deductions;
+}
+
+
 export class Snip2xToken {
 	static async discover(g_contract: ContractStruct, k_network: SecretNetwork, g_account: AccountStruct): Promise<Snip2xToken | null> {
 		// construct token as if it is already snip-20
@@ -309,7 +519,10 @@ export class Snip2xToken {
 		}
 
 		// discover other snip interfaces
-		await k_token.deduceInterfaces();
+		const a_deductions = await deduce_token_interfaces(g_contract, k_network, g_account);
+		if(!a_deductions.includes('snip20')) {
+			throw new Error(`Contract does not seem to be a SNIP-20`);
+		}
 
 		return k_token;
 	}
@@ -325,8 +538,7 @@ export class Snip2xToken {
 
 		if(!a_keys?.length) return null;
 
-		const p_viewing_key = Secrets.pathFrom(a_keys[0]!);
-		return await Secrets.borrowPlaintext(p_viewing_key, (kn, g) => [
+		return await Secrets.borrowPlaintext(a_keys[0], (kn, g) => [
 			buffer_to_text(kn.data) as Cw.ViewingKey,
 			g as SecretStruct<'viewing_key'>,
 		] as const);
@@ -379,7 +591,7 @@ export class Snip2xToken {
 	}
 
 	get coingeckoId(): string | null {
-		return this._g_snip20.extra?.coingecko_id || null;
+		return this._g_snip20.extra?.coingeckoId || null;
 	}
 
 	get snip20(): TokenStructDescriptor['snip21'] {
@@ -437,83 +649,6 @@ export class Snip2xToken {
 	// 	return true;
 	// }
 
-	protected async _promote(si_interface: Exclude<TokenStructKey, 'snip20'>): Promise<void> {
-		const {_g_contract} = this;
-		_g_contract.interfaces[si_interface] = {};
-		await Contracts.merge(_g_contract);
-	}
-
-	protected async _demote(si_interface: Exclude<TokenStructKey, 'snip20'>): Promise<void> {
-		const {_g_contract} = this;
-		const as_excluded = new Set<TokenStructKey>(_g_contract.interfaces.excluded || []);
-		as_excluded.add(si_interface);
-		_g_contract.interfaces.excluded = [...as_excluded];
-		await Contracts.merge(_g_contract);
-	}
-
-	/**
-	 * Checks if the contract implements the SNIP-24 interface
-	 */
-	async deduceInterfaces(): Promise<string[]> {
-		const a_deductions: TokenStructKey[] = [];
-
-		const si_foreign = `__interface_check_${uuid_v4().replaceAll('-', '_').slice(-7)}`;
-
-		// attempt transaction history query
-		try {
-			// @ts-expect-error intentionally foreign query id
-			await this.query({
-				[si_foreign]: {},
-			});
-		}
-		catch(e_info) {
-			if(e_info instanceof Error) {
-				const m_queries = /unknown variant `([^`]+)`, expected one of ([^"]+)"/.exec(e_info.message);
-
-				// not snip-24
-				if(m_queries) {
-					if(si_foreign !== m_queries[1]) {
-						throw new Error(`Contract returned suspicious error`);
-					}
-
-					// get accepted query ids
-					const a_queries = m_queries[2].split(/,\s+/g).map(s => s.replace(/^`|`$/g, ''));
-
-					// not snip-20
-					for(const s_query of ['token_info', 'exchange_rate', 'allowance', 'balance', 'transfer_history']) {
-						if(!a_queries.includes(s_query)) {
-							throw new Error(`Contract does not seem to be a SNIP-20`);
-						}
-					}
-
-					a_deductions.push('snip20');
-
-					// yes snip-21
-					if(a_queries.includes('transaction_history')) {
-						await this._promote('snip21');
-						a_deductions.push('snip21');
-					}
-					// definitely not snip-21
-					else {
-						await this._demote('snip21');
-					}
-
-					// yes snip24
-					if(a_queries.includes('with_permit')) {
-						await this._promote('snip24');
-						a_deductions.push('snip24');
-					}
-					// definitely not snip24
-					else {
-						await this._demote('snip24');
-					}
-				}
-			}
-		}
-
-		return a_deductions;
-	}
-
 
 	async mintable(): Promise<boolean> {
 		const {
@@ -568,57 +703,7 @@ export class Snip2xToken {
 	}
 
 	async query<si_key extends Snip2x.AnyQueryKey=Snip2x.AnyQueryKey>(g_query: Snip2x.AnyQueryParameters<si_key>): QueryRes<si_key> {
-		const g_writeback: {atu8_nonce?: Uint8Array} = {};
-
-		// ref grpc-web URL
-		const p_host = this._k_network.provider.grpcWebUrl;
-
-		// create/ref slots and lock pool
-		const k_limiter = h_limiters[p_host] || await (async() => {
-			const gc_defaults = await Settings.get('gc_rate_limit_queries_default');
-			return h_limiters[p_host] = h_limiters[p_host] || new RateLimitingPool(gc_defaults || GC_DEFAULT_RATE_LIMITS);
-		})();
-
-		// wait for an opening
-		const f_release = await k_limiter.acquire();
-
-		try {
-			return await this._k_network.queryContract<Snip2x.AnyQueryResponse<si_key>>(this._g_account, {
-				bech32: this._g_contract.bech32,
-				hash: this._g_contract.hash,
-			}, g_query, g_writeback);
-		}
-		catch(e_query) {
-			// ref query nonce
-			const atu8_nonce = g_writeback.atu8_nonce;
-
-			// compute error
-			if(2 === e_query['code']) {
-				// parse contract error
-				const m_error = R_SCRT_QUERY_ERROR.exec(e_query['message'] as string || '');
-
-				// able to decrypt
-				if(m_error && atu8_nonce) {
-					const [, sxb64_error_ciphertext] = m_error;
-
-					const atu8_ciphertext = base64_to_buffer(sxb64_error_ciphertext);
-
-					// use nonce to decrypt
-					const atu8_plaintext = await SecretWasm.decryptBuffer(this._g_account, this._g_chain, atu8_ciphertext, atu8_nonce);
-
-					// utf-8 decode
-					const sx_plaintext = buffer_to_text(atu8_plaintext);
-
-					// throw decrypted error
-					throw new ContractQueryError(sx_plaintext);
-				}
-			}
-
-			throw e_query;
-		}
-		finally {
-			f_release();
-		}
+		return await query_snip<si_key>(g_query, this._g_contract, this._k_network, this._g_chain, this._g_account);
 	}
 
 	viewingKey(): Promise<readonly [Cw.ViewingKey, SecretStruct<'viewing_key'>] | null> {

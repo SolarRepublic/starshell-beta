@@ -193,12 +193,24 @@ body {
 	}
 
 	&.square:not(.fill) {
-		svg,img,.icon-dom {
+		svg,img,.global_icon-dom {
 			border-radius: 20%;
 		}
 	}
 }
 
+.global_icon-dom {
+	color: var(--theme-color-text-light);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	.font(mono, @size: 30px);
+
+	background-color: var(--theme-color-bg);
+	background: radial-gradient(ellipse farthest-side at bottom right, darken(@theme-color-black, 50%), var(--theme-color-bg));
+	outline: 1px solid var(--theme-color-border);
+}
 
 .global_svg-icon {
 	--icon-diameter: 24px;

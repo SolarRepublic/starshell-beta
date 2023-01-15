@@ -38,7 +38,7 @@
 	import {Screen} from './_screens';
 	import {syserr} from '../common';
 	import {JsonPreviewer} from '../helper/json-previewer';
-	import {yw_account, yw_network, yw_progress} from '../mem';
+	import {yw_account, yw_network, yw_progress, yw_settings} from '../mem';
 	
 	import {type LoadedAppContext, load_app_context} from '#/app/svelte';
 	import {Coins} from '#/chain/coin';
@@ -192,6 +192,10 @@
 	 * Set to true once the document has completely loaded
 	 */
 	let b_loaded = false;
+
+	// live chain settings
+	let g_chain_settings = $yw_settings.h_chain_settings?.[p_chain] || {};
+	$: g_chain_settings = $yw_settings.h_chain_settings?.[p_chain] || {};
 
 	const H_PRESETS: Dict<(g_value: JsonObject) => Promisable<DescribedMessage>> = {
 		'query_permit'(g_permit: Snip24PermitMsg['value']) {
@@ -536,7 +540,7 @@
 			}, BigNumber(0));
 
 			// load gas multiplier for chain
-			const x_simulation_gas_multiplier = (await Settings.get('h_chain_settings'))?.[p_chain]?.x_gas_multiplier || X_SIMULATION_GAS_MULTIPLIER;
+			const x_simulation_gas_multiplier: number = g_chain_settings.x_gas_multiplier ?? X_SIMULATION_GAS_MULTIPLIER;
 
 			// forecast appropriate gas limit
 			const yg_gas_forecast = yg_gas_used_sim.times(x_simulation_gas_multiplier).integerValue(BigNumber.ROUND_CEIL);
@@ -1095,7 +1099,7 @@
 		let a_amounts: Coin[] = [];
 
 		// start with the default gas price
-		let yg_price_suggest = BigNumber(g_chain.gasPrices.default);
+		let yg_price_suggest = BigNumber((g_chain_settings.x_default_gas_price ?? g_chain.gasPrices.default) as number);
 
 		// as amino doc
 		if(amino) {
@@ -1229,7 +1233,7 @@
 
 	{#each a_overviews as g_overview, i_overview}
 		{#if a_overviews.length > 1}
-			<Gap />
+			<Gap plain />
 			<h3>{i_overview+1}. {g_overview.title}</h3>
 		{:else}
 			<hr>
@@ -1263,7 +1267,7 @@
 	{/each}
 
 	{#if a_overviews.length > 1}
-		<Gap />
+		<Gap plain />
 	<!-- {:else}
 		<hr> -->
 	{/if}
