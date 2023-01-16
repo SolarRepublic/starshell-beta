@@ -1,10 +1,11 @@
+import type {onDestroy} from 'svelte';
 import type {Readable, Writable} from 'svelte/store';
 
 import type {F, L} from 'ts-toolbelt';
 
 import type {Arrayable, Dict, Promisable} from '#/meta/belt';
-import {fodemtv, ode, oderom, timeout} from '#/util/belt';
-import type { onDestroy } from 'svelte';
+
+import {fodemtv, ode} from '#/util/belt';
 
 type Subscriber<
 	w_value extends any=any,

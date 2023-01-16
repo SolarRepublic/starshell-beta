@@ -7,7 +7,7 @@
 	import AppBanner from '../frag/AppBanner.svelte';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	
-	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
+	import SX_ICON_ERROR from '#/icon/error.svg?raw';
 	
 
 	// flow complete callback
@@ -48,8 +48,8 @@
 <Screen>
 	<AppBanner app={G_APP_STARSHELL} on:close={() => close()}>
 		<span style="display:contents" slot="default">
-			<span class="global_svg-icon icon-diameter_12px" style="margin-right:0.2em;">
-				{@html SX_ICON_CHECK}
+			<span class="global_svg-icon icon-diameter_16px color_caution" style="margin-right:0.2em;">
+				{@html SX_ICON_ERROR}
 			</span>
 			<span>
 				Background Service Unresponsive

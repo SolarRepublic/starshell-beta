@@ -15,7 +15,7 @@
 	
 	import {Header, Screen, type Page} from './_screens';
 	import {syserr} from '../common';
-	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility} from '../mem';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility, yw_popup, yw_context_popup} from '../mem';
 	
 	import {request_feegrant} from '../svelte';
 	
@@ -49,6 +49,7 @@
 	import TokenRow from '../frag/TokenRow.svelte';
 	import Row from '../ui/Row.svelte';
     import { HttpResponseError } from '#/share/errors';
+    import PopupNotice from '../popup/PopupNotice.svelte';
 	
 	const G_RETRYING_TOKEN = {
 		name: 'Retrying...',
@@ -67,6 +68,7 @@
 		// token load states
 		h_token_states: Dict<{
 			loading: boolean;
+			retries: number;
 		}>;
 
 		// native balances
@@ -107,9 +109,15 @@
 	let h_balances: Dict<Promisable<BigNumber>> = {};
 
 	let h_token_balances: Dict<BalanceStruct> = {};
-	let h_token_errors: Dict<Error | {name?: string; message?: string}> = {};
+	let h_token_errors: Dict<Error | {
+		name?: string;
+		message?: string;
+	}> = {};
 
-	let h_token_states: Dict<{loading: boolean}> = {};
+	let h_token_states: Dict<{
+		loading: boolean;
+		retries: number;
+	}> = {};
 
 	// native balances
 	let a_balances: [string, CoinInfo, Coin][] = [];
@@ -748,7 +756,9 @@
 			h_token_errors = h_token_errors;
 		}
 
-		Object.assign(h_token_states[sa_token] = h_token_states[sa_token] || {}, {
+		Object.assign(h_token_states[sa_token] = h_token_states[sa_token] || {
+			retries: -1,
+		}, {
 			loading: true,
 		});
 
@@ -795,6 +805,7 @@
 			}
 		}
 		catch(e_load) {
+			h_token_states[sa_token].retries += 1;
 			h_token_errors[sa_token] = e_load;
 			h_token_errors = h_token_errors;
 		}
@@ -1221,10 +1232,31 @@
 								s_debug='vk'/>
 						<!-- unknown error -->
 						{:else}
+							{@const g_error = h_token_errors[sa_token]}
+							{@const g_state = h_token_states[sa_token] || {retries:0}}
+							{@const s_error_text = G_RETRYING_TOKEN === g_error || g_state.retries <= 1
+								? 'Error' === g_error.name? 'Retry': g_error.name || g_error.message || 'Retry'
+								: 'Inspect'}
 							<TokenRow contract={g_token}
-								error={(h_token_errors[sa_token].name || h_token_errors[sa_token].message || 'Error')+''}
+								error={s_error_text}
 								on:click_error={() => {
-									if(h_token_errors[sa_token] !== G_RETRYING_TOKEN) {
+									if(g_error !== G_RETRYING_TOKEN) {
+										// inspect
+										if(g_state.retries > 1) {
+											$yw_context_popup = {
+												title: 'Token Query Error',
+												infos: [
+													`Error querying token balance`,
+													...ode(g_error['metadata']?.headersMap || {})
+														.filter(([si_header]) => /^(grpc|proxied|x-cosmos)-/.test(si_header))
+														.map(([si_header, a_values]) => ` － ${si_header}: ${a_values.join(', ')}`),
+												],
+											};
+
+											$yw_popup = PopupNotice;
+										}
+
+										// retry
 										h_token_errors[sa_token] = G_RETRYING_TOKEN;
 										void load_token_balance(g_token);
 									}

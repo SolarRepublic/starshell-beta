@@ -120,7 +120,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/bnb(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/bnb.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -142,7 +142,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/busd(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/busd.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -186,7 +186,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/ada(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/ada.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -346,7 +346,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/eth(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/eth.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -496,7 +496,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/dot(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/dot.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -542,7 +542,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/scrt(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/scrt.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -564,7 +564,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'AD91060456344FC8D8E93C0600A3957B8158605C044B3BEF7048510B3157B807',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/dvpn.svg'],
+		pfp: H_LOOKUP_PFP['/media/token/dvpn.png'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [],
@@ -630,7 +630,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'F6BE719B3C6FEB498D3554CA0398EB6B7E7DB262ACB33F84A8F12106DA6BBB09',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/tkd-scrt.svg'],
+		pfp: H_LOOKUP_PFP['/media/token/stkd-scrt.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -652,7 +652,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: '91809B72CC6A7B4A62170698630B0B0848334F0403DBA1ABA7AEC94396AF7F95',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/escrt.svg'],
+		pfp: H_LOOKUP_PFP['/media/token/sescrt.png'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -721,7 +721,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/usdt(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/usdt.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [
@@ -815,7 +815,7 @@ export const F_CONTRACTS_SECRET_GEN = (H_LOOKUP_PFP: Dict<PfpTarget>): ContractS
 		hash: 'D0DB7128B8697419AD915C9FA2C2B2DA462634AB95CBB3CA187564A1275561CF',
 		on: 0,
 		origin: 'built-in',
-		pfp: H_LOOKUP_PFP['/media/token/usdc(bsc).svg'],
+		pfp: H_LOOKUP_PFP['/media/token/usdc.svg'],
 		chain: '/family.cosmos/chain.secret-4',
 		interfaces: {
 			excluded: [

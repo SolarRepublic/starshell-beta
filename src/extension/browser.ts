@@ -3,7 +3,7 @@ import type {BrowserAction} from 'webextension-polyfill';
 import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
 import type {Vocab} from '#/meta/vocab';
 
-// import {SessionStorage} from './session-storage';
+import {SessionStorage} from './session-storage';
 
 // import {Vault} from '#/crypto/vault';
 import type {PageInfo, Pwa} from '#/script/messages';
@@ -86,8 +86,6 @@ async function center_over_screen(): Promise<PositionConfig> {
 
 		(async(): Promise<ScreenInfo | undefined> => {
 			// create popup to determine screen dimensions
-			// const {SessionStorage} = await import('./session-storage');
-			const SessionStorage = {};
 			const g_info = await SessionStorage.get('display_info');
 			if(g_info) return g_info;
 
@@ -257,8 +255,7 @@ export async function open_window(p_url: string, gc_open?: OpenWindowConfig): Pr
 
 		// sign URL
 		const p_presigned = f_url({});
-		// const {Vault} = await import('#/crypto/Vault');
-		const Vault = {};
+		const {Vault} = await import('#/crypto/vault');
 		const atu8_signature = await Vault.symmetricSign(text_to_buffer(p_presigned));
 
 		// append to hash params

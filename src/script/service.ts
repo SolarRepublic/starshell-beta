@@ -556,21 +556,9 @@ const message_router: MessageHandler = (g_msg, g_sender, fk_respond) => {
 					}
 					// catch errors
 					catch(z_error) {
-						debugger;
-
-						// TODO: respond?
 						fk_respond({
-							error: z_error.stack,
+							error: z_error.message,
 						});
-
-						// if(z_error instanceof Error) {
-
-						// }
-						// else {
-						// 	fk_respond({
-						// 		error: z_error,
-						// 	});
-						// }
 
 						// do not respond twice
 						return;

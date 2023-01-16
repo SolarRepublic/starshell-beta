@@ -17,8 +17,8 @@ interface ConsolidatorConfig {
  * Consolidator is a generic tool for batching asychronous operations
  */
 export class Consolidator<w_return extends any=any> {
-	protected readonly _xt_delay: number = 50;
-	protected readonly _xt_max: number = 200;
+	protected _xt_delay = 50;
+	protected _xt_max = 200;
 
 	protected _xt_checkpoint = 0;
 
@@ -65,11 +65,15 @@ export class Consolidator<w_return extends any=any> {
 	queue(s_value: string): Promise<w_return> {
 		// go async
 		return new Promise((fk_resolve, fe_reject) => {
+			// get prev checkpoint and then update
+			const xt_checkpoint = this._xt_checkpoint;
+			this._xt_checkpoint = Date.now();
+
 			// add item to queue
 			(this._h_queue[s_value] = this._h_queue[s_value] || []).push([fk_resolve, fe_reject]);
 
 			// exceeded maximum time for consolidation
-			if(this._i_accumulator && Date.now() - this._xt_checkpoint > this._xt_max) {
+			if(this._i_accumulator && Date.now() - xt_checkpoint > this._xt_max) {
 				// execute immediately
 				this._execute();
 

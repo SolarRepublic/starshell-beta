@@ -3,7 +3,7 @@ import type {SignedDoc} from './signing';
 import type {AminoMsg} from '@cosmjs/amino';
 import type {QueryBalanceResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/query';
 import type {StringEvent, TxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
-import type {GetLatestBlockResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
+import type {GetLatestBlockResponse, GetNodeInfoResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 
 import type {Grant} from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/feegrant';
@@ -46,6 +46,7 @@ import type {ProviderStruct} from '#/meta/provider';
 
 import type {AdaptedStdSignDoc, GenericAminoMessage} from '#/schema/amino';
 
+import {QueryClientImpl as AppQueryClient} from '@solar-republic/cosmos-grpc/dist/cosmos/app/v1alpha1/query';
 import {BaseAccount} from '@solar-republic/cosmos-grpc/dist/cosmos/auth/v1beta1/auth';
 import {QueryClientImpl as AuthQueryClient} from '@solar-republic/cosmos-grpc/dist/cosmos/auth/v1beta1/query';
 import {
@@ -54,6 +55,7 @@ import {
 } from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/query';
 
 import {ServiceClientImpl as TendermintServiceClient} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
+import {ServiceClientImpl as NodeServiceClient} from '@solar-republic/cosmos-grpc/dist/cosmos/base/node/v1beta1/query';
 import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 import {BasicAllowance, PeriodicAllowance} from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/feegrant';
 import {
@@ -1442,5 +1444,9 @@ export class CosmosNetwork {
 		}));
 
 		return g_simulated;
+	}
+
+	nodeInfo(): Promise<GetNodeInfoResponse> {
+		return new TendermintServiceClient(this._y_grpc).getNodeInfo({});
 	}
 }

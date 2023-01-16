@@ -305,7 +305,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 
 	reloadAppTab: g_value => completed_render(ReloadPage, g_value),
 
-	restartService: () => completed_render(RestartService),
+	restartService: g_value => completed_render(RestartService, g_value),
 
 	monitorTx: g_value => completed_render(MonitorTx, g_value),
 

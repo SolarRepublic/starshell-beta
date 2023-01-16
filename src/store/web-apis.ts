@@ -239,7 +239,7 @@ export const CoinGecko = {
 };
 
 
-interface ContractStats {
+export interface ContractStats {
 	accounts_count: number;
 	address: Bech32;
 	chain_id: number;

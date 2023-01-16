@@ -141,7 +141,7 @@
 	}
 </style>
 
-<span class="address" class:copyable={b_copyable} on:click={b_copyable? () => copy(): void 0}>
+<span class="address" class:copyable={b_copyable} on:click|stopPropagation={b_copyable? () => copy(): void 0}>
 	{#if prefix}
 		<span class="prefix">
 			{prefix}

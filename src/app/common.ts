@@ -15,7 +15,7 @@ export interface WarnReport {
 
 
 // running log of reported errors
-const a_errors: ErrorReport[] = [];
+const a_errors: string[] = [];
 
 // error listener
 type ErrorCallback = (g_report: ErrorReport) => Promisable<void>;
@@ -52,14 +52,19 @@ export function syserr(z_error: Error | ErrorReport): Error {
 		};
 	}
 
+	// error identity based on what is shown to user
+	const si_error = JSON.stringify({
+		title: g_error.title,
+		text: g_error.text,
+	});
+
 	// prevent redundant errors
-	const si_error = JSON.stringify(g_error);
-	if(!a_errors.find(g => si_error === JSON.stringify(g))) {
-		a_errors.push(g_error);
+	if(!a_errors.includes(si_error)) {
+		a_errors.push(si_error);
 
 		// automatically expire
 		setTimeout(() => {
-			const i_error = a_errors.indexOf(g_error);
+			const i_error = a_errors.indexOf(si_error);
 			if(i_error >= 0) a_errors.splice(i_error, 1);
 		}, 2e3);
 
