@@ -14,7 +14,7 @@ import type {Nullable} from 'ts-toolbelt/out/Object/Nullable';
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {AppStruct, AppPath} from '#/meta/app';
 import type {JsonValue, PlainObject} from '#/meta/belt';
-import type {ChainStruct, ChainPath} from '#/meta/chain';
+import type {ChainStruct, ChainPath, Bech32} from '#/meta/chain';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import type {Vocab} from '#/meta/vocab';
 
@@ -28,7 +28,7 @@ import ReloadPage from '#/app/screen/ReloadPage.svelte';
 import RequestConnection_AccountsSvelte from '#/app/screen/RequestConnection_Accounts.svelte';
 import RequestExposure from '#/app/screen/RequestExposure.svelte';
 import RequestKeplrDecisionSvelte from '#/app/screen/RequestKeplrDecision.svelte';
-import type {CompletedSignature} from '#/app/screen/RequestSignature.svelte';
+import type {CompletedProtoSignature, CompletedSignature} from '#/app/screen/RequestSignature.svelte';
 
 import RequestSignatureSvelte from '#/app/screen/RequestSignature.svelte';
 import ScanQrSvelte from '#/app/screen/ScanQr.svelte';
@@ -51,6 +51,8 @@ import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
 import { Snip2xMessageConstructor } from '#/schema/snip-2x-const';
 import RequestTokenAdd from '#/app/screen/RequestTokenAdd.svelte';
 import RestartService from '#/app/screen/RestartService.svelte';
+import { ProtoData, proto_to_amino } from '#/chain/cosmos-msgs';
+import { global_receive } from '#/script/msg-global';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -365,10 +367,49 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 	}),
 
 	async addSnip20s(g_value, g_context) {
-		return await completed_render(RequestTokenAdd, g_value, {
+		// wait for user to add tokens
+		const g_completion = await completed_render(RequestTokenAdd, g_value, {
 			app: g_context.app,
 			chain: g_context.chain,
 			accountPath: g_value.accountPath,
+		});
+
+		// user rejected
+		if(!g_completion.answer) return g_completion;
+
+		// user accepted adding certain tokens
+		const g_data = g_completion.data as unknown as CompletedProtoSignature;
+
+		const g_body = TxBody.decode(g_data.proto.doc.bodyBytes);
+
+		const a_msgs = g_body.messages;
+
+		const a_aminos = a_msgs.map(g => proto_to_amino(g, g_context.chain?.bech32s.acc || ''));
+
+		const a_awaiting = a_aminos.map(g => g.value.contract) as Bech32[];
+		const a_confirmed: Bech32[] = [];
+
+		return new Promise((fk_resolve, fe_reject) => {
+			// listen for token added events
+			global_receive({
+				tokenAdded(g_added) {
+					const sa_contract = g_added.sa_contract;
+					console.log(`token added: ${sa_contract}`);
+
+					const i_awaiting = a_awaiting.indexOf(sa_contract);
+					if(i_awaiting >= 0) {
+						a_awaiting.splice(i_awaiting, 1);
+						a_confirmed.push(sa_contract);
+
+						console.log(`token was in pending. ${a_confirmed.length} confirmed, ${a_awaiting.length} remain`);
+
+						// respond to pending request
+						if(!a_awaiting.length) {
+							fk_resolve(g_completion);
+						}
+					}
+				},
+			});
 		});
 	},
 

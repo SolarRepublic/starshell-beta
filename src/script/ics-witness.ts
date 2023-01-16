@@ -149,6 +149,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			throw g_response.error;  // eslint-disable-line @typescript-eslint/no-throw-literal
 		}
 		else {
+			debugger;
 			return fold(a_tokens, (sa_token) => {
 				const w_each = g_response.ok![sa_token];
 				if(w_each.error) {
@@ -808,7 +809,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			// check that chain exists
 			const p_chain = Chains.pathFor('cosmos', si_chain);
 			const g_chain = await Chains.at(p_chain);
-			if(!g_chain) throw `Refusing token suggestion for unknown chain "${si_chain}"`;
+			if(!g_chain) throw `Refusing to sendTx for unknown chain "${si_chain}"`;
 
 			// decode the proto
 			if('string' !== typeof sx_tx) throw `Invalid type supplied for tx argument`;
@@ -849,7 +850,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			const g_contract = await Contracts.at(p_contract);
 			if(g_contract) {
 				// account has token in assets dict
-				if(k_connection.account.assets[p_chain]?.data[sa_contract]) {
+				if(k_connection.account.assets[p_chain]?.data?.[sa_contract]) {
 					return G_RETURN_VOID;
 				}
 			}

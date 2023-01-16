@@ -152,7 +152,7 @@
 
 		// secretwasm
 		if(g_chain?.features.secretwasm) {
-			const a_msgs_proto = Object.values(h_msgs);
+			const a_msgs_proto = a_adding.map(sa => h_msgs[sa]);
 
 			f_request_signature = () => {
 				k_page.push({
@@ -163,6 +163,7 @@
 							// TODO: support non-secretwasm chains
 							limit: BigInt(g_chain.features.secretwasm!.snip20GasLimits.set_viewing_key) * BigInt(a_msgs_proto.length),
 						},
+						local: true,
 						broadcast: true,
 					},
 				});
@@ -178,6 +179,10 @@
 		completed(false);
 	}
 
+	function accept() {
+		f_request_signature?.();
+	}
+
 	let b_tooltip_showing = false;
 
 	const h_checked: Record<Bech32, boolean> = fold(bech32s, sa_contract => ({
@@ -190,7 +195,7 @@
 		rebuild();
 	}
 
-	$: s_token_plurality = 1 === bech32s.length? '': 's';
+	$: s_token_plurality = 1 === a_adding.length? '': 's';
 </script>
 
 <style lang="less">
@@ -364,7 +369,7 @@
 	{/await}
 
 
-	<ActionsLine deny cancel={reject} confirm={['Accept', F_NOOP, !f_request_signature]} disabled={b_disabled} />
+	<ActionsLine deny cancel={reject} confirm={['Accept', accept, !f_request_signature]} disabled={b_disabled} />
 
 	<Curtain on:click={() => b_tooltip_showing = false} />
 </Screen>

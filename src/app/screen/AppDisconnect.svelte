@@ -1,34 +1,32 @@
 <script lang="ts">
-	import type {AppStruct} from '#/meta/app';	
+	import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
+	
+	import type {AppStruct} from '#/meta/app';
 	import type {SecretStruct} from '#/meta/secret';
 	
-	import {onDestroy} from 'svelte';
+	import {Snip2xMessageConstructor} from '#/schema/snip-2x-const';
 	
 	import {Screen} from './_screens';
+	import {syserr} from '../common';
 	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_network, yw_owner} from '../mem';
-	import {derived, reloadable} from '../mem-store';
+	import {reloadable} from '../mem-store';
 	import {load_page_context} from '../svelte';
 	
+	import {produce_contract} from '#/chain/contract';
+	import type {SecretNetwork} from '#/chain/secret-network';
 	import {Apps, G_APP_STARSHELL} from '#/store/apps';
+	import {Contracts} from '#/store/contracts';
 	import {Secrets} from '#/store/secrets';
 	
+	import {ode} from '#/util/belt';
+	import {buffer_to_text} from '#/util/data';
+	
+	import RequestSignature from './RequestSignature.svelte';
 	import ChainAccount from '../frag/ChainAccount.svelte';
 	import ActionsWall from '../ui/ActionsWall.svelte';
-	import CheckboxField from '../ui/CheckboxField.svelte';
 	import Header from '../ui/Header.svelte';
 	import Row from '../ui/Row.svelte';
-    import type { ProtoMsg } from '#/chain/cosmos-msgs';
-    import { Snip2xMessageConstructor } from '#/schema/snip-2x-const';
-    import { ode } from '#/util/belt';
-    import { Contracts } from '#/store/contracts';
-    import { syserr } from '../common';
-    import type { Any } from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
-    import type { SecretNetwork } from '#/chain/secret-network';
-    import { produce_contract, produce_contracts } from '#/chain/contract';
-    import type { Bech32, ChainStruct } from '#/meta/chain';
-    import { Chains } from '#/store/chains';
-    import { buffer_to_text } from '#/util/data';
-    import RequestSignature from './RequestSignature.svelte';
+	
 
 
 	/**
@@ -52,7 +50,7 @@
 
 	$: b_pending_revoke = nl_keys_local+nl_permits_local > 0;
 
-	let b_all_chains = false;
+	const b_all_chains = false;
 
 	let b_loading = false;
 
@@ -89,8 +87,29 @@
 		b_loading = false;
 	}
 
-	function disconnect_app() {
+	async function disconnect_app() {
+		// freeze ui
+		b_pending_revoke = true;
 
+		// lock chain ref
+		const p_chain = $yw_chain_ref;
+
+		// begin transactional update
+		await Apps.update(p_app, (g_latest) => {
+			// ref latest connections
+			const h_connections = g_latest.connections;
+
+			// delete connections for this chain
+			delete h_connections[p_chain];
+
+			// return updated struct
+			return {
+				connections: h_connections,
+			};
+		});
+
+		// done
+		b_pending_revoke = false;
 	}
 
 	async function revoke_tokens() {
@@ -243,21 +262,12 @@
 				</p>
 			{/if}
 		{/if}
-<!-- 
-		{#if Object.keys(g_app.connections).length > 1}
-			<CheckboxField id="all-chains" bind:checked={b_all_chains}>
-				Disconnect on all chains
-			</CheckboxField>
-		{/if} -->
 
 		<ActionsWall>
-			{#if b_all_chains}
-			{:else}
-				{#if b_pending_revoke}
-					<button class="primary" disabled={!$yw_network} on:click={() => revoke_tokens()}>
-						Revoke Token Access
-					</button>
-				{/if}
+			{#if b_pending_revoke}
+				<button class="primary" disabled={!$yw_network} on:click={() => revoke_tokens()}>
+					Revoke Token Access
+				</button>
 			{/if}
 
 			<button class="cautionary"
