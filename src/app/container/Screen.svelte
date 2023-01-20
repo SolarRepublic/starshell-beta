@@ -236,18 +236,21 @@
 			align-items: stretch;
 			gap: var(--gap, var(--ui-padding));
 
-			>:first-child:not(.no-margin) {
-				:global(&) {
-					margin-top: var(--ui-padding);
-				}
+			:global(:where(&)>:first-child:not(.no-margin)) {
+				margin-top: var(--ui-padding);
 			}
+			// >:first-child:not(.no-margin) {
+			// 	:global(:where(&)) {
+			// 		margin-top: var(--ui-padding);
+			// 	}
+			// }
 
 			&>* {
-				:global(&:not(.no-flex)) {
+				:global(:where(&:not(.no-flex))) {
 					flex: 0;
 				}
 
-				:global(&:not(.no-margin)) {
+				:global(:where(&:not(.no-margin))) {
 					margin: 0 var(--ui-padding);
 				}
 			}

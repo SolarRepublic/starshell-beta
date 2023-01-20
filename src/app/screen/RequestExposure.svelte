@@ -48,7 +48,7 @@
 	const nl_tokens = bech32s.length;
 	const b_plural = 1 !== nl_tokens;
 	
-	$: s_title = 'Expose Viewing Key';
+	$: s_title = `Expose ${nl_tokens} Viewing Key${b_plural? 's': ''}?`;
 
 	let b_loaded = false;
 	const b_allowing = false;
@@ -181,7 +181,7 @@
 
 <Screen>
 	{#await dp_account}
-		<AppBanner app={g_app} chain={g_chain} on:close={() => cancel()}>
+		<AppBanner app={g_app} chains={[g_chain]} on:close={() => cancel()}>
 			<span slot="default" style="display:contents;">
 				{s_title}
 			</span>
@@ -190,7 +190,7 @@
 			</span>
 		</AppBanner>
 	{:then g_account}
-		<AppBanner app={g_app} chain={g_chain} account={g_account} on:close={() => cancel()}>
+		<AppBanner app={g_app} chains={[g_chain]} account={g_account} on:close={() => cancel()}>
 			<span slot="default" style="display:contents;">
 				<!-- let the title appear with the tooltip -->
 				<span style="position:relative; z-index:16;">
@@ -206,7 +206,7 @@
 		</AppBanner>
 	{/await}
 
-	<hr>
+	<hr class="no-margin">
 
 	<p>
 		Do you want to allow this app to see your balance and transaction history for the following {b_plural? 'tokens': 'token'}?

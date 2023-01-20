@@ -3,7 +3,7 @@
 	import type {Bech32} from '#/meta/chain';
 	import type {ParametricSvelteConstructor} from '#/meta/svelte';
 	
-	import {yw_account, yw_chain, yw_network, yw_owner} from '../mem';
+	import {yw_account, yw_chain, yw_network, yw_owner, yw_shift_key} from '../mem';
 	import {Screen, Header} from '../screen/_screens';
 	
 	import {request_feegrant} from '../svelte';
@@ -106,6 +106,18 @@
 						<Row {...g_grant} noHorizontalPad />
 					{/each}
 				</div>
+
+				{#if $yw_shift_key}
+					<center>
+						<button class="pill" disabled={b_requesting_feegrant} on:click={do_request_feegrant}>
+							{#if b_requesting_feegrant}
+								Requesting...
+							{:else}
+								Request fee allowance
+							{/if}
+						</button>
+					</center>
+				{/if}
 			{:else}
 				<p>
 					No allowances currently granted to {$yw_account.name}.

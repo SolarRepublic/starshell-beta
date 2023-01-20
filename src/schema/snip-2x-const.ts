@@ -778,7 +778,10 @@ export class Snip2xToken {
 			});
 
 			// destructure transfer history response
-			const g_history = g_response.transfer_history;
+			const g_history = g_response.transfer_history || {
+				total: 0,
+				txs: [],
+			};
 
 			// update total
 			nl_total = g_history.total;
@@ -877,7 +880,10 @@ export class Snip2xToken {
 			});
 
 			// destructure transaction history response
-			const g_history = g_response.transaction_history;
+			const g_history = g_response.transaction_history || {
+				total: 0,
+				txs: [],
+			};
 
 			// update total
 			nl_total = g_history.total;

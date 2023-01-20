@@ -5,7 +5,7 @@ import type {F, L} from 'ts-toolbelt';
 
 import type {Arrayable, Dict, Promisable} from '#/meta/belt';
 
-import {fodemtv, ode} from '#/util/belt';
+import {fodemtv, ode, remove} from '#/util/belt';
 
 type Subscriber<
 	w_value extends any=any,
@@ -39,13 +39,13 @@ class Subscribable<
 		}
 
 		return () => {
-			this._a_subscribers.splice(this._a_subscribers.indexOf(f_subscription), 1);
+			remove(this._a_subscribers, f_subscription);
 		};
 	}
 
 	once(f_callback: Subscriber<w_value>): void {
 		const f_wrapper = () => {
-			this._a_subscribers.splice(this._a_subscribers.indexOf(f_wrapper), 1);
+			remove(this._a_subscribers, f_wrapper);
 
 			// invoke once value updates
 			void f_callback(this._w_value);
@@ -54,10 +54,10 @@ class Subscribable<
 		this._a_subscribers.push(f_wrapper);
 	}
 
-	nextUpdate(): Promise<void> {
+	nextUpdate(): Promise<w_value> {
 		return new Promise((fk_resolve) => {
 			this.once(() => {
-				fk_resolve();
+				fk_resolve(this._w_value);
 			});
 		});
 	}

@@ -20,6 +20,7 @@
 	import {
 		ode,
 		oderom,
+        remove,
 	} from '#/util/belt';
 	
 	import {H_THREADS, ThreadId} from '##/def';
@@ -166,8 +167,7 @@
 					await tick();
 
 					// record switch
-					const i_existing = a_switches.indexOf(kt_dst.id);
-					if(i_existing >= 0) a_switches.splice(i_existing, 1);
+					remove(a_switches, kt_dst.id);
 					a_switches.push(kt_dst.id);
 
 					// query container for last element child

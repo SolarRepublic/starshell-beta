@@ -105,9 +105,10 @@
 							</button>
 						</svelte:fragment>
 
-						<svelte:fragment slot="tags">
+						<!-- TODO: enable tags -->
+						<!-- <svelte:fragment slot="tags">
 							<InlineTags subtle resourcePath={p_app} />
-						</svelte:fragment>
+						</svelte:fragment> -->
 					</Row>
 				{/each}
 

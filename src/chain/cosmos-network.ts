@@ -91,7 +91,7 @@ import {grpc} from '@solar-republic/grpc-web';
 import BigNumber from 'bignumber.js';
 
 import {amino_to_base, encode_proto} from './cosmos-msgs';
-import {signDirectDoc} from './signing';
+import {sign_direct_doc} from './signing';
 
 import {syserr} from '#/app/common';
 
@@ -816,7 +816,7 @@ export class CosmosNetwork {
 		});
 
 		// produce signed doc bytes
-		const {signature:atu8_signature} = await signDirectDoc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
+		const {signature:atu8_signature} = await sign_direct_doc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
 
 		return this.broadcastDirect({
 			body: atu8_body,
@@ -1414,7 +1414,7 @@ export class CosmosNetwork {
 		} = await this.authInfoDirect(g_account, g_fee);
 
 		// produce signed doc bytes
-		return await signDirectDoc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
+		return await sign_direct_doc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
 	}
 
 
@@ -1430,7 +1430,7 @@ export class CosmosNetwork {
 
 		const {
 			signature: atu8_signature,
-		} = await signDirectDoc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
+		} = await sign_direct_doc(g_account, g_signer.accountNumber, atu8_auth, atu8_body, g_chain.reference);
 
 
 		const atu8_tx = encode_proto(TxRaw, {

@@ -31,7 +31,12 @@
 
 
 	let b_copy_confirm = false;
-	async function copy() {
+	async function copy(d_event?: MouseEvent) {
+		// stop click propagation
+		if(d_event instanceof MouseEvent) {
+			d_event.stopPropagation();
+		}
+
 		// attempt to perform copy
 		try {
 			await navigator.clipboard.writeText(address);
@@ -141,7 +146,7 @@
 	}
 </style>
 
-<span class="address" class:copyable={b_copyable} on:click|stopPropagation={b_copyable? () => copy(): void 0}>
+<span class="address" class:copyable={b_copyable} on:click={b_copyable? copy: void 0}>
 	{#if prefix}
 		<span class="prefix">
 			{prefix}

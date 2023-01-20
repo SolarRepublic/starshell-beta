@@ -216,8 +216,8 @@ export class ServiceClient {
 						// channel is awaiting response; purpose not fulfilled, don't delete channel yet
 						if(FrameType.REQUEST === g_channel.xc_type) b_persist = true;
 
-						// route ACK
-						g_channel.ack!();
+						// execute ACK if defined
+						g_channel.ack?.();
 					}
 					// type calls for response
 					else if(FrameType.RESPONSE === xc_type) {

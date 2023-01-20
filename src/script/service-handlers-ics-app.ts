@@ -15,9 +15,9 @@ import {page_info_from_sender, position_widow_over_tab} from './service-apps';
 
 import {produce_contracts} from '#/chain/contract';
 import {save_query_permit} from '#/chain/query-permit';
-import type {SecretNetwork} from '#/chain/secret-network';
+import {SecretNetwork} from '#/chain/secret-network';
 
-import type {SecretWasm} from '#/crypto/secret-wasm';
+import {SecretWasm} from '#/crypto/secret-wasm';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
@@ -25,7 +25,9 @@ import {Contracts} from '#/store/contracts';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {is_dict, ode, oderom} from '#/util/belt';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json, uuid_v4} from '#/util/data';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json, text_to_buffer, uuid_v4} from '#/util/data';
+import type { WasmTx } from '#/schema/wasm';
+import type { Cw } from '#/meta/cosm-wasm';
 
 
 interface Resolved {
@@ -263,35 +265,7 @@ const H_AMINO_SANITIZERS = {
 				a_tokens
 			);
 
-			// install contracts
-			for(const g_contract of await produce_contracts(a_tokens, g_chain, g_resolved.app)) {
-				let g_contract_existing!: ContractStruct;
-				try {
-					await Contracts.at(Contracts.pathFrom(g_contract));
-				}
-				catch(e_load) {}
-
-				if(!g_contract_existing) {
-					await Contracts.merge(g_contract);
-				}
-				else {
-					const h_interfaces_existing = g_contract_existing.interfaces;
-
-					await Contracts.merge({
-						...g_contract,
-						pfp: g_contract_existing.pfp || g_contract.pfp,
-						hash: g_contract_existing.hash || g_contract.hash,
-						on: g_contract_existing.on || 1,
-						origin: g_contract_existing.origin || g_contract.origin,
-						interfaces: {
-							...h_interfaces_existing,
-							...oderom(g_contract.interfaces, (si_interface, g_interface) => ({
-								[si_interface]: h_interfaces_existing[si_interface] || g_interface,
-							})),
-						},
-					});
-				}
-			}
+			await install_contracts(a_tokens, g_chain, g_resolved.app);
 		}
 
 		// return signed response
@@ -300,6 +274,46 @@ const H_AMINO_SANITIZERS = {
 };
 
 
+async function install_contracts(a_bech32s: Bech32[], g_chain: ChainStruct, g_app: undefined|AppStruct) {
+	// install contracts
+	for(const g_contract of await produce_contracts(a_bech32s, g_chain, g_app)) {
+		// resolve expected contract path
+		const p_contract = Contracts.pathFrom(g_contract);
+
+		// attempt to load existing contract
+		let g_contract_existing!: null|ContractStruct;
+		try {
+			g_contract_existing = await Contracts.at(p_contract);
+		}
+		catch(e_load) {}
+
+		// contract does not exist in store; insert it as new entry
+		if(!g_contract_existing) {
+			await Contracts.merge(g_contract);
+		}
+		// contract already exists
+		else {
+			const h_interfaces_existing = g_contract_existing.interfaces;
+
+			// TODO: allow for update mechanism
+
+			// only fill certain metadata if it is not yet populated
+			await Contracts.merge({
+				...g_contract,
+				pfp: g_contract_existing.pfp || g_contract.pfp,
+				hash: g_contract_existing.hash || g_contract.hash,
+				on: g_contract_existing.on || 1,
+				origin: g_contract_existing.origin || g_contract.origin,
+				interfaces: {
+					...h_interfaces_existing,
+					...oderom(g_contract.interfaces, (si_interface, g_interface) => ({
+						[si_interface]: h_interfaces_existing[si_interface] || g_interface,
+					})),
+				},
+			});
+		}
+	}
+}
 
 function sanitize_amino(
 	g_request: AminoRequest,
@@ -337,6 +351,26 @@ function sanitize_amino(
 }
 
 /**
+ * Instantiates SecretWasm for EnigmaUtils requests coming from Keplr
+ */
+async function load_secret_wasm(g_request: {chainPath: ChainPath; accountPath: AccountPath}): Promise<SecretWasm> {
+	const g_chain = await Chains.at(g_request.chainPath);
+
+	// TODO: for some strange reason, keplr does this for non-secret chains
+	if(!g_chain?.features.secretwasm) {
+		throw new Error(`Request rejected`);
+	}
+
+	const g_account = await Accounts.at(g_request.accountPath);
+
+	// activate network
+	const k_network = await Providers.activateStableDefaultFor<SecretNetwork>(g_chain);
+
+	// create secretwasm
+	return await k_network.secretWasm(g_account!);
+}
+
+/**
  * message handlers for the public vocab from ICS
  */
 export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any, [Resolved], true> = {
@@ -371,6 +405,7 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 							props: {
 								preset: si_preset,
 								amino: g_doc,
+								keplrSignOptions: g_request.keplrSignOptions,
 							},
 							appPath: g_resolved.appPath,
 							chainPath: p_chain,
@@ -423,7 +458,10 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 			bech32s: a_bech32s,
 		} = g_request;
 
-		const {answer:b_approved} = await open_flow({
+		const {
+			answer: b_approved,
+			data: h_data,
+		} = await open_flow({
 			flow: {
 				type: 'addSnip20s',
 				value: {
@@ -437,8 +475,9 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 			open: await position_widow_over_tab(g_sender.tab!.id!),
 		});
 
+		debugger;
 		if(b_approved) {
-			return void 0;
+			return h_data;
 		}
 		else {
 			throw new Error('Request rejected');
@@ -468,12 +507,18 @@ export const H_HANDLERS_ICS_APP: Vocab.HandlersChrome<IcsToService.AppVocab, any
 		}
 	},
 
-	async requestSecretPubKey(g_request, g_resolved, g_sender) {
-		throw new Error('Request rejected');
+	async requestSecretPubkey(g_request, g_resolved, g_sender): Promise<string> {
+		const k_secretwasm = await load_secret_wasm(g_request);
+
+		return buffer_to_base93(k_secretwasm.pubkey);
 	},
 
 	async requestSecretEncryptionKey(g_request, g_resolved, g_sender) {
-		throw new Error('Request rejected');
+		const k_secretwasm = await load_secret_wasm(g_request);
+
+		const atu8_encryption_key = await k_secretwasm.encryptionKey(text_to_buffer(g_request.nonce));
+
+		return buffer_to_base93(atu8_encryption_key);
 	},
 
 	async requestEncrypt(g_encrypt, g_resolved, g_sender) {

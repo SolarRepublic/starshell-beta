@@ -323,41 +323,42 @@
 
 	// whenever the fiats dict is updated, begin awaiting for all to resolve
 	$: if(h_fiats) {
-		const p_account = $yw_account_ref;
-		const g_account = $yw_account;
-		const p_chain = $yw_chain_ref;
+		void navigator.locks.request('ui:holdings:total-balance', () => timeout_exec(30e3, async() => {
+			let p_account = $yw_account_ref;
+			let g_account = $yw_account;
+			let p_chain = $yw_chain_ref;
 
-		if(p_account !== Accounts.pathFrom(g_account)) {
-			debugger;
-		}
-		else {
-			void navigator.locks.request('ui:holdings:total-balance', () => timeout_exec(30e3, async() => {
-				// resolve all fiat promises
-				const a_fiats = await Promise.all(ode(h_fiats).map(([, dp_fiat]) => dp_fiat));
+			// account change
+			if(p_account !== Accounts.pathFrom(g_account)) {
+				g_account = await yw_account.nextUpdate();
+				p_account = Accounts.pathFrom(g_account);
+			}
 
-				// no fiats yet; wait for some to populate
-				if(!a_fiats.length) return;
+			// resolve all fiat promises
+			const a_fiats = await Promise.all(ode(h_fiats).map(([, dp_fiat]) => dp_fiat));
 
-				// reduce to sum
-				const yg_total = a_fiats.reduce((yg_sum, yg_balance) => yg_sum.plus(yg_balance), BigNumber(0));
+			// no fiats yet; wait for some to populate
+			if(!a_fiats.length) return;
 
-				// format to string and resolve
-				const s_total = dp_total = format_fiat(yg_total.toNumber(), 'usd');
+			// reduce to sum
+			const yg_total = a_fiats.reduce((yg_sum, yg_balance) => yg_sum.plus(yg_balance), BigNumber(0));
 
-				// save to cache if different
-				if(s_total !== g_account.assets[p_chain]?.totalFiatCache) {
-					void Accounts.update(p_account, _g_account => ({
-						assets: {
-							..._g_account.assets,
-							[p_chain]: {
-								..._g_account.assets[p_chain],
-								totalFiatCache: dp_total,
-							},
+			// format to string and resolve
+			const s_total = dp_total = format_fiat(yg_total.toNumber(), 'usd');
+
+			// save to cache if different
+			if(s_total !== g_account.assets[p_chain]?.totalFiatCache) {
+				void Accounts.update(p_account, _g_account => ({
+					assets: {
+						..._g_account.assets,
+						[p_chain]: {
+							..._g_account.assets[p_chain],
+							totalFiatCache: dp_total,
 						},
-					}));
-				}
-			}));
-		}
+					},
+				}));
+			}
+		}));
 	}
 
 	let c_updates = 0;
@@ -1167,6 +1168,7 @@
 					<!-- cache holding path -->
 					{@const p_entity = Entities.holdingPathFor(sa_owner, si_coin)}
 					<Row lockIcon detail='Native Coin' postnameTags
+						resource={$yw_chain}
 						resourcePath={p_entity}
 						name={si_coin}
 						pfp={$yw_chain.pfp}
@@ -1188,6 +1190,7 @@
 					<!-- cache holding path -->
 					{@const p_entity = Entities.holdingPathFor(sa_owner, si_coin)}
 					<Row lockIcon detail='Native Coin' postnameTags
+						resource={$yw_chain}
 						resourcePath={p_entity}
 						name={si_coin}
 						pfp={$yw_chain.pfp}

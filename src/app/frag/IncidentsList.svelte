@@ -17,6 +17,7 @@
 		amount?: string;
 		fiat?: string;
 		pfp?: PfpTarget;
+		filter?: ''|'testnet';
 		pending?: boolean;
 		rootClasses?: string;
 		childClasses?: string;
@@ -197,6 +198,7 @@
 					subtitle: format_time_ago(xt_when)+` / ${a_msgs_amino.length} Messages`,
 					name: g_chain.name,
 					pfp: g_chain.pfp,
+					filter: g_chain.testnet? 'testnet': '',
 					// TODO: merge pfps?
 				};
 			}
@@ -222,6 +224,7 @@
 							subtitle: format_time_ago(xt_when)+s_infos,
 							name: g_reviewed.resource.name,
 							pfp: g_reviewed.resource.pfp || '',
+							filter: g_reviewed.resource['testnet']? 'testnet': '',
 						};
 					}
 				}
@@ -335,6 +338,7 @@
 					subtitle: s_infos,
 					name: g_reviewed.resource.name,
 					pfp: g_reviewed.resource.pfp || '',
+					filter: g_reviewed.resource['testnet']? 'testnet': '',
 				});
 			}
 			// multiple messages affect user
@@ -617,7 +621,11 @@
 
 					<svelte:fragment slot="right">
 						{#if 'string' === typeof g_detail.pfp}
-							<PfpDisplay dim={36} name={g_detail.name} path={g_detail.pfp} circular={'pending' === g_incident.data['stage']}
+							<PfpDisplay dim={36}
+								filter={g_detail.filter || ''}
+								name={g_detail.name}
+								path={g_detail.pfp}
+								circular={'pending' === g_incident.data['stage']}
 								rootStyle='margin-left: 1em;'
 							/>
 						{/if}

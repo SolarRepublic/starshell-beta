@@ -190,7 +190,9 @@
 			{...g_fields}
 			on:click={click_row}
 		>
-			<slot name="right" />
+			<svelte:fragment slot="right">
+				<slot name="right" />
+			</svelte:fragment>
 		</Row>
 	{/if}
 </div>

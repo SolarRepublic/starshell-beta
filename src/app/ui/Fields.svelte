@@ -15,7 +15,7 @@
 	
 	import {svelte_to_dom} from '../svelte';
 	
-	import {produce_contract} from '#/chain/contract';
+	import {produce_contract, produce_contracts} from '#/chain/contract';
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import {decrypt_private_memo} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
@@ -62,6 +62,8 @@
 	export let chain: ChainStruct | null = null;
 	export let network: CosmosNetwork | null = null;
 	export let loaded: Promise<any> | null = null;
+
+	export let g_app: null|AppStruct = null;
 
 	const b_password_revealed = false;
 
@@ -179,13 +181,14 @@
 		};
 	}
 
-	async function render_resource(g_resource: Nameable & Pfpable, si_class: string): Promise<HTMLDivElement> {
+	async function render_resource(g_resource: Nameable & Pfpable, si_class: string, p_resource=''): Promise<HTMLDivElement> {
 		return dd('div', {
 			class: `resource ${si_class}`,
+			'data-resource-path': p_resource || '',
 		}, [
 			await svelte_to_dom(PfpDisplay, {
 				resource: g_resource,
-				dim: 16,
+				dim: 22,
 			}, 'loaded'),
 
 			classify(g_resource.name, `${si_class}-name`),
@@ -230,6 +233,7 @@
 
 			// find appropriate bech32 space
 			if(g_chain?.bech32s) {
+				// eslint-disable-next-line @typescript-eslint/no-loop-func
 				const dm_replace = await (async() => {
 					for(const [, si_hrp_test] of ode(g_chain.bech32s)) {
 						// found matching hrp in current chain
@@ -238,7 +242,7 @@
 							try {
 								const [p_account, g_account] = await Accounts.find(sa_addr, g_chain);
 
-								return await render_resource(g_account, 'account');
+								return await render_resource(g_account, 'account', p_account);
 							}
 							catch(e_find) {}
 
@@ -246,23 +250,21 @@
 							const p_contact = Agents.pathForContactFromAddress(sa_addr);
 							const g_contact = await Agents.getContact(p_contact);
 							if(g_contact) {
-								return await render_resource(g_contact, 'contact');
+								return await render_resource(g_contact, 'contact', p_contact);
 							}
 
-							// contract
-							const p_contract = Contracts.pathFor(p_chain, sa_addr);
-							const g_contract = await Contracts.at(p_contract);
+							// produce contract struct, leveraging app profile if necessary
+							const g_contract = await produce_contract(sa_addr, g_chain, g_app);
 							if(g_contract) {
-								return await render_resource(g_contract, 'contract');
+								return await render_resource(g_contract, 'contract', Contracts.pathFrom(g_contract));
 							}
 
 							// use address
 							return await svelte_to_dom(Address, {
 								copyable: true,
+								discreet: true,
 								address: sa_addr,
 							});
-
-							// return null;
 						}
 					}
 				})();
@@ -487,12 +489,13 @@
 					{#each ode(h_bech32s) as [sa_contract, w_disabled]}
 						{#await produce_contract(sa_contract, g_chain, g_app)}
 							<LoadingRows />
-						{:then g_contract} 
+						{:then g_contract}
 							<Copyable confirmation="Address copied!" let:copy>
 								<Row appRelated cancelled={!!w_disabled}
 									rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
 									resource={g_contract}
-									pfp={g_contract.pfp || (g_app? `pfp:${g_app.scheme}://${g_app.host}/${g_chain.namespace}:${g_chain.reference}:${g_contract.bech32}`: '')}
+									resourcePath={Contracts.pathFrom(g_contract)}
+									pfp={g_contract.pfp || ''}
 									address={g_contract.bech32}
 									on:click={() => copy(g_contract.bech32)}
 								/>

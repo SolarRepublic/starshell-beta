@@ -640,7 +640,7 @@
 			{#if b_banner && gc_banner}
 				<AppBanner embedded
 					app={gc_banner.app}
-					chain={gc_banner.chain}
+					chains={[gc_banner.chain]}
 					account={gc_banner.account}
 					rootStyle='margin-bottom: 8px;'
 				/>

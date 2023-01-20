@@ -1,9 +1,11 @@
-import type {Bech32, ChainStruct, KnownChain} from '#/meta/chain';
-import type {JsonObject} from '#/meta/belt';
 import type {AdaptedStdSignDoc} from './amino';
 
-import type {Cw} from '#/meta/cosm-wasm';
 import type {Coin} from '@cosmjs/amino';
+
+import type {JsonObject} from '#/meta/belt';
+import type {Bech32, ChainStruct, KnownChain} from '#/meta/chain';
+import type {Cw} from '#/meta/cosm-wasm';
+
 
 export interface WasmAminoMsg<
 	g_chain extends ChainStruct=ChainStruct,

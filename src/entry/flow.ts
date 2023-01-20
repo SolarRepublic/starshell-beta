@@ -40,7 +40,7 @@ import {B_IOS_NATIVE, B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constant
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
-import {F_NOOP, is_dict, ode, timeout_exec} from '#/util/belt';
+import {fold, F_NOOP, is_dict, ode, timeout_exec} from '#/util/belt';
 import {base93_to_buffer} from '#/util/data';
 import {parse_params, qs} from '#/util/dom';
 import SystemSvelte from '##/container/System.svelte';
@@ -53,6 +53,7 @@ import RequestTokenAdd from '#/app/screen/RequestTokenAdd.svelte';
 import RestartService from '#/app/screen/RestartService.svelte';
 import { ProtoData, proto_to_amino } from '#/chain/cosmos-msgs';
 import { global_receive } from '#/script/msg-global';
+import PageException from '#/app/screen/PageException.svelte';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -222,7 +223,9 @@ async function authenticate(): Promise<IntraExt.CompletedFlow> {
 	// verbose
 	domlog(`Handling 'authenticate'.`);
 
-	// already signed in
+	// // busy authenticating
+	// return await navigator.locks.request('service:authenticate', async() => {
+		// already signed in
 	if(await Vault.isUnlocked()) {
 		// verbose
 		domlog(`Vault is already unlocked.`);
@@ -258,6 +261,7 @@ async function authenticate(): Promise<IntraExt.CompletedFlow> {
 	domlog(`Root found. Prompting login.`);
 
 	return await completed_render(AuthenticateSvelte);
+	// });
 }
 
 function flow_error<
@@ -286,6 +290,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 			app: g_value.app,
 			chains: g_value.chains,
 			sessions: g_value.sessions,
+			accountPath: g_value.accountPath,
 		};
 
 		// only one chain
@@ -306,6 +311,8 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 	illegalChains: g_value => completed_render(NoticeIllegalChainsSvelte, g_value),
 
 	reloadAppTab: g_value => completed_render(ReloadPage, g_value),
+
+	reportAppException: g_value => completed_render(PageException, g_value),
 
 	restartService: g_value => completed_render(RestartService, g_value),
 
@@ -366,52 +373,88 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		accountPath: g_value.accountPath,
 	}),
 
-	async addSnip20s(g_value, g_context) {
-		// wait for user to add tokens
-		const g_completion = await completed_render(RequestTokenAdd, g_value, {
-			app: g_context.app,
-			chain: g_context.chain,
-			accountPath: g_value.accountPath,
-		});
+	addSnip20s: (g_value, g_context) => new Promise(async(fk_resolve, fe_reject) => {
+		try {
+			// prep lists of tokens awaiting
+			let a_awaiting: Bech32[] = [];
 
-		// user rejected
-		if(!g_completion.answer) return g_completion;
+			// init tokens confirmed to list of those already added
+			const p_chain = g_value.chainPath;
+			const g_account = (await Accounts.at(g_value.accountPath))!;
+			const a_confirmed = g_account.assets[p_chain]?.fungibleTokens.slice() || [];
 
-		// user accepted adding certain tokens
-		const g_data = g_completion.data as unknown as CompletedProtoSignature;
-
-		const g_body = TxBody.decode(g_data.proto.doc.bodyBytes);
-
-		const a_msgs = g_body.messages;
-
-		const a_aminos = a_msgs.map(g => proto_to_amino(g, g_context.chain?.bech32s.acc || ''));
-
-		const a_awaiting = a_aminos.map(g => g.value.contract) as Bech32[];
-		const a_confirmed: Bech32[] = [];
-
-		return new Promise((fk_resolve, fe_reject) => {
-			// listen for token added events
-			global_receive({
-				tokenAdded(g_added) {
-					const sa_contract = g_added.sa_contract;
-					console.log(`token added: ${sa_contract}`);
-
+			const f_check_confirmed = () => {
+				// check all tokens in confirmed list
+				for(const sa_contract of a_confirmed.slice()) {
+					// token is awaiting confirmation
 					const i_awaiting = a_awaiting.indexOf(sa_contract);
 					if(i_awaiting >= 0) {
+						// remove from awaiting
 						a_awaiting.splice(i_awaiting, 1);
-						a_confirmed.push(sa_contract);
-
-						console.log(`token was in pending. ${a_confirmed.length} confirmed, ${a_awaiting.length} remain`);
 
 						// respond to pending request
 						if(!a_awaiting.length) {
-							fk_resolve(g_completion);
+							// stop listening for global events
+							f_unsubscribe();
+
+							// resolve promise with response
+							fk_resolve({
+								answer: true,
+								data: fold(a_reqs, sa_request => ({
+									[sa_request]: {
+										ok: a_confirmed.includes(sa_request),
+									},
+								})),
+							});
+
+							// stop
+							return;
 						}
 					}
+				}
+			};
+
+			// start listening for token added events before transaction broadcast suceeds
+			const f_unsubscribe = global_receive({
+				tokenAdded(g_added) {
+					// record token in case it is missed later
+					a_confirmed.push(g_added.sa_contract);
+
+					f_check_confirmed();
 				},
 			});
-		});
-	},
+
+			const a_reqs = g_value.bech32s as Bech32[];
+
+			// wait for user to add tokens
+			const g_completion = await completed_render(RequestTokenAdd, g_value, {
+				app: g_context.app,
+				chain: g_context.chain,
+				accountPath: g_value.accountPath,
+			});
+
+			// user rejected all
+			if(!g_completion.answer) {
+				f_unsubscribe();
+				fk_resolve(g_completion);
+				return;
+			}
+
+			// user accepted adding certain tokens; decode into amino format
+			const g_data = g_completion.data as unknown as CompletedProtoSignature;
+			const a_aminos = TxBody.decode(g_data.proto.doc.bodyBytes).messages
+				.map(g => proto_to_amino(g, g_context.chain?.bech32s.acc || ''));
+
+			// set list of tokens awaiting
+			a_awaiting = a_aminos.map(g => g.value.contract) as Bech32[];
+
+			// re-check all confirmed
+			f_check_confirmed();
+		}
+		catch(e_any) {
+			fe_reject(e_any);
+		}
+	}),
 
 	async exposeViewingKeys(g_value, g_context) {
 		return await completed_render(RequestExposure, g_value, {

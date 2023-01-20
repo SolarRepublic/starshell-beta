@@ -75,6 +75,7 @@ export const ServiceRouter = {
 		const {
 			chains: h_chains_manifest,
 			sessions: h_sessions_manifest,
+			accountPath: p_account,
 		} = g_manifest;
 
 		// valid chains
@@ -379,6 +380,7 @@ export const ServiceRouter = {
 					value: {
 						chains: h_chains_valid,
 						sessions: h_sessions_valid,
+						accountPath: p_account,
 					},
 				}, (w_response) => {
 					fk_resolve(w_response);
@@ -454,7 +456,16 @@ async function generate_token_symbol(sa_token: Bech32) {
 /**
  * Pre-emptively renders and loads the page's pfp in case the user decides to interact with the page
  */
-export async function load_app_pfp(): Promise<void> {
+export async function load_app_pfp(b_reload=false): Promise<void> {
+	// able to use cache
+	if(!b_reload) {
+		// check cache
+		const g_cached = await SessionStorage.get(`profile:${location.origin}`);
+
+		// already cached, do not reload
+		if(g_cached) return;
+	}
+
 	// grab site pfp
 	const sq_icons = ['icon', 'apple-touch-icon'].map(s => `link[rel="${s}"]`).join(',');
 	const a_icons = [...document.head.querySelectorAll(sq_icons)] as HTMLLinkElement[];
@@ -530,76 +541,79 @@ export async function load_app_pfp(): Promise<void> {
 
 
 export async function create_app_profile(): Promise<AppProfile> {
-	// load all links
-	const a_res_entries = await Promise.all([
-		// each caip-2 link
-		...[...destructure_links('caip-2')].map(async({href:p_href, value:si_caip2}) => {
-			// invalid CAIP-2
-			if(!R_CAIP_2.test(si_caip2)) return;
+	// load all links, capturing entity icons
+	const [, a_res_entries] = await Promise.all([
+		load_app_pfp(),
+		Promise.all([
+			// each caip-2 link
+			...[...destructure_links('caip-2')].map(async({href:p_href, value:si_caip2}) => {
+				// invalid CAIP-2
+				if(!R_CAIP_2.test(si_caip2)) return;
 
-			// load its image data into a data URL
-			const sx_data = await load_icon_data(p_href);
+				// load its image data into a data URL
+				const sx_data = await load_icon_data(p_href);
 
-			// not okay to use
-			if(!sx_data) return;
+				// not okay to use
+				if(!sx_data) return;
 
-			// save pfp data URL to session storage
-			const p_pfp = `pfp:${location.origin}/${si_caip2}` as const;
+				// save pfp data URL to session storage
+				const p_pfp = `pfp:${location.origin}/${si_caip2}` as const;
 
-			// save to session
-			await SessionStorage.set({
-				[p_pfp]: sx_data,
-			});
+				// save to session
+				await SessionStorage.set({
+					[p_pfp]: sx_data,
+				});
 
-			// return [key, value] entry for later conversion to dict
-			return [si_caip2, p_pfp];
-		}),
+				// return [key, value] entry for later conversion to dict
+				return [si_caip2, p_pfp];
+			}),
 
-		// each caip-10 link
-		...[...destructure_links('caip-10')].map(async({href:p_href, value:si_caip10}) => {
-			// invalid CAIP-10
-			if(!R_CAIP_10.test(si_caip10)) return;
+			// each caip-10 link
+			...[...destructure_links('caip-10')].map(async({href:p_href, value:si_caip10}) => {
+				// invalid CAIP-10
+				if(!R_CAIP_10.test(si_caip10)) return;
 
-			// load its image data into a data URL
-			const sx_data = await load_icon_data(p_href);
+				// load its image data into a data URL
+				const sx_data = await load_icon_data(p_href);
 
-			// not okay to use
-			if(!sx_data) return;
+				// not okay to use
+				if(!sx_data) return;
 
-			// save pfp data URL to session storage
-			const p_pfp = `pfp:${location.origin}/${si_caip10}` as const;
+				// save pfp data URL to session storage
+				const p_pfp = `pfp:${location.origin}/${si_caip10}` as const;
 
-			// save to session
-			await SessionStorage.set({
-				[p_pfp]: sx_data,
-			});
+				// save to session
+				await SessionStorage.set({
+					[p_pfp]: sx_data,
+				});
 
-			// return [key, value] entry for later conversion to dict
-			return [si_caip10, p_pfp];
-		}),
+				// return [key, value] entry for later conversion to dict
+				return [si_caip10, p_pfp];
+			}),
 
-		// each caip-19 link
-		...[...destructure_links('caip-19')].map(async({href:p_href, value:si_caip19}) => {
-			// invalid CAIP-19
-			if(!R_CAIP_19.test(si_caip19)) return;
+			// each caip-19 link
+			...[...destructure_links('caip-19')].map(async({href:p_href, value:si_caip19}) => {
+				// invalid CAIP-19
+				if(!R_CAIP_19.test(si_caip19)) return;
 
-			// load its image data into a data URL
-			const sx_data = await load_icon_data(p_href);
+				// load its image data into a data URL
+				const sx_data = await load_icon_data(p_href);
 
-			// not okay to use
-			if(!sx_data) return;
+				// not okay to use
+				if(!sx_data) return;
 
-			// save pfp data URL to session storage
-			const p_pfp = `pfp:${location.origin}/${si_caip19}` as const;
+				// save pfp data URL to session storage
+				const p_pfp = `pfp:${location.origin}/${si_caip19}` as const;
 
-			// save to session
-			await SessionStorage.set({
-				[p_pfp]: sx_data,
-			});
+				// save to session
+				await SessionStorage.set({
+					[p_pfp]: sx_data,
+				});
 
-			// return [key, value] entry for later conversion to dict
-			return [si_caip19, p_pfp];
-		}),
+				// return [key, value] entry for later conversion to dict
+				return [si_caip19, p_pfp];
+			}),
+		]),
 	]);
 
 	debug(`App profiler finished scanning links in head`);
@@ -828,7 +842,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 										}
 
 										// not a primitive value, ignore
-										if(['boolean', 'number', 'string'].includes(typeof z_value)) {
+										if(!['boolean', 'number', 'string'].includes(typeof z_value)) {
 											error(`Invalid non-primitive value for interface property at ${s_property_path}`);
 											continue;
 										}

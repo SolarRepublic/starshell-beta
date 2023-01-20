@@ -228,6 +228,12 @@ export type Promisable<w_value=unknown> = w_value | Promise<w_value>;
  */
 export type Arrayable<w_value> = w_value | Array<w_value>;
 
+/**
+ * Shortcut for another common type pattern
+ */
+export type Nilable<w_value> = w_value | null | undefined;
+
+
 
 /**
  * Root type for all objects considered to be parsed JSON objects

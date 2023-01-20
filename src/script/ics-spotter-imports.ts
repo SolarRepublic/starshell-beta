@@ -1,6 +1,8 @@
 export {
 	SI_STORE_ACCOUNTS,
+	SI_STORE_CHAINS,
 	B_FIREFOX_ANDROID,
+	R_CAIP_2,
 } from '#/share/constants';
 
 export {
@@ -15,6 +17,10 @@ export {
 export {
 	Apps,
 } from '#/store/apps';
+
+export {
+	Chains,
+} from '#/store/chains';
 
 export {
 	dd, qsa,

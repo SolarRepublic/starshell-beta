@@ -1,6 +1,6 @@
 import type {AccountPath} from '#/meta/account';
 import type {SessionRequest} from '#/meta/api';
-import type {AppChainConnection} from '#/meta/app';
+import type {AppChainConnection, AppPermissionSet} from '#/meta/app';
 import type {Dict} from '#/meta/belt';
 
 import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
@@ -28,6 +28,9 @@ export interface PermissionsRequestBlock {
 /**
  * The entire request object is already validated and sanitized in content script before it gets here.
  * The purpose of this function is to restructure the requests into a workable format.
+ * 
+ * By default, `g_set` is an empty object since the app does not have permissions until user approves them
+ * individually.
  */
 export function process_permissions_request(g_request: PermissionsRequestBlock): Required<PermissionsRequestBlock> {
 	const {
@@ -109,5 +112,34 @@ export function process_permissions_request(g_request: PermissionsRequestBlock):
 		h_connections,
 		g_set,
 	};
+}
+
+/**
+ * Applies a flattened permission key to a `set` object to build an `AppPermissionSet`
+ */
+export function add_permission_to_set(si_permission: keyof PermissionsRegistry, g_set: Partial<AppPermissionSet>) {
+	// update global permissions
+	switch(si_permission) {
+		case 'doxx_name': {
+			(g_set.doxx = g_set.doxx || {}).name = true;
+			break;
+		}
+
+		case 'dox_address': {
+			(g_set.doxx = g_set.doxx || {}).address = true;
+			break;
+		}
+
+		case 'query_node': {
+			(g_set.query = g_set.query || {}).node = true;
+			break;
+		}
+
+		default: {
+			g_set[si_permission] = {};
+		}
+	}
+
+	return g_set;
 }
 

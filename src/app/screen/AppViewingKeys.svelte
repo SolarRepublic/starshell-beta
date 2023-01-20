@@ -24,6 +24,7 @@
 	import TokenRow from '../frag/TokenRow.svelte';
 	import Header from '../ui/Header.svelte';
 	import SubHeader from '../ui/SubHeader.svelte';
+    import AppBanner from '../frag/AppBanner.svelte';
 	
 
 	export let g_app: AppStruct;
@@ -105,6 +106,11 @@
 
 <style lang="less">
 	
+	.top-controls {
+		display: flex;
+		margin-top: 1.5em;
+		align-self: end;
+	}
 </style>
 
 <Screen>
@@ -113,15 +119,22 @@
 		subtitle="on {$yw_chain.name}"
 	/>
 
+	<AppBanner app={g_app} account={$yw_account} chains={[$yw_chain]} embedded />
+
 	{#if h_contracts && $yw_network}
-		<SubHeader bare title={g_app.host}
-			buttons={[...a_keys.length > 1? ['Revoke All']: []]}
-			on:revoke_all={() => k_page.push({
-				creator: AppDisconnect,
-				props: {g_app},
-			})}
-		>
-		</SubHeader>
+		<div class="top-controls">
+			<!-- TODO: add toolip explaining that other apps will be able to access viewing key next time they are visited -->
+
+
+			{#if a_keys.length}
+				<button class="pill" on:click={() => k_page.push({
+					creator: AppDisconnect,
+					props: {g_app},
+				})}>
+					Revoke All
+				</button>
+			{/if}
+		</div>
 
 		<div class="rows no-margin">
 			{#if !a_keys.length}
@@ -133,7 +146,7 @@
 			{#each a_keys as g_key}
 				<TokenRow contract={h_contracts[g_key.contract]}>
 					<svelte:fragment slot="right">
-						<button class="pill" on:click={() => revoke(g_key)}>
+						<button class="pill" on:click|stopPropagation={() => revoke(g_key)}>
 							Revoke
 						</button>
 					</svelte:fragment>

@@ -46,7 +46,7 @@
 </style>
 
 <Screen>
-	<AppBanner app={G_APP_STARSHELL} chain={g_chain}>
+	<AppBanner app={G_APP_STARSHELL} chains={[g_chain]}>
 		<span slot="default" style="display:contents;">
 			Multiple Conflicting Wallets Installed
 		</span>

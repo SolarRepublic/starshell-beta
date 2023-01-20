@@ -1,7 +1,7 @@
 
 import type * as ImportHelper from './ics-witness-imports';
 import type {
-	IcsToService,
+	IcsToService, WitnessToKeplr,
 } from './messages';
 
 
@@ -125,7 +125,26 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 	const keplr_str_to_buffer = (sx_str: string) => hex_to_buffer(sx_str.replace(/^__uint8array__/, ''));
 
 	const base93_to_keplr_str = (sxb93: string) => buffer_to_keplr_str(base93_to_buffer(sxb93));
-	const keplr_str_to_base93 = (sx_str: string) => buffer_to_base93(keplr_str_to_buffer(sx_str));
+	const keplr_str_to_base93 = (z_input: unknown) => {
+		if('string' === typeof z_input) {
+			try {
+				return buffer_to_base93(keplr_str_to_buffer(z_input));
+			}
+			catch(e_decode) {}
+		}
+
+		const e_report = new Error(`Rejecting invalid argument type supplied to Keplr API: ${JSON.stringify(z_input)}`);
+
+		// exception
+		f_runtime().sendMessage({
+			type: 'reportException',
+			value: {
+				report: e_report.message+'\n'+(e_report.stack?.split(/\n/g)?.at(2) || ''),
+			},
+		}, F_NOOP);
+
+		throw e_report;
+	};
 
 	let g_registered_app: AppStruct | null = null;
 
@@ -149,7 +168,6 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			throw g_response.error;  // eslint-disable-line @typescript-eslint/no-throw-literal
 		}
 		else {
-			debugger;
 			return fold(a_tokens, (sa_token) => {
 				const w_each = g_response.ok![sa_token];
 				if(w_each.error) {
@@ -231,8 +249,17 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			};
 		}
 
-		suggestToken(sa_token: Bech32) {
-			return this._kc_add_tokens.queue(sa_token);
+		async suggestToken(sa_token: Bech32) {
+			const g_response = await this._kc_add_tokens.queue(sa_token);
+
+			// no error but not ok; reject
+			if(!g_response.error && !g_response.ok) {
+				return {
+					error: 'Request rejected',
+				};
+			}
+
+			return g_response;
 		}
 
 		viewingKey(sa_token: Bech32) {
@@ -256,6 +283,50 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 	// ref and cast browser runtime
 	const f_runtime: () => Vocab.TypedRuntime<IcsToService.PublicVocab> = () => chrome.runtime;
 	const f_runtime_app: () => Vocab.TypedRuntime<IcsToService.AppVocab> = () => chrome.runtime;
+
+	// listen for messages from popup
+	f_runtime().onMessage?.addListener((g_msg, g_sender, fk_respond) => {
+		// message originates from extension
+		const b_origin_verified = g_sender.url?.startsWith(chrome.runtime.getURL('')) || false;
+		if(chrome.runtime.id === g_sender.id && (b_origin_verified || 'null' === g_sender.origin)) {
+			fk_respond?.(null);
+
+			if('notifyAccountChange' === g_msg.type) {
+				// no connections
+				if(!Object.keys(h_keplr_connections).length) {
+					console.debug(`Ignoring account change since there are no active connections`);
+					return;
+				}
+
+				const {
+					// accountPathOld: p_account_old,
+					// accountPathNew: p_account_new,
+					accountPath: p_account_new,
+				} = g_msg.value;
+
+				// no actual account change
+				if(p_account_new === Object.values(h_keplr_connections)[0].accountPath) {
+					return;
+				}
+
+				for(const [si_chain, k_connection] of ode(h_keplr_connections)) {
+					// remove connection
+					delete h_keplr_connections[si_chain];
+				}
+
+				console.debug(`Notifying main-world content script of account change`);
+
+				// post message to main-world content script
+				(window as Vocab.TypedWindow<WitnessToKeplr.RuntimeVocab>).postMessage({
+					type: 'accountChange',
+					value: {},
+				}, window.location.origin);
+			}
+		}
+		else {
+			warn(`Ignored message from unknown sender: ${JSON.stringify(g_sender)}`);
+		}
+	});
 
 	// browser cannot (un)register content scripts dynamically
 	if(B_SAFARI_ANY) {
@@ -470,9 +541,13 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 				};
 			});
 
+			// read from accounts store
+			const [p_account, g_account] = await Accounts.selected();
+
 			// send message to service
 			const h_responses = await ServiceRouter.connect({
 				schema: '1',
+				accountPath: p_account,
 				chains: h_chains,
 				sessions: oderom(h_chains, (si_caip2: Caip2.String): Dict<SessionRequest> => ({
 					[si_caip2]: {
@@ -490,8 +565,8 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			}) as InternalConnectionsResponse;
 
 			if(h_responses) {
-				// read from accounts store
-				const [, g_account] = await Accounts.selected();
+				// // read from accounts store
+				// const [, g_account] = await Accounts.selected();
 
 				// 1:1 chain session request
 				for(const [p_chain, g_session] of ode(h_responses)) {
@@ -550,24 +625,18 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 
 
 	/* eslint-disable @typescript-eslint/no-throw-literal,no-throw-literal */
-	function check_chain(si_chain: string): KeplrChainConnection {
+	async function check_chain(si_chain: string): Promise<KeplrChainConnection> {
 		// chain is not registered
 		if(!h_keplr_connections[si_chain]) {
-			warn(`The developer of the app running on ${location.origin} did not bother calling \`window.keplr.enable()\` before attempting to use the API. Rejecting the request.`);
+			// warn(`The developer of the app running on ${location.origin} did not bother calling \`window.keplr.enable()\` before attempting to use the API. Rejecting the request.`);
 
-			// developer did not request to enable chain first, reject the request on behalf of the user
-			throw 'Request rejected';
+			// app did not request it first, but keplr still counts it as a request
+			const g_enable = await h_handlers_keplr.enable([si_chain]);
 
-			// // app did not request it first, but keplr still counts it as a request
-			// const g_enable = await h_handlers_keplr.enable([si_chain]);
-
-			// // there was an error, exit
-			// if(g_enable) {
-			// 	return g_enable;
-			// }
-
-			// // otherwise, retry
-			// return h_handlers_keplr.getKey(a_args);
+			// there was an error, exit
+			if(!g_enable || !('return' in g_enable)) {
+				throw g_enable?.['error'] || 'Request rejected';
+			}
 		}
 
 		// lookup connection
@@ -690,11 +759,11 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 				void add_chain_req(si_chain);
 			}
 
-			throw `Refusing chain suggestion "${si_chain}" in StarShell beta`;
+			throw `Refusing chain suggestion "${si_chain}" until support is added`;
 		}
 
 		// dapp is requesting the public key for the currently connected account on the given chain
-		getKey(a_args: ProxyArgs<'getKey'>): KeplrResponse<DeKeplrified<KeplrKey>> {
+		async getKey(a_args: ProxyArgs<'getKey'>): AsyncKeplrResponse<DeKeplrified<KeplrKey>> {
 			// emulate Keplr's response (yes, it includes the "parmas" typo!)
 			if(1 !== a_args.length) throw 'Invalid parmas';
 
@@ -705,7 +774,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			if(!si_chain || 'string' !== typeof si_chain) throw 'Invalid parmas';
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// succeed
 			return {
@@ -715,9 +784,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 
 		// dapp is requesting a signature of the given amino document
 		async signAmino(a_args: ProxyArgs<'signAmino'>): AsyncKeplrResponse<AdaptedAminoResponse> {
-			const [si_chain, sa_signer, g_doc] = a_args;
-
-			const gc_sign = a_args[3]!;
+			const [si_chain, sa_signer, g_doc, gc_sign] = a_args;
 
 			if(!si_chain) throw 'chain id not set';
 
@@ -726,7 +793,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			if(g_doc.chain_id !== si_chain) throw 'Chain id in the message is not matched with the requested chain id';
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// wrong signer, reject emulating Keplr's response
 			if(sa_signer !== k_connection.address) throw 'Signer mismatched';
@@ -743,6 +810,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 					accountPath: k_connection.accountPath,
 					chainPath: Chains.pathFor('cosmos', si_chain),
 					doc: g_doc_serialized,
+					keplrSignOptions: gc_sign,
 				},
 			});
 
@@ -764,7 +832,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			if(g_doc.chainId !== si_chain) throw 'Chain id in the message is not matched with the requested chain id';
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// wrong signer, reject emulating Keplr's response
 			if(sa_signer !== k_connection.address) throw 'Signer mismatched';
@@ -804,7 +872,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			});
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// check that chain exists
 			const p_chain = Chains.pathFor('cosmos', si_chain);
@@ -838,7 +906,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			}
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// check that chain exists
 			const p_chain = Chains.pathFor('cosmos', si_chain);
@@ -871,7 +939,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			}
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// check that chain exists
 			const p_chain = Chains.pathFor('cosmos', si_chain);
@@ -940,7 +1008,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			const [si_chain] = a_args;
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// check that chain exists
 			const p_chain = Chains.pathFor('cosmos', si_chain);
@@ -961,11 +1029,6 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 				},
 			});
 
-			debugger;
-			console.log({
-				g_response,
-			});
-
 			return app_to_keplr(g_response, base93_to_keplr_str);
 		}
 
@@ -974,7 +1037,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			const [si_chain, sx_nonce] = a_args;
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// check that chain exists
 			const p_chain = Chains.pathFor('cosmos', si_chain);
@@ -996,8 +1059,6 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 				},
 			});
 
-			debugger;
-
 			return app_to_keplr(g_response, base93_to_keplr_str);
 		}
 
@@ -1006,7 +1067,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			const [si_chain, s_code_hash, h_exec] = a_args;
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// check that chain exists
 			const p_chain = Chains.pathFor('cosmos', si_chain);
@@ -1037,7 +1098,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 			const [si_chain, sx_ciphertext, sx_nonce] = a_args;
 
 			// ensure the chain was enabled first
-			const k_connection = check_chain(si_chain);
+			const k_connection = await check_chain(si_chain);
 
 			// lookup chain
 			const g_chain = await Chains.at(Chains.pathFor('cosmos', si_chain));
@@ -1127,6 +1188,16 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 
 		experimentalSignEIP712CosmosTx_v0(): KeplrResponse<AdaptedAminoResponse> {
 			throw new Error(`Not supported`);
+		}
+
+		changeKeyRingName(args_0: [opts: { defaultName: string; editable?: boolean; }]): Promisable<{ error: string; } | { return: string; } | undefined> {
+			throw new Error(`Not supported`);
+		}
+
+		disable(a_args: ProxyArgs<'disable'>): AsyncKeplrResponse<void> {
+			const [a_chains] = a_args as [string[]];
+
+			// TODO: disconnect app
 		}
 	}
 

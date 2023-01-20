@@ -10,14 +10,15 @@
 	import {load_flow_context} from '../svelte';
 	
 	import {Accounts} from '#/store/accounts';
-	import {fodemtv, F_NOOP, ode, oderac} from '#/util/belt';
+	import {fodemtv, fold, F_NOOP, ode, oderac} from '#/util/belt';
 	
 	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
-	import ActionsLine from '../ui/ActionsLine.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
+	import ActionsLine from '../ui/ActionsLine.svelte';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
+    import { Chains } from '#/store/chains';
 
 
 	const {
@@ -27,10 +28,9 @@
 
 	export let app: AppStruct;
 
+	// TODO: change this to only allow a single chain request at a time
 	export let chains: Record<Caip2.String, ChainStruct>;
 	const h_chains = chains;
-
-	const g_single_chain = 1 === Object.keys(h_chains).length? Object.values(h_chains)[0]: null;
 
 	export let sessions: Dict<SessionRequest>;
 
@@ -38,9 +38,14 @@
 
 	let h_accounts: AccountMap;
 
+	export let accountPath: AccountPath;
+
 	
 	// selected state of each account
 	let h_selected: Record<AccountPath, boolean> = {};
+	
+	// disabled state of each account (because the connection already exists)
+	let h_disabled: Record<AccountPath, boolean> = {};
 
 	$: b_none_selected = Object.values(h_selected).every(b => !b);
 
@@ -49,33 +54,45 @@
 		h_accounts = ks_accounts.raw;
 
 		// only one account; skip screen automatically
-		if(Object.keys(h_accounts).length) {
+		if(1 === Object.keys(h_accounts).length) {
 			k_page.push({
 				creator: RequestConnectionPermissions,
 				props: {
 					app,
-					chains,
+					chains: h_chains,
 					sessions,
 					accounts: Object.values(h_accounts),
 				},
 			});
 		}
 
-		h_selected = fodemtv(h_accounts, (g_account, p_account) => p_account === $yw_account_ref);
+		const p_chain = Chains.pathFrom(Object.values(chains)[0]);
+		h_disabled = fold(app.connections[p_chain].accounts, p_account => ({
+			[p_account]: true,
+		}));
+
+		h_selected = {...h_disabled};
+		// h_selected = fodemtv(h_accounts, (g_account, p_account) => {
+		// 	if(p_account === accountPath) {
+		// 		return true;
+		// 	}
+		// });
+
+		// select the requested account
+		h_selected[accountPath] = true;
 	}
 </script>
 
 <Screen>
-	{#if g_single_chain}
-		<AppBanner {app} chain={Object.values(h_chains)[0]} on:close={() => completed(false)}>
-			Which accounts do you want to use on<br><strong>{Object.values(h_chains)[0].name}</strong> with this app?
-		</AppBanner>
-	{:else}
-		<AppBanner {app} on:close={() => completed(false)}>
-			Which accounts do you want to use?
-		</AppBanner>
-	{/if}
-
+	<AppBanner {app} chains={Object.values(h_chains)} on:close={() => completed(false)}>
+		Which accounts do you want to use on<br>
+			{#each Object.values(h_chains) as g_chain, i_chain}
+				{@const nl_chains = Object.values(h_chains).length}
+				<strong>{g_chain.name}</strong>
+				{i_chain === nl_chains - 1? '': i_chain === nl_chains - 2? ' and ': ', '}
+			{/each}
+		 with this app?
+	</AppBanner>
 
 	<div class="rows no-margin">
 		{#await load_accounts()}
@@ -87,8 +104,11 @@
 					pfp={g_account.pfp}
 					on:click={toggleChildCheckbox}
 				>
-					<CheckboxField id={p_account} slot='right' checked={h_selected[p_account]}
-						on:change={({detail:b_checked}) => h_selected[p_account] = b_checked} />
+					<CheckboxField id={p_account} slot='right'
+						disabled={h_disabled[p_account]}
+						checked={h_selected[p_account]}
+						on:change={({detail:b_checked}) => h_selected[p_account] = b_checked}
+						/>
 				</Row>
 			{/each}
 		{/await}
@@ -98,7 +118,7 @@
 		creator: RequestConnectionPermissions,
 		props: {
 			app,
-			chains,
+			chains: h_chains,
 			sessions,
 			accounts: oderac(h_selected, (p, b) => b? p: void 0).map(p => h_accounts[p]),
 		},

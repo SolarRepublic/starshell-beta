@@ -12,7 +12,7 @@
 	import {Apps, G_APP_STARSHELL} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Secrets} from '#/store/secrets';
-	import {proper} from '#/util/belt';
+	import {proper, remove} from '#/util/belt';
 	
 	import type {CompletedSignature} from './RequestSignature.svelte';
 	import RequestSignature from './RequestSignature.svelte';
@@ -79,7 +79,7 @@
 			}
 		}
 		else if(a_permissions.includes(si_permission)) {
-			a_permissions.splice(a_permissions.indexOf(si_permission), 1);
+			remove(a_permissions as Snip24Permission[], si_permission);
 			s_permissions = a_permissions.join(' ');
 		}
 	}

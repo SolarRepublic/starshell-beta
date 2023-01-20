@@ -8,6 +8,7 @@
 	import {onDestroy} from 'svelte';
 	
 	import {syserr} from '#/app/common';
+	import PopupNotice from '#/app/popup/PopupNotice.svelte';
 	import {system_notify} from '#/extension/notifications';
 	import {global_receive} from '#/script/msg-global';
 	import {NetworkFeed} from '#/script/service-feed';
@@ -23,13 +24,12 @@
 		yw_connection_health,
 		yw_chain,
 		yw_network,
-        yw_context_popup,
-        yw_popup,
+		yw_context_popup,
+		yw_popup,
 	} from '##/mem';
 	
 	import SX_ICON_ARROW_LEFT from '#/icon/arrow-left.svg?raw';
 	import SX_ICON_EXPAND_RIGHT from '#/icon/expand-right.svg?raw';
-    import PopupNotice from '#/app/popup/PopupNotice.svelte';
 	
 
 	TimeAgo.addDefaultLocale(en);

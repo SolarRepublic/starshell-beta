@@ -142,6 +142,8 @@
 	export let resourcePath = '';
 	const p_resource = resourcePath;
 
+	export let pfpFilter: ''|'testnet' = '';
+
 	// reactively load tags for this resource
 	$: a_tags = $yw_store_tags!.getTagsFor(p_resource);
 
@@ -289,7 +291,7 @@
 					</slot>
 				</span>
 			{:else}
-				<PfpDisplay path={pfp} resource={resource} dim={64} circular={b_circular} />
+				<PfpDisplay path={pfp} resource={resource} dim={64} circular={b_circular} filter={pfpFilter} />
 			{/if}
 		</div>
 	{/if}

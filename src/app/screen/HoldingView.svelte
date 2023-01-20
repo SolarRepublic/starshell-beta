@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type {Coin} from '@solar-republic/cosmos-grpc/dist/cosmos/base/v1beta1/coin';
 	
-	import type {CoinInfo, HoldingPath} from '#/meta/chain';
+	import type {ChainStruct, CoinInfo, HoldingPath} from '#/meta/chain';
 	import type {IncidentStruct, IncidentType} from '#/meta/incident';
 	import type {PfpTarget} from '#/meta/pfp';
 	
@@ -59,8 +59,9 @@
 	let s_worth = '';
 
 
-	// const x_versus_usd = H_VERSUS_USD[p_token].value;
+	// const x_versus_usd = H_VERSUS_USD[p_token].value;c
 
+	let g_chain!: ChainStruct;
 
 	async function load_entity() {
 		const ks_entities = await Entities.read();
@@ -78,7 +79,7 @@
 
 		// lookup details from chain
 		const p_chain = g_info.chainRef;
-		const g_chain = p_chain === $yw_chain_ref? $yw_chain: (await Chains.at(p_chain))!;
+		g_chain = p_chain === $yw_chain_ref? $yw_chain: (await Chains.at(p_chain))!;
 		g_coin = g_chain.coins[si_coin];
 
 		// set details
@@ -274,6 +275,7 @@
 		title={yg_amount? `${format_amount(yg_amount.toNumber())} ${s_symbol}`: '...'}
 		subtitle={`${s_fiat} (${s_worth} per coin)`}
 		actions={gc_actions}
+		pfpFilter={g_chain?.testnet? 'testnet': ''}
 		circular
 	/>
 

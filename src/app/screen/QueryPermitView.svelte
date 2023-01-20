@@ -170,16 +170,16 @@
 			},
 		},
 
-		share: {
-			trigger() {
-				k_page.push({
-					creator: QueryPermitShare,
-					props: {
-						permit: g_secret,
-					},
-				});
-			},
-		},
+		// share: {
+		// 	trigger() {
+		// 		k_page.push({
+		// 			creator: QueryPermitShare,
+		// 			props: {
+		// 				permit: g_secret,
+		// 			},
+		// 		});
+		// 	},
+		// },
 	};
 
 	let b_tooltip_showing = false;

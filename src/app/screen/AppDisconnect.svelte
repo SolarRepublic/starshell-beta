@@ -18,14 +18,13 @@
 	import {Contracts} from '#/store/contracts';
 	import {Secrets} from '#/store/secrets';
 	
-	import {ode} from '#/util/belt';
+	import {ode, remove} from '#/util/belt';
 	import {buffer_to_text} from '#/util/data';
 	
 	import RequestSignature from './RequestSignature.svelte';
-	import ChainAccount from '../frag/ChainAccount.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	import Header from '../ui/Header.svelte';
-	import Row from '../ui/Row.svelte';
 	
 
 
@@ -49,8 +48,6 @@
 	$: nl_permits_local = a_permits_local.length;
 
 	$: b_pending_revoke = nl_keys_local+nl_permits_local > 0;
-
-	const b_all_chains = false;
 
 	let b_loading = false;
 
@@ -77,6 +74,8 @@
 			(async() => {
 				a_permits_global = await Secrets.filter({
 					type: 'query_permit',
+					on: 1,
+					owner: sa_owner,
 					outlets: [p_app],
 				});
 
@@ -89,18 +88,25 @@
 
 	async function disconnect_app() {
 		// freeze ui
-		b_pending_revoke = true;
+		b_loading = true;
 
-		// lock chain ref
+		// lock refs
 		const p_chain = $yw_chain_ref;
+		const p_account = $yw_account_ref;
 
 		// begin transactional update
 		await Apps.update(p_app, (g_latest) => {
 			// ref latest connections
 			const h_connections = g_latest.connections;
 
-			// delete connections for this chain
-			delete h_connections[p_chain];
+			// remove account from connection
+			const a_accounts = remove(h_connections[p_chain].accounts, p_account);
+
+			// no more accounts
+			if(!a_accounts.length) {
+				// delete connections for this chain
+				delete h_connections[p_chain];
+			}
 
 			// return updated struct
 			return {
@@ -109,7 +115,10 @@
 		});
 
 		// done
-		b_pending_revoke = false;
+		b_loading = false;
+
+		// reset thread
+		k_page.reset();
 	}
 
 	async function revoke_tokens() {
@@ -224,18 +233,15 @@
 </style>
 
 <Screen>
-	<Header account network pops
+	<Header pops
 		title='Disconnect App'
 		subtitle="on {$yw_chain.name}"
 	/>
 
-	<div>
-		<ChainAccount g_chain={$yw_chain} g_account={$yw_account} />
-
-		<Row pfpDim={32} noHorizontalPad
-			resource={g_app}
-			detail={g_app.host}
-		/>
+	<div style="margin: 0 0 2em 0;">
+		<AppBanner app={g_app} account={$yw_account} chains={[$yw_chain]}
+			sx_cluster_style="filter: grayscale(1);"
+			embedded />
 	</div>
 
 	{#if !g_connection}
@@ -271,7 +277,7 @@
 			{/if}
 
 			<button class="cautionary"
-				disabled={b_pending_revoke}
+				disabled={b_pending_revoke || b_loading}
 				on:click={() => disconnect_app()}
 			>
 				Disconnect

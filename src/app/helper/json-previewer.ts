@@ -1,30 +1,121 @@
 import type {Dict, JsonValue, Promisable} from '#/meta/belt';
-import type {ChainStruct} from '#/meta/chain';
+import type {ChainStruct, ContractStruct} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
+
+import BigNumber from 'bignumber.js';
 
 import {RT_UINT, RT_URI_LIKELY, R_BECH32} from '#/share/constants';
 import {Chains} from '#/store/chains';
 import {is_dict_es} from '#/util/belt';
-import {uuid_v4} from '#/util/data';
+import {base64_to_text, uuid_v4} from '#/util/data';
 import {dd} from '#/util/dom';
+import {format_amount} from '#/util/format';
+import type { Arrayable } from 'vitest';
 
 export interface PreviewerConfig {
 	chain?: ChainStruct;
+	formats?: Dict<FormatConfig>;
 }
 
-export function classify(s_value: string, s_class: string): HTMLSpanElement {
+export interface FormatConfig {
+	expect: 'uint';
+	unit: string;
+	decimals: number;
+	classes?: string;
+}
+
+export function classify(z_value: Arrayable<string | Element>, s_class=''): HTMLSpanElement {
 	return dd('span', {
 		class: s_class,
-	}, [s_value]);
+	}, Array.isArray(z_value)? z_value: [z_value]);
 }
 
 function render_string(s_value: string): HTMLSpanElement {
 	return classify(JSON.stringify(s_value).replace(/^"|"$/g, ''), 'json-string');
 }
 
+const A_SNIP_MESSAGES_AMOUNTS = [
+	'transfer',
+	'send',
+	'increase_allowance',
+	'decrease_allowance',
+	'transfer_from',
+	'send_from',
+	'mint',
+	'burn',
+	'burn_from',
+	'redeem',
+];
+
+const A_SNIP_BATCH_MESSAGES_AMOUNTS = [
+	'batch_transfer',
+	'batch_send',
+	'batch_transfer_from',
+	'batch_send_from',
+	'batch_mint',
+	'batch_burn_from',
+];
+
+
+export function snip_json_formats(g_contract: undefined|null|ContractStruct, si_action: string): Dict<FormatConfig> {
+	// special formatting
+	const h_formats: Dict<FormatConfig> = {};
+	const g_snip20 = g_contract?.interfaces.snip20;
+	if(g_snip20) {
+		const g_format_token = {
+			expect: 'uint',
+			unit: g_snip20.symbol,
+			decimals: g_snip20.decimals,
+			classes: 'token-amount',
+		} as const;
+
+		if(A_SNIP_MESSAGES_AMOUNTS.includes(si_action)) {
+			h_formats['amount'] = g_format_token;
+		}
+		else if(A_SNIP_BATCH_MESSAGES_AMOUNTS.includes(si_action)) {
+			h_formats['actions.*.amount'] = g_format_token;
+		}
+	}
+
+	return h_formats;
+}
+
 export type RenderValue = JsonValue<Promise<JsonValue> | (() => Promisable<JsonValue>)>;
 
 let xt_global_delay = 0;
+
+function decode_and_expand(z_value) {
+	if(is_dict_es(z_value)) {
+		const h_expanded = {};
+
+		for(const si_key in z_value) {
+			h_expanded[si_key] = decode_and_expand(z_value[si_key]);
+		}
+
+		return h_expanded;
+	}
+	else if(Array.isArray(z_value)) {
+		return z_value.map(decode_and_expand);
+	}
+	else if('string' === typeof z_value) {
+		// numeric, skip
+		if(/^-?[\d.]+$/.test(z_value)) return z_value;
+
+		// base-64 encoded json; unwrap
+		try {
+			return decode_and_expand(JSON.parse(base64_to_text(z_value)));
+		}
+		catch(e_decode) {}
+
+		// JSON-parseable string; unwrap
+		try {
+			return decode_and_expand(JSON.parse(z_value) as JsonValue);
+		}
+		catch(e_decode) {}
+	}
+
+	return z_value;
+}
 
 export class JsonPreviewer {
 	static render(
@@ -34,21 +125,28 @@ export class JsonPreviewer {
 	): FieldConfig<'dom'> {
 		const k_previewer = new JsonPreviewer(gc_previewer || {});
 
+		const z_expanded = decode_and_expand(z_value);
+
 		return {
 			type: 'dom',
-			dom: k_previewer.render(z_value),
+			dom: k_previewer.render(z_expanded),
 			...gc_field,
 		} as const;
 	}
 
 	constructor(protected _gc_previewer: PreviewerConfig) {}
 
-	render(z_value: RenderValue, a_terms: boolean[]=[]): HTMLElement {
+	render(z_value: RenderValue, a_terms: boolean[]=[], a_path: Array<string|number>=[]): HTMLElement {
+		const {
+			formats: h_formats={},
+		} = this._gc_previewer;
+
 		const n_depth = a_terms.length;
 
 		if(is_dict_es(z_value)) {
 			const a_entries_dst: HTMLSpanElement[] = [];
 
+			// begin by sorting the fields based on types
 			const a_entries_src = Object.entries(z_value).sort(([si_key_a, z_item_a], [si_key_b, z_item_b]) => {
 				const n_sort = si_key_a.localeCompare(si_key_b);
 
@@ -173,7 +271,15 @@ export class JsonPreviewer {
 							class: 'text',
 						}, [si_key]),
 					]),
-					this.render(z_item, [...a_terms, b_terminal]),
+					this.render(z_item, [...a_terms, b_terminal], [...a_path, si_key]),
+				]));
+			}
+
+			if(!a_entries_src.length) {
+				a_entries_dst.push(dd('span', {
+					class: 'json-empty-object',
+				}, [
+					dd('span', {}, ['{ }']),
 				]));
 			}
 
@@ -187,9 +293,17 @@ export class JsonPreviewer {
 		else if(Array.isArray(z_value)) {
 			const a_items: HTMLElement[] = [];
 
-			for(const z_item of z_value) {
+			for(let i_item=0; i_item<z_value.length; i_item++) {
 				a_items.push(dd('li', {}, [
-					this.render(z_item, [...a_terms, false]),
+					this.render(z_value[i_item], [...a_terms, false], [...a_path, i_item]),
+				]));
+			}
+
+			if(!z_value.length) {
+				a_items.push(dd('span', {
+					class: 'json-empty-array',
+				}, [
+					dd('span', {}, ['[ ]']),
 				]));
 			}
 
@@ -201,8 +315,20 @@ export class JsonPreviewer {
 			return dm_list;
 		}
 		else if('string' === typeof z_value) {
+			// check formats
+			const g_format = h_formats?.[a_path.join('.')]
+				|| h_formats?.[a_path.map(z => 'number' === typeof z? '*': z).join('.')];
+
 			// unsigned integer
 			if(RT_UINT.test(z_value)) {
+				if('uint' === g_format?.expect) {
+					const s_amount = format_amount(BigNumber(z_value).shiftedBy(-g_format.decimals).toNumber());
+					return classify(
+						classify(s_amount+' '+g_format.unit),
+						`formatted ${g_format.classes || ''}`
+					);
+				}
+
 				return classify(BigInt(z_value).toLocaleString(), 'uint');
 			}
 
@@ -269,7 +395,7 @@ export class JsonPreviewer {
 
 			(async() => {
 				const g_value = await ('function' === typeof z_value? z_value(): z_value);
-				const dm_replace = this.render(g_value);
+				const dm_replace = this.render(g_value, a_terms, a_path);
 
 				document.getElementById(si_span)?.replaceWith(dm_replace);
 			})();

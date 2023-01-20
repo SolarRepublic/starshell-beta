@@ -340,7 +340,7 @@ export class SecretWasm {
 		}
 
 		// construct payload
-		const atu8_payload = text_to_buffer(s_code_hash+JSON.stringify(g_msg));
+		const atu8_payload = text_to_buffer(s_code_hash.toUpperCase()+JSON.stringify(g_msg));
 
 		// pad to make multiple of block size
 		const nb_payload = atu8_payload.byteLength;

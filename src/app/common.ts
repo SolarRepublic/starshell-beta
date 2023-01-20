@@ -1,4 +1,5 @@
 import type {Promisable} from '#/meta/belt';
+import { remove } from '#/util/belt';
 
 import {camel_to_phrase} from '#/util/format';
 
@@ -26,8 +27,7 @@ export function on_error(fe_report: ErrorCallback): VoidFunction {
 	a_error_listeners.push(fe_report);
 
 	const fk_remove = () => {
-		const i_listener = a_error_listeners.indexOf(fe_report);
-		a_error_listeners.splice(i_listener, 1);
+		remove(a_error_listeners, fe_report);
 	};
 
 	return fk_remove;
@@ -64,8 +64,7 @@ export function syserr(z_error: Error | ErrorReport): Error {
 
 		// automatically expire
 		setTimeout(() => {
-			const i_error = a_errors.indexOf(si_error);
-			if(i_error >= 0) a_errors.splice(i_error, 1);
+			remove(a_errors, si_error);
 		}, 2e3);
 
 		for(const fk_listener of a_error_listeners) {

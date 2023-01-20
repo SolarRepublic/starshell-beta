@@ -40,7 +40,7 @@ import McsRatifier from './mcs-ratifier';
 import {open_flow} from './msg-flow';
 import {global_broadcast, global_receive} from './msg-global';
 import {set_keplr_compatibility_mode} from './scripts';
-import {app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, request_keplr_decision, RetryCode, unlock_to_continue} from './service-apps';
+import {AppStatus, app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, request_keplr_decision, RetryCode, unlock_to_continue} from './service-apps';
 import {NetworkFeed} from './service-feed';
 import {H_HANDLERS_ICS_APP} from './service-handlers-ics-app';
 
@@ -52,7 +52,7 @@ import {EntropyProducer} from '#/crypto/entropy';
 import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
 import {system_notify} from '#/extension/notifications';
-import {process_permissions_request} from '#/extension/permissions';
+import {add_permission_to_set, process_permissions_request} from '#/extension/permissions';
 import {PublicStorage, storage_clear, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {ServiceHost} from '#/extension/service-comms';
 import {SessionStorage} from '#/extension/session-storage';
@@ -75,6 +75,7 @@ import { Argon2 } from '#/crypto/argon2';
 import { SecretWasm } from '#/crypto/secret-wasm';
 import { SecretNetwork } from '#/chain/secret-network';
 import { FeeGrants } from '#/chain/fee-grant';
+import type { AppChainConnection, AppPermissionSet } from '#/meta/app';
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
@@ -266,6 +267,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 		}
 
 		// app might already have connection
+		CHECK_PREAPPROVED:
 		if(b_registered) {
 			// ref existing connections
 			const h_connections_existing = g_app.connections;
@@ -278,34 +280,74 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 				}
 			}
 
+			// requested account is not part of existing connections
+			if(!as_account_paths.has(g_msg.accountPath)) {
+				break CHECK_PREAPPROVED;
+			}
+
 			// distill the request
 			const {
-				h_connections,
+				h_connections: h_connections_request,
+				h_flattened,
 			} = process_permissions_request({
 				a_account_paths: [...as_account_paths],
 				h_chains: g_msg.chains,
 				h_sessions: g_msg.sessions,
 			});
 
-			// create hypothetical connection set by copying current permissions onto requested ones
-			for(const [p_chain, g_connection_existing] of ode(h_connections_existing)) {
-				const g_connection = h_connections[p_chain];
-				g_connection.permissions = g_connection_existing.permissions;
+			// generate permission set preview
+			const g_set_preview: Partial<AppPermissionSet> = {};
+			for(const [si_key, w_value] of ode(h_flattened)) {
+				add_permission_to_set(si_key, g_set_preview);
 			}
 
-			// connections are identical
-			const sx_connections = JSON.stringify(h_connections);
-			const sx_connections_existing = JSON.stringify(h_connections_existing);
-			if(sx_connections === sx_connections_existing) {
+			// serialize preview
+			const sx_permissions_request = JSON.stringify(g_set_preview);
+
+			// connections that are already approved
+			const h_connections_approved: Record<ChainPath, AppChainConnection> = {};
+
+			// compare existing connections to requested ones
+			for(const [p_chain, g_connection_existing] of ode(h_connections_existing)) {
+				// chain not being requested; skip
+				if(!(p_chain in h_connections_request)) continue;
+
+				// permissions are identical
+				const sx_permissions_existing = JSON.stringify(g_connection_existing.permissions);
+				if(sx_permissions_existing === sx_permissions_request) {
+					// check all requested accounts are covered
+					for(const p_account of h_connections_request[p_chain].accounts) {
+						// request includes an account that is not covered in existing connection
+						if(!g_connection_existing.accounts.includes(p_account)) {
+							// bail on comparing
+							break;
+						}
+					}
+
+					// approve connection using existing one
+					h_connections_approved[p_chain] = g_connection_existing;
+
+					// remove from request
+					delete h_connections_request[p_chain];
+
+					// continue comparing
+					continue;
+				}
+
+				// TODO: detect upgrade/downgrade
+			}
+
+			// no remaining connection requests
+			if(!Object.keys(h_connections_request).length) {
 				// prep approved connections response
-				const h_connections_approved = h_connections_existing as InternalConnectionsResponse;
+				const h_connections_response = h_connections_approved as InternalConnectionsResponse;
 
 				// populate each connection with corresponding chain definition
-				for(const [p_chain, g_connection] of ode(h_connections_approved)) {
+				for(const [p_chain, g_connection] of ode(h_connections_response)) {
 					g_connection.chain = ks_chains.at(p_chain)!;
 				}
 
-				// preapprove requrest with existing connections
+				// finalize request approval
 				fk_respond(h_connections_approved);
 				return;
 			}
@@ -319,6 +361,7 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 					app: g_app,
 					chains: g_msg.chains,
 					sessions: g_msg.sessions,
+					accountPath: g_msg.accountPath,
 				},
 				page: g_page,
 			},
@@ -470,6 +513,37 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 		const si_type = g_msg.type;
 		const w_response = await H_SESSION_STORAGE_POLYFILL[si_type](g_msg.value);
 		fk_respond(w_response);
+	},
+
+	async reportException(g_msg, g_sender, fk_respond) {
+		fk_respond?.(null);
+
+		// check the app
+		let g_check!: AppStatus|undefined;
+		try {
+			g_check = await check_app_permissions(g_sender);
+		}
+		catch(e_check) {}
+
+		// get page info
+		const g_page = page_info_from_sender(g_sender);
+
+		// reload
+		await open_flow({
+			flow: {
+				type: 'reportAppException',
+				value: {
+					app: g_check?.g_app || null,
+					page: g_page,
+					report: g_msg.report,
+				},
+				page: g_page,
+			},
+			open: {
+				...await position_widow_over_tab(g_page.tabId) || {},
+				popover: g_page,
+			},
+		});
 	},
 };
 

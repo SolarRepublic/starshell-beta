@@ -20,7 +20,7 @@
 	import type {TxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
 	import type {SimulateResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 	
-	import type {U} from 'ts-toolbelt';
+	import type {L, U} from 'ts-toolbelt';
 	
 	import type {AccountStruct} from '#/meta/account';
 	import type {Dict, JsonObject, Promisable} from '#/meta/belt';
@@ -48,7 +48,7 @@
 	import {address_to_name} from '#/chain/messages/_util';
 	import type {AminoMsgSend} from '#/chain/messages/bank';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
-	import {signAmino, type SignedDoc} from '#/chain/signing';
+	import {sign_amino, type SignedDoc} from '#/chain/signing';
 	import type {WsTxResultError} from '#/cosmos/tm-json-rpc-ws-def';
 	import {pubkey_to_bech32} from '#/crypto/bech32';
 	import {decrypt_private_memo} from '#/crypto/privacy';
@@ -81,6 +81,7 @@
 	import Load from '../ui/Load.svelte';
 	import Row from '../ui/Row.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
+    import type { KeplrSignOptions } from '@keplr-wallet/types';
 	
 
 	
@@ -122,6 +123,10 @@
 	export let local = false;
 
 	const b_show_timeout_controls = false;
+
+	export let keplrSignOptions: KeplrSignOptions = {};
+
+	const b_use_suggested_gas = true === keplrSignOptions?.preferNoSetFee;
 
 
 	// get fee coin from chain
@@ -574,9 +579,11 @@
 				else if(local) {
 					s_gas_limit = s_gas_forecast;
 				}
-
+				// no `preferNoSetFee`
+				else if(!b_use_suggested_gas) {
+					s_gas_limit = s_gas_forecast;
+				}
 				// otherwise, do not risk spending below the amount
-				// TODO: leverage keplr's `preferNoSetFee`
 			}
 
 			// update fee grant check
@@ -708,6 +715,14 @@
 			throw new Error('Account does not exist?!');
 		}
 
+		// using feegrant requires a forecast; force user to wait
+		if(s_granter && b_use_grant && !s_gas_forecast && !s_err_sim) {
+			throw syserr({
+				title: 'Fee optimization required',
+				text: `When using a fee grant, an optimization is required. Wait a moment for the simulation to complete or opt-out of the fee grant.`,
+			});
+		}
+
 		// prep signed transaction hash
 		let si_txn = '';
 
@@ -732,7 +747,7 @@
 			// attempt to sign
 			try {
 				// sign amino
-				const g_signature = await signAmino(g_account, g_amino);
+				const g_signature = await sign_amino(g_account, g_amino);
 
 				// set completed data
 				g_completed = {
@@ -956,7 +971,8 @@
 				try {
 					const k_client = await ServiceClient.connect('self');
 
-					const [, xc_timeout] = await timeout_exec(1e3, () => k_client.send({
+					// wake the event streams, giving it time to restart if necessary
+					const [, xc_timeout] = await timeout_exec(6e3, () => k_client.request({
 						type: 'wake',
 					}));
 
@@ -988,6 +1004,8 @@
 
 				// set a timeout to make sure something happens within time limit
 				setTimeout(() => {
+					console.warn(`Confirmation timeout triggered. Opening dedicated transaction monitor`);
+
 					void monitor_tx(si_txn);
 				}, 15e3);
 			}
@@ -1020,6 +1038,7 @@
 		});
 
 		if(g_completed) {
+			// wallet should broadcast transaction
 			if(broadcast) {
 				const g_proto = (g_completed as CompletedProtoSignature).proto;
 				if(g_proto) {
@@ -1053,7 +1072,7 @@
 		}
 
 		// local and not in flow context; reset navigator thread
-		if(local && !completed) {
+		if(local && (broadcast || !completed)) {
 			k_page.reset();
 		}
 	}
@@ -1081,7 +1100,7 @@
 		}
 
 		// update fee grant check
-		void tx_granter();
+		void yw_network.nextUpdate().then(tx_granter);
 	}
 
 	// parse network fee
@@ -1176,7 +1195,12 @@
 
 	// do not complete the flow if signature screen was pushed from previous
 	function cancel() {
-		completed?.(false);
+		if(completed) {
+			completed(false);
+		}
+		else {
+			k_page.pop();
+		}
 	}
 </script>
 
@@ -1205,7 +1229,7 @@
 
 <Screen>
 	{#await dp_account}
-		<AppBanner app={g_app} chain={g_chain} on:close={() => cancel()}>
+		<AppBanner app={g_app} chains={[g_chain]} on:close={() => cancel()}>
 			<span slot="default" style="display:contents;">
 				{s_title}
 			</span>
@@ -1214,7 +1238,7 @@
 			</span>
 		</AppBanner>
 	{:then g_account}
-		<AppBanner app={g_app} chain={g_chain} account={g_account} on:close={() => cancel()}>
+		<AppBanner app={g_app} chains={[g_chain]} account={g_account} on:close={() => cancel()}>
 			<span slot="default" style="display:contents;">
 				<!-- let the title appear with the tooltip -->
 				<span style="position:relative; z-index:16;">
@@ -1237,7 +1261,7 @@
 			<Gap plain />
 			<h3>{i_overview+1}. {g_overview.title}</h3>
 		{:else}
-			<hr>
+			<hr class="no-margin">
 		{/if}
 
 		<div class="overview">
@@ -1259,7 +1283,7 @@
 					</Field>
 				{/each}
 
-				<Fields configs={[
+				<Fields {g_app} configs={[
 					...g_overview.fields,
 				]}>
 				</Fields>
@@ -1269,8 +1293,8 @@
 
 	{#if a_overviews.length > 1}
 		<Gap plain />
-	<!-- {:else}
-		<hr> -->
+	{:else}
+		<hr style="margin: 0 var(--ui-padding);">
 	{/if}
 
 	<Field short key='gas' name='Network Fee'>
@@ -1308,7 +1332,12 @@
 									Optimizing fee...
 								{/if}
 							{:else if s_gas_forecast}
-								✔️ Optimized fee ({
+								{#if b_use_suggested_gas}
+									✔️ Simulated txn
+								{:else}
+									✔️ Optimized fee
+								{/if}
+								({
 									c_samples <= 10
 										? c_samples
 										: `>${Math.floor((c_samples-1) / 10) * 10}`

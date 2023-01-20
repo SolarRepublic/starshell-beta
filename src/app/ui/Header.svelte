@@ -158,8 +158,6 @@
 
 	let dm_search: HTMLInputElement;
 
-	export let isSearchScreen = false;
-
 	let s_search = $yw_search;
 
 	// when true, the search area element overlays the header
@@ -172,10 +170,6 @@
 
 		// set cancel function
 		$yw_cancel_search = cancel_search;
-	}
-
-	$: {
-		console.log(`$yw_search: ${$yw_search}`);
 	}
 
 	// cancels the current search activity
@@ -246,20 +240,6 @@
 		removeEventListener('keydown', keydown);
 	});
 
-	// yw_search.subscribe((s_value) => {
-	// 	if(isSearchScreen && s_value) {
-	// 		s_search = s_value;
-	// 		if(dm_search) {
-	// 			setTimeout(() => {
-	// 				dm_search.focus();
-	// 			}, 0);
-	// 		}
-	// 	}
-	// 	else if(!s_value) {
-	// 		s_search = '';
-	// 	}
-	// });
-
 	function update_search(d_event: Event) {
 		// user typed something
 		if(s_search) {
@@ -301,6 +281,26 @@
 			// save selection
 			void Settings.set('p_chain_selected', p_chain);
 		};
+	}
+
+	// there is an active app affiliated with the popup
+	if(g_cause?.app) {
+		// subscribe to account changes
+		yw_account.subscribe((g_account) => {
+			// debugger;
+			// console.log({
+			// 	g_account,
+			// 	g_cause,
+			// });
+
+			// send update event to page
+			void chrome.tabs?.sendMessage?.(g_cause.tab.id!, {
+				type: 'notifyAccountChange',
+				value: {
+					accountPath: Accounts.pathFrom(g_account),
+				},
+			});
+		});
 	}
 </script>
 
@@ -609,7 +609,7 @@
 								/>
 							</span>
 
-							{#if $yw_overlay_app}
+							{#if $yw_overlay_app && $yw_owner}
 								{@const s_app_status = g_cause.registered
 									? Object.keys(g_cause.app.connections).length
 										? 'connected'

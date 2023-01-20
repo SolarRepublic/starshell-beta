@@ -12,7 +12,7 @@ export interface SignedDoc {
 	signature: Uint8Array;
 }
 
-export async function signDirectDoc(
+export async function sign_direct_doc(
 	g_account: AccountStruct,
 	xg_account_number: bigint,
 	atu8_auth: Uint8Array,
@@ -39,7 +39,7 @@ export async function signDirectDoc(
 	};
 }
 
-export async function signAmino(
+export async function sign_amino(
 	g_account: AccountStruct,
 	g_amino: AdaptedStdSignDoc
 ): Promise<AdaptedStdSignature> {

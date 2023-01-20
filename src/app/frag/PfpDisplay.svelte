@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type {Nameable, Pfpable} from '#/meta/able';
+	import type {Nilable} from '#/meta/belt';
 	import type {PfpTarget} from '#/meta/pfp';
 	
 	import {createEventDispatcher} from 'svelte';
@@ -14,7 +15,7 @@
 	
 	import Put from '../ui/Put.svelte';
 	
-	
+
 
 	const dispatch = createEventDispatcher();
 
@@ -80,11 +81,15 @@
 		const ks_medias = $yw_store_medias || await Medias.read();
 
 		// load pfp by ref
-		const dm_pfp = await Pfps.load(path!, {
-			alt: name,
-			dim: dim,
-			medias: ks_medias,
-		}, $yw_store_pfps);
+		let dm_pfp: Nilable<HTMLPictureElement>;
+		try {
+			dm_pfp = await Pfps.load(path!, {
+				alt: name,
+				dim: dim,
+				medias: ks_medias,
+			}, $yw_store_pfps);
+		}
+		catch(e_load) {}
 
 		queueMicrotask(() => {
 			dispatch('loaded');
@@ -164,7 +169,7 @@
 			height: 100%;
 
 			&.original {
-				filter: invert(1);
+				// filter: invert(1);
 			}
 
 			&.border {
@@ -185,7 +190,7 @@
 			}
 
 			&.overlay {
-				filter: contrast(0.5) blur(1.25px) contrast(2.5);
+				filter: invert(1) contrast(0.5) blur(1.25px) contrast(2.5);
 				opacity: 0.5;
 
 				// "T" shape
@@ -212,38 +217,31 @@
 		style={sx_style_root}
 		data-path={path}
 	>
-		{#if path}
-			{#await load_pfp()}
-				<span class="global_icon-dom global_loading dynamic-pfp" style={sx_dom_style} data-pfp-args={JSON.stringify({
-					alt: name,
-					dim: dim,
-				})}>
-					⊚
-				</span>
-			{:then dm_pfp}
-				{#if 'testnet' === filter || 'testnet' === s_autofilter}
-					<span class="filter-testnet" style="width:{dim}px; height:{dim}px;">
-						<span class="original">
-							<Put element={dm_pfp} />
-						</span>
-						<span class="border">
-							
-						</span>
-						<span class="overlay">
-							<Put element={dm_pfp} />
-						</span>
-					</span>
-				{:else}
-					<Put element={dm_pfp} />
-				{/if}
-
-				{#await settle_inner() then _}_{/await}
-			{/await}
-		{:else}
-			<span class="global_icon-dom" style={sx_style_gen}>
-				{name[0] || ''}
+		{#await load_pfp()}
+			<span class="global_icon-dom global_loading dynamic-pfp" style={sx_dom_style} data-pfp-args={JSON.stringify({
+				alt: name,
+				dim: dim,
+			})}>
+				⊚
 			</span>
+		{:then dm_pfp}
+			{#if 'testnet' === filter || 'testnet' === s_autofilter}
+				<span class="filter-testnet" style="width:{dim}px; height:{dim}px;">
+					<span class="original">
+						<Put element={dm_pfp} />
+					</span>
+					<span class="border">
+						
+					</span>
+					<span class="overlay">
+						<Put element={dm_pfp} />
+					</span>
+				</span>
+			{:else}
+				<Put element={dm_pfp} />
+			{/if}
+
 			{#await settle_inner() then _}_{/await}
-		{/if}
+		{/await}
 	</span>
 {/key}

@@ -121,7 +121,7 @@ type SecretTypeRegistry = {
 	viewing_key: {
 		struct: {
 			/**
-			 * Whether the viewing key is currently active
+			 * Whether the viewing key is currently active (i.e., in effect on-chain)
 			 */
 			on: 0 | 1;
 
@@ -149,6 +149,11 @@ type SecretTypeRegistry = {
 
 	query_permit: {
 		struct: {
+			/**
+			 * Whether the query permit is currently active (i.e., has unrevoked contracts)
+			 */
+			on: 0 | 1;
+
 			/**
 			 * The chain that this permit exists on
 			 */

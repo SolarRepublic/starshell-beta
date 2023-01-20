@@ -17,7 +17,7 @@
 	
 	import {load_flow_context, s2r_slide} from '../svelte';
 	
-	import {type PermissionsRegistry, process_permissions_request} from '#/extension/permissions';
+	import {type PermissionsRegistry, process_permissions_request, apply_permission, add_permission_to_set} from '#/extension/permissions';
 	import {SessionStorage} from '#/extension/session-storage';
 	import {Accounts} from '#/store/accounts';
 	import {Apps, G_APP_NOT_FOUND} from '#/store/apps';
@@ -25,7 +25,7 @@
 	import {Contracts} from '#/store/contracts';
 	import {Incidents} from '#/store/incidents';
 	import {Pfps} from '#/store/pfps';
-	import {fodemtv, ode, ofe} from '#/util/belt';
+	import {fodemtv, ode, oderac, oderom, ofe} from '#/util/belt';
 	import {abbreviate_addr} from '#/util/format';
 	
 	import AppBanner from '../frag/AppBanner.svelte';
@@ -40,6 +40,7 @@
 	import SX_ICON_SERVER from '#/icon/server.svg?raw';
 	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
 	import SX_ICON_X from '#/icon/tiny-x.svg?raw';
+    import { R_CAIP_2 } from '#/share/constants';
 	
 
 	interface Permission {
@@ -122,6 +123,14 @@
 			title: 'Post transactions to the chain',
 			info: 'You will be prompted to sign each transaction',
 		}),
+
+		// decrypt: (): Permission => ({
+		// 	optional: true,
+		// 	selected: true,
+		// 	icon: SX_ICON_BADGE,
+		// 	title: 'Decrypt transaction data',
+		// 	info: 'Some apps use this ',
+		// }),
 	};
 
 
@@ -132,7 +141,8 @@
 	export let app: AppStruct;
 
 	export let chains: Record<Caip2.String, ChainStruct>;
-	const h_chains = chains;
+
+	const a_chains = Object.values(chains);
 
 	export let sessions: Dict<SessionRequest>;
 	const h_sessions = sessions;
@@ -157,7 +167,7 @@
 
 		process_permissions_request({
 			h_sessions,
-			h_chains,
+			h_chains: chains,
 			h_flattened,
 			h_connections,
 			a_account_paths,
@@ -196,26 +206,7 @@
 			// update global permissions
 			for(const [si_key, g_permission] of ode(h_permissions)) {
 				if(g_permission.selected) {
-					switch(si_key as PermissionKey) {
-						case 'doxx_name': {
-							(g_set.doxx = g_set.doxx || {}).name = true;
-							break;
-						}
-
-						case 'dox_address': {
-							(g_set.doxx = g_set.doxx || {}).address = true;
-							break;
-						}
-
-						case 'query_node': {
-							(g_set.query = g_set.query || {}).node = true;
-							break;
-						}
-
-						default: {
-							g_set[si_key] = {};
-						}
-					}
+					add_permission_to_set(si_key as PermissionKey, g_set);
 				}
 			}
 
@@ -425,7 +416,7 @@
 </style>
 
 <Screen>
-	<AppBanner {app} account={1 === a_accounts.length? a_accounts[0]: null} on:close={() => completed(false)}>
+	<AppBanner {app} chains={a_chains} account={1 === a_accounts.length? a_accounts[0]: null} on:close={() => completed(false)}>
 		<span style="display:contents;" slot="default">
 			Review permissions requests
 		</span>

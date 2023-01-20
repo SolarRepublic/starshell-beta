@@ -12,7 +12,7 @@ import {parse_sender} from './service-apps';
 import {Vault} from '#/crypto/vault';
 import {SessionStorage} from '#/extension/session-storage';
 import {Apps} from '#/store/apps';
-import {timeout, timeout_exec} from '#/util/belt';
+import {remove, timeout, timeout_exec} from '#/util/belt';
 
 const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.service: ${s}`, ...a_args);
 // globalThis.debug = debug;
@@ -30,7 +30,7 @@ export function instruction_handlers(
 			return await h_session_storage_polyfill[g_msg.type](g_msg.value);
 		},
 
-		async wake() {
+		async wake(): Promise<void> {
 			// 
 			for(const k_feed of a_feeds) {
 				await navigator.locks.request(`net:feed:${k_feed.provider.rpcHost}`, async() => {
@@ -58,7 +58,7 @@ export function instruction_handlers(
 						k_feed.destroy();
 
 						// remove from list
-						a_feeds.splice(a_feeds.indexOf(k_feed), 1);
+						remove(a_feeds, k_feed);
 
 						// replace with new feed
 						a_feeds.push(await k_feed.recreate());

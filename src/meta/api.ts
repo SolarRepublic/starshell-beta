@@ -2,6 +2,7 @@ import type {Caip2, ChainStruct} from './chain';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 import type {Dict, JsonObject} from '#/meta/belt';
+import type { AccountPath } from './account';
 
 export type Truthy = 1 | true | {};
 
@@ -52,9 +53,10 @@ export interface ConnectionManifestV1 extends ConnectionManifest {
 	 */
 	sessions: Dict<SessionRequest>;
 
-	accounts?: {
-
-	};
+	/**
+	 * For now, use a single account path
+	 */
+	accountPath: AccountPath;
 }
 
 

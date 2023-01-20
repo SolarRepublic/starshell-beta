@@ -6,6 +6,7 @@ import type {
 	ServiceToIcs,
 } from './messages';
 
+import type {ChainStruct} from '#/meta/chain';
 import type {Vocab} from '#/meta/vocab';
 
 
@@ -17,12 +18,16 @@ import type {Vocab} from '#/meta/vocab';
 	const d_runtime: Vocab.TypedRuntime<IcsToService.PublicVocab, ServiceToIcs.CommandVocab> = chrome.runtime;
 
 	// verbose
+	// eslint-disable-next-line no-console
 	const debug = (s: string, ...a_args: (string | number | object)[]) => console.debug(`StarShell.ics-spotter: ${s}`, ...a_args);
+	const warn = (s: string, ...a_args: (string | number | object)[]) => console.warn(`StarShell.ics-spotter: ${s}`, ...a_args);
+	const error = (s: string, ...a_args: (string | number | object)[]) => console.error(`StarShell.ics-spotter: ${s}`, ...a_args);
 	debug(`Launched on <${location.href}>`);
 
 	const {
 		SI_STORE_ACCOUNTS,
-		B_FIREFOX_ANDROID,
+		SI_STORE_CHAINS,
+		R_CAIP_2,
 
 		pubkey_to_bech32,
 
@@ -30,9 +35,9 @@ import type {Vocab} from '#/meta/vocab';
 		load_app_pfp,
 
 		Apps,
+		Chains,
 
 		dd, qsa,
-		stringify_params,
 
 		create_store_class,
 		WritableStoreMap,
@@ -40,6 +45,11 @@ import type {Vocab} from '#/meta/vocab';
 		Vault,
 	} = inline_require('./ics-spotter-imports.ts') as typeof ImportHelper;
 
+	const Accounts = create_store_class({
+		store: SI_STORE_ACCOUNTS,
+		extension: 'map',
+		class: class AccountsI extends WritableStoreMap<typeof SI_STORE_ACCOUNTS> {},
+	});
 
 	const XL_WIDTH_OVERLAY_MAX = 160;
 	const XL_WIDTH_OVERLAY_MIN = 120;
@@ -154,7 +164,7 @@ import type {Vocab} from '#/meta/vocab';
 	// }
 
 
-	async function add_input_overlay(dm_input: HTMLInputElement) {
+	async function add_input_overlay(dm_input: HTMLInputElement, a_chains: ChainStruct[]) {
 		const {
 			height: xl_height_input,
 			width: xl_width_input,
@@ -166,12 +176,6 @@ import type {Vocab} from '#/meta/vocab';
 		const a_border = g_computed.borderRadius.split(/\s+/);
 		const s_border_tr = a_border[1] || a_border[0];
 		const s_border_br = a_border[3] || a_border[0];
-
-		const Accounts = create_store_class({
-			store: SI_STORE_ACCOUNTS,
-			extension: 'map',
-			class: class AccountsI extends WritableStoreMap<typeof SI_STORE_ACCOUNTS> {},
-		});
 
 		const a_accounts = (await Accounts.read()).entries().map(([, g]) => g);
 		let i_account = 0;
@@ -194,7 +198,7 @@ import type {Vocab} from '#/meta/vocab';
 				const g_bounds_input = dm_input.getBoundingClientRect();
 
 				sx_position = `
-					top: calc(${(g_bounds_input.top - g_bounds_ancestor.top)}px + ${g_computed.borderTopWidth});
+					top: calc(${g_bounds_input.top - g_bounds_ancestor.top}px + ${g_computed.borderTopWidth});
 					right: calc(${g_bounds_ancestor.right - g_bounds_input.right}px + ${g_computed.borderRightWidth});
 				`;
 			}
@@ -309,90 +313,153 @@ import type {Vocab} from '#/meta/vocab';
 			dm_overlay.remove();
 			setTimeout(() => {
 				dm_input.dispatchEvent(new InputEvent('input', {inputType:'insertText', data:'s'}));
-				console.log('dispatched onto input;');
+				debug('dispatched input event onto input');
 			}, 200);
 		});
 
 		dm_input.insertAdjacentElement('afterend', dm_overlay);
 	}
 
-	// wait for head to load
+	/**
+	 * Determines if input is visible. If it is, adds overlay immediately, otherwise watches until visible and then adds overlay
+	 */
+	function watch_input(dm_input: HTMLInputElement, a_chains_input: ChainStruct[]) {
+		const {
+			height: xl_height_input,
+			width: xl_width_input,
+		} = dm_input.getBoundingClientRect();
+
+		// input is visible; add input overlay
+		if(xl_width_input * xl_height_input > 10) {
+			void add_input_overlay(dm_input, a_chains_input);
+		}
+		// input not visible, wait for it to appear
+		else {
+			// do not add overlay more than once
+			let b_overlay_added = false;
+
+			// observer callback
+			const f_observer: MutationCallback = (di_mutations, d_observer) => {
+				// check input bounds in a beat
+				setTimeout(() => {
+					const {
+						height: xl_height_input_now,
+						width: xl_width_input_now,
+					} = dm_input.getBoundingClientRect();
+
+					// is visible enough now
+					if(xl_width_input_now * xl_height_input_now > 100) {
+						// do not add more than once
+						if(b_overlay_added) return;
+						b_overlay_added = true;
+
+						// remove observer
+						d_observer.disconnect();
+
+						// add overlay in a beat
+						void add_input_overlay(dm_input, a_chains_input);
+					}
+				}, 150);
+			};
+
+			// attach new observer to document body
+			const d_observer = new MutationObserver(f_observer);
+			d_observer.observe(document.body, {
+				subtree: true,
+				childList: true,
+				attributes: true,
+			});
+		}
+	}
+
+	/**
+	 * Waits for head to load and then finds autofillable inputs
+	 */
 	async function dom_ready() {
 		debug('dom_ready triggered');
 
-		// load the app's pfp
-		void load_app_pfp();
-
 		// logged in
 		if(await Vault.isUnlocked()) {
+			// load chains store
+			const ks_chains = await Chains.read();
+
 			// check if app is registered
 			const g_app = await Apps.get(location.host, location.protocol as 'https:');
+
+			// app is registered and enabled
 			if(g_app?.on) {
 				debug('App is registered and enabled');
 
+				// load the app's pfp
+				await load_app_pfp(true);
+
 				try {
-					// find autocompletable inputs
+					// find autofillable inputs
 					qsa(document.body, 'input[type="text"]').forEach((dm_input) => {
-						if(/^faucet-address$/.test(dm_input.id) || ('LABEL' === dm_input.previousElementSibling?.tagName && /wallet addr/i.test(dm_input.previousElementSibling.textContent!))) {
-							const {
-								height: xl_height_input,
-								width: xl_width_input,
-							} = dm_input.getBoundingClientRect();
+						// whip-005 account
+						if('account' === dm_input.dataset['whip-005Type']) {
+							// list of chains for account
+							const a_chains_input: ChainStruct[] = [];
 
-							// input is visible; add input overlay
-							if(xl_width_input * xl_height_input > 10) {
-								void add_input_overlay(dm_input);
+							// each caip2
+							const a_caip2s = dm_input.dataset['whip-005Chains']?.trim().split(/\s+/g) || [];
+							for(const si_caip2 of a_caip2s) {
+								// parse caip2
+								const m_caip2 = R_CAIP_2.exec(si_caip2);
+
+								// unparseable caip2; skip
+								if(!m_caip2) continue;
+
+								// chain path
+								const p_chain = Chains.pathFor(m_caip2[1] as 'cosmos', m_caip2[2]);
+
+								// load chain struct
+								const g_chain = ks_chains.at(p_chain);
+
+								// chain not defined; skip
+								if(!g_chain) continue;
+
+								// add chain to list
+								a_chains_input.push(g_chain);
 							}
-							// input not visible, wait for it to appear
-							else {
-								// do not add overlay more than once
-								let b_overlay_added = false;
 
-								// observer callback
-								const f_observer: MutationCallback = (di_mutations, d_observer) => {
-									// check input bounds in a beat
-									setTimeout(() => {
-										const {
-											height: xl_height_input_now,
-											width: xl_width_input_now,
-										} = dm_input.getBoundingClientRect();
-
-										// is visible enough now
-										if(xl_width_input_now * xl_height_input_now > 100) {
-											// do not add more than once
-											if(b_overlay_added) return;
-											b_overlay_added = true;
-
-											// remove observer
-											d_observer.disconnect();
-
-											// add overlay in a beat
-											void add_input_overlay(dm_input);
-										}
-									}, 150);
-								};
-
-								// attach new observer to document body
-								const d_observer = new MutationObserver(f_observer);
-								d_observer.observe(document.body, {
-									subtree: true,
-									childList: true,
-									attributes: true,
-								});
-							}
+							// watch input on valid chains
+							watch_input(dm_input, a_chains_input);
+						}
+						// non-whip-005; guessable account input
+						else if(/^(faucet|feegrant|account)-address$/.test(dm_input.id) || ('LABEL' === dm_input.previousElementSibling?.tagName && /wallet addr/i.test(dm_input.previousElementSibling.textContent!))) {
+							// default to secret-4 mainnet for now
+							watch_input(dm_input, [ks_chains.at('/family.cosmos/chain.secret-4')!]);
 						}
 					});
 				}
 				catch(e_app) {
-					console.error(`Recovered from error: ${e_app.stack}`);
+					error(`Recovered from error: ${e_app.stack}`);
 				}
 			}
 			else if(g_app) {
-				console.warn(`App is disabled`);
+				warn(`App is disabled`);
 			}
 			else {
-				console.debug(`App is not registered`);
+				debug(`App is not registered`);
+
+				// TODO: show popup requesting autofill
+
+				// // load the app's pfp
+				// const g_profile = await load_app_pfp();
+
+				// // notify service
+				// f_runtime().sendMessage({
+				// 	type: 'detectedWhip005',
+				// 	value: {
+				// 		profile: g_profile || {},
+				// 	},
+				// }, F_NOOP);
 			}
+		}
+		// not logged in
+		else {
+			// TODO: present login prompt
 		}
 	}
 

@@ -1,5 +1,6 @@
 import type {BlockInfoHeader} from './common';
 import type {PromptConfig} from './msg-flow';
+import type {KeplrSignOptions} from '@keplr-wallet/types';
 import type {Merge} from 'ts-toolbelt/out/Object/Merge';
 
 import type {AccountPath} from '#/meta/account';
@@ -22,12 +23,12 @@ import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
 
 import type {SloppySignDoc} from '#/schema/protobuf';
 
+import type {Argon2Config} from '#/crypto/argon2';
 import type {NotificationConfig} from '#/extension/notifications';
 import type {ConnectionHandleConfig} from '#/provider/connection';
 
 
 import type {AppProfile} from '#/store/apps';
-import type { Argon2Config } from '#/crypto/argon2';
 
 
 
@@ -201,6 +202,7 @@ export namespace IcsToService {
 				profile?: AppProfile;
 				chains: Record<Caip2.String, ChainStruct>;
 				sessions: Dict<SessionRequest>;
+				accountPath: AccountPath;
 			};
 			response: {
 				result?: Record<ChainPath, AppChainConnection>;
@@ -238,6 +240,12 @@ export namespace IcsToService {
 		proxyFlow: {
 			value: AsJson<Vocab.Message<IntraExt.FlowVocab>>;
 		};
+
+		reportException: {
+			value: {
+				report: string;
+			};
+		};
 	}>;
 
 
@@ -253,6 +261,7 @@ export namespace IcsToService {
 		requestCosmosSignatureAmino: {
 			value: {
 				doc: AdaptedStdSignDoc;
+				keplrSignOptions?: AsJson<KeplrSignOptions>;
 			};
 			response: AppResponse<AdaptedAminoResponse>;
 		};
@@ -319,7 +328,7 @@ export namespace IcsToService {
 
 		requestBroadcast: {
 			value: {
-				sxb93_tx_raw: string;				
+				sxb93_tx_raw: string;
 			};
 			response: AppResponse<string>;
 		};
@@ -525,6 +534,10 @@ export namespace WitnessToKeplr {
 				interceptId: string;
 			};
 		};
+
+		accountChange: {
+			value: {};
+		};
 	}>;
 }
 
@@ -719,6 +732,7 @@ export namespace IntraExt {
 				app: AppStruct;
 				chains: Record<Caip2.String, ChainStruct>;
 				sessions: Dict<SessionRequest>;
+				accountPath: AccountPath;
 				profile?: AppProfile;
 			};
 		};
@@ -743,6 +757,7 @@ export namespace IntraExt {
 				props: {
 					preset?: string;
 					amino: AdaptedStdSignDoc;
+					keplrSignOptions?: AsJson<KeplrSignOptions>;
 				};
 				appPath: AppPath;
 				chainPath: ChainPath;
@@ -796,6 +811,14 @@ export namespace IntraExt {
 				app: AppStruct;
 				page: PageInfo;
 				preset: string;
+			};
+		};
+
+		reportAppException: {
+			value: {
+				app: AppStruct | null;
+				page: PageInfo;
+				report: string;
 			};
 		};
 
@@ -903,7 +926,7 @@ export namespace IntraExt {
 	}>;
 
 
-	export type Cause = OmitUnknownKeys<Vocab.Response<ServiceInstruction, 'whoisit'>>;
+	export type Cause = OmitUnknownKeys<NonNullable<Vocab.Response<ServiceInstruction, 'whoisit'>>>;
 
 	/**
 	 * Vocab for instructions to be given directly to service worker.
@@ -1092,7 +1115,7 @@ export namespace ExtToNative {
 			value: {
 				id: string;
 				options: AsJson<chrome.notifications.NotificationOptions>;
-			}
+			};
 		};
 
 		clear: {

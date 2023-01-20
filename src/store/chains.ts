@@ -54,11 +54,11 @@ export const Chains = create_store_class({
 			return `/family.${si_family}/chain.${si_chain}`;
 		}
 
-		static pathFrom(g_chain: ChainStruct): PathFrom<typeof g_chain> {
+		static pathFrom(g_chain: Pick<ChainStruct, 'namespace' | 'reference'>): PathFrom<typeof g_chain> {
 			return ChainsI.pathFor(g_chain.namespace, g_chain.reference);
 		}
 
-		static caip2From(g_chain: ChainStruct): Caip2.String {
+		static caip2From(g_chain: Pick<ChainStruct, 'namespace' | 'reference'>): Caip2.String {
 			return `${g_chain.namespace}:${g_chain.reference}`;
 		}
 

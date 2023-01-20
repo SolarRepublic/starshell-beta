@@ -436,6 +436,7 @@
 	on:dragleave={drag_leave}
 	on:drop={drop}
 	bind:this={dm_row}
+	data-resource-path={resourcePath}
 >
 	<div class="banner {childClasses}">
 		{#if !noPfp}
@@ -542,15 +543,17 @@
 		{/if}
 	</div>
 
-	<div class="rest {childClasses}">
-		{#if resourcePath && (a_tags.length || $$slots.tags) && !postnameTags && !noTags}
-			<slot name="tags">
-				<InlineTags subtle rootStyle='margin: 0px;'
-					{resourcePath}
-				/>
-			</slot>
-		{/if}
+	{#if (resourcePath && (a_tags.length || $$slots.tags) && !postnameTags && !noTags) || $$slots.below}
+		<div class="rest {childClasses}">
+			{#if resourcePath && (a_tags.length || $$slots.tags) && !postnameTags && !noTags}
+				<slot name="tags">
+					<InlineTags subtle rootStyle='margin: 0px;'
+						{resourcePath}
+					/>
+				</slot>
+			{/if}
 
-		<slot name="below"></slot>
-	</div>
+			<slot name="below"></slot>
+		</div>
+	{/if}
 </div>

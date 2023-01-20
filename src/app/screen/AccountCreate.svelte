@@ -286,8 +286,8 @@
 		}
 	}
 
-	function use_coin_type(si_coin: string) {
-		b_advanced = true;
+	function use_coin_type(si_coin: string, b_quietly=false) {
+		if(!b_quietly) b_advanced = true;
 
 		sx_bip44_path = sx_bip44_path.replace(/^(m\/44'\/)[^/]+\/[^/]+(\/.+)$/, `$1${si_coin}'/0'$2`) as Bip44Path;
 
@@ -298,6 +298,14 @@
 		k_page.push({
 			creator: WalletCreate,
 		});
+	}
+
+	function select_seed() {
+		// persist only the coin type
+		const m_coin_type = /^m\/44'\/(\d+)'?\//.exec(sx_bip44_path);
+
+		// quietly reset path
+		use_coin_type(m_coin_type?.[1] || '529', true);
 	}
 </script>
 
@@ -355,6 +363,7 @@
 		<StarSelect
 			items={a_items}
 			bind:value={g_selected_seed}
+			on:select={select_seed}
 		/>
 	</Field>
 

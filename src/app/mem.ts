@@ -32,12 +32,12 @@ import {
 	Providers,
 	ConnectionHealth,
 } from '#/store/providers';
+import {Settings} from '#/store/settings';
 import {Tags} from '#/store/tags';
 import {F_NOOP, microtask, timeout} from '#/util/belt';
 
 
 import PopupReceive from './popup/PopupReceive.svelte';
-import { Settings, SettingsRegistry } from '#/store/settings';
 
 
 
@@ -348,8 +348,21 @@ enum SCROLLABLE {
 	COLLAPSED=2,
 }
 
+/**
+ * Whether or not the shift key is down
+ */
+export const yw_shift_key = writable<boolean>(false);
+
 // wait for window to load
 if('undefined' !== typeof document) {
+	document.addEventListener('keydown', (d_event) => {
+		void yw_shift_key.set(d_event.shiftKey);
+	});
+
+	document.addEventListener('keyup', (d_event) => {
+		void yw_shift_key.set(d_event.shiftKey);
+	});
+
 	void once_store_updates(yw_navigator).then(async() => {
 		console.debug(`System navigator ready`);
 

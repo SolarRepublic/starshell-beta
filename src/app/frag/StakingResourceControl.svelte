@@ -9,11 +9,15 @@
 	
 	import {Coins} from '#/chain/coin';
 	
+	
+	import {open_external_link} from '#/util/dom';
+	
 	import Load from '../ui/Load.svelte';
 	import ResourceControl from '../ui/ResourceControl.svelte';
 	
 	import SX_ICON_EXPAND_RIGHT from '#/icon/expand-right.svg?raw';
 	import SX_ICON_HOURGLASS from '#/icon/hourglass.svg?raw';
+	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
 	import SX_ICON_MONEY_SLOT from '#/icon/money-slot.svg?raw';
 	
 	
@@ -80,7 +84,7 @@
 	})();
 
 	function bonded_click(d_event: MouseEvent) {
-
+		void open_external_link('https://ping.pub/secret/staking/secretvaloper1yv9f4tankaktdtf8lq6rjsx9c9rpfptc7kzhz2');
 	}
 
 	function unbonding_click(d_event: MouseEvent) {
@@ -113,6 +117,7 @@
 	infoIcon={SX_ICON_MONEY_SLOT}
 	s_icon_dim='18px'
 	on:click={bonded_click}
+	actionIcon={SX_ICON_LAUNCH}
 >
 	<!-- actionIcon={SX_ICON_EXPAND_RIGHT} -->
 	<div class="staking global_flex-auto">

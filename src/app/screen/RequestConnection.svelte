@@ -49,6 +49,7 @@
 	<div class="rows no-margin">
 		{#each ode(h_chains) as [si_caip2, g_chain]}
 			<Row
+				resource={g_chain}
 				name={g_chain.name}
 				pfp={g_chain.pfp}
 				detail={si_caip2}

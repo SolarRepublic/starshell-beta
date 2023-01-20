@@ -103,8 +103,10 @@
 			</svelte:fragment>
 		</Portrait>
 
-		<!-- account address on this chain -->
-		<AddressResourceControl address={sa_owner} />
+		<div class="resource-controls">
+			<!-- account address on this chain -->
+			<AddressResourceControl address={sa_owner} />
+		</div>
 	{/await}
 
 	<Gap />

@@ -19,7 +19,7 @@
 	import {Providers} from '#/store/providers';
 	
 	import {SecretNodes} from '#/store/web-apis';
-	import {fold, F_NOOP, oderac} from '#/util/belt';
+	import {fold, F_NOOP, oderac, remove} from '#/util/belt';
 	import {open_external_link} from '#/util/dom';
 	import {format_amount} from '#/util/format';
 	
@@ -124,8 +124,7 @@
 					h_errors[g_contract.bech32] = s_error;
 
 					// remove from adding
-					const i_adding = a_adding.indexOf(g_contract.bech32);
-					a_adding.splice(i_adding, 1);
+					remove(a_adding, g_contract.bech32);
 
 					// reactively update lists
 					h_errors = h_errors;
@@ -250,7 +249,7 @@
 
 <Screen>
 	{#if !g_account}
-		<AppBanner app={g_app_cover} chain={g_chain} on:close={reject}>
+		<AppBanner app={g_app_cover} chains={[g_chain]} on:close={reject}>
 			<span slot="default" style="display:contents;">
 				Add {bech32s.length} Token{s_token_plurality}?
 			</span>
@@ -259,7 +258,7 @@
 			</span>
 		</AppBanner>
 	{:else}
-		<AppBanner app={g_app_cover} chain={g_chain} account={g_account} on:close={reject}>
+		<AppBanner app={g_app_cover} chains={[g_chain]} account={g_account} on:close={reject}>
 			<span slot="default" style="display:contents;">
 				<!-- let the title appear with the tooltip -->
 				<span style="position:relative; z-index:16;">
@@ -290,6 +289,12 @@
 			</div>
 		</section>
 	{:then}
+		<!-- <hr>
+
+		<p>
+			The app is suggesting to add the following token{s_token_plurality} to your wallet
+		</p> -->
+		
 		<div class="rows no-margin">
 			{#await produce_contracts(bech32s, g_chain, g_app_cover)}
 				<LoadingRows count={bech32s.length} />
@@ -347,16 +352,16 @@
 										<Load forever />
 									</span>
 								{:then g_stats}
-									{@const x_locked = +g_stats.value_locked}
+									{@const x_locked = +g_stats.value_locked / 1e6}
 									{@const n_txs = +g_stats.txs_count}
 									{@const n_accs = +g_stats.accounts_count}
-									<span class:color_caution={x_locked < 100e3 && (n_txs < 5e3 || n_accs < 1e3)}>
+									<span class:color_caution={x_locked < 10e3 && (n_txs < 5e3 || n_accs < 1e3)}>
 										{format_amount(x_locked, true)} SCRT locked
 									</span>
-									<span class:color_caution={x_locked < 100e3 && n_txs < 3e3}>
+									<span class:color_caution={x_locked < 10e3 && n_txs < 3e3}>
 										{format_amount(n_txs, true)} txs
 									</span>
-									<span class:color_caution={x_locked < 100e3? n_accs < 100: n_accs < 1e3}>
+									<span class:color_caution={x_locked < 10e3? n_accs < 100: n_accs < 1e3}>
 										{format_amount(n_accs, true)} accs
 									</span>
 								{/await}

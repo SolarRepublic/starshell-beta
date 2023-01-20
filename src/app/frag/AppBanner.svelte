@@ -9,16 +9,16 @@
 	
 	import {text_to_base64} from '#/util/data';
 	
+	import PfpDisplay from './PfpDisplay.svelte';
 	import Close from '../ui/Close.svelte';
 	import Fields from '../ui/Fields.svelte';
-	import PfpDisplay from './PfpDisplay.svelte';
 
 	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
 	
 	
 	export let app: AppStruct;
 
-	export let chain: ChainStruct | null = null;
+	export let chains: ChainStruct[] = [];
 
 	export let account: AccountStruct | null = null;
 
@@ -27,6 +27,8 @@
 	export let closeable = !embedded;
 
 	export let rootStyle = '';
+
+	export let sx_cluster_style = '';
 
 	let b_view_mode_detailed = false;
 
@@ -272,7 +274,7 @@
 							{
 								type: 'resource',
 								resourceType: 'chain',
-								struct: chain || $yw_chain,
+								struct: chains[0] || $yw_chain,
 							},
 						],
 					},
@@ -288,7 +290,7 @@
 	{/if}
 
 	<div class="banner-view">
-		<div class="info-cluster">
+		<div class="info-cluster" style={sx_cluster_style}>
 			{#if account?.extra?.aura}
 				<div class="aura">
 					<!-- svelte-ignore a11y-missing-attribute -->
@@ -299,10 +301,16 @@
 			<div class="content column">
 
 				<div class="bubbles">
-					{#if chain}
+					{#if chains?.length}
 						{#if account}
 							<span class="context">
-								<PfpDisplay dim={40} resource={chain} />
+								{#if 1 === chains.length}
+									<PfpDisplay dim={40} resource={chains[0]} />
+								{:else}
+									{#each chains as g_chain, i_chain}
+										<PfpDisplay dim={32 - (i_chain * 4)} resource={g_chain} />
+									{/each}
+								{/if}
 							</span>
 							<span class="context thru">
 								<PfpDisplay dim={40} resource={account} rootStyle='border:1px solid rgba(255,255,255,0.08); border-radius:9px;' />
@@ -313,7 +321,13 @@
 							<span class="thru-line">&nbsp;</span>
 						{:else}
 							<span class="context overlap">
-								<PfpDisplay dim={40} resource={chain} />
+								{#if 1 === chains.length}
+									<PfpDisplay dim={40} resource={chains[0]} />
+								{:else}
+									{#each chains as g_chain, i_chain}
+										<PfpDisplay dim={32 - (i_chain * 4)} resource={g_chain} />
+									{/each}
+								{/if}
 							</span>
 							<span class="context underlap">
 								<PfpDisplay dim={40} resource={app} />
@@ -338,8 +352,8 @@
 						{app.host}
 					</span>
 					<span class="name">
-						{#if chain}
-							{chain.name}
+						{#if chains?.length}
+							{chains.map(g => g?.name || '').join(', ')}
 						{:else if account}
 							{account.name}
 						{:else}

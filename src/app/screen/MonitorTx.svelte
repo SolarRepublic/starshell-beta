@@ -212,7 +212,7 @@
 <Screen>
 	<AppBanner closeable={false}
 		app={G_APP_STARSHELL}
-		chain={g_chain}
+		chains={[g_chain]}
 		account={g_account}
 	>
 		Waiting for Confirmation

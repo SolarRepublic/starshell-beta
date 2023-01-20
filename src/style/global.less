@@ -341,8 +341,13 @@ body {
 
 	.json-object {
 		&:not(.nested) {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+
 			>.json-entry:not(.nester) {
 				display: flex;
+				align-items: baseline;
 
 				&>* {
 					overflow-x: scroll;
@@ -378,6 +383,18 @@ body {
 				}
 			}
 		}
+
+		.formatted.token-amount {
+			.font(mono, @size: 13px);
+			padding: 3px 0;
+
+			>* {
+				padding: 2px 1em;
+				background-color: black;
+				border-radius: 8px;
+				border: 1px solid var(--theme-color-border);
+			}
+		}
 	}
 	
 	.json-key {
@@ -400,6 +417,16 @@ body {
 				color: var(--theme-color-text-med);
 				padding-right: 3px;
 			}
+		}
+	}
+
+	.json-empty-object,.json-empty-array {
+		.font(mono, 700, 11px);
+		color: var(--theme-color-graymed);
+
+		>* {
+			background-color: fade(white, 5%);
+			padding: 2px 0.5em;
 		}
 	}
 
@@ -637,7 +664,8 @@ button {
 
 h3 {
 	font-weight: 500;
-	margin: 0;
+	margin-top: 0;
+	margin-bottom: 0;
 }
 
 p:not(.unglobal) {
@@ -972,6 +1000,10 @@ hr {
 	&.no-margin {
 		margin: 0;
 	}
+}
+
+:global(:where(.invert-margin)) {
+	margin: calc(0px - var(--ui-padding));
 }
 
 ::-webkit-scrollbar {

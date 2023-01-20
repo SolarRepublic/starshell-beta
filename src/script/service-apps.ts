@@ -91,52 +91,85 @@ const kl_auth = new AsyncLockPool(1);
 export async function unlock_to_continue(g_page: PageInfo): Promise<RetryCode> {
 	// wallet is locked
 	if(!await Vault.isUnlocked()) {
-		// acquire local mutex for auth window; stop waiting after 30 seconds
-		let f_release;
-
-		// lock pool is not free
-		if(!kl_auth.free) {
-			try {
-				f_release = await kl_auth.acquire(null, 30e3);
-			}
-			catch(e_acquire) {}
-
-			// wallet was unlocked
+		// busy authenticating
+		return await navigator.locks.request('service:authenticate', async() => {
+			// already signed in
 			if(await Vault.isUnlocked()) {
-				// release mutex
-				f_release();
-
 				// proceed
 				return RetryCode.CONTINUE;
 			}
-			// wallet is still locked; user rejected other flow
-			else {
+
+			// ask user to login
+			const {answer:b_finished} = await open_flow({
+				flow: {
+					type: 'authenticate',
+					page: g_page,
+				},
+				open: {
+					...await position_widow_over_tab(g_page.tabId),
+					popover: g_page,
+				},
+			});
+
+			// user cancelled; do not advertise
+			if(!b_finished) {
 				return RetryCode.CANCEL;
 			}
-		}
+			// wallet is still locked; user rejected other flow
+			else if(!await Vault.isUnlocked()) {
+				return RetryCode.CANCEL;
+			}
 
-		// ask user to login
-		const {answer:b_finished} = await open_flow({
-			flow: {
-				type: 'authenticate',
-				page: g_page,
-			},
-			open: {
-				...await position_widow_over_tab(g_page.tabId),
-				popover: g_page,
-			},
+			// retry
+			return RetryCode.RETRY;
 		});
 
-		// release auth mutex if it exists
-		f_release?.();
+		// // acquire local mutex for auth window; stop waiting after 30 seconds
+		// let f_release;
 
-		// user cancelled; do not advertise
-		if(!b_finished) {
-			return RetryCode.CANCEL;
-		}
+		// // lock pool is not free
+		// if(!kl_auth.free) {
+		// 	try {
+		// 		f_release = await kl_auth.acquire(null, 30e3);
+		// 	}
+		// 	catch(e_acquire) {}
 
-		// retry
-		return RetryCode.RETRY;
+		// 	// wallet was unlocked
+		// 	if(await Vault.isUnlocked()) {
+		// 		// release mutex
+		// 		f_release();
+
+		// 		// proceed
+		// 		return RetryCode.CONTINUE;
+		// 	}
+		// 	// wallet is still locked; user rejected other flow
+		// 	else {
+		// 		return RetryCode.CANCEL;
+		// 	}
+		// }
+
+		// // ask user to login
+		// const {answer:b_finished} = await open_flow({
+		// 	flow: {
+		// 		type: 'authenticate',
+		// 		page: g_page,
+		// 	},
+		// 	open: {
+		// 		...await position_widow_over_tab(g_page.tabId),
+		// 		popover: g_page,
+		// 	},
+		// });
+
+		// // release auth mutex if it exists
+		// f_release?.();
+
+		// // user cancelled; do not advertise
+		// if(!b_finished) {
+		// 	return RetryCode.CANCEL;
+		// }
+
+		// // retry
+		// return RetryCode.RETRY;
 	}
 
 	// proceed
@@ -174,7 +207,7 @@ export async function app_blocked(s_scheme: string, s_host: string, g_sender: Me
 }
 
 
-interface AppStatus {
+export interface AppStatus {
 	g_app: AppStruct;
 	b_registered: boolean;
 	g_policy: AppPolicyResult;

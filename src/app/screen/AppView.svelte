@@ -1,20 +1,24 @@
 <script lang="ts">
+	import type {AccountStruct} from '#/meta/account';
 	import type {AppStruct} from '#/meta/app';
 	
 	import type {SecretStruct} from '#/meta/secret';
 	
 	import {onDestroy} from 'svelte';
+
 	
 	import {Screen} from './_screens';
-	import {yw_account, yw_chain, yw_chain_ref, yw_owner} from '../mem';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_owner} from '../mem';
 	import {reloadable} from '../mem-store';
 	import {load_page_context} from '../svelte';
 	
+	import {Accounts} from '#/store/accounts';
 	import {Apps} from '#/store/apps';
 	
 	import {Secrets} from '#/store/secrets';
 	
 	import AppDisconnect from './AppDisconnect.svelte';
+	import AppQueryPermits from './AppQueryPermits.svelte';
 	import AppViewingKeys from './AppViewingKeys.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
 	import Portrait, {type Actions} from '../frag/Portrait.svelte';
@@ -22,8 +26,11 @@
 	import Header from '../ui/Header.svelte';
 	
 	
-	
 	import ResourceControl from '../ui/ResourceControl.svelte';
+	
+	import Tab from '../ui/Tab.svelte';
+	import TabList from '../ui/TabList.svelte';
+	import Tabs from '../ui/Tabs.svelte';
 	
 	import SX_ICON_CONFIRMATION from '#/icon/confirmation.svg?raw';
 	import SX_ICON_EXPAND_RIGHT from '#/icon/expand-right.svg?raw';
@@ -42,19 +49,19 @@
 
 	let h_actions: Actions = {};
 	
-	function reload_actions() {
+	{
 		const h_stage = {
-			permissions: {
-				trigger() {
-					// 
-				},
-			},
+			// permissions: {
+			// 	trigger() {
+			// 		// 
+			// 	},
+			// },
 
-			accounts: {
-				trigger() {
-					//
-				},
-			},
+			// accounts: {
+			// 	trigger() {
+			// 		//
+			// 	},
+			// },
 		};
 
 		if(g_app.on) {
@@ -67,15 +74,6 @@
 								g_app,
 							},
 						});
-
-						// // update the app
-						// await Apps.open(ks => ks.put({
-						// 	...ks.at(Apps.pathFrom(g_app))!,
-						// 	on: 0,
-						// }));
-
-						// // reload the actions
-						// reload_actions();
 					},
 				},
 			});
@@ -123,12 +121,12 @@
 	}
 
 	function edit_query_permits() {
-		// k_page.push({
-		// 	creator: AppQueryPermits,
-		// 	props: {
-		// 		g_app,
-		// 	},
-		// });
+		k_page.push({
+			creator: AppQueryPermits,
+			props: {
+				g_app,
+			},
+		});
 	}
 
 	async function reload_access() {
@@ -154,19 +152,45 @@
 		]);
 	}
 
-	reload_actions();
+	let a_accounts_all: AccountStruct[] = [];
+	let a_accounts_connected: AccountStruct[] = [];
+	$: a_account_paths = a_accounts_connected.map(g => Accounts.pathFrom(g));
+
+	async function reload_connections() {
+		const g_app_chain = g_app.connections[$yw_chain_ref];
+
+		const ks_accounts = await Accounts.read();
+
+		a_accounts_all = ks_accounts.entries().map(([, g]) => g);
+		a_accounts_connected = g_app_chain.accounts.map(p => ks_accounts.at(p)!);
+	}
 
 	reloadable({
 		context: {
 			sources: [yw_chain, yw_account],
 			action: reload_access,
 		},
+		connections: {
+			sources: [yw_chain],
+			action: reload_connections,
+		},
 	}, onDestroy);
 
 </script>
 
 <style lang="less">
-	
+	.not-connected {
+		font-size: 13px;
+		color: var(--theme-color-text-med);
+		text-align: center;
+		margin: var(--ui-padding) 0;
+	}
+
+	.invert-margin {
+		max-height: 0.5px;
+		background-color: var(--theme-color-border);
+		opacity: 0.5;
+	}
 </style>
 
 <Screen>
@@ -185,22 +209,45 @@
 
 	</Portrait>
 
-	<div class="resource-controls">
-		<ResourceControl
-			infoIcon={SX_ICON_VISIBILITY}
-			actionIcon={SX_ICON_EXPAND_RIGHT}
-			on:click={edit_viewing_keys}
-		>
-			{nl_keys} viewing key{1 === nl_keys? '': 's'} shared with app
-		</ResourceControl>		
+	<div class="invert-margin"></div>
 
-		<ResourceControl
-			infoIcon={SX_ICON_CONFIRMATION}
-			actionIcon={SX_ICON_EXPAND_RIGHT}
-			on:click={edit_query_permits}
-		>
-			{nl_permits} query permit{1 === nl_permits? '': 's'} in use
-		</ResourceControl>
+	<div class="resource-controls">
+		<!-- multiple accounts -->
+		{#if a_accounts_all.length > 1}
+			<Tabs selectedTabIndex={a_accounts_all.findIndex(g => $yw_account_ref === Accounts.pathFrom(g))}>
+				<TabList>
+					{#each a_accounts_all as g_account}
+						<Tab sx_style={a_account_paths.includes(Accounts.pathFrom(g_account))? '': 'opacity:0.3;'} on:select={() => {
+							$yw_account_ref = Accounts.pathFrom(g_account);
+						}}>
+							{g_account.name}
+						</Tab>
+					{/each}
+				</TabList>
+			</Tabs>
+		{/if}
+
+		{#if a_account_paths.includes($yw_account_ref)}
+			<ResourceControl
+				infoIcon={SX_ICON_VISIBILITY}
+				actionIcon={SX_ICON_EXPAND_RIGHT}
+				on:click={edit_viewing_keys}
+			>
+				{nl_keys} viewing key{1 === nl_keys? '': 's'} shared with app
+			</ResourceControl>		
+
+			<ResourceControl
+				infoIcon={SX_ICON_CONFIRMATION}
+				actionIcon={SX_ICON_EXPAND_RIGHT}
+				on:click={edit_query_permits}
+			>
+				{nl_permits} query permit{1 === nl_permits? '': 's'} in use
+			</ResourceControl>
+		{:else}
+			<p class="not-connected">
+				App is not connected to this account.
+			</p>
+		{/if}
 	</div>
 
 	<Gap />

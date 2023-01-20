@@ -4,7 +4,7 @@ import type {Coin} from '@cosmjs/amino';
 import type {AccessType} from '@solar-republic/cosmos-grpc/dist/cosmwasm/wasm/v1/types';
 import type {CodeInfoResponse} from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/query';
 
-import type {JsonObject} from '#/meta/belt';
+import type {Dict, JsonObject} from '#/meta/belt';
 import type {Bech32} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
 import type {Snip24PermitMsg} from '#/schema/snip-24-def';
@@ -15,7 +15,7 @@ import {H_SNIP_HANDLERS} from './snip';
 import {SecretNetwork} from '../secret-network';
 
 import PfpDisplay from '#/app/frag/PfpDisplay.svelte';
-import {JsonPreviewer} from '#/app/helper/json-previewer';
+import {FormatConfig, JsonPreviewer, snip_json_formats} from '#/app/helper/json-previewer';
 import {svelte_to_dom} from '#/app/svelte';
 import {SecretWasm} from '#/crypto/secret-wasm';
 
@@ -352,6 +352,7 @@ export const ComputeMessages: MessageDict = {
 						kv('Action', si_action),
 						JsonPreviewer.render(h_args, {
 							chain: g_chain,
+							formats: snip_json_formats(g_contract, si_action),
 						}, {
 							title: 'Inputs',
 							unlabeled: true,
@@ -452,6 +453,7 @@ export const ComputeMessages: MessageDict = {
 						...g_review?.['fields'] || [
 							JsonPreviewer.render(h_args, {
 								chain: g_chain,
+								formats: snip_json_formats(g_contract, si_action),
 							}, {
 								label: 'Inputs',
 							}),
