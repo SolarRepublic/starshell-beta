@@ -7,8 +7,8 @@ import {createHash} from 'sha256-uint8array';
 
 import {is_dict} from './belt';
 
-import {Ripemd160 as Ripemd160Js} from '#/crypto/ripemd160';
-import SensitiveBytes from '#/crypto/sensitive-bytes';
+import {Ripemd160 as Ripemd160Js} from '../crypto/ripemd160';
+import SensitiveBytes from '../crypto/sensitive-bytes';
 
 
 const S_UUID_V4 = 'xxxxxxxx_xxxx_4xxx_yxxx_xxxxxxxxxxxx';
@@ -60,7 +60,7 @@ export const sha256_sync_insecure = (atu8_data: Uint8Array): Uint8Array => creat
 
 let y_sha256: Sha256;
 void instantiateSha256().then(y => y_sha256 = y).catch((e_instantiate) => {
-	console.warn(`Failed to instantiate WASM module for SHA-256; falling back to less secure implementation. \n${e_instantiate.stack || e_instantiate}`);
+	console.warn(`Failed to instantiate WASM module for SHA-256; falling back to JavaScript implementation. \n${e_instantiate.stack || e_instantiate}`);
 	y_sha256 = {
 		init: () => new Uint8Array(0),
 		update: (atu8_a, atu8_b) => concat([atu8_a, atu8_b]),
@@ -88,7 +88,7 @@ export const ripemd160_sync_insecure = (atu8_data: Uint8Array): Uint8Array => ne
 
 let y_ripemd: Ripemd160;
 void instantiateRipemd160().then(y => y_ripemd = y).catch((e_instantiate) => {
-	console.warn(`Failed to instantiate WASM module for RIPEMD-160; falling back to less secure implementation. \n${e_instantiate.stack || e_instantiate}`);
+	console.warn(`Failed to instantiate WASM module for RIPEMD-160; falling back to JavaScript implementation. \n${e_instantiate.stack || e_instantiate}`);
 	y_ripemd = {
 		init: () => new Uint8Array(0),
 		update: (atu8_a, atu8_b) => concat([atu8_a, atu8_b]),

@@ -13,6 +13,8 @@
 		disconnect: {};
 		enable: {};
 		share: {};
+		export: {};
+		more: {};
 	}
 
 	export type ActionKey = keyof ActionRegistry;
@@ -31,31 +33,36 @@
 </script>
 
 <script lang="ts">
+	import type {Nameable, Pfpable} from '#/meta/able';
 	import type {Promisable} from '#/meta/belt';
+	import type {PfpTarget} from '#/meta/pfp';
+	
+	import {yw_store_tags} from '../mem';
+	
 	import {forever, F_NOOP, ode} from '#/util/belt';
 	
-	import SX_ICON_SEND from '#/icon/send.svg?raw';
-	import SX_ICON_RECV from '#/icon/recv.svg?raw';
-	import SX_ICON_ADD from '#/icon/add.svg?raw';
-	import SX_ICON_INFO from '#/icon/info.svg?raw';
-	import SX_ICON_BAN from '#/icon/ban.svg?raw';
-	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
-	import SX_ICON_DELETE from '#/icon/delete.svg?raw';
-	import SX_ICON_WRAP from '#/icon/wrap.svg?raw';
-	import SX_ICON_UNWRAP from '#/icon/unwrap.svg?raw';
-	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
-	import SX_ICON_SHIELD_INSPECT from '#/icon/shield-inspect.svg?raw';
-	import SX_ICON_SHIELD_HOLLOW from '#/icon/shield-hollow.svg?raw';
-	import SX_ICON_PERSON from '#/icon/person.svg?raw';
-	import SX_ICON_GROUP from '#/icon/group.svg?raw';
-	import SX_ICON_SHARE from '#/icon/share.svg?raw';
-
-	import type {PfpTarget} from '#/meta/pfp';
-	import PfpDisplay from './PfpDisplay.svelte';
-	import type {Nameable, Pfpable} from '#/meta/able';
-	import {yw_store_tags} from '../mem';
 	import InlineTags from './InlineTags.svelte';
+	import PfpDisplay from './PfpDisplay.svelte';
 	import Load from '../ui/Load.svelte';
+	
+	import SX_ICON_ADD from '#/icon/add.svg?raw';
+	import SX_ICON_BAN from '#/icon/ban.svg?raw';
+	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
+	import SX_ICON_DELETE from '#/icon/delete.svg?raw';
+	import SX_ICON_DOWNLOAD from '#/icon/download.svg?raw';
+	import SX_ICON_EDIT from '#/icon/edit.svg?raw';
+	import SX_ICON_GROUP from '#/icon/group.svg?raw';
+	import SX_ICON_INFO from '#/icon/info.svg?raw';
+	import SX_ICON_MORE_VERT from '#/icon/more-vert.svg?raw';
+	import SX_ICON_PERSON from '#/icon/person.svg?raw';
+	import SX_ICON_PLUG from '#/icon/plug.svg?raw';
+	import SX_ICON_RECV from '#/icon/recv.svg?raw';
+	import SX_ICON_SEND from '#/icon/send.svg?raw';
+	import SX_ICON_SHARE from '#/icon/share.svg?raw';
+	import SX_ICON_SHIELD_HOLLOW from '#/icon/shield-hollow.svg?raw';
+	import SX_ICON_SHIELD_INSPECT from '#/icon/shield-inspect.svg?raw';
+	import SX_ICON_UNWRAP from '#/icon/unwrap.svg?raw';
+	import SX_ICON_WRAP from '#/icon/wrap.svg?raw';
 
 	const H_ACTIONS: Record<ActionKey, DefaultActionConfig> = {
 		send: {
@@ -105,6 +112,18 @@
 		share: {
 			label: 'Share',
 			icon: SX_ICON_SHARE,
+		},
+		enable: {
+			label: 'Enable',
+			icon: SX_ICON_PLUG,
+		},
+		export: {
+			label: 'Export',
+			icon: SX_ICON_DOWNLOAD,
+		},
+		more: {
+			label: 'More',
+			icon: SX_ICON_MORE_VERT,
 		},
 	};
 
@@ -325,12 +344,12 @@
 	{#if Object.keys(h_actions || {}).length}
 		<div class="actions">
 			{#each ode(h_actions) as [si_action, gc_action]}
-				<span class="action action-{si_action}" on:click={loading? F_NOOP: () => gc_action.trigger()}>
+				<span class="action action-{si_action}" on:click={loading? F_NOOP: () => gc_action?.trigger?.()}>
 					<span class="global_svg-icon icon-diameter_20px icon">
-						{@html H_ACTIONS[si_action].icon}
+						{@html H_ACTIONS[si_action]?.icon || '?'}
 					</span>
 					<span class="label">
-						{gc_action.label || H_ACTIONS[si_action].label}
+						{gc_action?.label || H_ACTIONS[si_action]?.label || ''}
 					</span>
 				</span>
 			{/each}

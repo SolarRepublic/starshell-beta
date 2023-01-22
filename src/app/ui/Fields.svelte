@@ -423,8 +423,9 @@
 			{:else if 'password' === gc_field.type}
 				<PasswordField password={gc_field.value} label={gc_field.label} />
 			{:else if 'accounts' === gc_field.type}
+				{@const s_label = gc_field.label || 'Accounts'}
 				<Field short={!!gc_field.short}
-					key={phrase_to_hyphenated(gc_field.label || 'accounts')} name={gc_field.label || 'Accounts'}
+					key={phrase_to_hyphenated(s_label)} name={s_label}
 				>
 					{#each gc_field.paths as p_account}
 						{#await load_account(p_account)}

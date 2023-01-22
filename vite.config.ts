@@ -13,6 +13,9 @@ import webExtension from '@samrum/vite-plugin-web-extension';
 import G_PACKAGE_JSON from './package.json';
 import {H_BROWSERS} from './src/manifest';
 import {inlineRequire} from './plugins/inline-require';
+import {
+	base64_to_buffer, buffer_to_base58,
+} from './src/util/data';
 
 const H_REPLACEMENTS_ENGINE = {
 	firefox: {
@@ -34,18 +37,21 @@ function builtin_media(): Record<string, {hash:string; data:string;}> {
 		// each file in src directory
 		for(const sr_file of fs.readdirSync(pd_full)) {
 			// skip file
-			if(!sr_file.endsWith('.svg') && !sr_file.endsWith('.png')) continue;
+			if(!/\.(svg|png|webp)/.test(sr_file)) continue;
 
 			if(sr_file.startsWith('icon_')) continue;
 
 			// compute hash of file contents
-			const si_sha256 = crypto.createHash('sha256')
+			const sb64_sha256 = crypto.createHash('sha256')
 				.update(fs.readFileSync(path.join(pd_full, sr_file)))
-				.digest('hex');
+				.digest('base64');
+
+			// convert to base58 to avoid `/` characters in encoding
+			const sb58_sha256 = buffer_to_base58(base64_to_buffer(sb64_sha256));
 
 			// update map
-			h_out[`/media.image/sha256.${si_sha256}`] = {
-				hash: si_sha256,
+			h_out[`/media.image/sha256.${sb58_sha256}`] = {
+				hash: sb58_sha256,
 				data: `/media/${sr_subdir}/${sr_file}`,
 			};
 		}

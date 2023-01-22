@@ -942,7 +942,8 @@ void set_keplr_compatibility_mode();
 
 // development mode
 console.log({
-	'import.meta': import.meta,
+	'dev': import.meta.env.DEV,
+	'mode': import.meta.env.MODE,
 });
 if(import.meta.env?.DEV) {
 	Object.assign(globalThis, {
@@ -951,152 +952,153 @@ if(import.meta.env?.DEV) {
 	});
 }
 
-Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
-	async decrypt(si_store: StoreKey) {
-		// fetch the root key
-		const dk_root = await Vault.getRootKey();
+if(import.meta.env.DEV) {
+	Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
+		async decrypt(si_store: StoreKey) {
+			// fetch the root key
+			const dk_root = await Vault.getRootKey();
 
-		// derive the cipher key
-		const dk_cipher = await Vault.cipherKey(dk_root!, true);
+			// derive the cipher key
+			const dk_cipher = await Vault.cipherKey(dk_root!, true);
 
-		// read from the store
-		const kv_store = await Vault.readonly(si_store);
+			// read from the store
+			const kv_store = await Vault.readonly(si_store);
 
-		// read the store as json
-		const w_store = await kv_store.readJson(dk_cipher);
+			// read the store as json
+			const w_store = await kv_store.readJson(dk_cipher);
 
-		return w_store;
-	},
+			return w_store;
+		},
 
-	Argon2,
+		Argon2,
 
-	Secrets,
-	Accounts,
-	Apps,
-	Chains,
-	Contracts,
-	Histories,
-	Incidents,
-	Providers,
+		Secrets,
+		Accounts,
+		Apps,
+		Chains,
+		Contracts,
+		Histories,
+		Incidents,
+		Providers,
 
-	EntropyProducer,
-	SecretWasm,
-	SecretNetwork,
+		EntropyProducer,
+		SecretWasm,
+		SecretNetwork,
 
-	base93_to_buffer,
-	base58_to_buffer,
-	buffer_to_base93,
-	buffer_to_base58,
-	base64_to_buffer,
-	buffer_to_base64,
-	sha256_sync,
-	ripemd160_sync,
-	hex_to_buffer,
-	buffer_to_hex,
-	text_to_base64,
-	text_to_buffer,
-	buffer_to_text,
-	pubkey_to_bech32,
-	fromBech32,
-	toBech32,
-	SessionStorage,
-	PublicStorage,
-	G_USERAGENT,
+		base93_to_buffer,
+		base58_to_buffer,
+		buffer_to_base93,
+		buffer_to_base58,
+		base64_to_buffer,
+		buffer_to_base64,
+		sha256_sync,
+		ripemd160_sync,
+		hex_to_buffer,
+		buffer_to_hex,
+		text_to_base64,
+		text_to_buffer,
+		buffer_to_text,
+		pubkey_to_bech32,
+		fromBech32,
+		toBech32,
+		SessionStorage,
+		PublicStorage,
+		G_USERAGENT,
 
-	shuffle,
-	random_int,
-	crypto_random_int,
+		shuffle,
+		random_int,
+		crypto_random_int,
 
-	decodeTxRaw,
-	set_keplr_compatibility_mode,
-	SecretMsgExecuteContract,
-	MsgExecuteContract,
+		decodeTxRaw,
+		set_keplr_compatibility_mode,
+		SecretMsgExecuteContract,
+		MsgExecuteContract,
 
-	amino_to_base,
-	proto_to_amino,
-	encode_proto,
+		amino_to_base,
+		proto_to_amino,
+		encode_proto,
 
-	global_broadcast,
-	global_receive,
+		global_broadcast,
+		global_receive,
 
-	factory_reset,
+		factory_reset,
 
-	storage_get,
-	storage_get_all,
-	storage_set,
-	storage_remove,
-	storage_clear,
+		storage_get,
+		storage_get_all,
+		storage_set,
+		storage_remove,
+		storage_clear,
 
-	Settings,
-	BigNumber,
+		Settings,
+		BigNumber,
 
-	FeeGrants,
+		FeeGrants,
 
-	async network(si_chain='secret-4') {
-		const g_chain = await Chains.at(`/family.cosmos/chain.${si_chain}`);
-		return await Providers.activateStableDefaultFor(g_chain!);
-	},
+		async network(si_chain='secret-4') {
+			const g_chain = await Chains.at(`/family.cosmos/chain.${si_chain}`);
+			return await Providers.activateStableDefaultFor(g_chain!);
+		},
 
-	deep_seal(w_thing) {
-		// blocking
-		if(Object.isSealed(w_thing)) return w_thing;
+		deep_seal(w_thing) {
+			// blocking
+			if(Object.isSealed(w_thing)) return w_thing;
 
-		// anything else
-		if('function' !== typeof w_thing && 'object' !== typeof w_thing) return;
+			// anything else
+			if('function' !== typeof w_thing && 'object' !== typeof w_thing) return;
 
-		// seal this thing
-		try {
-			Object.seal(w_thing);
-		}
-		catch(e_seal) {
-			console.log(`Cannot seal ${w_thing}`);
-		}
-
-		// each own property
-		for(const [, g_descriptor] of Object.entries(Object.getOwnPropertyDescriptors(w_thing))) {
-			// data descriptor
-			if(g_descriptor.value) {
-				deep_seal(g_descriptor.value);
+			// seal this thing
+			try {
+				Object.seal(w_thing);
 			}
-			// getter
-			else if(g_descriptor.get) {
-				const w_value = g_descriptor.get();
+			catch(e_seal) {
+				console.log(`Cannot seal ${w_thing}`);
+			}
 
-				if(w_value) {
-					deep_seal(w_value);
+			// each own property
+			for(const [, g_descriptor] of Object.entries(Object.getOwnPropertyDescriptors(w_thing))) {
+				// data descriptor
+				if(g_descriptor.value) {
+					deep_seal(g_descriptor.value);
+				}
+				// getter
+				else if(g_descriptor.get) {
+					const w_value = g_descriptor.get();
+
+					if(w_value) {
+						deep_seal(w_value);
+					}
 				}
 			}
-		}
 
-		// recurse on prototype
-		deep_seal(Reflect.getPrototypeOf(w_thing));
-	},
+			// recurse on prototype
+			deep_seal(Reflect.getPrototypeOf(w_thing));
+		},
 
-	async import_sk(sxb64_sk: string, s_name='Citizen '+uuid_v4().slice(0, 4)) {
-		const atu8_sk = base64_to_buffer(sxb64_sk);
+		async import_sk(sxb64_sk: string, s_name='Citizen '+uuid_v4().slice(0, 4)) {
+			const atu8_sk = base64_to_buffer(sxb64_sk);
 
-		const kn_sk = new SensitiveBytes(atu8_sk);
+			const kn_sk = new SensitiveBytes(atu8_sk);
 
-		return await import_private_key(kn_sk, s_name);
-	},
+			return await import_private_key(kn_sk, s_name);
+		},
 
-	async import_account(g_account: AccountStruct): Promise<AccountPath> {
-		return await Accounts.open(ks_accounts => ks_accounts.put(g_account));
-	},
+		async import_account(g_account: AccountStruct): Promise<AccountPath> {
+			return await Accounts.open(ks_accounts => ks_accounts.put(g_account));
+		},
 
-	async import_secrets(a_data: Array<number[]>, a_secrets: SecretStruct[]) {
-		for(let i_secret=0; i_secret<a_secrets.length; i_secret++) {
-			await Secrets.put(Uint8Array.from(a_data[i_secret]), a_secrets[i_secret]);
-		}
-	},
+		async import_secrets(a_data: Array<number[]>, a_secrets: SecretStruct[]) {
+			for(let i_secret=0; i_secret<a_secrets.length; i_secret++) {
+				await Secrets.put(Uint8Array.from(a_data[i_secret]), a_secrets[i_secret]);
+			}
+		},
 
-	async inspect_tx(si_tx: string, si_caip2: Caip2.String) {
-		const [, si_namespace, si_reference] = R_CAIP_2.exec(si_caip2)!;
-		const p_chain = Chains.pathFor(si_namespace as 'cosmos', si_reference);
-		const g_chain = (await Chains.at(p_chain))!;
-		const k_network = await Providers.activateDefaultFor(g_chain);
-		return await k_network.fetchTx(si_tx);
-	},
-});
-
+		async inspect_tx(si_tx: string, si_caip2: Caip2.String) {
+			const [, si_namespace, si_reference] = R_CAIP_2.exec(si_caip2)!;
+			const p_chain = Chains.pathFor(si_namespace as 'cosmos', si_reference);
+			const g_chain = (await Chains.at(p_chain))!;
+			const k_network = await Providers.activateDefaultFor(g_chain);
+			return await k_network.fetchTx(si_tx);
+		},
+	});
+}
 

@@ -102,9 +102,8 @@
 			// remove account from connection
 			const a_accounts = remove(h_connections[p_chain].accounts, p_account);
 
-			// no more accounts
+			// no more accounts; delete connections for this chain
 			if(!a_accounts.length) {
-				// delete connections for this chain
 				delete h_connections[p_chain];
 			}
 

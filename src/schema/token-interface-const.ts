@@ -4,4 +4,5 @@ export enum TokenInterfaceRuntimeSchema {
 	NaturalNumber = 'natural-number',
 	Uint128 = 'uint128',
 	String = 'string',
+	TokenSymbol = 'token-symbol',
 }

@@ -123,7 +123,7 @@ export const H_STORE_INIT_CHAINS = type_check<typeof SI_STORE_CHAINS>({
 				interfaceSchemas: {
 					snip20: {
 						name: TokenInterfaceRuntimeSchema.String,
-						symbol: TokenInterfaceRuntimeSchema.String,
+						symbol: TokenInterfaceRuntimeSchema.TokenSymbol,
 						decimals: TokenInterfaceRuntimeSchema.NaturalNumber,
 					},
 					snip21: {},

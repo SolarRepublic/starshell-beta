@@ -35,7 +35,7 @@
 		},
 		[ThreadId.AGENTS]: {
 			svg: SX_ICON_CONTACTS,
-			label: 'Agents',
+			label: 'Contacts',
 		},
 		[ThreadId.TOKENS]: {
 			svg: SX_ICON_TOKENS,

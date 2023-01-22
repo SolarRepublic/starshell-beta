@@ -1,11 +1,34 @@
 <script lang="ts">
 	import {Screen} from './_screens';
 
+	import {load_page_context} from '../svelte';
+	
+	import {PublicStorage} from '#/extension/public-storage';
+	
 	import Register from './Register.svelte';
+	import UpgradeBeta from './UpgradeBeta.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Horizon from '../ui/Horizon.svelte';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
 	import StarShellTitle from '../ui/StarShellTitle.svelte';
+	
+
+	const {
+		k_page,
+	} = load_page_context();
+
+	(async() => {
+		try {
+			const g_seen = await PublicStorage.lastSeen();
+
+			if(g_seen && !g_seen.version.startsWith('1.')) {
+				k_page.push({
+					creator: UpgradeBeta,
+				});
+			}
+		}
+		catch(e_seen) {}
+	})();
 </script>
 
 <style lang="less">

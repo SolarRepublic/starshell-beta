@@ -50,7 +50,7 @@ export type Account<
 		/**
 		 * Path to secret responsible for deriving account key(s)
 		 */
-		secret: SecretPath<'mnemonic' | 'bip32_node' | 'private_key'>;
+		secret: SecretPath<'bip32_node' | 'private_key'>;
 
 		/**
 		 * Keys dervied from signatures used to generate data for specific purposes

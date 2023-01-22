@@ -1,4 +1,4 @@
-import {F_NOOP} from '#/util/belt';
+import {F_NOOP} from '../util/belt';
 
 function destroyed() {
 	throw new Error('Method called on destroyed SensitiveBytes instance');

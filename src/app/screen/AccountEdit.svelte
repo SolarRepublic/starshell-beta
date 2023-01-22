@@ -30,6 +30,7 @@
 	import Tooltip from '../ui/Tooltip.svelte';
 	
 	import SX_ICON_ARROW from '#/icon/expand_more.svg?raw';
+    import Header from '../ui/Header.svelte';
 	
 
 	export let accountPath: AccountPath;
@@ -303,9 +304,10 @@
 </style>
 
 <Screen progress={b_mandatory? [5, 5]: null}>
-	<h3>
-		{accountPath && !fresh? 'Edit': 'New'} account
-	</h3>
+	<Header plain pops={!fresh && !oneway}
+		title="{accountPath && !fresh? 'Edit': 'New'} account"
+		postTitle={accountPath && !fresh? s_name: ''}
+	/>
 
 	<span style="display:none" class:pfpg-preview={false} class:generator={false}></span>
 

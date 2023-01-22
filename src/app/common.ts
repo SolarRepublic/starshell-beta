@@ -34,11 +34,34 @@ export function on_error(fe_report: ErrorCallback): VoidFunction {
 }
 
 
+export class SysError extends Error {
+	constructor(protected _e_wrapped: Error) {
+		super(_e_wrapped.message);
+	}
+
+	override get stack(): string {
+		return this._e_wrapped.stack || '';
+	}
+
+	override get cause(): unknown {
+		return this._e_wrapped.cause;
+	}
+
+	override get name(): string {
+		return this._e_wrapped.name;
+	}
+}
+
 
 export function syserr(z_error: Error | ErrorReport): Error {
 	let g_error = z_error as ErrorReport;
 
 	if(z_error instanceof Error) {
+		// do not re-emit re-thrown syserrors
+		if(z_error instanceof SysError) {
+			return z_error;
+		}
+
 		let si_title = z_error['title'];
 		if(!si_title) {
 			si_title = camel_to_phrase(z_error.constructor.name);
@@ -72,7 +95,7 @@ export function syserr(z_error: Error | ErrorReport): Error {
 		}
 	}
 
-	return g_error.error || new Error(g_error.text);
+	return new SysError(g_error.error || new Error(g_error.text));
 }
 
 export function syswarn(g_warn: WarnReport): void {

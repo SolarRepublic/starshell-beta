@@ -800,12 +800,23 @@ export async function create_app_profile(): Promise<AppProfile> {
 						// set address property
 						g_sanitized.bech32 = g_contract.address as Bech32;
 
+						// backwards-compatible snip20 interface
+						if('snip20' in g_contract) {
+							// issue deprecation warning
+							warn(`DEPRECATION NOTICE:  .contracts["${si_contract}"].snip20  should be rewritten as  .contracts["${si_contract}"].interfaces.snip20`);
+
+							// migrate to interfaces struct
+							(g_contract.interfaces = g_contract.interfaces || {})['snip20'] = g_contract.snip20;
+						}
+
 						// copy interfaces
 						if('interfaces' in g_contract) {
 							const h_interfaces = g_contract.interfaces as Dict<Dict>;
 							if(is_dict(h_interfaces)) {
 								// prep output
-								const h_specs: Dict<Dict> = g_sanitized.interfaces = {};
+								const h_specs: Dict<Dict> = g_sanitized.interfaces = {
+									excluded: [],
+								};
 
 								// each declared interface
 								for(const [si_interface, h_interface] of ode(h_interfaces)) {
@@ -910,6 +921,31 @@ export async function create_app_profile(): Promise<AppProfile> {
 												break;
 											}
 
+											// expecting token symbol
+											case TokenInterfaceRuntimeSchema.TokenSymbol: {
+												// ref symbol
+												let si_symbol = ''+z_value;
+
+												// symbol doesn't pass regex
+												if(!R_TOKEN_SYMBOL.test(si_symbol)) {
+													// upper-case version does
+													si_symbol = si_symbol.toUpperCase();
+													if(R_TOKEN_SYMBOL.test(si_symbol)) {
+														debug(`Converted provided "${si_contract}" symbol to "${si_symbol}"`);
+													}
+													// need to generate one instead
+													else {
+														error(`Contract symbol "${si_contract}" does not match the acceptable pattern /${R_TOKEN_SYMBOL.source}/u\nA generated symbol will be used instead`);
+														si_symbol = await generate_token_symbol(g_sanitized.bech32);
+														debug(`Using generated "${si_symbol}" symbol instead of provided "${si_contract}"`);
+													}
+												}
+
+												w_sanitized = si_symbol;
+
+												break;
+											}
+
 											// error in interface schema
 											default: {
 												error(`Unrecognized runtime schema datatype '${si_property_type}' for property value`);
@@ -942,26 +978,8 @@ export async function create_app_profile(): Promise<AppProfile> {
 							}
 						}
 
-						// ref symbol
-						let si_symbol = si_contract;
-
-						// symbol doesn't pass regex
-						if(!R_TOKEN_SYMBOL.test(si_symbol)) {
-							// upper-case version does
-							si_symbol = si_symbol.toUpperCase();
-							if(R_TOKEN_SYMBOL.test(si_symbol)) {
-								debug(`Converted provided "${si_contract}" symbol to "${si_symbol}"`);
-							}
-							// need to generate one instead
-							else {
-								error(`Contract symbol "${si_contract}" does not match the acceptable pattern /${R_TOKEN_SYMBOL.source}/u\nA generated symbol will be used instead`);
-								si_symbol = await generate_token_symbol(g_sanitized.bech32);
-								debug(`Using generated "${si_symbol}" symbol instead of provided "${si_contract}"`);
-							}
-						}
-
-						// populate contract def symbol
-						h_contract_defs[si_symbol] = g_sanitized;
+						// populate contract def
+						h_contract_defs[si_contract] = g_sanitized;
 					}
 					// invalid, but continue scanning other contract defs
 					else {

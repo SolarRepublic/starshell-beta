@@ -37,7 +37,7 @@
 	</Header>
 
 	<SubHeader
-		title='History'
+		title='History - all'
 		bare
 	></SubHeader>
 

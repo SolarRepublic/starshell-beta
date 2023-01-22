@@ -6,7 +6,7 @@ import {
 } from './_base';
 
 import {R_DATA_IMAGE_URL_ANY, SI_STORE_MEDIA} from '#/share/constants';
-import {buffer_to_base64, sha256_sync, text_to_buffer} from '#/util/data';
+import {buffer_to_base58, sha256_sync, text_to_buffer} from '#/util/data';
 
 export const Medias = create_store_class({
 	store: SI_STORE_MEDIA,
@@ -15,8 +15,8 @@ export const Medias = create_store_class({
 		static pathFor<
 			si_media extends MediaTypeKey=MediaTypeKey,
 			s_hash extends string=string,
-		>(si_type: si_media, s_hash: s_hash): MediaPath<si_media, s_hash> {
-			return `/media.${si_type}/sha256.${s_hash}` as MediaPath<si_media, s_hash>;
+		>(si_type: si_media, sb58_hash: s_hash): MediaPath<si_media, s_hash> {
+			return `/media.${si_type}/sha256.${sb58_hash}` as MediaPath<si_media, s_hash>;
 		}
 
 		static put<
@@ -55,16 +55,16 @@ export const Medias = create_store_class({
 				throw new Error(`Unsupported media type "${si_media as string}"`);
 			}
 
-			// hash data string
-			const s_hash = buffer_to_base64(sha256_sync(text_to_buffer(p_data)));
+			// hash data string and base58 encode
+			const sb58_hash = buffer_to_base58(sha256_sync(text_to_buffer(p_data)));
 
 			// prepare media path
-			const p_media: MediaPath<si_media> = MediaI.pathFor(si_media, s_hash);
+			const p_media: MediaPath<si_media> = MediaI.pathFor(si_media, sb58_hash);
 
 			// update cache
 			this._w_cache[p_media as string] = {
 				data: p_data,
-				hash: s_hash,
+				hash: sb58_hash,
 			};
 
 			// attempt to save

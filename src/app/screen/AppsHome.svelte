@@ -7,7 +7,7 @@
 	
 	import {Screen, SubHeader, type Page} from './_screens';
 	
-	import {yw_chain_ref, yw_network} from '../mem';
+	import {yw_chain, yw_chain_ref, yw_network} from '../mem';
 	
 	import {W_FILTER_ACCEPT_ANY} from '#/store/_base';
 	import {Apps} from '#/store/apps';
@@ -75,7 +75,7 @@
 	<Header search network account />
 
 	<SubHeader bare
-		title='Apps'
+		title='Apps - {$yw_chain.name}'
 	/>
 
 	<div class="rows no-margin">

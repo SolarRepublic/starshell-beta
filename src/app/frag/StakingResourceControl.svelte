@@ -31,7 +31,7 @@
 		unbonding: UnbondingDelegation[];
 	} | null = null;
 
-	const g_coin = $yw_chain.coins[si_coin];
+	const g_coin = $yw_chain?.coins?.[si_coin] || {};
 
 	let s_bonded_amount = '';
 	let s_unbonding_amount = '';

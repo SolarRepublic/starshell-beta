@@ -6,11 +6,11 @@
 	import type {Caip2, ChainStruct} from '#/meta/chain';
 	
 	import {Screen} from './_screens';
-	import {yw_account_ref} from '../mem';
 	import {load_flow_context} from '../svelte';
 	
 	import {Accounts} from '#/store/accounts';
-	import {fodemtv, fold, F_NOOP, ode, oderac} from '#/util/belt';
+	import {Chains} from '#/store/chains';
+	import {fold, F_NOOP, ode, oderac} from '#/util/belt';
 	
 	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
@@ -18,7 +18,6 @@
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	import LoadingRows from '../ui/LoadingRows.svelte';
 	import Row from '../ui/Row.svelte';
-    import { Chains } from '#/store/chains';
 
 
 	const {
@@ -67,16 +66,12 @@
 		}
 
 		const p_chain = Chains.pathFrom(Object.values(chains)[0]);
-		h_disabled = fold(app.connections[p_chain].accounts, p_account => ({
+		h_disabled = fold(app.connections?.[p_chain]?.accounts || [], p_account => ({
 			[p_account]: true,
 		}));
 
+		// existing connections cannot be deleted on this screen
 		h_selected = {...h_disabled};
-		// h_selected = fodemtv(h_accounts, (g_account, p_account) => {
-		// 	if(p_account === accountPath) {
-		// 		return true;
-		// 	}
-		// });
 
 		// select the requested account
 		h_selected[accountPath] = true;

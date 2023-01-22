@@ -42,7 +42,7 @@
 	
 	import {type LoadedAppContext, load_app_context} from '#/app/svelte';
 	import {Coins} from '#/chain/coin';
-	import {type ProtoMsg, proto_to_amino, encode_proto, amino_to_base, recase_keys_camel_to_snake} from '#/chain/cosmos-msgs';
+	import {type ProtoMsg, proto_to_amino, encode_proto, amino_to_base, recase_keys_camel_to_snake, AminoToProtoError, UnmappedAminoError, TypedValue} from '#/chain/cosmos-msgs';
 	import {FeeGrants} from '#/chain/fee-grant';
 	import type {DescribedMessage} from '#/chain/messages/_types';
 	import {address_to_name} from '#/chain/messages/_util';
@@ -412,6 +412,28 @@
 
 				a_overviews = await Promise.all(a_msgs_amino.map(describe_message));
 			}
+
+
+			try {
+				a_msgs_amino.map(g => amino_to_base(g as TypedValue).encode());
+			}
+			catch(e_translate) {
+				if(e_translate instanceof AminoToProtoError) {
+					throw syserr({
+						title: `Invalid Amino Message`,
+						text: `The app is attempting to have you sign an invalid or improperly formatted message. Since this could lead to an irrecoverable loss of funds, StarShell has blocked this message request.\n${e_translate.original.stack || e_translate.message}`,
+					});
+				}
+				else if(e_translate instanceof UnmappedAminoError) {
+					throw syserr({
+						title: 'Unmapped Amino Object',
+						text: `The app is requesting the wallet to sign an unknown or unmapped Amino object. For security reasons, signing these types of messages are forbidden.\n${e_translate.message}`,
+					});
+				}
+				else {
+					throw syserr(e_translate as Error);
+				}
+			}
 		}
 
 		b_loaded = true;
@@ -420,7 +442,13 @@
 	})();
 
 	async function simulate() {
-		const a_msgs = a_msgs_proto?.length? a_msgs_proto: amino?.msgs.map(g => amino_to_base(g).encode());
+		let a_msgs;
+		try {
+			a_msgs = a_msgs_proto?.length? a_msgs_proto: amino?.msgs.map(g => amino_to_base(g).encode());
+		}
+		catch(e_translate) {
+			throw syserr(e_translate as Error);
+		}
 
 		// proto
 		if(a_msgs?.length) {
@@ -709,6 +737,15 @@
 	async function approve() {
 		b_approving = true;
 
+		try {
+			await attempt_approve();
+		}
+		catch(e_attempt) {
+			throw syserr(e_attempt as Error);
+		}
+	}
+
+	async function attempt_approve() {
 		const g_account = await dp_account;
 
 		if(!g_account) {

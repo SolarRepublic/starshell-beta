@@ -35,7 +35,7 @@ const H_EXPANDED_LENGTHS = fold(A_BIP39_LENGTHS, g_length => ({
 }));
 
 // cache unicode space value
-const XB_UNICODE_SPACE = ' '.charCodeAt(0);
+export const XB_UNICODE_SPACE = ' '.charCodeAt(0);
 
 // global, ephemeral wordlist to use
 let A_WORDLIST: string[] = [];

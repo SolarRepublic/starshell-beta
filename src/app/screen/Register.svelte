@@ -19,6 +19,9 @@
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
 	import StarShellTitle from '../ui/StarShellTitle.svelte';
+    import ActionsWall from '../ui/ActionsWall.svelte';
+    import CheckboxField, { toggleChildCheckbox } from '../ui/CheckboxField.svelte';
+    import { open_external_link } from '#/util/dom';
 	
 
 	// will be set if this is part of a flow
@@ -221,6 +224,8 @@
 		// done
 		return exit();
 	}
+
+	let b_agreed = false;
 </script>
 
 <style lang="less">
@@ -318,6 +323,20 @@
 		<pre>{s_error}</pre>
 	{/if}
 
+	<ActionsWall>
+		<div class="agree-tos" on:click={toggleChildCheckbox}>
+			<CheckboxField id="" bind:checked={b_agreed}>
+				I have read agree to the <span class="link" on:click={() => open_external_link('https://starshell.net/terms-of-service.html')}>Terms of Service</span>.
+			</CheckboxField>
+			<CheckboxField id="" bind:checked={b_agreed}>
+				I have read and agree to the <span class="link" on:click={() => open_external_link('https://starshell.net/privacy-policy.html')}>Privacy Policy</span>.
+			</CheckboxField>
+		</div>
 
-	<ActionsLine confirm={a_confirm_action} />
+		<button class="primary" disabled={!b_password_acceptable || !b_agreed || b_busy} on:click={() => prepare_register()}>
+			Continue
+		</button>
+	</ActionsWall>
+
+	<!-- <ActionsLine confirm={a_confirm_action} /> -->
 </Screen>

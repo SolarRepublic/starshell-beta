@@ -187,6 +187,7 @@
 	}
 
 	.invert-margin {
+		min-height: 0.5px;
 		max-height: 0.5px;
 		background-color: var(--theme-color-border);
 		opacity: 0.5;

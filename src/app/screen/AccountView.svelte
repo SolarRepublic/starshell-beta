@@ -2,7 +2,7 @@
 	import type {AccountStruct, AccountPath} from '#/meta/account';
 	import type {Promisable} from '#/meta/belt';
 	import type {Bech32} from '#/meta/chain';
-	import type {SecretStruct} from '#/meta/secret';
+	import type {SecretPath, SecretStruct} from '#/meta/secret';
 	
 	import {Screen, Header} from './_screens';
 	import {popup_receive, yw_chain} from '../mem';
@@ -14,11 +14,13 @@
 	import {forever, proper} from '#/util/belt';
 	
 	import AccountEdit from './AccountEdit.svelte';
+	import AccountExport from './AccountExport.svelte';
 	import Send from './Send.svelte';
 	import AddressResourceControl from '../frag/AddressResourceControl.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
-	import Portrait from '../frag/Portrait.svelte';
+	import Portrait, { Actions } from '../frag/Portrait.svelte';
 	import Gap from '../ui/Gap.svelte';
+    import MnemonicExport from './MnemonicExport.svelte';
 	
 
 	const {k_page} = load_page_context();
@@ -47,7 +49,7 @@
 		g_secret = await Secrets.metadata(g_account.secret)!;
 	}
 
-	const gc_actions = {
+	const gc_actions: Actions = {
 		send: {
 			label: 'Send',
 			trigger() {
@@ -76,6 +78,27 @@
 				});
 			},
 		},
+		export: {
+			label: 'Export',
+			async trigger() {
+				const g_node = await Secrets.metadata(g_account.secret as SecretPath<'bip32_node'>);
+
+				const g_mnemonic = await Secrets.metadata(g_node.mnemonic);
+
+				k_page.push({
+					creator: MnemonicExport,
+					props: {
+						g_mnemonic,
+					},
+				});
+			},
+		},
+		// more: {
+		// 	label: 'More',
+		// 	trigger() {
+
+		// 	},
+		// },
 	};
 
 </script>

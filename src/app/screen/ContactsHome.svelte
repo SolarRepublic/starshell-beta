@@ -34,7 +34,7 @@
 <Screen nav root classNames='contacts'>
 	<Header search network account />
 
-	<SubHeader title="Agents"
+	<SubHeader title="Contacts - all chains"
 		on:add_new={() => k_page.push({
 			creator: ContactEdit,
 		})}

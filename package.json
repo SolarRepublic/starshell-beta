@@ -1,9 +1,9 @@
 {
-  "name": "starshell-extension-wallet",
-  "displayName": "StarShell Wallet Beta",
+  "name": "starshell-wallet-extension",
+  "displayName": "StarShell Wallet",
   "private": true,
   "type": "module",
-  "version": "0.8.1",
+  "version": "1.0.0",
   "description": "A privacy-preserving, free and open-source Web3 wallet built for the Secret Network and broader Cosmos ecosystem",
   "license": "MIT",
   "author": {
