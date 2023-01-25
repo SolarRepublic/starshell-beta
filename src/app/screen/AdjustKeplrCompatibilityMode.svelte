@@ -6,7 +6,12 @@
 	import {Screen} from './_screens';
 	import {load_flow_context} from '../svelte';
 	
-	import {keplr_polyfill_script_add_matches, set_keplr_compatibility_mode, set_keplr_detection, set_keplr_polyfill} from '#/script/scripts';
+	import {
+		keplr_polyfill_script_add_matches,
+		set_keplr_compatibility_mode,
+		set_keplr_detection,
+		set_keplr_polyfill,
+	} from '#/script/scripts';
 	import {Apps} from '#/store/apps';
 	import {Policies} from '#/store/policies';
 	
@@ -93,7 +98,7 @@
 	{#if enable}
 		<h3>Are you sure you want to permanently enable Keplr compatibility mode?</h3>
 
-		<hr>
+		<hr class="no-margin">
 
 		<p>
 			Permanently enabling this feature means websites will be able to detect you have a Keplr-compatible wallet installed.

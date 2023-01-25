@@ -7,13 +7,16 @@
 </script>
 
 <script lang="ts">
+	import type {Chain} from '#/meta/chain';
+	import type {ContactStruct} from '#/meta/contact';
+	
+	import {onDestroy} from 'svelte';
+	
+	import {subscribe_store} from '#/store/_base';
+	import {Agents} from '#/store/agents';
+	
+	
 	import {yw_chain, yw_chain_namespace} from '##/mem';
-	import type { Chain } from '#/meta/chain';
-	import type { Contact, ContactStruct, ContactPath } from '#/meta/contact';
-	import { Agents } from '#/store/agents';
-	import { Chains } from '#/store/chains';
-	import { subscribe_store } from '#/store/_base';
-	import { onDestroy } from 'svelte';
 
 	import Address from './Address.svelte';
 	import PfpDisplay from './PfpDisplay.svelte';

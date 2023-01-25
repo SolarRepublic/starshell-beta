@@ -54,6 +54,7 @@ import RestartService from '#/app/screen/RestartService.svelte';
 import { ProtoData, proto_to_amino } from '#/chain/cosmos-msgs';
 import { global_receive } from '#/script/msg-global';
 import PageException from '#/app/screen/PageException.svelte';
+import { install_contracts } from '#/chain/contract';
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -282,7 +283,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		keplr: g_value.keplr,
 	}),
 
-	requestConnection(g_value) {
+	async requestConnection(g_value) {
 		// verbose
 		domlog(`Handling 'requestConnection' on ${JSON.stringify(g_value)}`);
 
@@ -299,7 +300,30 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		}
 		// multiple chains
 		else {
-			return completed_render(RequestConnectionSvelte, g_props);
+			// return completed_render(RequestConnectionSvelte, g_props);
+
+			const a_results: IntraExt.CompletedFlow[] = [];
+
+			// handle each one at a time
+			for(const [si_chain, g_session] of ode(g_value.sessions)) {
+				const w_res = await completed_render(RequestConnection_AccountsSvelte, {
+					...g_props,
+					chains: {
+						[si_chain]: g_value.chains[si_chain],
+					},
+					sessions: {
+						[si_chain]: g_session,
+					},
+				});
+
+				a_results.push(w_res);
+			}
+
+			// TODO: fix multi-chain requests
+			return {
+				answer: a_results.some(g => g.answer),
+				data: void 0,
+			};
 		}
 	},
 
@@ -381,9 +405,11 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 			// init tokens confirmed to list of those already added
 			const p_chain = g_value.chainPath;
 			const g_account = (await Accounts.at(g_value.accountPath))!;
+
+			// list of new tokens added from app during this session
 			const a_confirmed = g_account.assets[p_chain]?.fungibleTokens.slice() || [];
 
-			const f_check_confirmed = () => {
+			const f_check_confirmed = async() => {
 				// check all tokens in confirmed list
 				for(const sa_contract of a_confirmed.slice()) {
 					// token is awaiting confirmation
@@ -396,6 +422,13 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 						if(!a_awaiting.length) {
 							// stop listening for global events
 							f_unsubscribe();
+
+							// // install accepted tokens
+							// const a_installed = a_confirmed.filter(sa => a_reqs.includes(sa));
+							// if(a_installed.length) {
+							// 	debugger;
+							// 	await install_contracts(a_installed, g_context.chain!, g_context.app!);
+							// }
 
 							// resolve promise with response
 							fk_resolve({
@@ -420,7 +453,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 					// record token in case it is missed later
 					a_confirmed.push(g_added.sa_contract);
 
-					f_check_confirmed();
+					void f_check_confirmed();
 				},
 			});
 
@@ -449,7 +482,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 			a_awaiting = a_aminos.map(g => g.value.contract) as Bech32[];
 
 			// re-check all confirmed
-			f_check_confirmed();
+			void f_check_confirmed();
 		}
 		catch(e_any) {
 			fe_reject(e_any);

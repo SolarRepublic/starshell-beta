@@ -2,7 +2,7 @@
 	import type {Nameable, Pfpable} from '#/meta/able';
 	import type {AccountPath, AccountStruct} from '#/meta/account';
 	import type {AppPath, AppStruct} from '#/meta/app';
-	import type {Promisable} from '#/meta/belt';
+	import type {Nilable, Promisable} from '#/meta/belt';
 	import type {Bech32, ChainStruct, ChainPath} from '#/meta/chain';
 	import type {ContactStruct} from '#/meta/contact';
 	import type {FieldConfig} from '#/meta/field';
@@ -13,9 +13,10 @@
 	import {classify} from '../helper/json-previewer';
 	import {yw_chain} from '../mem';
 	
-	import {svelte_to_dom} from '../svelte';
+	import {inject_svelte_slots, svelte_to_dom} from '../svelte';
 	
-	import {produce_contract, produce_contracts} from '#/chain/contract';
+	import {produce_agent} from '#/chain/agent';
+	import {produce_contract} from '#/chain/contract';
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import {decrypt_private_memo} from '#/crypto/privacy';
 	import {Accounts} from '#/store/accounts';
@@ -26,12 +27,13 @@
 	
 	import {Secrets} from '#/store/secrets';
 	import {fold, forever, ode, proper} from '#/util/belt';
-	import {dd, open_external_link, qsa} from '#/util/dom';
-	import {phrase_to_hyphenated} from '#/util/format';
+	import {dd, open_external_link, qs, qsa} from '#/util/dom';
+	import {abbreviate_addr, AbbreviationLevel, phrase_to_hyphenated} from '#/util/format';
 	
 	import Copyable from './Copyable.svelte';
 	import Field from './Field.svelte';
 	import Gap from './Gap.svelte';
+	import Hover from './Hover.svelte';
 	import Load from './Load.svelte';
 	import LoadingRows from './LoadingRows.svelte';
 	import PasswordField from './PasswordField.svelte';
@@ -47,7 +49,9 @@
 	import SX_ICON_COPY from '#/icon/copy.svg?raw';
 	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
 	import SX_ICON_EYE from '#/icon/visibility.svg?raw';
-
+	import SX_ICON_WARNING from '#/icon/warning.svg?raw';
+	
+	
 
 	export let configs: FieldConfig[];
 
@@ -55,6 +59,11 @@
 	 * If true, enables flex row display for fields
 	 */
 	export let flex = false;
+
+	/**
+	 * Used in combination with `flex` to create a vertical flex group
+	 */
+	export let vertical = false;
 
 	export let noHrs = false;
 
@@ -181,9 +190,20 @@
 		};
 	}
 
-	async function render_resource(g_resource: Nameable & Pfpable, si_class: string, p_resource=''): Promise<HTMLDivElement> {
-		return dd('div', {
-			class: `resource ${si_class}`,
+	interface DynamicElementExtensions {
+		copy?: string;
+		preview?: string;
+		// hover?: string;
+	}
+
+	async function render_resource(
+		g_resource: Nameable & Pfpable,
+		si_class: string,
+		p_resource='',
+		gc_extensions: Nilable<DynamicElementExtensions>={}
+	): Promise<HTMLElement> {
+		const dm_div = dd('div', {
+			'class': `resource ${si_class}`,
 			'data-resource-path': p_resource || '',
 		}, [
 			await svelte_to_dom(PfpDisplay, {
@@ -193,6 +213,36 @@
 
 			classify(g_resource.name, `${si_class}-name`),
 		]);
+
+		// wrap in Copyable
+		if(gc_extensions?.copy) {
+			const dm_icon = dd('span', {
+				class: 'global_svg-icon icon-diameter_22px color_primary',
+				style: 'margin-left:1rem;',
+			});
+
+			dm_icon.innerHTML = SX_ICON_COPY;
+
+			const dm_actual = dd('span', {}, [
+				dm_icon,
+				dd('span', {
+					class: 'color_text-med',
+				}, [
+					gc_extensions.preview ?? gc_extensions.copy,
+				]),
+			]);
+
+			dm_div.append(dm_actual);
+
+			return await svelte_to_dom(Copyable, {
+				output: gc_extensions.copy,
+				...inject_svelte_slots({
+					default: dm_div,
+				}),
+			});
+		}
+
+		return dm_div;
 	}
 
 	async function load_dynamic_content(dm_dom: HTMLElement) {
@@ -246,25 +296,44 @@
 							}
 							catch(e_find) {}
 
-							// contact
-							const p_contact = Agents.pathForContactFromAddress(sa_addr);
-							const g_contact = await Agents.getContact(p_contact);
-							if(g_contact) {
-								return await render_resource(g_contact, 'contact', p_contact);
+							// produce contact struct, leveraging app profile if necessary
+							const g_agent = await produce_agent(sa_addr, g_chain, g_app, true);
+							if(g_agent) {
+								return await render_resource(g_agent, 'account', Agents.pathFromContact(g_agent), {
+									copy: sa_addr,
+									preview: abbreviate_addr(sa_addr, AbbreviationLevel.MOST),
+								});
 							}
 
 							// produce contract struct, leveraging app profile if necessary
-							const g_contract = await produce_contract(sa_addr, g_chain, g_app);
+							const g_contract = await produce_contract(sa_addr, g_chain, g_app, true);
 							if(g_contract) {
-								return await render_resource(g_contract, 'contract', Contracts.pathFrom(g_contract));
+								return await render_resource(g_contract, 'contract', Contracts.pathFrom(g_contract), {
+									copy: sa_addr,
+									preview: abbreviate_addr(sa_addr, AbbreviationLevel.MOST),
+								});
 							}
 
-							// use address
-							return await svelte_to_dom(Address, {
-								copyable: true,
-								discreet: true,
-								address: sa_addr,
+							const dm_icon = dd('span', {
+								class: 'global_svg-icon icon-diameter_18px color_caution',
 							});
+
+							dm_icon.innerHTML = SX_ICON_WARNING;
+
+							// use address
+							return dd('span', {}, [
+								await svelte_to_dom(Hover, {
+									...inject_svelte_slots({
+										default: dm_icon,
+									}),
+									text: 'The app did not provide any metadata for this address',
+								}),
+								await svelte_to_dom(Address, {
+									copyable: true,
+									discreet: true,
+									address: sa_addr,
+								}),
+							]);
 						}
 					}
 				})();
@@ -275,6 +344,10 @@
 				}
 			}
 		}
+	}
+
+	function not_brutal_gap(z_config) {
+		return !('gap' === z_config['type'] && z_config['brutal']);
 	}
 </script>
 
@@ -293,13 +366,18 @@
 					flex: 1;
 				}
 			}
+
+			&.vertical {
+				flex-direction: column;
+				gap: 8px;
+			}
 		}
 	}
 </style>
 
-<div class="fields" class:flex={flex}>
+<div class="fields" class:flex={flex} class:vertical={vertical}>
 	{#each configs as z_field, i_field}
-		{#if i_field && !flex}
+		{#if i_field && !flex && not_brutal_gap(z_field) && not_brutal_gap(configs[i_field-1])}
 			<hr class:minimal={noHrs}>
 		{/if}
 
@@ -467,7 +545,7 @@
 									<Row
 										rootStyle='border:none; padding:calc(0.5 * var(--ui-padding)) 1px;'
 										resource={g_contact}
-										address={sa_agent}
+										address={sa_agent} abbreviate={AbbreviationLevel.SOME}
 										on:click={() => copy(sa_agent)}
 									/>
 								{:else}	
@@ -497,7 +575,7 @@
 									resource={g_contract}
 									resourcePath={Contracts.pathFrom(g_contract)}
 									pfp={g_contract.pfp || ''}
-									address={g_contract.bech32}
+									address={g_contract.bech32} abbreviate={AbbreviationLevel.SOME}
 									on:click={() => copy(g_contract.bech32)}
 								/>
 							</Copyable>
@@ -538,12 +616,12 @@
 					<slot name='slot_2' data={gc_field.data}></slot>
 				{/if}
 			{:else if 'gap' === gc_field.type}
-				<Gap plain />
+				<Gap brutal={!!gc_field.brutal} plain />
 			{:else if 'group' === gc_field.type}
 				{#await gc_field.fields}
 					<LoadingRows />
 				{:then a_configs}
-					<svelte:self noHrs={!gc_field.expanded} flex={!!gc_field.flex} configs={a_configs} />
+					<svelte:self noHrs={!gc_field.expanded} flex={!!gc_field.flex} vertical={!!gc_field.vertical} configs={a_configs} />
 				{/await}
 			{/if}
 		{/await}

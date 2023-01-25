@@ -82,24 +82,23 @@
 
 	let xc_role = ContractRole.UNKNOWN;
 
-	$: gc_actions = {
-		...ContractRole.FUNGIBLE & xc_role && {
-			send: {
-				label: 'Transfer',
-				trigger() {
-					// ensure chain is correct
-					$yw_chain_ref = g_contract.chain;
+	const GC_ACTION_OPTIONS = {
+		send: {
+			label: 'Transfer',
+			trigger() {
+				// ensure chain is correct
+				$yw_chain_ref = g_contract.chain;
 
-					// push send screen
-					k_page.push({
-						creator: Send,
-						props: {
-							assetPath: p_contract,
-						},
-					});
-				},
+				// push send screen
+				k_page.push({
+					creator: Send,
+					props: {
+						assetPath: p_contract,
+					},
+				});
 			},
 		},
+
 		edit: {
 			label: 'Edit',
 			trigger() {
@@ -111,6 +110,7 @@
 				});
 			},
 		},
+
 		// delete: {
 		// 	label: 'Delete',
 		// 	trigger() {
@@ -119,7 +119,11 @@
 		// 		});
 		// 	},
 		// },
-	} as Actions;
+	};
+
+	let gc_actions: Actions = {
+		edit: GC_ACTION_OPTIONS.edit,
+	};
 
 	(async function load() {
 		const g_contract_local = (await Contracts.at(p_contract))!;
@@ -131,6 +135,11 @@
 
 		// deduce contract role
 		xc_role = Contracts.roleOf(g_contract_local, g_chain);
+
+		// update actions if applicable
+		if(ContractRole.FUNGIBLE & xc_role) {
+			gc_actions.send = GC_ACTION_OPTIONS.send;
+		}
 
 		// each coin in chain
 		for(const [si_coin, g_coin] of ode(g_chain.coins)) {
@@ -304,21 +313,23 @@
 			actions={gc_actions}
 		/>
 	{:else}
-		<Portrait
-			resource={g_contract}
-			resourcePath={p_contract}
-			title={s_main_title}
-			postTitle={s_main_post_title}
-			actions={b_unviewable? {}: gc_actions}
-		>
-			<svelte:fragment slot="subtitle">
-				{#if s_main_subtitle}
-					<div style='margin-bottom:0.5em;'>
-						<Load input={s_main_subtitle} />
-					</div>
-				{/if}
-			</svelte:fragment>
-		</Portrait>
+		{#key gc_actions}
+			<Portrait
+				resource={g_contract}
+				resourcePath={p_contract}
+				title={s_main_title}
+				postTitle={s_main_post_title}
+				actions={b_unviewable? {}: gc_actions}
+			>
+				<svelte:fragment slot="subtitle">
+					{#if s_main_subtitle}
+						<div style='margin-bottom:0.5em;'>
+							<Load input={s_main_subtitle} />
+						</div>
+					{/if}
+				</svelte:fragment>
+			</Portrait>
+		{/key}
 
 		{#if b_unviewable}
 			<div class="no-viewing-key text-align_center subinfo">

@@ -78,7 +78,11 @@
 </style>
 
 <span class="copyable" on:click={() => click()}>
-	<slot copy={copy} />
+	<slot copy={copy}>
+		<span class="copy-target" style="display:contents;">
+			{output}
+		</span>
+	</slot>
 
 	<div class="container">
 		<span class="copied" class:confirm={b_copy_confirm}>

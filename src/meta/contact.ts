@@ -3,6 +3,7 @@ import type {Agent, ChainNamespace, ChainNamespaceKey} from './chain';
 import type {Resource} from './resource';
 
 export enum ContactAgentType {
+	UNKNOWN = 'unknown',
 	PERSON = 'person',
 	ROBOT = 'robot',
 	CONTRACT = 'contract',
@@ -11,7 +12,7 @@ export enum ContactAgentType {
 /**
  * A contact is an agent that the user has assigned information to
  */
-export type ContactSpace = Extract<keyof ChainNamespace.Bech32s, 'acc'>;
+export type ContactSpace = Extract<keyof ChainNamespace.Bech32s, 'acc' | 'valoper' | 'valcons'>;
 
 export type Contact<
 	si_family extends ChainNamespaceKey=ChainNamespaceKey,

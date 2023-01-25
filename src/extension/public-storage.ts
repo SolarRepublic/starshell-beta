@@ -1,4 +1,4 @@
-import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
+import type {JsonObject, JsonValue, Nilable, Promisable} from '#/meta/belt';
 import type {StoreKey} from '#/meta/store';
 
 import {precedes} from './semver';
@@ -129,6 +129,23 @@ async function getter_setter<
 	}
 }
 
+async function auto_getter_setter<
+	si_key extends PublicStorageKey,
+	w_value extends StorageSchema[si_key]['interface'],
+>(si_key: si_key, w_autoset: w_value, w_set?: Nilable<w_value>): Promise<w_value> {
+	// proxy
+	const z_answer = await getter_setter(si_key, w_set);
+
+	// automatically enable if unset
+	if(null === z_answer) {
+		// eslint-disable-next-line @typescript-eslint/no-extra-parens
+		return (await public_storage_put(si_key, w_autoset), w_autoset);
+	}
+	else {
+		return z_answer;
+	}
+}
+
 export interface StoredHashParams extends JsonObject {
 	iterations: number;
 	memory: number;
@@ -182,14 +199,14 @@ export const PublicStorage = {
 	 * Enables/disables Keplr compatibility mode globally
 	 */
 	async keplrCompatibilityMode(b_enabled?: boolean): Promise<boolean> {
-		return await getter_setter('keplr_compatibility_mode', b_enabled) || false;
+		return await auto_getter_setter('keplr_compatibility_mode', true, b_enabled);
 	},
 
 	/**
 	 * Enables/disables Keplr detection mode globally
 	 */
 	async keplrDetectionMode(b_enabled?: boolean): Promise<boolean> {
-		return await getter_setter('keplr_detection_mode', b_enabled) || false;
+		return await auto_getter_setter('keplr_detection_mode', true, b_enabled);
 	},
 
 	/**

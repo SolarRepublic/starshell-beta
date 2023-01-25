@@ -70,7 +70,6 @@
 	import Put from '../ui/Put.svelte';
 	import Row from '../ui/Row.svelte';
 	
-	
 	import SX_ICON_CONNECT from '#/icon/connect.svg?raw';
 	import SX_ICON_ERROR from '#/icon/error.svg?raw';
 	import SX_ICON_RECV from '#/icon/recv.svg?raw';
@@ -78,7 +77,6 @@
 	import SX_ICON_SIGNATURE from '#/icon/signature.svg?raw';
 	import SX_ICON_ACC_CREATED from '#/icon/user-add.svg?raw';
 	import SX_ICON_ACC_EDITED from '#/icon/user-edit.svg?raw';
-	
 
 
 	type IncidentHandler<si_type extends IncidentType=IncidentType> = (
@@ -222,9 +220,9 @@
 							...g_common,
 							title: g_reviewed.title+(b_pending? '...': ''),
 							subtitle: format_time_ago(xt_when)+s_infos,
-							name: g_reviewed.resource.name,
-							pfp: g_reviewed.resource.pfp || '',
-							filter: g_reviewed.resource['testnet']? 'testnet': '',
+							name: g_reviewed.resource?.name || '?',
+							pfp: g_reviewed.resource?.pfp || '',
+							filter: g_reviewed.resource?.['testnet']? 'testnet': '',
 						};
 					}
 				}

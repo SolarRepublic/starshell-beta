@@ -4,6 +4,7 @@ import type {App, AppStruct, AppPath, AppSchemeKey} from '#/meta/app';
 import {AppApiMode} from '#/meta/app';
 import type {Dict, JsonObject} from '#/meta/belt';
 import type {ContractStruct} from '#/meta/chain';
+import type {ContactStruct} from '#/meta/contact';
 import type {Resource} from '#/meta/resource';
 
 import {create_store_class, WritableStoreMap} from './_base';
@@ -17,53 +18,8 @@ export interface AppProfile extends JsonObject {
 	name?: string | null | undefined;
 	pfps?: Dict;
 	contracts?: Dict<ContractStruct>;
+	accounts?: Dict<ContactStruct>;
 }
-
-
-export const G_APP_STARSHELL: AppStruct = {
-	scheme: 'wallet',
-	on: 1,
-	host: 'StarShell',
-	api: AppApiMode.STARSHELL,
-	connections: {},
-	name: 'StarShell',
-	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
-};
-
-export const G_APP_EXTERNAL: AppStruct = {
-	scheme: 'wallet',
-	on: 0,
-	host: 'External',
-	api: AppApiMode.UNKNOWN,
-	connections: {},
-	name: 'Some External Source',
-	pfp: '',
-};
-
-export const G_APP_NULL: AppStruct = {
-	scheme: 'wallet',
-	on: 0,
-	host: 'null',
-	api: AppApiMode.UNKNOWN,
-	connections: {},
-	name: 'null',
-	pfp: '',
-};
-
-export const G_APP_NOT_FOUND: AppStruct = {
-	scheme: 'wallet',
-	on: 0,
-	host: 'not-found',
-	api: AppApiMode.UNKNOWN,
-	connections: {},
-	name: 'App not found',
-	pfp: '',
-};
-
-export const H_WALLET_APPS = {
-	[G_APP_STARSHELL.host]: G_APP_STARSHELL,
-	[G_APP_EXTERNAL.host]: G_APP_EXTERNAL,
-};
 
 
 export const Apps = create_store_class({
@@ -145,4 +101,54 @@ export const Apps = create_store_class({
 		}
 	},
 });
+
+
+export const G_APP_STARSHELL: AppStruct = {
+	scheme: 'wallet',
+	on: 1,
+	host: 'StarShell',
+	api: AppApiMode.STARSHELL,
+	connections: {},
+	name: 'StarShell',
+	pfp: H_LOOKUP_PFP['/media/vendor/logo.svg'],
+};
+
+export const P_APP_STARSHELL = Apps.pathFrom(G_APP_STARSHELL);
+
+export const G_APP_EXTERNAL: AppStruct = {
+	scheme: 'wallet',
+	on: 0,
+	host: 'External',
+	api: AppApiMode.UNKNOWN,
+	connections: {},
+	name: 'Some External Source',
+	pfp: '',
+};
+
+export const P_APP_EXTERNAL = Apps.pathFrom(G_APP_EXTERNAL);
+
+export const G_APP_NULL: AppStruct = {
+	scheme: 'wallet',
+	on: 0,
+	host: 'null',
+	api: AppApiMode.UNKNOWN,
+	connections: {},
+	name: 'null',
+	pfp: '',
+};
+
+export const G_APP_NOT_FOUND: AppStruct = {
+	scheme: 'wallet',
+	on: 0,
+	host: 'not-found',
+	api: AppApiMode.UNKNOWN,
+	connections: {},
+	name: 'App not found',
+	pfp: '',
+};
+
+export const H_WALLET_APPS = {
+	[G_APP_STARSHELL.host]: G_APP_STARSHELL,
+	[G_APP_EXTERNAL.host]: G_APP_EXTERNAL,
+};
 

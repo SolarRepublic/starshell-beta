@@ -62,7 +62,7 @@
 		Converts this privacy token back into its native coin format.
 	</p>
 
-	<hr>
+	<hr class="no-margin">
 
 	<Field short key='amount' name='Amount'>
 		<AmountInput
@@ -75,5 +75,5 @@
 		/>
 	</Field>
 
-	<ActionsLine cancel confirm={['Next', () => submit(), !b_form_valid]} />
+	<ActionsLine cancel='pop' confirm={['Next', () => submit(), !b_form_valid]} />
 </Screen>

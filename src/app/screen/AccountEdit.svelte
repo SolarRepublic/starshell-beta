@@ -26,11 +26,11 @@
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Curtain from '../ui/Curtain.svelte';
 	import Field from '../ui/Field.svelte';
+	import Header from '../ui/Header.svelte';
 	import Load from '../ui/Load.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
 	
 	import SX_ICON_ARROW from '#/icon/expand_more.svg?raw';
-    import Header from '../ui/Header.svelte';
 	
 
 	export let accountPath: AccountPath;

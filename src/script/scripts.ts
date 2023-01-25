@@ -222,6 +222,9 @@ export async function set_keplr_compatibility_mode(b_enabled?: boolean): Promise
 
 	console.info(`Conducting script registration in order to ${b_enabled? 'enable': 'disable'}`);
 
+	// passively init detection mode if unset
+	const b_detection = await PublicStorage.keplrDetectionMode();
+
 	// browser is able to (unr)register content scripts
 	if(f_scripting()) {
 		console.info('Browser scripting available');

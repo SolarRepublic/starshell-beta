@@ -11,6 +11,7 @@ if(B_IOS_NATIVE) {
 	do_webkit_polyfill(debug);
 }
 
+/* eslint-disable i/order */
 import type {
 	ExtToNative,
 	IcsToService,
@@ -19,12 +20,15 @@ import type {
 	SessionCommand,
 } from './messages';
 
+import type {AppStatus} from './service-apps';
 import type Browser from 'webextension-polyfill';
-
 import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {AppChainConnection, AppPermissionSet} from '#/meta/app';
 import type {JsonObject, JsonValue} from '#/meta/belt';
 import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 import type {IncidentPath} from '#/meta/incident';
+
+
 import type {SecretStruct} from '#/meta/secret';
 import type {Vocab} from '#/meta/vocab';
 
@@ -40,7 +44,9 @@ import McsRatifier from './mcs-ratifier';
 import {open_flow} from './msg-flow';
 import {global_broadcast, global_receive} from './msg-global';
 import {set_keplr_compatibility_mode} from './scripts';
-import {AppStatus, app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, request_keplr_decision, RetryCode, unlock_to_continue} from './service-apps';
+
+
+import {app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, request_keplr_decision, RetryCode, unlock_to_continue} from './service-apps';
 import {NetworkFeed} from './service-feed';
 import {H_HANDLERS_ICS_APP} from './service-handlers-ics-app';
 
@@ -68,14 +74,16 @@ import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {Settings} from '#/store/settings';
 import {crypto_random_int, F_NOOP, ode, random_int, shuffle, timeout, timeout_exec} from '#/util/belt';
-import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, ripemd160_sync, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
+import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, ripemd160_sync, sha256d, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
 import {stringify_params} from '#/util/dom';
-import type { StoreKey } from '#/meta/store';
-import { Argon2 } from '#/crypto/argon2';
-import { SecretWasm } from '#/crypto/secret-wasm';
-import { SecretNetwork } from '#/chain/secret-network';
-import { FeeGrants } from '#/chain/fee-grant';
-import type { AppChainConnection, AppPermissionSet } from '#/meta/app';
+
+import type {StoreKey} from '#/meta/store';
+
+import {Argon2} from '#/crypto/argon2';
+import {SecretWasm} from '#/crypto/secret-wasm';
+import {SecretNetwork} from '#/chain/secret-network';
+import {FeeGrants} from '#/chain/fee-grant';
+
 
 
 const f_runtime_ios: () => Vocab.TypedRuntime<ExtToNative.MobileVocab> = () => chrome.runtime;
@@ -941,18 +949,7 @@ void check_network_feeds();
 void set_keplr_compatibility_mode();
 
 // development mode
-console.log({
-	'dev': import.meta.env.DEV,
-	'mode': import.meta.env.MODE,
-});
-if(import.meta.env?.DEV) {
-	Object.assign(globalThis, {
-		PublicStorage,
-		Vault,
-	});
-}
-
-if(import.meta.env.DEV) {
+function enable_debug_mode() {
 	Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
 		async decrypt(si_store: StoreKey) {
 			// fetch the root key
@@ -1039,41 +1036,6 @@ if(import.meta.env.DEV) {
 			return await Providers.activateStableDefaultFor(g_chain!);
 		},
 
-		deep_seal(w_thing) {
-			// blocking
-			if(Object.isSealed(w_thing)) return w_thing;
-
-			// anything else
-			if('function' !== typeof w_thing && 'object' !== typeof w_thing) return;
-
-			// seal this thing
-			try {
-				Object.seal(w_thing);
-			}
-			catch(e_seal) {
-				console.log(`Cannot seal ${w_thing}`);
-			}
-
-			// each own property
-			for(const [, g_descriptor] of Object.entries(Object.getOwnPropertyDescriptors(w_thing))) {
-				// data descriptor
-				if(g_descriptor.value) {
-					deep_seal(g_descriptor.value);
-				}
-				// getter
-				else if(g_descriptor.get) {
-					const w_value = g_descriptor.get();
-
-					if(w_value) {
-						deep_seal(w_value);
-					}
-				}
-			}
-
-			// recurse on prototype
-			deep_seal(Reflect.getPrototypeOf(w_thing));
-		},
-
 		async import_sk(sxb64_sk: string, s_name='Citizen '+uuid_v4().slice(0, 4)) {
 			const atu8_sk = base64_to_buffer(sxb64_sk);
 
@@ -1102,3 +1064,22 @@ if(import.meta.env.DEV) {
 	});
 }
 
+
+if('development' === import.meta.env.MODE) {
+	enable_debug_mode();
+}
+
+// in exceptional cases, allow users to enable developer mode if they possess a developer key from a trusted owner
+try {
+	void chrome.storage?.local?.get?.(['@enable_developer_mode']).then(async(g_answer) => {
+		try {
+			const atu8_verify = await sha256d(base64_to_buffer(g_answer['@enable_developer_mode'] as string));
+			if('5ASpwSBF4nQFNUnM9gY7bOk+kuumb707tuIbpWSkjAA=' === buffer_to_base64(atu8_verify)) {
+				console.log('🕵️ developer mode enabled');
+				enable_debug_mode();
+			}
+		}
+		catch(e_verify) {}
+	}).catch(() => void 0);
+}
+catch(e_debug) {}

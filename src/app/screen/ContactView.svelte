@@ -7,6 +7,8 @@
 	
 	import {Header, type Page, Screen} from '../screen/_screens';
 	
+	import Address from '#/app/frag/Address.svelte';
+	import Portrait from '#/app/frag/Portrait.svelte';
 	import {Agents} from '#/store/agents';
 	
 	import {Chains} from '#/store/chains';
@@ -14,11 +16,8 @@
 	import {yw_chain} from '##/mem';
 	
 	import Send from '##/screen/Send.svelte';
-	import Address from '#/app/frag/Address.svelte';
-	import Portrait from '#/app/frag/Portrait.svelte';
 	
 	import ContactEdit from './ContactEdit.svelte';
-	import DeadEnd from './DeadEnd.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
 	
 
@@ -56,14 +55,14 @@
 				});
 			},
 		},
-		delete: {
-			label: 'Delete',
-			trigger() {
-				k_page.push({
-					creator: DeadEnd,
-				});
-			},
-		},
+		// delete: {
+		// 	label: 'Delete',
+		// 	trigger() {
+		// 		k_page.push({
+		// 			creator: DeadEnd,
+		// 		});
+		// 	},
+		// },
 	};
 
 	// load incidents

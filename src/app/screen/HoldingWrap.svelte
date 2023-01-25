@@ -139,7 +139,7 @@
 		In order to take advantage of Secret's privacy features, you can wrap {si_coin} by converting it 1:1 to the s{si_coin} token.
 	</p>
 
-	<hr>
+	<hr class="no-margin">
 
 	{#if !b_wrapper_exists}
 		<p>

@@ -280,19 +280,21 @@
 	/>
 
 
-	<div class="group" style="margin-bottom:-12px;">
-		<div class="resource-controls">
-			<hr class="no-margin">
-			<StakingResourceControl si_coin={si_coin} />
+	{#if $yw_chain}
+		<div class="group" style="margin-bottom:-12px;">
+			<div class="resource-controls">
+				<hr class="no-margin">
+				<StakingResourceControl si_coin={si_coin} />
+			</div>
 		</div>
-	</div>
+	{/if}
 
 	<div class="rows no-margin border-top_black-8px">
 		{#await load_incidents()}
 			<LoadingRows count={3} />
 		{:then a_incidents}
 			{#if !a_incidents.length}
-				<center class="color_text-med">
+				<center class="color_text-med" style="margin-top:1em;">
 					No activity yet.
 				</center>
 			{:else}

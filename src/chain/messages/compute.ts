@@ -4,7 +4,7 @@ import type {Coin} from '@cosmjs/amino';
 import type {AccessType} from '@solar-republic/cosmos-grpc/dist/cosmwasm/wasm/v1/types';
 import type {CodeInfoResponse} from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/query';
 
-import type {Dict, JsonObject} from '#/meta/belt';
+import type {JsonObject} from '#/meta/belt';
 import type {Bech32} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
 import type {Snip24PermitMsg} from '#/schema/snip-24-def';
@@ -12,10 +12,12 @@ import type {Snip24PermitMsg} from '#/schema/snip-24-def';
 import {AminoJsonError, kv, MalforedMessageError} from './_util';
 
 import {H_SNIP_HANDLERS} from './snip';
+import {install_contracts} from '../contract';
 import {SecretNetwork} from '../secret-network';
 
+import {syswarn} from '#/app/common';
 import PfpDisplay from '#/app/frag/PfpDisplay.svelte';
-import {FormatConfig, JsonPreviewer, snip_json_formats} from '#/app/helper/json-previewer';
+import {JsonPreviewer, snip_json_formats} from '#/app/helper/json-previewer';
 import {svelte_to_dom} from '#/app/svelte';
 import {SecretWasm} from '#/crypto/secret-wasm';
 
@@ -24,9 +26,13 @@ import {Contracts} from '#/store/contracts';
 import {Providers} from '#/store/providers';
 import {Secrets} from '#/store/secrets';
 import {defer_many, is_dict, proper} from '#/util/belt';
-import {base64_to_buffer, buffer_to_hex, sha256_sync} from '#/util/data';
+import {base64_to_buffer, buffer_to_hex, sha256_sync, uuid_v4} from '#/util/data';
 import {dd} from '#/util/dom';
 import {abbreviate_addr} from '#/util/format';
+import { R_BECH32 } from '#/share/constants';
+import { SessionStorage } from '#/extension/session-storage';
+import { inject_app_profile } from '../app';
+import { Apps } from '#/store/apps';
 
 export const _FAILED_MESSAGE_OVERRIDE = Symbol('failed-message-override');
 
@@ -43,6 +49,7 @@ export const ComputeMessages: MessageDict = {
 		return {
 			describe() {
 				return {
+					offline: true,
 					title: 'Sign Query Permit',
 					tooltip: 'Allows apps to view private data such as your token balance, ownership, etc. Scope and permissions are unique to each permit.',
 					fields: [
@@ -128,7 +135,14 @@ export const ComputeMessages: MessageDict = {
 		};
 	},
 
-	async 'wasm/MsgInstantiateContract'(g_msg, {g_chain, p_account}) {
+	async 'wasm/MsgInstantiateContract'(g_msg, {
+		p_chain,
+		g_chain,
+		p_account,
+		g_account,
+		g_app,
+		p_app,
+	}) {
 		const g_instantiate = g_msg as unknown as {
 			sender: Bech32;
 			code_id: `${bigint}`;
@@ -136,6 +150,8 @@ export const ComputeMessages: MessageDict = {
 			init_msg: string;
 			init_funds: Coin[];
 		};
+
+		const s_label = g_instantiate.label;
 
 		// ref init message json
 		let sx_json = g_instantiate.init_msg;
@@ -160,18 +176,69 @@ export const ComputeMessages: MessageDict = {
 		// ref code id
 		const si_instantiate = g_instantiate.code_id;
 
+		// map spends
+		const a_spends: SpendInfo[] = [];
+		const a_init_funds = g_instantiate.init_funds;
+		if(a_init_funds?.length) {
+			a_spends.push({
+				pfp: g_chain.pfp,
+				amounts: a_init_funds.map(g_coin => Chains.summarizeAmount(g_coin, g_chain)),
+			});
+		}
+
 		return {
-			describe() {
-				// map spends
-				const a_spends: SpendInfo[] = [];
-				const a_init_funds = g_instantiate.init_funds;
-				if(a_init_funds?.length) {
-					a_spends.push({
-						pfp: g_chain.pfp,
-						amounts: a_init_funds.map(g_coin => Chains.summarizeAmount(g_coin, g_chain)),
+			async apply(nl_msgs, si_txn, h_events) {
+				// the instantiated contract address
+				let sa_created: Bech32;
+				try {
+					const as_contracts = h_events?.['message']?.['contract_address'];
+					if(!(as_contracts instanceof Set)) {
+						throw new Error(`No contract address emitted in event log`);
+					}
+
+					sa_created = [...as_contracts][0] as Bech32;
+					if(!R_BECH32.test(sa_created)) {
+						throw new Error(`Failed to parse instantiated contract address from event log: "${sa_created}" is not understood`);
+					}
+
+					// brand new contract, fill app profile with definition automagically
+					await inject_app_profile(g_app, {
+						contracts: {
+							[uuid_v4()]: {
+								bech32: sa_created,
+								chain: p_chain,
+								interfaces: {
+									excluded: [],
+								},
+								hash: '',
+								name: g_instantiate.label,
+								on: 1,
+								origin: `app:${p_app}`,
+
+								// inherit pfp from app
+								pfp: g_app.pfp,
+							},
+						},
+					});
+
+					// attempt to install contract
+					await install_contracts([sa_created], g_chain, g_app);
+				}
+				catch(e_apply) {
+					syswarn({
+						title: 'Contract did not install',
+						text: e_apply.message,
 					});
 				}
 
+				return {
+					group: nl => `Contract${1 === nl? '': 's'} Instantiated`,
+					title: '🚀 Contract Instantiated',
+					message: `${g_account.name} created the "${s_label}" contract on ${g_chain.name}`,
+				};
+			},
+
+			describe() {
 				return {
 					title: 'Instantiate Contract',
 					tooltip: `Creates a new contract using some code that is already on chain (given by its Code ID). The configuration below will forever be part of the contract's internal settings.`,
@@ -205,7 +272,7 @@ export const ComputeMessages: MessageDict = {
 							return {
 								'Code ID': si_instantiate,
 								'Creator': h_promises.creator,
-								'Code Hash': h_promises.codeHash,
+								// 'Code Hash': h_promises.codeHash,
 								'Source': h_promises.source,
 							};
 						})(), {
@@ -226,6 +293,82 @@ export const ComputeMessages: MessageDict = {
 						}),
 					],
 					spends: a_spends,
+				};
+			},
+
+			async review(b_pending, b_incoming) {
+				const a_funds_dom: HTMLSpanElement[] = [];
+				if(a_spends?.length) {
+					for(const g_spend of a_spends) {
+						a_funds_dom.push(dd('span', {
+							class: 'global_flex-auto',
+							style: `
+								gap: 6px;
+							`,
+						}, [
+							await svelte_to_dom(PfpDisplay, {
+								resource: g_chain,
+								dim: 16,
+							}, 'loaded'),
+							g_spend.amounts.join(' + '),
+						]));
+					}
+				}
+
+				// merge with snip review
+				return {
+					title: `Instantiat${b_pending? 'ing': 'ed'} Contract`,
+					infos: [
+						`${s_label.replace(/\s+((smart\s+)?contract|token|minter|d?app)$/i, '')}`,
+					],
+					// resource: g_contract,
+					fields: [
+						{
+							type: 'key_value',
+							key: 'Label',
+							value: s_label,
+						},
+						{
+							type: 'key_value',
+							key: 'Code ID',
+							value: si_instantiate,
+						},
+						...a_spends.length? [
+							{
+								type: 'key_value',
+								key: 'Sent funds',
+								value: dd('div', {
+									class: `global_flex-auto`,
+									style: `
+										flex-direction: column;
+									`,
+								}, a_funds_dom),
+							},
+						]: [],
+						// {
+						// 	type: 'contracts',
+						// 	bech32s: [sa_contract],
+						// 	g_app,
+						// 	g_chain,
+						// 	label: 'Token / Contract',
+						// },
+						// ...g_review?.['fields'] || [
+						// 	JsonPreviewer.render(h_args, {
+						// 		chain: g_chain,
+						// 		formats: snip_json_formats(g_contract, si_action),
+						// 	}, {
+						// 		label: 'Inputs',
+						// 	}),
+						// ],
+					],
+				};
+			},
+
+			fail(nl_msgs, g_result) {
+				// catch-all
+				return {
+					title: '❌ Instantiation Failure',
+					message: g_result.log,
 				};
 			},
 		};
@@ -362,14 +505,26 @@ export const ComputeMessages: MessageDict = {
 				};
 			},
 
-			approve: () => ({
-				executions: [
-					{
-						contract: sa_contract,
-						msg: h_exec,
-					},
-				],
-			}),
+			async approve() {
+				try {
+					await install_contracts([sa_contract], g_chain, g_app);
+				}
+				catch(e_install) {
+					syswarn({
+						title: `Failed to install contract`,
+						text: e_install.message,
+					});
+				}
+
+				return {
+					executions: [
+						{
+							contract: sa_contract,
+							msg: h_exec,
+						},
+					],
+				};
+			},
 
 			async apply(nl_msgs, si_txn) {
 				// on secret-wasm
@@ -385,7 +540,7 @@ export const ComputeMessages: MessageDict = {
 				return {
 					group: nl => `Contract${1 === nl? '': 's'} Executed`,
 					title: '🟢 Contract Executed',
-					text: `${s_contract} → ${si_action} on ${g_chain.name}`,
+					message: `${s_contract} → ${si_action} on ${g_chain.name}`,
 				};
 			},
 

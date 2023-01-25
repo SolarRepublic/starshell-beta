@@ -15,17 +15,18 @@
 	
 	import {Screen, type Page} from './_screens';
 	
+	import {ThreadId} from '../def';
+	
 	import AmountInput, {AssetType} from '#/app/frag/AmountInput.svelte';
 	import AssetSelect from '#/app/frag/AssetSelect.svelte';
 	import {encode_proto} from '#/chain/cosmos-msgs';
 	import type {SecretNetwork} from '#/chain/secret-network';
 	import {encrypt_private_memo} from '#/crypto/privacy';
-	import {NB_MAX_MEMO, R_BECH32, XT_MINUTES, XT_SECONDS} from '#/share/constants';
+	import {NB_MAX_MEMO, R_BECH32, XT_MINUTES} from '#/share/constants';
 	import {subscribe_store} from '#/store/_base';
 	import {Agents} from '#/store/agents';
 	import {G_APP_STARSHELL} from '#/store/apps';
-	import {Settings} from '#/store/settings';
-	import {fold, F_NOOP, microtask} from '#/util/belt';
+	import {fold, microtask} from '#/util/belt';
 	import {buffer_to_base93, text_to_buffer} from '#/util/data';
 	import {
 		yw_account,
@@ -35,13 +36,15 @@
 		yw_navigator,
 		yw_network,
 		yw_owner,
-        yw_settings,
+		yw_settings,
 	} from '##/mem';
 	
 	import CheckboxField from '##/ui/CheckboxField.svelte';
 	import Field from '##/ui/Field.svelte';
 	import Header from '##/ui/Header.svelte';
 	
+	import ContactEdit from './ContactEdit.svelte';
+	import ContactsHome from './ContactsHome.svelte';
 	import RequestSignature from './RequestSignature.svelte';
 	import SettingsMemos from './SettingsMemos.svelte';
 	import RecipientSelect from '../frag/RecipientSelect.svelte';
@@ -57,10 +60,7 @@
 	import SX_ICON_INFO from '#/icon/info.svg?raw';
 	import SX_ICON_SHIELD from '#/icon/shield.svg?raw';
 	import SX_ICON_VISIBILITY from '#/icon/visibility.svg?raw';
-    import ContactEdit from './ContactEdit.svelte';
-    import Address from '../frag/Address.svelte';
-    import { ThreadId } from '../def';
-    import ContactsHome from './ContactsHome.svelte';
+	
 	
 
 	const G_SLIDE_IN = {
@@ -396,6 +396,9 @@
 								},
 							});
 						}
+						else {
+							$yw_navigator.activePage.pop();
+						}
 					},
 				},
 			});
@@ -677,7 +680,7 @@
 	{#if b_new_address && b_checked_save_contact}
 		<Field short slides
 			key='new-contact-name'
-			name='Agent Name'
+			name='Contact Name'
 		>
 			<input id="new-contact-name-value" type="text" on:input={input_new_contact} class:invalid={s_err_new_contact}>
 
@@ -689,7 +692,7 @@
 		</Field>
 	{/if}
 
-	<hr>
+	<hr class="no-margin">
 
 	<Field short
 		key='asset-select'

@@ -17,7 +17,7 @@ if(B_LOCALHOST) {
 		function polyfill_chrome_storage(si_area: chrome.storage.AreaName): chrome.storage.StorageArea {
 			return {
 				/* eslint-disable @typescript-eslint/require-await */
-				async get(z_keys: null | string | string[], fk_respond?: (h_store: Dict<JsonValue | undefined>) => void): Promise<Dict<JsonValue | undefined>> {
+				async get(z_keys: null | string | string[]=null, fk_respond?: (h_store: Dict<JsonValue | undefined>) => void): Promise<Dict<JsonValue | undefined>> {
 					if(null === z_keys) {
 						z_keys = [];
 						for(let i_key=0; i_key<localStorage.length; i_key++) {

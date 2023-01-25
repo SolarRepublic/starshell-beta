@@ -21,10 +21,10 @@
 	
 	import AppDisconnect from './AppDisconnect.svelte';
 	import RequestSignature from './RequestSignature.svelte';
+	import AppBanner from '../frag/AppBanner.svelte';
 	import TokenRow from '../frag/TokenRow.svelte';
 	import Header from '../ui/Header.svelte';
 	import SubHeader from '../ui/SubHeader.svelte';
-    import AppBanner from '../frag/AppBanner.svelte';
 	
 
 	export let g_app: AppStruct;

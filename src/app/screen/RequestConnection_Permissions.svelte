@@ -17,7 +17,7 @@
 	
 	import {load_flow_context, s2r_slide} from '../svelte';
 	
-	import {type PermissionsRegistry, process_permissions_request, apply_permission, add_permission_to_set} from '#/extension/permissions';
+	import {type PermissionsRegistry, process_permissions_request, add_permission_to_set} from '#/extension/permissions';
 	import {SessionStorage} from '#/extension/session-storage';
 	import {Accounts} from '#/store/accounts';
 	import {Apps, G_APP_NOT_FOUND} from '#/store/apps';
@@ -25,7 +25,7 @@
 	import {Contracts} from '#/store/contracts';
 	import {Incidents} from '#/store/incidents';
 	import {Pfps} from '#/store/pfps';
-	import {fodemtv, ode, oderac, oderom, ofe} from '#/util/belt';
+	import {fodemtv, ode, ofe} from '#/util/belt';
 	import {abbreviate_addr} from '#/util/format';
 	
 	import AppBanner from '../frag/AppBanner.svelte';
@@ -40,7 +40,6 @@
 	import SX_ICON_SERVER from '#/icon/server.svg?raw';
 	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
 	import SX_ICON_X from '#/icon/tiny-x.svg?raw';
-    import { R_CAIP_2 } from '#/share/constants';
 	
 
 	interface Permission {
@@ -253,56 +252,56 @@
 				await Apps.put(g_app_new);
 			}
 
-			// save contract definitions from app profile
-			const g_profile = await SessionStorage.get(`profile:${p_site}`);
-			if(g_profile) {
-				// open the contracts store for writing
-				await Contracts.open(async(ks_contracts) => {
-					// each contract def in app profile
-					for(const [, g_contract] of ode(g_profile.contracts || {})) {
-						// ref contract's chain
-						const p_chain = g_contract.chain;
+			// // save contract definitions from app profile
+			// const g_profile = await SessionStorage.get(`profile:${p_site}`);
+			// if(g_profile) {
+			// 	// open the contracts store for writing
+			// 	await Contracts.open(async(ks_contracts) => {
+			// 		// each contract def in app profile
+			// 		for(const [, g_contract] of ode(g_profile.contracts || {})) {
+			// 			// ref contract's chain
+			// 			const p_chain = g_contract.chain;
 
-						// parse chain path
-						const [si_family, si_chain] = Chains.parsePath(p_chain);
+			// 			// parse chain path
+			// 			const [si_family, si_chain] = Chains.parsePath(p_chain);
 
-						// prep token interfaces
-						const h_interfaces = (g_contract.interfaces || {}) as TokenStructDescriptor;
+			// 			// prep token interfaces
+			// 			const h_interfaces = (g_contract.interfaces || {}) as TokenStructDescriptor;
 
-						// construct path to contract pfp in session storage
-						let p_pfp = `pfp:${p_site}/${si_family}:${si_chain}`;
+			// 			// construct path to contract pfp in session storage
+			// 			let p_pfp = `pfp:${p_site}/${si_family}:${si_chain}`;
 
-						// caip-19 asset
-						const si_interface_0 = Object.keys(h_interfaces)[0];
-						if(si_interface_0) {
-							p_pfp += `/${si_interface_0}:${g_contract.bech32}`;
-						}
-						// caip-10 account
-						else {
-							p_pfp += `:${g_contract.bech32}`;
-						}
+			// 			// caip-19 asset
+			// 			const si_interface_0 = Object.keys(h_interfaces)[0];
+			// 			if(si_interface_0) {
+			// 				p_pfp += `/${si_interface_0}:${g_contract.bech32}`;
+			// 			}
+			// 			// caip-10 account
+			// 			else {
+			// 				p_pfp += `:${g_contract.bech32}`;
+			// 			}
 
-						// save pfp
-						const p_data = await SessionStorage.get(p_pfp as `pfp:${string}`);
-						let p_saved: PfpTarget = '';
-						if(p_data) {
-							[p_saved] = await Pfps.addData(p_data);
-						}
+			// 			// save pfp
+			// 			const p_data = await SessionStorage.get(p_pfp as `pfp:${string}`);
+			// 			let p_saved: PfpTarget = '';
+			// 			if(p_data) {
+			// 				[p_saved] = await Pfps.addData(p_data);
+			// 			}
 
-						// save contract to store
-						await ks_contracts.merge({
-							on: 1,
-							bech32: g_contract.bech32,
-							chain: g_contract.chain,
-							name: g_contract.name || 'Unlabeled',
-							hash: g_contract.hash || '',
-							interfaces: h_interfaces,
-							pfp: p_saved,
-							origin: `app:${p_app}`,
-						});
-					}
-				});
-			}
+			// 			// save contract to store
+			// 			await ks_contracts.merge({
+			// 				on: 1,
+			// 				bech32: g_contract.bech32,
+			// 				chain: g_contract.chain,
+			// 				name: g_contract.name || 'Unlabeled',
+			// 				hash: g_contract.hash || '',
+			// 				interfaces: h_interfaces,
+			// 				pfp: p_saved,
+			// 				origin: `app:${p_app}`,
+			// 			});
+			// 		}
+			// 	});
+			// }
 
 			// save incident
 			await Incidents.record({

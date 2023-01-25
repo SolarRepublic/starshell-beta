@@ -145,7 +145,7 @@
 				},
 				snip722: {
 					title: 'SNIP-722',
-					label: 'Badges, POAPS & Non-Transferable',
+					label: 'Badges, POAPS & Non-Txferable',
 					checked: !!h_interfaces.snip722,
 					disabled: a_excluded.includes('snip722'),
 				},
@@ -445,7 +445,7 @@
 							display: inline-flex;
 						`}
 					>
-						<span class="title" style="min-width:6.5ch;">
+						<span class="title" style="min-width: 7ch;">
 							{g_interface.title}
 						</span>
 						<span class="label" style="color:var(--theme-color-text-med);">
@@ -457,7 +457,7 @@
 		</Field>
 	{/if}
 
-	<hr>
+	<hr class="no-margin">
 
 	<h3>
 		{p_contract? 'Edit': 'Add'} Tags

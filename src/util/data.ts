@@ -36,7 +36,7 @@ export async function sha256(atu8_data: Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * Performs SHA-256 hash on the given data.
+ * Performs SHA-256(SHA-256(data))
  * @param atu8_data data to hash
  * @returns the hash digest
  */

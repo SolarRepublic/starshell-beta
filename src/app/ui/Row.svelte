@@ -9,6 +9,8 @@
 	
 	import {oderom} from '#/util/belt';
 	
+	import {AbbreviationLevel} from '#/util/format';
+	
 	import Load from './Load.svelte';
 	import Address from '../frag/Address.svelte';
 	import InlineTags from '../frag/InlineTags.svelte';
@@ -89,6 +91,7 @@
 	export let symbol = '';
 	export let lockIcon = false;
 	export let address = '';
+	export let abbreviate: AbbreviationLevel = AbbreviationLevel.NONE;
 	export let copyable = false;
 	export let detail = '';
 	export let prefix = '';
@@ -235,7 +238,7 @@
 
 	.row {
 		padding: var(--row-padding);
-		border-top: 1px solid var(--theme-color-border);
+		border-top: 0px solid var(--theme-color-border);
 		border-bottom: 1px solid var(--theme-color-border);
 		max-width: var(--app-window-width);
 		// overflow-x: scroll;
@@ -246,6 +249,10 @@
 
 		display: flex;
 		flex-direction: column;
+
+		&:first-child {
+			border-top-width: 1px;
+		}
 
 		&.embedded {
 			border: none;
@@ -309,6 +316,7 @@
 			display: flex;
 			width: 0;
 			max-width: calc(var(--app-window-width) - var(--app-icon-diameter) - var(--icon-margin) - var(--row-padding) - var(--row-padding));
+			gap: 8px;
 
 			>.part {
 				flex: auto;
@@ -505,7 +513,10 @@
 								</slot>
 							</span>
 						{:else if address}
-							<Address address={address} copyable={!!copyable} discreet  />
+							<Address discreet {abbreviate}
+								address={address}
+								copyable={!!copyable}
+							/>
 						{/if}
 					</div>
 				{/if}

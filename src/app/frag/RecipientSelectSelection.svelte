@@ -12,6 +12,7 @@
 		white-space: nowrap;
 		height: 100%;
 		padding-left: 8px;
+		padding-right: 30px;
 
 		.manual>.address {
 			:global(&) {

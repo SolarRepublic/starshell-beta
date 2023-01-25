@@ -70,7 +70,7 @@
 		</span>
 	</AppBanner>
 
-	<hr>
+	<hr class="no-margin">
 
 	<p>
 		StarShell prevented this app from misusing the Keplr API in a way that would produce incorrect transaction data,

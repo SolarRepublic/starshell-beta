@@ -175,6 +175,7 @@ export function delete_cookie(si_cookie: string) {
 
 export interface ExternalLinkConfig {
 	exitPwa?: boolean;
+	behind?: boolean;
 }
 
 export async function open_external_link(p_url: string, gc_external: ExternalLinkConfig={}): Promise<void> {
@@ -255,6 +256,7 @@ export async function open_external_link(p_url: string, gc_external: ExternalLin
 	else if('function' === typeof chrome.tabs?.create) {
 		void chrome.tabs.create({
 			url: p_url,
+			active: !gc_external?.behind || true,
 		});
 
 		if(B_FIREFOX_ANDROID) {

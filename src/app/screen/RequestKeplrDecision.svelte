@@ -56,7 +56,7 @@
 		</span>
 	</AppBanner>
 
-	<hr>
+	<hr class="no-margin">
 
 	<p>
 		Looks like you have the Keplr extension installed and enabled. It is recommended that you disable Keplr while using StarShell. You can always re-enable it a later time.

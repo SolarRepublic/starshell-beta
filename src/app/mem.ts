@@ -268,10 +268,11 @@ export const yw_popup = writable<ParametricSvelteConstructor | null>(null);
 
 
 export function popup_receive(p_account: AccountPath): void {
-	yw_context_popup.set({
+	void yw_context_popup.set({
 		account: p_account,
 	});
-	yw_popup.set(PopupReceive);
+
+	void yw_popup.set(PopupReceive);
 }
 
 

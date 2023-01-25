@@ -22,6 +22,7 @@
 	import {proto_to_amino} from '#/chain/cosmos-msgs';
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import type {ReviewedMessage} from '#/chain/messages/_types';
+	import {_FAILED_MESSAGE_OVERRIDE} from '#/chain/messages/compute';
 	import {H_SNIP_TRANSACTION_HISTORY_HANDLER} from '#/chain/messages/snip-history';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 	import {Accounts} from '#/store/accounts';
@@ -41,8 +42,6 @@
 	import Spacer from '../ui/Spacer.svelte';
 	
 	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
-    import { SecretWasm } from '#/crypto/secret-wasm';
-    import { _FAILED_MESSAGE_OVERRIDE } from '#/chain/messages/compute';
 
 
 	const {
@@ -164,18 +163,17 @@
 				{
 					type: 'group',
 					flex: true,
+					vertical: true,
 					fields: [
 						{
 							type: 'key_value',
 							key: 'Gas Payed',
 							value: g_data.gas_wanted,
-							render: 'mono',
 						},
 						{
 							type: 'key_value',
 							key: 'Gas Used',
 							value: g_data.gas_used,
-							render: 'mono',
 						},
 					],
 				},
@@ -203,6 +201,7 @@
 					...a_reviewed.flatMap((g, i) => [
 						{
 							type: 'gap',
+							brutal: true,
 						},
 						{
 							type: 'dom',
@@ -645,7 +644,7 @@
 					rootStyle='margin-bottom: 8px;'
 				/>
 
-				<hr>
+				<hr class="no-margin">
 			{/if}
 
 			{#if 'tx_in' === g_incident.type || 'tx_out' === g_incident.type}

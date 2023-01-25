@@ -18,7 +18,7 @@
 
 	export let amino: AdaptedStdSignDoc | null = null;
 
-	export let wasm: JsonObject;
+	export let wasms: JsonObject[] = [];
 </script>
 
 <style lang="less">
@@ -41,26 +41,35 @@
 		margin-bottom: var(--ui-padding);
 
 		padding-bottom: 0;
+		line-break: anywhere;
 	}
 </style>
 
 <Screen>
 	<Header title='View Data' exits on:close={() => k_page.pop()} />
-	{#if wasm}
-		<div class="code-title">
-			Unencrypted Contract Message
-		</div>
-		<div class="raw-json textarea no-flex">
-			<JsonView
-				--jsonKeyColor='var(--theme-color-text-light)'
-				json={wasm}
-			/>
-		</div>
-
-		<div class="code-title">
-			Encrypted Message Size
-		</div>
-		<textarea>{base64_to_buffer(amino?.msgs[0].value.msg+'').byteLength} bytes</textarea>
+	{#if wasms.length}
+		{#each wasms as h_wasm, i_wasm}
+			<div class="code-title">
+				Decrypted Contract Message #{i_wasm+1}
+			</div>
+			<div class="raw-json textarea no-flex">
+				<JsonView
+					--jsonSeparatorColor='var(--theme-color-text-med)'
+					--jsonKeyColor='#bbc5d0'
+					--jsonValColor='var(--theme-color-white)'
+					--jsonBracketColor='var(--theme-color-text-med)'
+					--jsonValStringColor='var(--theme-color-primary)'
+					--jsonValBooleanColor='var(--theme-color-blue)'
+					--jsonBorderLeft='1px dotted rgba(255,255,255,0.125)'
+					json={h_wasm}
+				/>
+			</div>
+<!-- 
+			<div class="code-title">
+				Encrypted Message Size
+			</div>
+			<textarea>{base64_to_buffer(amino?.msgs[0].value.msg+'').byteLength} bytes</textarea> -->
+		{/each}
 	{/if}
 
 	<div class="code-title">
@@ -68,7 +77,13 @@
 	</div>
 	<div class="raw-json textarea no-flex">
 		<JsonView
-			--nodeColor='var(--theme-color-text-light)'
+			--jsonSeparatorColor='var(--theme-color-text-med)'
+			--jsonKeyColor='#bbc5d0'
+			--jsonValColor='var(--theme-color-white)'
+			--jsonBracketColor='var(--theme-color-text-med)'
+			--jsonValStringColor='var(--theme-color-primary)'
+			--jsonValBooleanColor='var(--theme-color-blue)'
+			--jsonBorderLeft='1px dotted rgba(255,255,255,0.125)'
 			json={amino}
 		/>
 	</div>

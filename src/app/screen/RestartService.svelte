@@ -68,7 +68,7 @@
 		</span>
 	</AppBanner>
 
-	<hr>
+	<hr class="no-margin">
 
 
 	<ActionsWall>

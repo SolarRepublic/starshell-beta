@@ -178,11 +178,9 @@
 	 * Configure which actions are available to this resource
 	 */
 	export let actions: null | Partial<Actions> = null;
-	const h_actions = actions as Actions;
 
 
 	export let info = false;
-
 
 </script>
 
@@ -341,9 +339,9 @@
 		<InlineTags hideIfEmpty resourcePath={p_resource} rootStyle='margin: var(--ui-padding) 0 0 0;' />
 	{/if}
 
-	{#if Object.keys(h_actions || {}).length}
+	{#if Object.keys(actions || {}).length}
 		<div class="actions">
-			{#each ode(h_actions) as [si_action, gc_action]}
+			{#each ode(actions || {}) as [si_action, gc_action]}
 				<span class="action action-{si_action}" on:click={loading? F_NOOP: () => gc_action?.trigger?.()}>
 					<span class="global_svg-icon icon-diameter_20px icon">
 						{@html H_ACTIONS[si_action]?.icon || '?'}

@@ -225,7 +225,8 @@
 		return exit();
 	}
 
-	let b_agreed = false;
+	let b_agreed_tos = false;
+	let b_agreed_pp = false;
 </script>
 
 <style lang="less">
@@ -293,6 +294,16 @@
 		font-weight: 300;
 		max-width: 18em;
 	}
+
+	.agree-tos {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+
+		font-size: 13px;
+		margin-bottom: 8px;
+		color: var(--theme-color-text-med);
+	}
 </style>
 
 <Screen>
@@ -325,15 +336,19 @@
 
 	<ActionsWall>
 		<div class="agree-tos" on:click={toggleChildCheckbox}>
-			<CheckboxField id="" bind:checked={b_agreed}>
-				I have read agree to the <span class="link" on:click={() => open_external_link('https://starshell.net/terms-of-service.html')}>Terms of Service</span>.
+			<CheckboxField id="tos" disabled={b_busy} bind:checked={b_agreed_tos}>
+				<span class="text-align_left">
+					I have read agree to the <span class="link" on:click|stopPropagation={() => open_external_link('https://starshell.net/terms-of-service.html')}>Terms of Service</span>.
+				</span>
 			</CheckboxField>
-			<CheckboxField id="" bind:checked={b_agreed}>
-				I have read and agree to the <span class="link" on:click={() => open_external_link('https://starshell.net/privacy-policy.html')}>Privacy Policy</span>.
+			<CheckboxField id="pp" disabled={b_busy} bind:checked={b_agreed_pp}>
+				<span class="text-align_left">
+					I have read and agree to the <span class="link" on:click|stopPropagation={() => open_external_link('https://starshell.net/privacy-policy.html')}>Privacy Policy</span>.
+				</span>
 			</CheckboxField>
 		</div>
 
-		<button class="primary" disabled={!b_password_acceptable || !b_agreed || b_busy} on:click={() => prepare_register()}>
+		<button class="primary" disabled={!b_password_acceptable || !b_agreed_tos || !b_agreed_pp || b_busy} on:click={() => prepare_register()}>
 			Continue
 		</button>
 	</ActionsWall>

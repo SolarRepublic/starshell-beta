@@ -15,12 +15,12 @@
 	
 	import AccountEdit from './AccountEdit.svelte';
 	import AccountExport from './AccountExport.svelte';
+	import MnemonicExport from './MnemonicExport.svelte';
 	import Send from './Send.svelte';
 	import AddressResourceControl from '../frag/AddressResourceControl.svelte';
 	import IncidentsList from '../frag/IncidentsList.svelte';
-	import Portrait, { Actions } from '../frag/Portrait.svelte';
+	import Portrait, {type Actions} from '../frag/Portrait.svelte';
 	import Gap from '../ui/Gap.svelte';
-    import MnemonicExport from './MnemonicExport.svelte';
 	
 
 	const {k_page} = load_page_context();

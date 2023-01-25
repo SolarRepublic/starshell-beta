@@ -65,6 +65,11 @@
 		b_busy = false;
 	}
 
+	function cancel() {
+		$yw_context_popup?.cancelled?.();
+
+		$yw_popup = null;
+	}
 </script>
 
 <style lang="less">
@@ -130,5 +135,5 @@
 	</p> -->
 {/if}
 
-<ActionsLine cancel={() => $yw_popup = null} confirm={['Enter', enter, !b_valid]} />
+<ActionsLine cancel={() => cancel()} confirm={['Enter', enter, !b_valid]} />
 	

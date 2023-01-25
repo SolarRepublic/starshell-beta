@@ -1,3 +1,5 @@
+import type {Arrayable} from 'vitest';
+
 import type {Dict, JsonValue, Promisable} from '#/meta/belt';
 import type {ChainStruct, ContractStruct} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
@@ -10,7 +12,6 @@ import {is_dict_es} from '#/util/belt';
 import {base64_to_text, uuid_v4} from '#/util/data';
 import {dd} from '#/util/dom';
 import {format_amount} from '#/util/format';
-import type { Arrayable } from 'vitest';
 
 export interface PreviewerConfig {
 	chain?: ChainStruct;
@@ -144,6 +145,14 @@ export class JsonPreviewer {
 		const n_depth = a_terms.length;
 
 		if(is_dict_es(z_value)) {
+			if(!Object.keys(z_value).length) {
+				return dd('span', {
+					class: 'json-empty-object',
+				}, [
+					dd('span', {}, ['{ }']),
+				]);
+			}
+
 			const a_entries_dst: HTMLSpanElement[] = [];
 
 			// begin by sorting the fields based on types
@@ -203,10 +212,21 @@ export class JsonPreviewer {
 					return 1;
 				}
 				else if(is_dict_es(z_item_a)) {
-					return is_dict_es(z_item_b)? n_sort: -1;
+					if(!Object.keys(z_item_a).length) return -1;
+
+					if(is_dict_es(z_item_b)) {
+						if(!Object.keys(z_item_b).length) return 1;
+
+						return n_sort;
+					}
+					else if(Array.isArray(z_item_b)) {
+						return z_item_b.length? -1: 1;
+					}
 				}
 
 				if(is_dict_es(z_item_b)) {
+					if(!Object.keys(z_item_b).length && Array.isArray(z_item_a) && !z_item_a.length) return -1;
+
 					return 1;
 				}
 				else if(Array.isArray(z_item_a)) {
@@ -259,9 +279,12 @@ export class JsonPreviewer {
 					}, a_drawings)];
 				}
 
+				const b_nester = is_dict_es(z_item) && Object.keys(z_item).length;
+
 				a_entries_dst.push(dd('div', {
-					class: `json-entry ${is_dict_es(z_item)? 'nester': ''}`,
+					class: `json-entry ${b_nester? 'nester': ''}`,
 				}, [
+					// key column
 					dd('span', {
 						class: 'json-key',
 					}, [
@@ -271,15 +294,16 @@ export class JsonPreviewer {
 							class: 'text',
 						}, [si_key]),
 					]),
-					this.render(z_item, [...a_terms, b_terminal], [...a_path, si_key]),
-				]));
-			}
 
-			if(!a_entries_src.length) {
-				a_entries_dst.push(dd('span', {
-					class: 'json-empty-object',
-				}, [
-					dd('span', {}, ['{ }']),
+					// tree-break
+					...b_nester? [
+						dd('span', {
+							class: 'tree-break',
+						}),
+					]: [],
+
+					// next row
+					this.render(z_item, [...a_terms, b_terminal], [...a_path, si_key]),
 				]));
 			}
 

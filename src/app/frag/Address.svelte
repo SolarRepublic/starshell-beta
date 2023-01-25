@@ -1,6 +1,9 @@
 <script lang="ts">
+	import type {Bech32} from '#/meta/chain';
+	
 	import {onMount} from 'svelte';
-
+	
+	import {abbreviate_addr, AbbreviationLevel} from '#/util/format';
 	import {syserr} from '##/common';
 	
 	import SX_ICON_COPY from '#/icon/copy.svg?raw';
@@ -26,8 +29,15 @@
 	 */
 	export let discreet = false;
 
+	/**
+	 * If `true`, abbreviates the address when displaying it
+	 */
+	export let abbreviate: AbbreviationLevel = AbbreviationLevel.NONE;
+
 	const b_copyable = !!copyable;
 	const s_copy_style = copyable? discreet? 'no-icon': 'icon': copyable || '';
+
+	$: s_display = abbreviate? abbreviate_addr(address as Bech32, abbreviate): address;
 
 
 	let b_copy_confirm = false;
@@ -64,8 +74,18 @@
 	// set true when head overflows
 	let b_head_overflows = false;
 
-	onMount(() => {
+	function check_overflow() {
+		// spare logging an error message to console
+		if(!dm_head) return;
+
 		b_head_overflows = dm_head.scrollWidth > dm_head.offsetWidth;
+	}
+
+	onMount(() => {
+		check_overflow();
+
+		setTimeout(check_overflow, 50);
+		setTimeout(check_overflow, 500);
 	});
 </script>
 
@@ -152,11 +172,12 @@
 			{prefix}
 		</span>
 	{/if}
+	
 	<span class="head" bind:this={dm_head}>
-		{address}
+		{s_display}
 	</span>
 	<span class="tail" class:display_none={!b_head_overflows}>
-		{address}
+		{s_display}
 	</span>
 
 	{#if b_copyable}

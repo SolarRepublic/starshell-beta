@@ -304,7 +304,7 @@
 		<IconEditor intent='person' bind:pfpPath={p_pfp} name={s_name} />
 	</Field>
 
-	<hr>
+	<hr class="no-margin">
 
 	<h3>
 		{p_contact? 'Edit': 'Add'} Tags

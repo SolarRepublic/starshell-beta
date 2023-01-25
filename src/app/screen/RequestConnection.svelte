@@ -43,7 +43,13 @@
 
 <Screen>
 	<AppBanner {app} on:close={() => completed(false)}>
-		This app wants to connect on {1 === nl_chains? 'the chain': `${nl_chains} chains`}:
+		<svelte:fragment slot="default">
+			This app wants to connect on {1 === nl_chains? 'the chain': `${nl_chains} chains`}:
+		</svelte:fragment>
+
+		<svelte:fragment slot="context">
+			Choose 1 chain at a time.
+		</svelte:fragment>
 	</AppBanner>
 
 	<div class="rows no-margin">

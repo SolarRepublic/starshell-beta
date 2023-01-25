@@ -18,7 +18,6 @@
 	import ContactEdit from '##/screen/ContactEdit.svelte';
 	
 	import ContactView from '##/screen/ContactView.svelte';
-	import DeadEnd from '##/screen/DeadEnd.svelte';
 	import Send from '##/screen/Send.svelte';
 	
 	import Address from './Address.svelte';
@@ -158,17 +157,17 @@
 				});
 			},
 		},
-		{
-			label: 'Delete',
-			icon: SX_ICON_DELETE,
-			click(g_contact: ContactStruct) {
-				// TODO:
-				k_page.push({
-					creator: DeadEnd,
-					props: {},
-				});
-			},
-		},
+		// {
+		// 	label: 'Delete',
+		// 	icon: SX_ICON_DELETE,
+		// 	click(g_contact: ContactStruct) {
+		// 		// TODO:
+		// 		k_page.push({
+		// 			creator: DeadEnd,
+		// 			props: {},
+		// 		});
+		// 	},
+		// },
 	];
 </script>
 
@@ -208,7 +207,7 @@
 					:global(&) {
 						position: absolute;
 						padding: 10px 14px;
-						background-color: rgba(0, 0, 0, 0.8);
+						background-color: rgba(0, 0, 0, 0.95);
 						border-radius: 8px;
 						right: 26px;
 						top: -18px;

@@ -4,7 +4,7 @@ import {open_flow} from './msg-flow';
 
 import type {ConnectionManifestV1, SessionRequest} from '#/meta/api';
 import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
-import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ContractStruct} from '#/meta/chain';
+import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ContractStruct, AgentStruct, ChainPath} from '#/meta/chain';
 import type {PfpTarget} from '#/meta/pfp';
 import type {Vocab} from '#/meta/vocab';
 
@@ -37,6 +37,7 @@ import {Chains} from '#/store/chains';
 import {ode, is_dict} from '#/util/belt';
 import {concat, sha256_sync, text_to_buffer, uuid_v4} from '#/util/data';
 import {qsa} from '#/util/dom';
+import { ContactAgentType, ContactSpace, ContactStruct } from '#/meta/contact';
 
 
 // verbose
@@ -374,7 +375,7 @@ export const ServiceRouter = {
 				// cancel timeout
 				clearTimeout(i_whoami);
 
-				// send connection requestion to service
+				// send connection request to service
 				f_runtime().sendMessage({
 					type: 'requestConnection',
 					value: {
@@ -618,8 +619,9 @@ export async function create_app_profile(): Promise<AppProfile> {
 
 	debug(`App profiler finished scanning links in head`);
 
-	// prep sanitized contract def dict
+	// prep sanitized contract and account def dicts
 	const h_contract_defs: Dict<ContractStruct> = {};
+	const h_account_defs: Dict<AgentStruct> = {};
 
 	// each valid whip-003 script
 	for(const dm_script of qsa(document.head, ['toml', 'json'].map(s => `script[type^="application/${s}"][data-whip-003]`).join(',')) as HTMLScriptElement[]) {
@@ -680,7 +682,9 @@ export async function create_app_profile(): Promise<AppProfile> {
 				}
 
 				// prep sanitized form
-				const g_sanitized = {} as ChainStruct;
+				const g_sanitized = {
+					pfp: `pfp:${location.origin}/${si_chain}`,
+				} as ChainStruct;
 
 				// .namespace property
 				{
@@ -732,6 +736,127 @@ export async function create_app_profile(): Promise<AppProfile> {
 			}
 		}
 
+		// .accounts given
+		const h_accounts = g_parsed.accounts as JsonObject;
+		if(h_accounts) {
+			// valid shape
+			if(is_dict(h_accounts)) {
+				// each account def
+				for(const [si_account, g_account] of ode(h_accounts)) {
+					// valid shape
+					if(is_dict(g_account)) {
+						// prep sanitized form
+						const g_sanitized = {
+							agentType: ContactAgentType.PERSON,
+							origin: `app:${location.origin}`,
+							notes: '',
+						} as ContactStruct;
+
+						// missing .chain property
+						if(!('chain' in g_account)) {
+							error(`Missing required .accounts["${si_account}"].chain property on WHIP-003 export`);
+							continue;
+						}
+
+						// invalid required .chain property type; skip def
+						if('string' !== typeof g_account.chain) {
+							error(`Invalid type for required .accounts["${si_account}"].chain property on WHIP-003 export`);
+							continue;
+						}
+
+						// parse .chain property
+						const m_caip2 = R_CAIP_2.exec(g_account.chain);
+
+						// invalid syntax for required .chain property; skip def
+						if(!m_caip2) {
+							error(`Invalid CAIP-2 syntax for required .accounts["${si_account}"].chain property on WHIP-003 export`);
+							continue;
+						}
+
+						// set chain property
+						const p_chain: ChainPath = `/family.${m_caip2[1] as ChainNamespaceKey}/chain.${m_caip2[2]}`;
+						g_sanitized.chains = [p_chain];
+
+						// load chain definition
+						const g_chain = (await Chains.at(p_chain) || h_chains[p_chain]) as ChainStruct;
+						g_sanitized.namespace = g_chain.namespace;
+
+						// missing .address property
+						if(!('address' in g_account)) {
+							error(`Missing required .accounts["${si_account}"].address property on WHIP-003 export`);
+							continue;
+						}
+
+						// invalid required .address property type; skip def
+						if('string' !== typeof g_account.address) {
+							error(`Invalid type for required .accounts["${si_account}"].address property on WHIP-003 export`);
+							continue;
+						}
+
+						// verify checksum
+						if(!Chains.isValidAddressFor(g_chain, g_account.address)) {
+							error(`Address checksum failure for .accounts["${si_account}"].address property on WHIP-003 export`);
+							continue;
+						}
+
+						// set pfp
+						g_sanitized.pfp = `pfp:${location.origin}/${g_account.chain}:${g_account.address}`;
+
+						// parse .address property
+						const m_bech32 = R_BECH32.exec(g_account.address)!;
+
+						// deduce address space
+						{
+							const si_hrp = m_bech32[1];
+
+							FIND_ADDRESS_SPACE: {
+								for(const [si_space, si_hrp_each] of ode(g_chain.bech32s)) {
+									// found matching address space
+									if(si_hrp_each === si_hrp) {
+										g_sanitized.addressSpace = si_space as ContactSpace;
+										break FIND_ADDRESS_SPACE;
+									}
+								}
+
+								// did not find matching address space
+								error(`No address space on ${g_account.chain} chain contains the Bech32 HRP "${si_hrp}"`);
+								continue;
+							}
+						}
+
+						// set address property
+						g_sanitized.addressData = m_bech32[3];
+
+						// parse optional .label property
+						if('label' in g_account) {
+							if('string' === typeof g_account.label) {
+								if(R_CONTRACT_NAME.test(g_account.label)) {
+									g_sanitized.name = g_account.label;
+								}
+								else {
+									error(`Contract label "${g_account.label}" violates the regular expression /${R_CONTRACT_NAME.source}/u`);
+								}
+							}
+							else {
+								error(`Invalid type for optional .accounts["${si_account}"].label property on WHIP-003 export`);
+							}
+						}
+
+						// populate account def
+						h_account_defs[si_account] = g_sanitized;
+					}
+					// invalid, but continue scanning other account defs
+					else {
+						error(`Expected .accounts["${si_account}"] property on WHIP-003 export to be a TOML Table`);
+					}
+				}
+			}
+			// invalid, but continue scanning other properties
+			else {
+				error(`Expected .accounts property on WHIP-003 export to be a TOML Table`);
+			}
+		}
+
 		// .contracts given
 		const h_contracts = g_parsed.contracts as JsonObject;
 		if(h_contracts) {
@@ -742,7 +867,9 @@ export async function create_app_profile(): Promise<AppProfile> {
 					// valid shape
 					if(is_dict(g_contract)) {
 						// prep sanitized form
-						const g_sanitized = {} as ContractStruct;
+						const g_sanitized = {
+							pfp: '',
+						} as ContractStruct;
 
 						// missing .chain property
 						if(!('chain' in g_contract)) {
@@ -769,7 +896,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 						const p_chain = g_sanitized.chain = `/family.${m_caip2[1] as ChainNamespaceKey}/chain.${m_caip2[2]}`;
 
 						// load chain definition
-						const g_chain = (await Chains.at(p_chain) || h_chains[g_sanitized.chain]) as ChainStruct;
+						const g_chain = (await Chains.at(p_chain) || h_chains[p_chain]) as ChainStruct;
 
 						// ref interfaces schema
 						const h_features = g_chain?.features;
@@ -788,12 +915,9 @@ export async function create_app_profile(): Promise<AppProfile> {
 							continue;
 						}
 
-						// parse .address property
-						const m_bech32 = R_BECH32.exec(g_contract.address);
-
-						// invalid syntax for required .address property; skip def
-						if(!m_bech32) {
-							error(`Invalid CAIP-2 syntax for required .contracts["${si_contract}"].address property on WHIP-003 export`);
+						// verify checksum
+						if(!Chains.isValidAddressFor(g_chain, g_contract.address)) {
+							error(`Address checksum failure for .contracts["${si_contract}"].address property on WHIP-003 export`);
 							continue;
 						}
 
@@ -814,7 +938,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 							const h_interfaces = g_contract.interfaces as Dict<Dict>;
 							if(is_dict(h_interfaces)) {
 								// prep output
-								const h_specs: Dict<Dict> = g_sanitized.interfaces = {
+								const h_specs: ContractStruct['interfaces'] = g_sanitized.interfaces = {
 									excluded: [],
 								};
 
@@ -999,6 +1123,7 @@ export async function create_app_profile(): Promise<AppProfile> {
 		name: document.head?.querySelector('meta[name="application-name"]')?.getAttribute('content'),
 		pfps: Object.fromEntries(a_res_entries.filter(w => w) as [string, string][]),
 		contracts: h_contract_defs,
+		accounts: h_account_defs,
 	};
 
 	// save to session

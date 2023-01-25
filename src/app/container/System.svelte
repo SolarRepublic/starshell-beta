@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type {PlainObject} from '#/meta/belt';
+	import type {Nilable, PlainObject} from '#/meta/belt';
 	
 	// import './tailwind.css';
 	import {
@@ -20,7 +20,7 @@
 	import {
 		ode,
 		oderom,
-        remove,
+		remove,
 	} from '#/util/belt';
 	
 	import {H_THREADS, ThreadId} from '##/def';
@@ -47,6 +47,9 @@
 	import SearchSvelte from './system/Search.svelte';
 	import SideMenuSvelte from './system/SideMenu.svelte';
 	import VendorMenuSvelte from './system/VendorMenu.svelte';
+    import { debug } from 'svelte/internal';
+    import type { ChainPath, ChainStruct } from '#/meta/chain';
+    import type { AccountPath } from '#/meta/account';
 	
 	
 
@@ -72,8 +75,14 @@
 		try {
 			const ks_settings = await Settings.read();
 
-			const p_account_selected = ks_settings.get('p_account_selected');
-			const p_chain_selected = ks_settings.get('p_chain_selected');
+			// select account from context, or last used account
+			const p_account_selected: Nilable<AccountPath> = h_context_all.accountPath
+				|| ks_settings.get('p_account_selected');
+
+			// select chain from context, or last used chain
+			const p_chain_selected: Nilable<ChainPath> = h_context_all.chain
+				? Chains.pathFrom(h_context_all.chain as ChainStruct)
+				: ks_settings.get('p_chain_selected');
 
 			// set defaults
 			await Promise.all([

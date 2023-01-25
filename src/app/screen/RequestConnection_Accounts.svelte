@@ -10,7 +10,7 @@
 	
 	import {Accounts} from '#/store/accounts';
 	import {Chains} from '#/store/chains';
-	import {fold, F_NOOP, ode, oderac} from '#/util/belt';
+	import {fold, F_NOOP, ode, oderac, timeout} from '#/util/belt';
 	
 	import RequestConnectionPermissions from './RequestConnection_Permissions.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
@@ -48,21 +48,52 @@
 
 	$: b_none_selected = Object.values(h_selected).every(b => !b);
 
+
+	let dm_rows: HTMLElement;
+	let b_autoselecting = false;
+	async function autoselect() {
+		b_autoselecting = true;
+
+		await timeout(25);
+
+		const f_row = () => dm_rows.querySelector('.row');
+
+		for(let i_repeats=0; i_repeats<2; i_repeats++) {
+			await timeout(120);
+			f_row()?.classList.add('selected');
+
+			await timeout(120);
+			f_row()?.classList.remove('selected');
+		}
+
+		f_row()?.classList.add('selected');
+
+		await timeout(200);
+
+		k_page.push({
+			creator: RequestConnectionPermissions,
+			props: {
+				app,
+				chains: h_chains,
+				sessions,
+				accounts: Object.values(h_accounts),
+			},
+		});
+
+		await timeout(1200);
+
+		f_row()?.classList.remove('selected');
+
+		b_autoselecting = false;
+	}
+
 	async function load_accounts() {
 		const ks_accounts = await Accounts.read();
 		h_accounts = ks_accounts.raw;
 
 		// only one account; skip screen automatically
 		if(1 === Object.keys(h_accounts).length) {
-			k_page.push({
-				creator: RequestConnectionPermissions,
-				props: {
-					app,
-					chains: h_chains,
-					sessions,
-					accounts: Object.values(h_accounts),
-				},
-			});
+			void autoselect();
 		}
 
 		const p_chain = Chains.pathFrom(Object.values(chains)[0]);
@@ -89,7 +120,7 @@
 		 with this app?
 	</AppBanner>
 
-	<div class="rows no-margin">
+	<div class="rows no-margin" bind:this={dm_rows}>
 		{#await load_accounts()}
 			<LoadingRows count={3} />
 		{:then}
@@ -100,7 +131,7 @@
 					on:click={toggleChildCheckbox}
 				>
 					<CheckboxField id={p_account} slot='right'
-						disabled={h_disabled[p_account]}
+						disabled={h_disabled[p_account] || b_autoselecting}
 						checked={h_selected[p_account]}
 						on:change={({detail:b_checked}) => h_selected[p_account] = b_checked}
 						/>
@@ -109,7 +140,7 @@
 		{/await}
 	</div>
 
-	<ActionsLine cancel={() => completed(false)} confirm={['Next', F_NOOP, b_none_selected]} contd={{
+	<ActionsLine cancel={() => completed(false)} confirm={['Next', F_NOOP, b_none_selected || b_autoselecting]} contd={{
 		creator: RequestConnectionPermissions,
 		props: {
 			app,

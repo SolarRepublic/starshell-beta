@@ -109,11 +109,14 @@ export type FieldConfigRegistry = {
 		data?: any;
 	};
 
-	gap: {};
+	gap: {
+		brutal?: boolean;
+	};
 
 	group: {
 		fields: Promisable<FieldConfig[]>;
 		flex?: boolean;
+		vertical?: boolean;
 		expanded?: boolean;
 	};
 

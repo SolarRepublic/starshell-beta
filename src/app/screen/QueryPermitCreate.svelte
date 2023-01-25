@@ -5,7 +5,7 @@
 	import type {Snip24Permission} from '#/schema/snip-24-def';
 	
 	import {Screen, Header} from './_screens';
-	import {yw_account, yw_account_ref} from '../mem';
+	import {yw_account, yw_account_ref, yw_navigator} from '../mem';
 	import {load_page_context} from '../svelte';
 	
 	import {save_query_permit} from '#/chain/query-permit';
@@ -130,6 +130,8 @@
 							[contract.bech32]
 						);
 					}
+
+					$yw_navigator.activePage.reset();
 				},
 			},
 		});

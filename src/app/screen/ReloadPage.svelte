@@ -107,7 +107,7 @@
 		</span>
 	</AppBanner>
 
-	<hr>
+	<hr class="no-margin">
 
 	<ActionsWall>
 		<button on:click={() => close()}>Don't Reload</button>

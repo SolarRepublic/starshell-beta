@@ -10,12 +10,17 @@ import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import {getContext} from 'svelte';
 import {cubicOut} from 'svelte/easing';
 
+import {syserr} from './common';
 import {yw_network, yw_progress} from './mem';
 
+import {FeeGrants} from '#/chain/fee-grant';
 import {Argon2Type} from '#/crypto/argon2';
 import {NB_ARGON2_MEMORY, Vault} from '#/crypto/vault';
 import type {IntraExt} from '#/script/messages';
 import {global_receive} from '#/script/msg-global';
+import {A_COURTESY_ACCOUNTS} from '#/share/constants';
+import {HttpResponseError} from '#/share/errors';
+import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_STARSHELL} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {NB_ARGON2_PIN_MEMORY, N_ARGON2_PIN_ITERATIONS} from '#/store/secrets';
@@ -26,11 +31,8 @@ import {dd} from '#/util/dom';
 import type {Page} from '##/nav/page';
 
 import PfpDisplay from './frag/PfpDisplay.svelte';
-import { FeeGrants } from '#/chain/fee-grant';
-import { Accounts } from '#/store/accounts';
-import { syserr } from './common';
-import { A_COURTESY_ACCOUNTS } from '#/share/constants';
-import { HttpResponseError } from '#/share/errors';
+import { detach, insert, noop } from 'svelte/internal';
+import type { Dict } from '#/meta/belt';
 
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
@@ -390,4 +392,39 @@ export async function request_feegrant(sa_owner: Bech32): Promise<void> {
 		title: 'Fee grant failed',
 		text: 'The request operation timed out',
 	});
+}
+
+
+export function inject_svelte_slots(h_slots: Dict<HTMLElement>): {
+	$$slots: Dict<Array<() => {}>>;
+	$$scope: {};
+} {
+	const h_out: Dict<Array<() => {}>> = {};
+
+	for(const si_slot in h_slots) {
+		const dm_insert = h_slots[si_slot];
+
+		h_out[si_slot] = [
+			() => ({
+				c: noop,
+
+				m: function mount(target: Node, anchor: Node) {
+					insert(target, dm_insert, anchor);
+				},
+
+				d: function destroy(detaching) {
+					if(detaching) {
+						detach(dm_insert);
+					}
+				},
+
+				l: noop,
+			}),
+		];
+	}
+
+	return {
+		$$slots: h_out,
+		$$scope: {},
+	};
 }

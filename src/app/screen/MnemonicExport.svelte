@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type {AccountPath, AccountStruct} from '#/meta/account';
-	import type {FieldConfig} from '#/meta/field';
+	import type {AccountStruct} from '#/meta/account';
 	import type {SecretStruct} from '#/meta/secret';
 	
 	import {yw_context_popup, yw_popup} from '../mem';
@@ -17,7 +16,6 @@
 	import PopupPin from '../popup/PopupPin.svelte';
 	import ActionsLine from '../ui/ActionsLine.svelte';
 	import Field from '../ui/Field.svelte';
-	import Fields from '../ui/Fields.svelte';
 	import Header from '../ui/Header.svelte';
 	import Row from '../ui/Row.svelte';
 	
@@ -45,6 +43,8 @@
 	let i_visible = -1;
 
 	let a_accounts: [AccountStruct, SecretStruct<'bip32_node'>][] = [];
+
+	let s_extension = '';
 	
 	async function load_accounts() {
 		for(const [, g_account] of await Accounts.entries()) {
@@ -66,29 +66,7 @@
 		a_accounts = a_accounts;
 	}
 
-	// let a_fields: FieldConfig[] = [];
-	
-	// async function load_accounts() {
-	// 	const a_accounts: AccountPath[] = [];
-
-	// 	for(const [p_account, g_account] of await Accounts.entries()) {
-	// 		const p_secret = g_account.secret;
-
-	// 		const g_secret = await Secrets.metadata(p_secret);
-
-	// 		if('bip32_node' === g_secret.type) {
-	// 			if(p_mnemonic === g_secret.mnemonic) {
-	// 				a_accounts.push(p_account);
-	// 			}
-	// 		}
-	// 	}
-
-	// 	a_fields = [{
-	// 		type: 'accounts',
-	// 		label: 'This mnemonic derives the following accounts:',
-	// 		paths: a_accounts,
-	// 	}];
-	// }
+	let b_pin_cancelled = false;
 
 	(async function load() {
 		void load_accounts();
@@ -111,6 +89,10 @@
 						return false;
 					}
 				}),
+
+				cancelled() {
+					b_pin_cancelled = true;
+				},
 			};
 
 			// show popup
@@ -158,19 +140,22 @@
 				// find next split
 				const ib_next = atu8_splits[i_split];
 
+				// set subphrase (`ib_next` can be undefined and it also works in finding the end)
+				a_subphrases.push(buffer_to_text(atu8_mnemonic.subarray(ib_read, ib_next)));
+
 				// no more splits; done
 				if(!ib_next) break;
 
 				// advance split pointer
 				i_split += n_words_per_subphrase;
 
-				// set subphrase
-				a_subphrases.push(buffer_to_text(atu8_mnemonic.subarray(ib_read, ib_next)));
-
 				// advance read pointer
 				ib_read = ib_next;
 			}
 		}
+
+		// save mnemonic extension
+		s_extension = buffer_to_text(atu8_extension);
 
 		// wipe sensitive data
 		kn_trimmed.wipe();
@@ -185,6 +170,11 @@
 	}
 </script>
 
+<style lang="less">
+	textarea {
+		user-select: all;
+	}
+</style>
 
 <Screen>
 	<Header plain pops
@@ -196,39 +186,58 @@
 	</div>
 
 	<p>
-		This mnemonic derives the following accounts:
+		This seed derives the following accounts:
 	</p>
 
-
-	<!-- <Field key="accounts" name="This mnemonic derives the following accounts"> -->
-		{#each a_accounts as [g_account, g_bip32_node]}
-			<Row pfpDim={36}
-				rootStyle='border:none; padding:0;'
-				resource={g_account}
-				detail={g_bip32_node.bip44}
-			/>
-		{/each}
-	<!-- </Field> -->
-		
-	<!-- <Fields configs={a_fields} /> -->
+	{#each a_accounts as [g_account, g_bip32_node]}
+		<Row pfpDim={36}
+			rootStyle='border:none; padding:0;'
+			resource={g_account}
+			detail={g_bip32_node.bip44}
+		/>
+	{/each}
 
 	<hr class="no-margin">
 
-	{#each a_subphrases as s_subphrase, i_subphrase}
-		<Field name="Seed phrase part {i_subphrase+1} of {a_subphrases.length+1}">
-			{#if i_visible === i_subphrase}
-				<textarea readonly
-					value={s_subphrase}
-					on:blur={() => i_visible = -1}
-				/>
-			{:else}
-				<textarea readonly
-					value={'*'.repeat(128)}
-					on:focus={() => i_visible = i_subphrase}
-				/>
-			{/if}
-		</Field>
-	{/each}
+	{#if b_pin_cancelled}
+		<p>
+			PIN is required to decrypt seed phrase.
+		</p>
+	{:else}
+		{#each a_subphrases as s_subphrase, i_subphrase}
+			<Field name="Seed phrase part {i_subphrase+1} of {a_subphrases.length}">
+				{#if i_visible === i_subphrase}
+					<textarea readonly
+						value={s_subphrase}
+						on:click={d_event => d_event.target?.['select']?.()}
+						on:blur={() => i_visible = -1}
+					/>
+				{:else}
+					<textarea readonly
+						value={'•'.repeat(92)}
+						on:focus={() => i_visible = i_subphrase}
+					/>
+				{/if}
+			</Field>
+		{/each}
+
+		{#if s_extension}
+			<Field name="Custom seed extension">
+				{#if i_visible === a_subphrases.length}
+					<input readonly type="text"
+						value={s_extension}
+						on:click={d_event => d_event.target?.['select']?.()}
+						on:blur={() => i_visible = -1}
+					>
+				{:else}
+					<input readonly type="text"
+						value={'•'.repeat(64)}
+						on:focus={() => i_visible = a_subphrases.length}
+					>
+				{/if}
+			</Field>
+		{/if}
+	{/if}
 
 	<ActionsLine confirm={['Done', done]} />
 </Screen>

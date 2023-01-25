@@ -342,7 +342,7 @@
 		title={b_mandatory? 'Create new account': 'Add account'}
 	/>
 
-	<hr>
+	<hr class="no-margin">
 
 	{#if !b_mandatory}
 		<div class="text-align_right">

@@ -1,5 +1,6 @@
 import {B_FIREFOX_ANDROID, NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB} from '#/share/constants';
 import {timeout_exec} from '#/util/belt';
+import { Data } from '@solar-republic/cosmos-grpc/dist/tendermint/types/types';
 
 /**
  * Locate a script asset in the extension bundle by its path prefix.
@@ -65,6 +66,13 @@ function prepare_canvas(): boolean {
 	return true;
 }
 
+interface Rect {
+	x1: number;
+	y1: number;
+	x2: number;
+	y2: number;
+}
+
 /**
  * Renders the given image element into a data URL
  */
@@ -72,7 +80,8 @@ export function render_icon_data(
 	d_img: HTMLImageElement,
 	npx_dim_dst=256,
 	fk_init?: (d_2d: CanvasRenderingContext2D, dm_canvas: HTMLCanvasElement) => void,
-	sx_media_type: string | null=null
+	sx_media_type: string | null=null,
+	g_trim: null|Rect=null
 ): string | undefined {
 	// canvas or rendering unavailable
 	if(!prepare_canvas()) return;
@@ -88,11 +97,25 @@ export function render_icon_data(
 	d_2d.clearRect(0, 0, dm_canvas.width, dm_canvas.height);
 
 	// init callback
-	fk_init?.(d_2d, dm_canvas);
+	if(g_trim) {
+		fk_init?.(d_2d, dm_canvas);
+	}
+
+	// trim to apply
+	const g_trim_apply = g_trim || {
+		x1: 0,
+		y1: 0,
+		x2: npx_dim_dst,
+		y2: npx_dim_dst,
+	};
+
+	// compute src width and height
+	const npx_trim_width = g_trim_apply.x2 - g_trim_apply.x1;
+	const npx_trim_height = g_trim_apply.y2 - g_trim_apply.y1;
 
 	// image is svg; work around annoying intrinsic size canvas interaction
 	if(sx_media_type?.startsWith('image/svg')) {
-		d_2d.drawImage(d_img, 0, 0, npx_dim_dst, npx_dim_dst);
+		d_2d.drawImage(d_img, g_trim_apply.x1, g_trim_apply.y1, npx_trim_width, npx_trim_height, 0, 0, npx_dim_dst, npx_dim_dst);
 	}
 	// draw image to canvas, centered along both axes
 	else {
@@ -105,7 +128,83 @@ export function render_icon_data(
 		const npx_src_x = (npx_src_w / 2) - npx_src_semidim;
 		const npx_src_y = (npx_src_h / 2) - npx_src_semidim;
 
-		d_2d.drawImage(d_img, npx_src_x, npx_src_y, npx_src_dim, npx_src_dim, 0, 0, npx_dim_dst, npx_dim_dst);
+		const ipx_out_x = npx_src_x + g_trim_apply.x1;
+		const ipx_out_y = npx_src_y + g_trim_apply.y1;
+
+		d_2d.drawImage(d_img,
+			ipx_out_x, ipx_out_y,
+			Math.min(npx_src_dim, npx_trim_width), Math.min(npx_src_dim, npx_trim_height),
+			0, 0, npx_dim_dst, npx_dim_dst);
+	}
+
+	// check for transparent pixels along edges
+	if(!g_trim) {
+		const {
+			width: npx_width,
+			height: npx_height,
+			data: atu8_data,
+		} = d_2d.getImageData(0, 0, npx_dim_dst, npx_dim_dst);
+
+		let ipx_y_lo = 0;
+		TOP_ROWS:
+		for(; ipx_y_lo<npx_height; ipx_y_lo++) {
+			for(let ipx_x=0; ipx_x<npx_width; ipx_x++) {
+				if(0 !== atu8_data[(ipx_y_lo * npx_width * 4) + ipx_x + 3]) {
+					break TOP_ROWS;
+				}
+			}
+		}
+
+		let ipx_y_hi = npx_height - 1;
+		BTM_ROWS:
+		for(; ipx_y_hi>ipx_y_lo; ipx_y_hi--) {
+			for(let ipx_x=0; ipx_x<npx_width; ipx_x++) {
+				if(0 !== atu8_data[(ipx_y_hi * npx_width * 4) + ipx_x + 3]) {
+					break BTM_ROWS;
+				}
+			}
+		}
+
+		let ipx_x_lo = 0;
+		LFT_ROWS:
+		for(; ipx_x_lo<npx_width; ipx_x_lo++) {
+			for(let ipx_y=ipx_y_lo; ipx_y<ipx_y_hi; ipx_y++) {
+				if(0 !== atu8_data[(ipx_y * npx_width * 4) + ipx_x_lo + 3]) {
+					break LFT_ROWS;
+				}
+			}
+		}
+
+		let ipx_x_hi = npx_width - 1;
+		RGT_ROWS:
+		for(; ipx_x_hi>ipx_x_lo; ipx_x_hi--) {
+			for(let ipx_y=ipx_y_lo; ipx_y<ipx_y_hi; ipx_y++) {
+				if(0 !== atu8_data[(ipx_y * npx_width * 4) + ipx_x_hi + 3]) {
+					break RGT_ROWS;
+				}
+			}
+		}
+
+		// trimmable edges
+		const npx_span_x = ipx_x_hi - ipx_x_lo;
+		const npx_span_y = ipx_y_hi - ipx_y_lo;
+		// if(npx_span_x < npx_width && npx_span_y < npx_height) {
+			// trim squarely
+		const npx_dim_new = Math.max(npx_span_x, npx_span_y);
+
+		const npxx_half_span = npx_dim_new / 2;
+		const ipxx_mid_x = (ipx_x_lo + ipx_x_hi) / 2;
+		const ipxx_mid_y = (ipx_y_lo + ipx_y_hi) / 2;
+
+		const g_rect: Rect = {
+			x1: Math.floor(ipxx_mid_x - npxx_half_span),
+			x2: Math.ceil(ipxx_mid_x + npxx_half_span),
+			y1: Math.floor(ipxx_mid_y - npxx_half_span),
+			y2: Math.ceil(ipxx_mid_y + npxx_half_span),
+		};
+
+		return render_icon_data(d_img, npx_dim_dst, fk_init, sx_media_type, g_rect);
+		// }
 	}
 
 	// render data url

@@ -1,7 +1,7 @@
 import type {SvelteComponent} from 'svelte';
 
 import type {AppStruct} from '#/meta/app';
-import type {Dict, JsonObject, Values} from '#/meta/belt';
+import type {Dict, JsonObject} from '#/meta/belt';
 import type {Vocab} from '#/meta/vocab';
 
 import {dm_log, domlog} from './fallback';
@@ -24,6 +24,7 @@ import AuthenticateSvelte from '#/app/screen/Authenticate.svelte';
 import BlankSvelte from '#/app/screen/Blank.svelte';
 
 import ImportMnemonicSvelte from '#/app/screen/ImportMnemonic.svelte';
+import JsonPreviewDemo from '#/app/screen/JsonPreviewDemo.svelte';
 import PreRegisterSvelte from '#/app/screen/PreRegister.svelte';
 import RestrictedSvelte from '#/app/screen/Restricted.svelte';
 import WalletCreateSvelte from '#/app/screen/WalletCreate.svelte';
@@ -34,18 +35,18 @@ import {ServiceClient} from '#/extension/service-comms';
 import {SessionStorage} from '#/extension/session-storage';
 import type {IntraExt} from '#/script/messages';
 import {global_broadcast, global_receive} from '#/script/msg-global';
-import {login, register} from '#/share/auth';
+import {dev_register, login} from '#/share/auth';
 import {B_LOCALHOST, B_IOS_NATIVE, XT_SECONDS, P_STARSHELL_DEFAULTS, R_CAIP_2} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
+import {Chains} from '#/store/chains';
 import {Secrets} from '#/store/secrets';
-import {Settings, SettingsRegistry} from '#/store/settings';
+import {Settings} from '#/store/settings';
 import type {StarShellDefaults} from '#/store/web-resource-cache';
 import {WebResourceCache} from '#/store/web-resource-cache';
 import {forever, F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
 import {parse_params, qs} from '#/util/dom';
-import { Chains } from '#/store/chains';
-import type { ChainPath } from '#/meta/chain';
+
 
 
 const debug = true? (s: string, ...a: any[]) => console.debug(`StarShell.popup: ${s}`, ...a): () => {};
@@ -408,6 +409,13 @@ async function reload(b_override_restriction=false) {
 									break;
 								}
 
+								case 'json': {
+									k_navigator.activePage.push({
+										creator: JsonPreviewDemo,
+									});
+									break;
+								}
+
 								default: {
 									// ignore
 								}
@@ -491,19 +499,20 @@ async function reload(b_override_restriction=false) {
 }
 
 
-// dev
+// app is running as local development for UI inspecting
 if(B_LOCALHOST) {
 	if(h_params.autoskip) {
 		console.log('Autoskipping registration');
+		const s_password = ' '.repeat(8);
 
 		(async() => {
 			try {
-				await login('     ');
+				await login(s_password);
 			}
 			catch(e_login) {
 				localStorage.clear();
-				await register('     ');
-				await login('     ');
+				await dev_register(s_password);
+				await login(s_password);
 			}
 
 			void reload();

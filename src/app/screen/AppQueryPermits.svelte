@@ -18,12 +18,12 @@
 	import {ode, oderac} from '#/util/belt';
 	
 	import AppDisconnect from './AppDisconnect.svelte';
+	import QueryPermitView from './QueryPermitView.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
 	import Header from '../ui/Header.svelte';
 	import Row from '../ui/Row.svelte';
-
+	
 	import SX_ICON_EXPAND_RIGHT from '#/icon/expand-right.svg?raw';
-    import QueryPermitView from './QueryPermitView.svelte';
 
 
 	export let g_app: AppStruct;

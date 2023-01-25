@@ -437,9 +437,19 @@ export async function deduce_token_interfaces(
 
 	// demote the contract's implementation set and exclude the given interface
 	async function _demote(si_interface: TokenStructKey): Promise<void> {
+		// make set from list of existing excluded
 		const as_excluded = new Set<TokenStructKey>(g_contract.interfaces.excluded || []);
+
+		// add interface to excluded set
 		as_excluded.add(si_interface);
+
+		// update excluded list on struct
 		g_contract.interfaces.excluded = [...as_excluded];
+
+		// remove interface from contract struct if it exists
+		delete g_contract.interfaces[si_interface];
+
+		// update contract struct
 		await Contracts.merge(g_contract);
 	}
 
@@ -469,21 +479,24 @@ export async function deduce_token_interfaces(
 				const a_queries = m_queries[2].split(/,\s+/g).map(s => s.replace(/^`|`$/g, ''));
 
 				// each deductable interface
+				DEDUCTIONS:
 				for(const [si_interface, g_deduction] of ode(H_DEDUCTIONS)) {
 					// each query in spec
 					for(const si_query of g_deduction!.queries) {
 						// query not present in contract
 						if(!a_queries.includes(si_query)) {
 							await _demote(si_interface);
-							break;
+
+							continue DEDUCTIONS;
 						}
 					}
 
-					// contract implements all queries in spec
+					// contract implements all queries in spec (snip20 needs extra data)
 					if('snip20' !== si_interface) {
 						await _promote(si_interface);
-						a_deductions.push(si_interface);
 					}
+
+					a_deductions.push(si_interface);
 				}
 			}
 		}

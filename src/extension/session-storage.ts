@@ -9,6 +9,8 @@ import type {ScreenInfo} from '#/extension/browser';
 import type {IcsToService} from '#/script/messages';
 import {do_webkit_polyfill} from '#/script/webkit-polyfill';
 import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_IOS_NATIVE} from '#/share/constants';
+import type { AccountStruct } from '#/meta/account';
+import type { AppProfile } from '#/store/apps';
 
 if(B_IOS_NATIVE) {
 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.session-storage: ${s}`, ...a_args));
@@ -76,11 +78,7 @@ export type SessionStorageRegistry = NonNullableFlat<MergeAll<{
 	// used to pass app profile data from a tab captured by a content script to the extension
 	{
 		[p_profile in `profile:${string}`]: {
-			wrapped: {
-				name?: string;
-				pfps?: Record<`pfp:${string}`, string>;
-				contracts?: Dict<ContractStruct>;
-			};
+			wrapped: AppProfile;
 		};
 	},
 

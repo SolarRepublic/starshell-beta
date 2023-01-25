@@ -6,7 +6,7 @@
 	import Fuse from 'fuse.js';
 	
 	import {Screen} from './_screens';
-	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_network} from '../mem';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, yw_navigator, yw_network} from '../mem';
 	import {load_page_context} from '../svelte';
 	
 	import type {SecretNetwork} from '#/chain/secret-network';
@@ -148,6 +148,8 @@
 							}
 						});
 					}
+
+					$yw_navigator.activePage.reset();
 				},
 			},
 		});
@@ -257,6 +259,13 @@
 			margin: var(--ui-padding);
 		}
 	}
+
+	.empty-state {
+		font-size: 13px;
+		margin-left: auto;
+		margin-right: auto;
+		margin-top: 2.5em;
+	}
 </style>
 
 <Screen>
@@ -291,17 +300,23 @@
 		</div>
 
 		<div class="staging">
-			{#each a_staged as g_token (g_token.bech32)}
-				<span class="bubble">
-					<PfpDisplay path={g_token.pfp} resource={g_token} dim={16} />
-					<span class="symbol">
-						{g_token.interfaces.snip20.symbol}
+			{#if a_staged.length}
+				{#each a_staged as g_token (g_token.bech32)}
+					<span class="bubble">
+						<PfpDisplay path={g_token.pfp} resource={g_token} dim={16} />
+						<span class="symbol">
+							{g_token.interfaces.snip20.symbol}
+						</span>
+						<span class="global_svg-icon remove" on:click={() => toggle(g_token)}>
+							{@html SX_ICON_CLOSE}
+						</span>
 					</span>
-					<span class="global_svg-icon remove" on:click={() => toggle(g_token)}>
-						{@html SX_ICON_CLOSE}
-					</span>
-				</span>
-			{/each}
+				{/each}
+			{:else}
+				<div class="empty-state color_text-med">
+					No tokens added yet
+				</div>
+			{/if}
 		</div>
 
 		<div class="rows">

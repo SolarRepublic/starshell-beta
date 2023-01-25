@@ -17,6 +17,7 @@
 
 <script lang="ts">
 	import type {Coin} from '@cosmjs/amino';
+	import type {KeplrSignOptions} from '@keplr-wallet/types';
 	import type {TxResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/base/abci/v1beta1/abci';
 	import type {SimulateResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta1/service';
 	
@@ -38,16 +39,30 @@
 	import {Screen} from './_screens';
 	import {syserr} from '../common';
 	import {JsonPreviewer} from '../helper/json-previewer';
-	import {yw_account, yw_network, yw_progress, yw_settings} from '../mem';
+	import {yw_account, yw_network, yw_progress, yw_provider, yw_provider_ref, yw_settings} from '../mem';
 	
 	import {type LoadedAppContext, load_app_context} from '#/app/svelte';
 	import {Coins} from '#/chain/coin';
-	import {type ProtoMsg, proto_to_amino, encode_proto, amino_to_base, recase_keys_camel_to_snake, AminoToProtoError, UnmappedAminoError, TypedValue} from '#/chain/cosmos-msgs';
+	
+	import type {
+		ProtoMsg,
+		TypedValue,
+	} from '#/chain/cosmos-msgs';
+	
+	import {
+		proto_to_amino,
+		encode_proto,
+		amino_to_base,
+		recase_keys_camel_to_snake,
+		AminoToProtoError,
+		UnmappedAminoError,
+	} from '#/chain/cosmos-msgs';
 	import {FeeGrants} from '#/chain/fee-grant';
 	import type {DescribedMessage} from '#/chain/messages/_types';
 	import {address_to_name} from '#/chain/messages/_util';
 	import type {AminoMsgSend} from '#/chain/messages/bank';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
+	import type {SecretNetwork} from '#/chain/secret-network';
 	import {sign_amino, type SignedDoc} from '#/chain/signing';
 	import type {WsTxResultError} from '#/cosmos/tm-json-rpc-ws-def';
 	import {pubkey_to_bech32} from '#/crypto/bech32';
@@ -64,6 +79,7 @@
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	import {Incidents} from '#/store/incidents';
+	import {Providers} from '#/store/providers';
 	import {Settings} from '#/store/settings';
 	import {forever, is_dict, ode, proper, timeout, timeout_exec} from '#/util/belt';
 	import {base64_to_buffer, buffer_to_base93} from '#/util/data';
@@ -81,7 +97,6 @@
 	import Load from '../ui/Load.svelte';
 	import Row from '../ui/Row.svelte';
 	import Tooltip from '../ui/Tooltip.svelte';
-    import type { KeplrSignOptions } from '@keplr-wallet/types';
 	
 
 	
@@ -127,7 +142,6 @@
 	export let keplrSignOptions: KeplrSignOptions = {};
 
 	const b_use_suggested_gas = true === keplrSignOptions?.preferNoSetFee;
-
 
 	// get fee coin from chain
 	const [si_coin, g_info] = Chains.feeCoin(g_chain);
@@ -205,36 +219,6 @@
 	// live chain settings
 	let g_chain_settings = $yw_settings.h_chain_settings?.[p_chain] || {};
 	$: g_chain_settings = $yw_settings.h_chain_settings?.[p_chain] || {};
-
-	const H_PRESETS: Dict<(g_value: JsonObject) => Promisable<DescribedMessage>> = {
-		'query_permit'(g_permit: Snip24PermitMsg['value']) {
-			b_no_fee = true;
-
-			return {
-				title: 'Sign Query Permit',
-				tooltip: 'Allows apps to view private data such as your token balance, ownership, etc. Scope and permissions are unique to each permit.',
-				fields: [
-					{
-						type: 'key_value',
-						key: 'Permissions',
-						value: g_permit.permissions.map(proper).join(', '),
-					},
-					{
-						type: 'key_value',
-						key: 'Permit name',
-						value: g_permit.permit_name,
-					},
-					{
-						type: 'contracts',
-						label: 'Tokens allowed to be queried',
-						bech32s: g_permit.allowed_tokens,
-						g_app,
-						g_chain,
-					},
-				],
-			} as DescribedMessage;
-		},
-	};
 
 	const S_WARN_TRICK = 'This is an unusual message and might have been designed to trick you.';
 
@@ -387,16 +371,8 @@
 		if(a_msgs_amino?.length) {
 			// single message
 			if(1 === a_msgs_amino.length) {
-				// ref message
-				const {
-					type: si_amino,
-					value: g_value,
-				} = a_msgs_amino[0];
-
 				// interpret message
-				const g_overview = H_PRESETS[si_amino]
-					? await H_PRESETS[si_amino](g_value)
-					: await describe_message(a_msgs_amino[0]);
+				const g_overview = await describe_message(a_msgs_amino[0]);
 
 				// lift properties from overview
 				s_title = g_overview.title;
@@ -404,6 +380,13 @@
 
 				// assign
 				a_overviews = [g_overview];
+
+				// offline message
+				if(g_overview.offline) {
+					b_no_fee = true;
+					b_loaded = true;
+					return;
+				}
 			}
 			// multiple messages
 			else {
@@ -627,21 +610,26 @@
 	}
 
 	async function view_data() {
-		const g_amino_equiv = amino || proto_to_amino(a_msgs_proto[0], g_chain.bech32s.acc);
+		const a_msgs_amino = amino?.msgs || a_msgs_proto.map(w => proto_to_amino(w, g_chain.bech32s.acc));
 
-		let h_secret_wasm_exec!: {} | undefined;
+		const a_secret_wasm_execs: {}[] = [];
 
-		if('wasm/MsgExecuteContract' === g_amino_equiv.type) {
-			const g_decrypted = await SecretWasm.decodeSecretWasmAmino(p_account, g_chain, g_amino_equiv.value.msg);
+		for(const g_msg of a_msgs_amino) {
+			if(['wasm/MsgExecuteContract', 'wasm/MsgInstantiateContract'].includes(g_msg.type)) {
+				try {
+					const g_decrypted = await SecretWasm.decodeSecretWasmAmino(p_account, g_chain, g_msg.value['msg'] || g_msg.value['init_msg'] as string);
 
-			h_secret_wasm_exec = JSON.parse(g_decrypted.message);
+					a_secret_wasm_execs.push(JSON.parse(g_decrypted['message']) as {});
+				}
+				catch(e_decrypt) {}
+			}
 		}
 
 		k_page.push({
 			creator: SigningData,
 			props: {
-				amino: {msgs:[g_amino_equiv]},
-				wasm: h_secret_wasm_exec,
+				amino: {msgs:a_msgs_amino},
+				wasms: a_secret_wasm_execs,
 			},
 		});
 	}
@@ -753,7 +741,7 @@
 		}
 
 		// using feegrant requires a forecast; force user to wait
-		if(s_granter && b_use_grant && !s_gas_forecast && !s_err_sim) {
+		if(!b_no_fee && s_granter && b_use_grant && !s_gas_forecast && !s_err_sim) {
 			throw syserr({
 				title: 'Fee optimization required',
 				text: `When using a fee grant, an optimization is required. Wait a moment for the simulation to complete or opt-out of the fee grant.`,
@@ -778,7 +766,10 @@
 			if(!b_no_fee) {
 				g_amino.fee.gas = s_gas_limit;
 				g_amino.fee.amount[0].amount = s_fee_total;
-				g_amino.fee.granter = s_granter_local;
+
+				if(s_granter_local) {
+					g_amino.fee.granter = s_granter_local;
+				}
 			}
 
 			// attempt to sign
@@ -1159,7 +1150,7 @@
 		let a_amounts: Coin[] = [];
 
 		// start with the default gas price
-		let yg_price_suggest = BigNumber((g_chain_settings.x_default_gas_price ?? g_chain.gasPrices.default) as number);
+		let yg_price_suggest = BigNumber(g_chain_settings.x_default_gas_price ?? g_chain.gasPrices.default);
 
 		// as amino doc
 		if(amino) {
@@ -1460,7 +1451,9 @@
 			</span>
 
 			<span style="color:var(--theme-color-graysoft)">
-				<textarea disabled>{b_memo_encrypted && b_memo_show_raw? s_memo_decrypted: memo}</textarea>
+				<textarea disabled
+					style={b_memo_encrypted && !b_memo_show_raw? 'line-break:anywhere;': ''}
+				>{b_memo_encrypted && b_memo_show_raw? s_memo_decrypted: memo}</textarea>
 			</span>
 		</Field>
 	{/if}

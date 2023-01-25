@@ -195,8 +195,27 @@ export function format_fiat(x_amount: number, si_fiat: CoinGeckoFiat='usd', b_om
 // 	return format_fiat(H_VERSUS_USD[k_token.def.iri].value * x_amount, b_omit_sign);
 // }
 
-export function abbreviate_addr(sa_addr: Bech32): string {
-	return sa_addr.replace(/^(\w+1...).+(.{5})/, '$1[…]$2');
+export enum AbbreviationLevel {
+	NONE = 0,
+	SOME = 1,
+	MOST = 2,
+}
+
+export function abbreviate_addr(sa_addr: Bech32, xc_level=AbbreviationLevel.MOST): string {
+	switch(xc_level) {
+		case AbbreviationLevel.SOME: {
+			return sa_addr.replace(/^(\w+1...).+(.{7})/, '$1[…]$2');
+		}
+
+		case AbbreviationLevel.MOST: {
+			return sa_addr.replace(/^(\w+1...).+(.{5})/, '$1[…]$2');
+		}
+
+		case AbbreviationLevel.NONE:
+		default: {
+			return sa_addr;
+		}
+	}
 }
 
 const D_INTL_DATE = new Intl.DateTimeFormat('en-US', {

@@ -1,7 +1,7 @@
 import {NL_PASSPHRASE_MAXIMUM, NL_PASSPHRASE_MINIMUM} from './constants';
 import {AlreadyRegisteredError, CorruptedVaultError, InvalidPassphraseError, RecoverableVaultError, UnregisteredError} from './errors';
 
-import {Vault} from '#/crypto/vault';
+import {NB_ARGON2_MEMORY, N_ARGON2_ITERATIONS, Vault} from '#/crypto/vault';
 import {PublicStorage, storage_clear, storage_remove} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
 import {global_broadcast} from '#/script/msg-global';
@@ -18,6 +18,16 @@ export function acceptable(sh_phrase: string): boolean {
 	return 'string' === typeof sh_phrase && sh_phrase.length >= NL_PASSPHRASE_MINIMUM && sh_phrase.length <= NL_PASSPHRASE_MAXIMUM;
 }
 
+
+export async function dev_register(sh_phrase: string): Promise<void> {
+	// set hash params
+	(await PublicStorage.hashParams({
+		iterations: N_ARGON2_ITERATIONS,
+		memory: NB_ARGON2_MEMORY,
+	}))!;
+
+	return await register(sh_phrase);
+}
 
 /**
  * Register new credentials

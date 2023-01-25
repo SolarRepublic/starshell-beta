@@ -3,7 +3,7 @@ import type {AminoMsg, Coin} from '@cosmjs/amino';
 import type {Any} from '@solar-republic/cosmos-grpc/dist/google/protobuf/any';
 
 import type {Nameable, Pfpable} from '#/meta/able';
-import type {Dict, JsonObject, Promisable} from '#/meta/belt';
+import type {Dict, JsonObject, JsonPrimitive, Promisable} from '#/meta/belt';
 import type {ChainStruct} from '#/meta/chain';
 import type {FieldConfig} from '#/meta/field';
 import type {MsgEventRegistry, SignedJsonEventRegistry} from '#/meta/incident';
@@ -19,6 +19,7 @@ export interface DescribedMessage {
 	tooltip?: string;
 	fields: FieldConfig[];
 	spends?: SpendInfo[];
+	offline?: boolean;
 }
 
 export interface ReviewedMessage {
@@ -54,7 +55,7 @@ export interface MessageInterpretter {
 	/**
 	 * Invoked once the message has successfully processed on-chain
 	 */
-	apply?(nl_msgs: number, si_txn: string): Promisable<NotifyItemConfig | undefined>;
+	apply?(nl_msgs: number, si_txn: string, h_events: Dict<Dict<Set<null|JsonPrimitive>>>): Promisable<NotifyItemConfig | undefined>;
 
 	/**
 	 * Invoked when the message is received to the account

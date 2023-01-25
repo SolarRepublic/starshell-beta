@@ -38,6 +38,7 @@
 	
 	import SX_ICON_BAN from '#/icon/ban.svg?raw';
 	import SX_ICON_EXPAND from '#/icon/expand.svg?raw';
+    import ContractView from './ContractView.svelte';
 	
 	
 
@@ -250,10 +251,18 @@
 						cancelled={!!si_revoked}
 						resource={g_contract}
 						address={g_contract.bech32}
+						on:click={() => {
+							k_page.push({
+								creator: ContractView,
+								props: {
+									contractPath: Contracts.pathFrom(g_contract),
+								},
+							});
+						}}
 					>
 						<div class="actions" slot="right" style="margin-left:var(--icon-margin);">
 							<span class="global_svg-icon icon-diameter_24px"
-								on:click={() => revoke_permit_from_contracts([g_contract])}
+								on:click|stopPropagation={() => revoke_permit_from_contracts([g_contract])}
 							>
 								{@html SX_ICON_BAN}
 							</span>

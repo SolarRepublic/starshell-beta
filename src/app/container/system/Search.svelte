@@ -12,6 +12,8 @@
 	import {ClassType, ThreadId} from '#/app/def';
 	import {GC_HOOKS_DEFAULT} from '#/app/nav/defaults';
 	import {Navigator, type NavigatorConfig} from '#/app/nav/navigator';
+	import AccountCreate from '#/app/screen/AccountCreate.svelte';
+	import AccountsHome from '#/app/screen/AccountsHome.svelte';
 	import AccountView from '#/app/screen/AccountView.svelte';
 	import AppView from '#/app/screen/AppView.svelte';
 	import BlankSvelte from '#/app/screen/Blank.svelte';
@@ -20,7 +22,9 @@
 	import HoldingView from '#/app/screen/HoldingView.svelte';
 	import ProviderView from '#/app/screen/ProviderView.svelte';
 	import Send from '#/app/screen/Send.svelte';
+	import SettingsMemos from '#/app/screen/SettingsMemos.svelte';
 	import TokensAdd from '#/app/screen/TokensAdd.svelte';
+	import WalletCreate from '#/app/screen/WalletCreate.svelte';
 	import GenericRow from '#/app/ui/GenericRow.svelte';
 	import {open_window, P_POPUP} from '#/extension/browser';
 	import {system_notify} from '#/extension/notifications';
@@ -52,10 +56,12 @@
 	import SX_ICON_ACCOUNTS from '#/icon/account_circle.svg?raw';
 	import SX_ICON_CONNECTIONS from '#/icon/account_tree.svg?raw';
 	import SX_ICON_ADD from '#/icon/add.svg?raw';
+	import SX_ICON_BELL from '#/icon/bell.svg?raw';
 	import SX_ICON_TAGS from '#/icon/bookmarks.svg?raw';
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import SX_ICON_CONNECT from '#/icon/connect.svg?raw';
 	import SX_ICON_CUBES from '#/icon/cubes.svg?raw';
+	import SX_ICON_DOWNLOAD from '#/icon/download.svg?raw';
 	import SX_ICON_CHAINS from '#/icon/mediation.svg?raw';
 	import SX_ICON_POPOUT from '#/icon/pop-out.svg?raw';
 	import SX_ICON_RECV from '#/icon/recv.svg?raw';
@@ -63,13 +69,11 @@
 	import SX_ICON_SEND from '#/icon/send.svg?raw';
 	import SX_ICON_LOGOUT from '#/icon/sensor_door.svg?raw';
 	import SX_ICON_SETTINGS from '#/icon/settings.svg?raw';
+	import SX_ICON_SHIELD from '#/icon/shield.svg?raw';
 	import SX_ICON_SIGNATURE from '#/icon/signature.svg?raw';
 	import SX_ICON_CONTACTS from '#/icon/supervisor_account.svg?raw';
 	import SX_ICON_ACC_CREATED from '#/icon/user-add.svg?raw';
 	import SX_ICON_ACC_EDITED from '#/icon/user-edit.svg?raw';
-	import SX_ICON_BELL from '#/icon/bell.svg?raw';
-    import AccountCreate from '#/app/screen/AccountCreate.svelte';
-    import WalletCreate from '#/app/screen/WalletCreate.svelte';
 
 	const DM_BR = dd('br');
 
@@ -212,14 +216,20 @@
 		}
 	}
 
-	const fuzey = (a_items: SearchItem[], a_exclude: string[]=[]) => new Fuse(a_items, {
+	const fuzey = (a_items: SearchItem[], a_exclude: string[]=[], h_weights: Dict<number>={}) => new Fuse(a_items, {
 		includeScore: true,
 		includeMatches: true,
 		keys: [
-			'name',
+			{
+				name: 'name',
+				weight: 1,
+			},
 			...Object.keys(a_items[0]?.details || {})
 				.filter(s => !a_exclude.includes(s))
-				.map(s => `details.${s}`),
+				.map(s => ({
+					name: `details.${s}`,
+					weight: h_weights[s] ?? 0.75,
+				})),
 		],
 	});
 
@@ -429,6 +439,28 @@
 				});
 			},
 		},
+		export_mnemonic: {
+			name: 'Export Seed Phrase',
+			text: 'View mnemonic seed phrase for export',
+			icon: SX_ICON_DOWNLOAD,
+			pfp: '',
+			click(k_navigator: Navigator) {
+				k_navigator.activePage.push({
+					creator: AccountsHome,
+				});
+			},
+		},
+		memo_settings: {
+			name: 'Private Memo Settings',
+			text: 'Enable or disable private memos on specific chains',
+			icon: SX_ICON_SHIELD,
+			pfp: '',
+			click(k_navigator: Navigator) {
+				k_navigator.activePage.push({
+					creator: SettingsMemos,
+				});
+			},
+		},
 	};
 
 	const H_CATEGORIES: Dict<{
@@ -455,7 +487,9 @@
 				details: {
 					text: g_action.text,
 				},
-			}))),
+			})), [], {
+				text: 0.9,
+			}),
 
 			expound(g_result, s_search) {
 				const g_details = g_result.item.details;
@@ -498,7 +532,9 @@
 						addresses: a_addrs,
 					},
 				};
-			})),
+			}), [], {
+				addresses: 0.4,
+			}),
 
 			expound(g_result, s_search) {
 				const a_addrs: Match[] = [];
@@ -569,7 +605,10 @@
 					id: g_chain.reference,
 					blockExplorer: g_chain.blockExplorer.base,
 				},
-			}))),
+			})), [], {
+				id: 0.45,
+				blockExplorer: 0.4,
+			}),
 
 			expound(g_result, s_search) {
 				const a_details: DetailItem[] = [];
@@ -615,7 +654,11 @@
 						coingecko: g_coin.extra?.coingeckoId || '',
 					},
 				};
-			})), ['coingecko']),
+			})), ['coingecko'], {
+				symbol: 0.7,
+				denom: 0.7,
+				coingecko: 0.8,
+			}),
 
 			expound(g_result, s_search) {
 				const g_details = g_result.item.details;
@@ -751,7 +794,9 @@
 						return a_symbols;
 					})(),
 				},
-			}))),
+			})), [], {
+				interfaces: 0.6,
+			}),
 
 			expound(g_result, s_search) {
 				const a_addrs: Match[] = [];

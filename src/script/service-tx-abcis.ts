@@ -1,6 +1,6 @@
 import type {AminoMsg} from '@cosmjs/amino';
 
-import type {Dict, JsonObject, Promisable} from '#/meta/belt';
+import type {Dict, JsonObject, JsonPrimitive, JsonValue, Promisable} from '#/meta/belt';
 import type {ChainStruct} from '#/meta/chain';
 import type {Cw} from '#/meta/cosm-wasm';
 import type {IncidentStruct, IncidentType, TxError, TxSynced} from '#/meta/incident';
@@ -24,7 +24,7 @@ import {Apps} from '#/store/apps';
 import {Chains, parse_date, TransactionNotFoundError} from '#/store/chains';
 import {Incidents} from '#/store/incidents';
 
-import {fodemtv, oderac} from '#/util/belt';
+import {fodemtv, is_dict, is_dict_es, oderac} from '#/util/belt';
 import {base64_to_buffer, base64_to_text, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
 import {format_amount} from '#/util/format';
 
@@ -579,6 +579,65 @@ export function account_abcis(
 			}
 		}
 
+		// TODO: move to function
+		// merge all events
+		const h_events: Dict<Dict<Set<null|JsonPrimitive>>> = {};
+		{
+			// start with rawlog
+			{
+				try {
+					for(const g_log of JSON.parse(g_synced.raw_log)) {
+						const a_events = g_log?.['events'];
+
+						// skip non-array elements
+						if(!Array.isArray(a_events)) continue;
+
+						for(const g_event of a_events) {
+							const si_type = g_event?.type;
+
+							if('string' !== typeof si_type) continue;
+
+							const h_attrs = h_events[si_type] = h_events[si_type] || {};
+
+							// each attribute in rawlog
+							for(const g_attr of g_event.attributes || []) {
+								const si_key = g_attr?.key;
+
+								if('string' !== typeof si_key) continue;
+
+								const as_values = h_attrs[si_key] = h_attrs[si_key] || new Set<null|JsonPrimitive>();
+
+								as_values.add((g_attr as {value: JsonPrimitive}).value || null);
+							}
+						}
+					}
+				}
+				catch(e_rawlog) {}
+			}
+
+			// merge with extras
+			{
+				try {
+					for(const g_event of g_extra.a_events) {
+						const si_type = g_event.type;
+
+						const h_attrs = h_events[si_type] = h_events[si_type] || {};
+
+						for(const g_attr of g_event.attributes || []) {
+							const si_key = base64_to_text(g_attr.key);
+
+							const as_values = h_attrs[si_key] = h_attrs[si_key] || new Set<null|JsonPrimitive>();
+
+							as_values.add(base64_to_text(g_attr.value) || null);
+						}
+					}
+				}
+				catch(e_extras) {}
+			}
+		}
+
+		g_synced.event_sets = fodemtv(h_events, h_attrs => fodemtv(h_attrs, as => [...as]));
+
 		// create/overwrite incident
 		await Incidents.record({
 			type: 'tx_out',
@@ -586,6 +645,7 @@ export function account_abcis(
 			time: parse_date(g_synced.timestamp as string),
 			data: g_synced,
 		});
+
 
 		// notify configs
 		const a_notifies: NotifyItemConfig[] = [];
@@ -602,7 +662,7 @@ export function account_abcis(
 				const g_interpretted = await f_interpretter(g_msg.value as JsonObject, g_context);
 
 				// apply message
-				g_notify = await g_interpretted.apply?.(a_msgs.length, si_txn);
+				g_notify = await g_interpretted.apply?.(a_msgs.length, si_txn, h_events);
 			}
 			// no interpretter
 			else {

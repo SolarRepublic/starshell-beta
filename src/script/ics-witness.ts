@@ -343,10 +343,12 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 	// scope the bulk chain request singleton
 	const add_chain_req = (() => {
 		// amount of time to wait before sending bulk keys request
-		const XT_ACCUMULATE_KEYS_DELAY = 25;
+		// const XT_ACCUMULATE_KEYS_DELAY = 25;
+		const XT_ACCUMULATE_KEYS_DELAY = 0;
 
 		// max amount of time to wait before forcing bulk request
-		const XT_ACCUMULATE_MAX = 250;
+		// const XT_ACCUMULATE_MAX = 250;
+		const XT_ACCUMULATE_MAX = 0;
 
 		// dict of chains from Keplr with exact id matches
 		const H_CHAINS_KEPLR_EXACT = fold(A_KEPLR_EMBEDDED_CHAINS, g_chain => ({

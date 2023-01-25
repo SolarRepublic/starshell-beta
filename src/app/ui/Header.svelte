@@ -287,11 +287,8 @@
 	if(g_cause?.app) {
 		// subscribe to account changes
 		yw_account.subscribe((g_account) => {
-			// debugger;
-			// console.log({
-			// 	g_account,
-			// 	g_cause,
-			// });
+			// ignore interim loading state
+			if(!g_account) return;
 
 			// send update event to page
 			void chrome.tabs?.sendMessage?.(g_cause.tab.id!, {
@@ -425,6 +422,7 @@
 
 	.search-area {
 		position: absolute;
+		z-index: 2;
 		left: 0;
 		width: 100%;
 		background-color: var(--theme-color-bg);

@@ -13,7 +13,7 @@
 	import {NB_ARGON2_MEMORY, N_ARGON2_ITERATIONS, Vault} from '#/crypto/vault';
 	
 	import {P_POPUP} from '#/extension/browser';
-	import {PublicStorage, StoredHashParams} from '#/extension/public-storage';
+	import {PublicStorage} from '#/extension/public-storage';
 	import {global_receive} from '#/script/msg-global';
 	import {login} from '#/share/auth';
 	
@@ -22,7 +22,6 @@
 	import {stringify_params} from '#/util/dom';
 	
 	import PopupFactoryReset from '../popup/PopupFactoryReset.svelte';
-    import { sys } from 'typescript';
 	
 
 	// will be set if part of flow

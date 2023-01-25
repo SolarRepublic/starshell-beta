@@ -256,7 +256,7 @@
 		{/if}
 	</AppBanner>
 
-	<hr>
+	<hr class="no-margin">
 
 	{#if keplr}
 		<div class="additional-info no-margin">
