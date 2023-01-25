@@ -102,13 +102,23 @@
 			// remove account from connection
 			const a_accounts = remove(h_connections[p_chain].accounts, p_account);
 
-			// no more accounts; delete connections for this chain
+			// whether to disable the app
+			let b_disable = false;
+
+			// no more accounts
 			if(!a_accounts.length) {
+				// delete all connections for this chain
 				delete h_connections[p_chain];
+
+				// disable the app
+				b_disable = true;
 			}
 
 			// return updated struct
 			return {
+				...b_disable? {
+					on: 0,
+				}: {},
 				connections: h_connections,
 			};
 		});
