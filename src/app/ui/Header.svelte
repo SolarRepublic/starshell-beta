@@ -19,7 +19,6 @@
 		yw_overlay_app,
 		yw_overlay_network,
 		yw_owner,
-		yw_progress,
 		yw_search,
 		yw_update,
 	} from '../mem';
@@ -256,6 +255,13 @@
 
 		// save app def to storage
 		await Apps.add(g_app);
+
+		// enable app
+		if(!g_app.on) {
+			await Apps.update(Apps.pathFrom(g_app), () => ({
+				on: g_app.on=1,
+			}));
+		}
 
 		// ensure polyfill is enabled for this app
 		await keplr_polyfill_script_add_matches([Apps.scriptMatchPatternFrom(g_app)]);
@@ -612,7 +618,9 @@
 									? Object.keys(g_cause.app.connections).length
 										? 'connected'
 										: 'no_permissions'
-									: 'disconnected'}
+									: 0 === g_cause.app?.on
+										? 'disabled'
+										: 'disconnected'}
 
 								<OverlaySelect
 									title='Current App'

@@ -4,13 +4,13 @@ const H_PRIMITIVES = {
 		'b',
 	],
 	number: [
-		'c', 'i', 'n[l]?', 'x[a-z]?',
+		'c[b]?', 'i([bt]|px)?', 'n[lb]?', 'x[a-z]?',
 	],
 	string: [
-		's[ipqrx]?', 'p[r]?',
+		's[aipqrx]?', 'p[r]?',
 	],
 	array: [
-		'a[btsx]?',
+		'a',
 	],
 	function: [
 		'f[gke]?',
@@ -19,6 +19,7 @@ const H_PRIMITIVES = {
 		'd[a-z]{0,2}', 'e', 'g[ca-z]?',
 		'h[m]?', 'k[a-z]{0,2}', 'm', 'r[t]?',
 		't', 'v', 'w', 'y[a-z]{0,2}', 'z',
+		'a[btsx]', 'at[uif](8|16|32|64)',
 	],
 };
 
@@ -28,7 +29,7 @@ const A_SNAKE_TYPES = [
 
 const S_SNAKE_TYPES_UPPER = A_SNAKE_TYPES.map(s => s.toUpperCase()).join('|');
 
-function *snake_types(a_configs) {
+function* snake_types(a_configs) {
 	for(const gc_types of a_configs) {
 		const a_snake_types = gc_types.patterns;
 
@@ -63,9 +64,9 @@ function *snake_types(a_configs) {
 
 		if(gc_types.types.length) g_opt.types = gc_types.types;
 
-		return g_opt;
+		yield g_opt;
 	}
-};
+}
 
 function under(h_map) {
 	const h_out = {};
@@ -88,6 +89,7 @@ function fold(a_in, f_fold) {
 	for(const z_each of a_in) {
 		Object.assign(h_out, f_fold(z_each));
 	}
+
 	return h_out;
 }
 
@@ -95,21 +97,17 @@ function fold(a_in, f_fold) {
  * Reduce object entries to an array via concatenation
  */
 function oderac(h_thing, f_concat, b_add_undefs=false) {
-  return Object.entries(h_thing).reduce((a_out, [si_key, w_value]) => {
-	  return [
-		  ...a_out,
-		  f_concat(si_key, w_value),
-	  ];
-  }, []);
+	return Object.entries(h_thing).reduce((a_out, [si_key, w_value]) => [
+		...a_out,
+		f_concat(si_key, w_value),
+	], []);
 }
 
-const off = (a_rules) => fold(a_rules, s => ({[s]: 'off'}));
-const warn = (a_rules) => fold(a_rules, s => ({[s]: 'warn'}));
-const error = (a_rules) => fold(a_rules, s => ({[s]: 'error'}));
+const off = a_rules => fold(a_rules, s => ({[s]:'off'}));
+const warn = a_rules => fold(a_rules, s => ({[s]:'warn'}));
+const error = a_rules => fold(a_rules, s => ({[s]:'error'}));
 
-module.exports = {
-	root: true,
-
+const GC_APP = {
 	env: {
 		es2020: true,
 		browser: true,
@@ -133,22 +131,10 @@ module.exports = {
 		'plugin:@typescript-eslint/recommended-requiring-type-checking',
 		'plugin:@typescript-eslint/strict',
 	],
-	
-	plugins: [
-		'svelte3',
-		'@typescript-eslint',
-		'typescript-sort-keys',
-		'modules-newline',
-		'i',
-	],
 
-	// file-specific overrides
-	overrides: [
-		{
-			files: ['*.svelte'],
-			processor: 'svelte3/svelte3',
-		},
-	],
+	globals: {
+		chrome: 'readonly',
+	},
 
 	settings: {
 		// typescript lib
@@ -203,8 +189,8 @@ module.exports = {
 					},
 				}),
 
-				'order': ['warn', {
-					groups: [
+				order: ['warn', {
+					"groups": [
 						'type',
 						'builtin',
 						'external',
@@ -213,12 +199,12 @@ module.exports = {
 						'object',
 					],
 
-					alphabetize: {
+					"alphabetize": {
 						order: 'asc',
 						caseInsensitive: true,
 					},
 
-					pathGroups: [
+					"pathGroups": [
 						{
 							pattern: 'ts-toolbelt/**',
 							group: 'type',
@@ -276,7 +262,7 @@ module.exports = {
 				...error([
 					'default-param-last',
 				]),
-				
+
 				// extends/overrides base eslint rules
 				...{
 					'dot-notation': 'off',
@@ -294,7 +280,7 @@ module.exports = {
 							next: sx_rule.split(/\//)[1] || '*',
 						})),
 					],
-					quotes: ['warn', 'single', {
+					"quotes": ['warn', 'single', {
 						avoidEscape: true,
 						allowTemplateLiterals: true,
 					}],
@@ -317,7 +303,7 @@ module.exports = {
 							'dynamic-delete',
 							'invalid-void-type',
 						]),
-						
+
 						...warn([
 							'unnecessary-qualifier',
 							'loop-func',
@@ -539,7 +525,7 @@ module.exports = {
 					overrides: {
 						if: {after:false},
 						for: {after:false},
-						await: {after: false},
+						await: {after:false},
 						while: {after:false},
 						switch: {after:false},
 						catch: {after:false},
@@ -558,7 +544,7 @@ module.exports = {
 			},
 		}),
 
-		
+
 		// eslint
 		...{
 			'for-direction': ['error'],
@@ -650,7 +636,7 @@ module.exports = {
 					'await-in-loop': ['off'],
 					'cond-assign': ['error', 'except-parens'],
 					'console': ['warn', {
-						allow:['time', 'warn', 'error', 'assert'],
+						allow: ['time', 'warn', 'error', 'assert'],
 					}],
 					'control-regex': ['off'],
 					'debugger': ['warn'],
@@ -775,4 +761,40 @@ module.exports = {
 			'no-fallthrough': ['warn'],
 		},
 	},
+};
+
+module.exports = {
+	// top-level property
+	root: true,
+
+	// default env that applies to all contexts
+	env: {
+		es2020: true,
+	},
+
+	// all plugins used
+	plugins: [
+		'svelte3',
+		'@typescript-eslint',
+		'typescript-sort-keys',
+		'modules-newline',
+		'i',
+	],
+
+	// file-specific overrides
+	overrides: [
+		{
+			files: ['*.svelte'],
+			processor: 'svelte3/svelte3',
+			...GC_APP,
+		},
+		{
+			files: ['*.ts', '*.d.ts'],
+			...GC_APP,
+		},
+	],
+
+	// inherit non-typescript rules from app config
+	rules: Object.fromEntries(Object.entries(GC_APP.rules)
+		.filter(([si_rule, w_rule]) => !si_rule.startsWith('@typescript'))),
 };

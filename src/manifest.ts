@@ -7,367 +7,374 @@ type ManifestV3 = chrome.runtime.ManifestV3;
 type Mv2ContentScript = Values<NonNullable<Required<ManifestV2>['content_scripts']>>;
 type Mv3ContentScript = Values<NonNullable<Required<ManifestV3>['content_scripts']>>;
 
-const SX_CSP_SELF = `'self'`;
-const SX_CSP_WASM_UNSAFE_EVAL = `'wasm-unsafe-eval'`;
-const SX_CSP_UNSAFE_INLINE = `'unsafe-inline'`;
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export function buildBrowserManifest(b_prod=false) {
+	const SX_CSP_SELF = `'self'`;
+	const SX_CSP_WASM_UNSAFE_EVAL = `'wasm-unsafe-eval'`;
+	const SX_CSP_UNSAFE_INLINE = `'unsafe-inline'`;
 
-const H_CONTENT_SECURITY_POLICY = {
-	'default-src': [SX_CSP_SELF],
-	'script-src': [SX_CSP_SELF, SX_CSP_WASM_UNSAFE_EVAL],
-	'object-src': [SX_CSP_SELF],
-	'connect-src': ['https:', 'data:', 'wss:'],
-	'frame-ancestors': [SX_CSP_SELF, 'https://launch.starshell.net'],
-	'style-src': [SX_CSP_UNSAFE_INLINE],
-	'img-src': [SX_CSP_SELF, 'blob:', 'data:', 'https://png.starshell.net', 'https://s3.amazonaws.com/keybase_processed_uploads/'],
-};
+	const H_CONTENT_SECURITY_POLICY = {
+		'default-src': [SX_CSP_SELF],
+		'script-src': [SX_CSP_SELF, SX_CSP_WASM_UNSAFE_EVAL],
+		'object-src': [SX_CSP_SELF],
+		'connect-src': ['https:', 'data:', 'wss:'],
+		'frame-ancestors': [SX_CSP_SELF, 'https://launch.starshell.net'],
+		'style-src': [SX_CSP_UNSAFE_INLINE],
+		'img-src': [SX_CSP_SELF, 'blob:', 'data:', 'https://png.starshell.net', 'https://s3.amazonaws.com/keybase_processed_uploads/'],
+	};
 
-function csp(h_merge: Record<string, string[]>={}): string {
-	return Object.entries({
-		...H_CONTENT_SECURITY_POLICY,
-		...h_merge,
-	}).reduce((a_out, [si_key, a_values]) => [
-		...a_out,
-		`${si_key} ${a_values.map(s => `${s}`).join(' ')}`,
-	], []).join('; ');
-}
+	function csp(h_merge: Record<string, string[]>={}): string {
+		return Object.entries({
+			...H_CONTENT_SECURITY_POLICY,
+			...h_merge,
+		}).reduce((a_out, [si_key, a_values]) => [
+			...a_out,
+			`${si_key} ${a_values.map(s => `${s}`).join(' ')}`,
+		], []).join('; ');
+	}
 
-const H_ICONS = {
-	16: 'media/vendor/icon_16.png',
-	19: 'media/vendor/icon_19.png',
-	24: 'media/vendor/icon_24.png',
-	32: 'media/vendor/icon_32.png',
-	48: 'media/vendor/icon_48.png',
-	64: 'media/vendor/icon_64.png',
-	128: 'media/vendor/icon_128.png',
-	256: 'media/vendor/icon_256.png',
-};
-
-
-const A_EXCLUDE_DEVELOPMENT = [
-	'http://localhost:8128/*',
-];
-
-const A_MATCH_LOCALHOST = [
-	'http://localhost/*',
-	'http://127.0.0.1/*',
-];
-
-const A_MATCH_ALL = [
-	'file://*/*',
-	...A_MATCH_LOCALHOST,
-	'https://*/*',
-];
-
-const A_MATCH_LAUNCH = [
-	'https://launch.starshell.net/*',
-];
-
-const A_MATCH_LINK = [
-	'https://m.s2r.sh/*',
-	'https://link.starshell.net/*',
-];
-
-const A_MATCH_NEVER = [
-	'file://__never__/*',
-];
+	const H_ICONS = {
+		16: 'media/vendor/icon_16.png',
+		19: 'media/vendor/icon_19.png',
+		24: 'media/vendor/icon_24.png',
+		32: 'media/vendor/icon_32.png',
+		48: 'media/vendor/icon_48.png',
+		64: 'media/vendor/icon_64.png',
+		128: 'media/vendor/icon_128.png',
+		256: 'media/vendor/icon_256.png',
+	};
 
 
-type ContentScriptOverrides = Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>;
+	const A_EXCLUDE_DEVELOPMENT = [
+		'http://localhost:8128/*',
+	];
 
-const B_ALL_FRAMES = false;
+	const A_MATCH_LOCALHOST = [
+		'http://localhost/*',
+		'http://127.0.0.1/*',
+	];
 
-const G_CONTENT_SCRIPT_DEFAULT = {
-	exclude_matches: A_EXCLUDE_DEVELOPMENT,
-};
+	const A_MATCH_ALL = [
+		'file://*/*',
+		...A_MATCH_LOCALHOST,
+		'https://*/*',
+	];
 
-const G_CONTENT_SCRIPTS = {
-	ics_spotter(h_overrides?: ContentScriptOverrides) {
-		return {
-			...G_CONTENT_SCRIPT_DEFAULT,
-			js: ['src/script/ics-spotter.ts'],
-			matches: A_MATCH_ALL,
-			run_at: 'document_start',
-			all_frames: B_ALL_FRAMES,
-			...h_overrides,
-		};
-	},
+	const A_MATCH_LAUNCH = [
+		'https://launch.starshell.net/*',
+	];
 
-	mcs_relay() {
-		return {
-			...G_CONTENT_SCRIPT_DEFAULT,
-			js: ['src/script/mcs-relay.ts'],
-			matches: A_MATCH_NEVER,
-			run_at: 'document_start',
-			all_frames: B_ALL_FRAMES,
-		};
-	},
+	const A_MATCH_LINK = [
+		'https://m.s2r.sh/*',
+		'https://link.starshell.net/*',
+	];
 
-	ics_launch(h_overrides?: ContentScriptOverrides) {
-		return {
-			...G_CONTENT_SCRIPT_DEFAULT,
-			js: ['src/script/ics-launch.ts'],
-			matches: A_MATCH_LAUNCH,
-			run_at: 'document_start',
-			...h_overrides,
-		};
-	},
+	const A_MATCH_NEVER = [
+		'file://__never__/*',
+	];
 
-	ics_link(h_overrides?: ContentScriptOverrides) {
-		return {
-			...G_CONTENT_SCRIPT_DEFAULT,
-			js: ['src/script/ics-link.ts'],
-			matches: A_MATCH_LINK,
-			run_at: 'document_start',
-			...h_overrides,
-		};
-	},
 
-	ics_witness(h_overrides?: ContentScriptOverrides) {
-		return {
-			...G_CONTENT_SCRIPT_DEFAULT,
-			js: ['src/script/ics-witness.ts'],
-			matches: A_MATCH_ALL,
-			run_at: 'document_start',
-			all_frames: B_ALL_FRAMES,
-			...h_overrides,
-		};
-	},
+	type ContentScriptOverrides = Partial<ContentScripts.RegisteredContentScriptOptions | {world: 'MAIN' | 'ISOLATED'}>;
 
-	worker_argon2() {
-		return {
-			...G_CONTENT_SCRIPT_DEFAULT,
-			js: ['src/script/worker-argon2.ts'],
-			matches: A_MATCH_NEVER,
-			run_at: 'document_start',
-			all_frames: false,
-		};
-	},
+	const B_ALL_FRAMES = false;
 
-	// ics_polyfill(h_overrides?: ContentScriptOverrides) {
-	// 	return {
-	// 		...G_CONTENT_SCRIPT_DEFAULT,
-	// 		js: ['src/script/ics-polyfill.ts'],
-	// 		matches: [],
-	// 		run_at: 'document_start',
-	// 		all_frames: false,
-	// 		...h_overrides,
-	// 	};
-	// },
+	const G_CONTENT_SCRIPT_DEFAULT = {
+		...b_prod? {
+			exclude_matches: A_EXCLUDE_DEVELOPMENT,
+		}: {},
+	};
 
-	// mcs_keplr(h_overrides?: ContentScriptOverrides) {
-	// 	return {
-	// 		js: ['src/script/mcs-keplr.ts'],
-	// 		matches: A_MATCH_ALL,
-	// 		run_at: 'document_start',
-	// 		all_frames: true,
-	// 		...h_overrides,
-	// 	};
-	// },
+	const G_CONTENT_SCRIPTS = {
+		ics_spotter(h_overrides?: ContentScriptOverrides) {
+			return {
+				...G_CONTENT_SCRIPT_DEFAULT,
+				js: ['src/script/ics-spotter.ts'],
+				matches: A_MATCH_ALL,
+				run_at: 'document_start',
+				all_frames: B_ALL_FRAMES,
+				...h_overrides,
+			};
+		},
 
-	// about_blank() {
-	// 	return {
-	// 		js: ['src/script/about-blank.ts'],
-	// 		matches: [
-	// 			'file:///:never',
-	// 		],
-	// 		run_at: 'document_start',
-	// 		match_about_blank: true,
-	// 		all_frames: true,
-	// 	};
-	// },
-};
+		mcs_relay() {
+			return {
+				...G_CONTENT_SCRIPT_DEFAULT,
+				js: ['src/script/mcs-relay.ts'],
+				matches: A_MATCH_NEVER,
+				run_at: 'document_start',
+				all_frames: B_ALL_FRAMES,
+			};
+		},
 
-const G_MANIFEST_COMMON: Partial<chrome.runtime.ManifestBase> = {
-	icons: H_ICONS,
-	permissions: [
-		'alarms',
-		'tabs',
-		'storage',
-		'scripting',
-		'unlimitedStorage',
-		'notifications',
-	],
-};
+		ics_launch(h_overrides?: ContentScriptOverrides) {
+			return {
+				...G_CONTENT_SCRIPT_DEFAULT,
+				js: ['src/script/ics-launch.ts'],
+				matches: A_MATCH_LAUNCH,
+				run_at: 'document_start',
+				...h_overrides,
+			};
+		},
 
-const A_WA_RESOURCES = [
-	'src/script/mcs-relay.ts',
-	'src/script/ics-witness.ts',
-	'src/script/mcs-keplr.ts',
-	'src/script/mcs-pwa.ts',
-	'src/entry/flow.html',
+		ics_link(h_overrides?: ContentScriptOverrides) {
+			return {
+				...G_CONTENT_SCRIPT_DEFAULT,
+				js: ['src/script/ics-link.ts'],
+				matches: A_MATCH_LINK,
+				run_at: 'document_start',
+				...h_overrides,
+			};
+		},
 
-	// allow content scripts to load the word list
-	'data/bip-0039-english.txt',
-	'media/*',
-];
+		ics_witness(h_overrides?: ContentScriptOverrides) {
+			return {
+				...G_CONTENT_SCRIPT_DEFAULT,
+				js: ['src/script/ics-witness.ts'],
+				matches: A_MATCH_ALL,
+				run_at: 'document_start',
+				all_frames: B_ALL_FRAMES,
+				...h_overrides,
+			};
+		},
 
-const G_BROWSER_ACTION = {
-	default_icon: H_ICONS,
-	default_popup: 'src/entry/popup.html',
-};
+		worker_argon2() {
+			return {
+				...G_CONTENT_SCRIPT_DEFAULT,
+				js: ['src/script/worker-argon2.ts'],
+				matches: A_MATCH_NEVER,
+				run_at: 'document_start',
+				all_frames: false,
+			};
+		},
 
-export const GC_MANIFEST_V2: Partial<ManifestV2> = {
-	...G_MANIFEST_COMMON,
+		// ics_polyfill(h_overrides?: ContentScriptOverrides) {
+		// 	return {
+		// 		...G_CONTENT_SCRIPT_DEFAULT,
+		// 		js: ['src/script/ics-polyfill.ts'],
+		// 		matches: [],
+		// 		run_at: 'document_start',
+		// 		all_frames: false,
+		// 		...h_overrides,
+		// 	};
+		// },
 
-	manifest_version: 2,
+		// mcs_keplr(h_overrides?: ContentScriptOverrides) {
+		// 	return {
+		// 		js: ['src/script/mcs-keplr.ts'],
+		// 		matches: A_MATCH_ALL,
+		// 		run_at: 'document_start',
+		// 		all_frames: true,
+		// 		...h_overrides,
+		// 	};
+		// },
 
-	browser_action: G_BROWSER_ACTION,
+		// about_blank() {
+		// 	return {
+		// 		js: ['src/script/about-blank.ts'],
+		// 		matches: [
+		// 			'file:///:never',
+		// 		],
+		// 		run_at: 'document_start',
+		// 		match_about_blank: true,
+		// 		all_frames: true,
+		// 	};
+		// },
+	};
 
-	permissions: [
-		...G_MANIFEST_COMMON.permissions,
-		'*://*/*',
-	],
-
-	web_accessible_resources: [
-		...A_WA_RESOURCES,
-		G_BROWSER_ACTION.default_popup,
-	],
-
-	content_scripts: [
-		G_CONTENT_SCRIPTS.ics_spotter(),
-		G_CONTENT_SCRIPTS.ics_launch(),
-		G_CONTENT_SCRIPTS.ics_link(),
-		G_CONTENT_SCRIPTS.worker_argon2(),
-	] as Mv2ContentScript[],
-
-	background: {
-		persistent: false,
-		scripts: [
-			'src/script/service.ts',
+	const G_MANIFEST_COMMON: Partial<chrome.runtime.ManifestBase> = {
+		icons: H_ICONS,
+		permissions: [
+			'alarms',
+			'tabs',
+			'storage',
+			'scripting',
+			'unlimitedStorage',
+			'notifications',
 		],
-	},
+	};
 
-	content_security_policy: csp({
-		'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
-	}),
-};
+	const A_WA_RESOURCES = [
+		'src/script/mcs-relay.ts',
+		'src/script/ics-witness.ts',
+		'src/script/mcs-keplr.ts',
+		'src/script/mcs-pwa.ts',
+		'src/entry/flow.html',
 
-export const GC_MANIFEST_V3: Partial<ManifestV3> = {
-	...G_MANIFEST_COMMON,
+		// allow content scripts to load the word list
+		'data/bip-0039-english.txt',
+		'media/*',
+	];
 
-	manifest_version: 3,
+	const G_BROWSER_ACTION = {
+		default_icon: H_ICONS,
+		default_popup: 'src/entry/popup.html',
+	};
 
-	action: G_BROWSER_ACTION,
+	const GC_MANIFEST_V2: Partial<ManifestV2> = {
+		...G_MANIFEST_COMMON,
 
-	permissions: [
-		...G_MANIFEST_COMMON.permissions,
-		'system.display',
-	],
+		manifest_version: 2,
 
-	host_permissions: ['*://*/*'],
+		browser_action: G_BROWSER_ACTION,
 
-	web_accessible_resources: [
-		{
-			resources: A_WA_RESOURCES,
-			matches: A_MATCH_ALL,
-		},
-		{
-			resources: [G_BROWSER_ACTION.default_popup],
-			matches: A_MATCH_LAUNCH,
-		},
-	],
+		permissions: [
+			...G_MANIFEST_COMMON.permissions,
+			'*://*/*',
+		],
 
-	content_scripts: [
-		G_CONTENT_SCRIPTS.ics_spotter({
-			world: 'ISOLATED',
-		}),
-		G_CONTENT_SCRIPTS.ics_launch({
-			world: 'ISOLATED',
-		}),
-		G_CONTENT_SCRIPTS.ics_link({
-			world: 'ISOLATED',
-		}),
-		G_CONTENT_SCRIPTS.worker_argon2(),
-	] as Mv3ContentScript[],
+		web_accessible_resources: [
+			...A_WA_RESOURCES,
+			G_BROWSER_ACTION.default_popup,
+		],
 
-	background: {
-		service_worker: 'src/script/service.ts',
-		type: 'module',
-	},
+		content_scripts: [
+			G_CONTENT_SCRIPTS.ics_spotter(),
+			G_CONTENT_SCRIPTS.ics_launch(),
+			G_CONTENT_SCRIPTS.ics_link(),
+			G_CONTENT_SCRIPTS.worker_argon2(),
+		] as Mv2ContentScript[],
 
-	content_security_policy: {
-		extension_pages: csp(),
-	},
-};
-
-export const H_BROWSERS = {
-	chrome: {
-		manifest: {
-			...GC_MANIFEST_V3,
-			permissions: [
-				...GC_MANIFEST_V3.permissions || [],
-				'management',
+		background: {
+			persistent: false,
+			scripts: [
+				'src/script/service.ts',
 			],
 		},
-	},
 
-	firefox: {
-		manifest: {
-			...GC_MANIFEST_V2,
-			content_security_policy: csp({
-				'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
-				'frame-ancestors': [
-					SX_CSP_SELF,
-					'https://launch.starshell.net',
-				],
+		content_security_policy: csp({
+			'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
+		}),
+	};
+
+	const GC_MANIFEST_V3: Partial<ManifestV3> = {
+		...G_MANIFEST_COMMON,
+
+		manifest_version: 3,
+
+		action: G_BROWSER_ACTION,
+
+		permissions: [
+			...G_MANIFEST_COMMON.permissions,
+			'system.display',
+		],
+
+		host_permissions: ['*://*/*'],
+
+		web_accessible_resources: [
+			{
+				resources: A_WA_RESOURCES,
+				matches: A_MATCH_ALL,
+			},
+			{
+				resources: [G_BROWSER_ACTION.default_popup],
+				matches: A_MATCH_LAUNCH,
+			},
+		],
+
+		content_scripts: [
+			G_CONTENT_SCRIPTS.ics_spotter({
+				world: 'ISOLATED',
 			}),
-			permissions: [
-				...GC_MANIFEST_V2.permissions || [],
-				'management',
-			],
-			browser_specific_settings: {
-				gecko: {
-					id: 'wallet-beta@starshell.net',
+			G_CONTENT_SCRIPTS.ics_launch({
+				world: 'ISOLATED',
+			}),
+			G_CONTENT_SCRIPTS.ics_link({
+				world: 'ISOLATED',
+			}),
+			G_CONTENT_SCRIPTS.worker_argon2(),
+		] as Mv3ContentScript[],
+
+		background: {
+			service_worker: 'src/script/service.ts',
+			type: 'module',
+		},
+
+		content_security_policy: {
+			extension_pages: csp(),
+		},
+	};
+
+	return {
+		chrome: {
+			manifest: {
+				...GC_MANIFEST_V3,
+				permissions: [
+					...GC_MANIFEST_V3.permissions || [],
+					'management',
+				],
+			},
+		},
+
+		firefox: {
+			manifest: {
+				...GC_MANIFEST_V2,
+				content_security_policy: csp({
+					'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
+					'frame-ancestors': [
+						SX_CSP_SELF,
+						'https://launch.starshell.net',
+					],
+				}),
+				permissions: [
+					...GC_MANIFEST_V2.permissions || [],
+					'management',
+				],
+				browser_specific_settings: {
+					gecko: {
+						id: b_prod
+							? 'wallet@starshell.net'
+							: 'wallet-beta@starshell.net',
+					},
 				},
 			},
 		},
-	},
 
-	safari: {
-		manifest: {
-			...GC_MANIFEST_V2,
-			content_security_policy: csp({
-				'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
-				'connect-src': [
-					SX_CSP_SELF,
-					...[
-						'githubusercontent.com',
-						'starshell.net',
-					].flatMap(s => [`https://*.${s}`, `https://${s}`]),
-					...[
-						'raw.githubusercontent.com',
-						'api.coingecko.com',
-						'ping.starshell.net',
-						'feegrant.starshell.net',
-						'grpc-web.secret.ajax.starshell.net',
-						'grpc-web.secret.brynn.starshell.net',
-						'grpc-web.pulsar.apex.starshell.net',
-						'faucet.starshell.net',
-					].map(s => `https://${s}`),
-					'wss://rpc.secret.ajax.starshell.net',
-					'wss://rpc.secret.brynn.starshell.net',
-					'wss://rpc.pulsar.apex.starshell.net',
-					'wss:',
-					'data:',
+		safari: {
+			manifest: {
+				...GC_MANIFEST_V2,
+				content_security_policy: csp({
+					'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
+					'connect-src': [
+						SX_CSP_SELF,
+						...[
+							'githubusercontent.com',
+							'starshell.net',
+						].flatMap(s => [`https://*.${s}`, `https://${s}`]),
+						...[
+							'raw.githubusercontent.com',
+							'api.coingecko.com',
+							'ping.starshell.net',
+							'feegrant.starshell.net',
+							'grpc-web.secret.ajax.starshell.net',
+							'grpc-web.secret.brynn.starshell.net',
+							'grpc-web.pulsar.apex.starshell.net',
+							'faucet.starshell.net',
+						].map(s => `https://${s}`),
+						'wss://rpc.secret.ajax.starshell.net',
+						'wss://rpc.secret.brynn.starshell.net',
+						'wss://rpc.pulsar.apex.starshell.net',
+						'wss:',
+						'data:',
+					],
+				}),
+				permissions: [
+					...GC_MANIFEST_V2.permissions || [],
+					'nativeMessaging',
 				],
-			}),
-			permissions: [
-				...GC_MANIFEST_V2.permissions || [],
-				'nativeMessaging',
-			],
-			// safari does not yet support dynamic script registration from `browser.scripting`
-			content_scripts: [
-				...GC_MANIFEST_V2.content_scripts!,
-				G_CONTENT_SCRIPTS.ics_witness(),
-			],
+				// safari does not yet support dynamic script registration from `browser.scripting`
+				content_scripts: [
+					...GC_MANIFEST_V2.content_scripts!,
+					G_CONTENT_SCRIPTS.ics_witness(),
+				],
 
-			// for the native iOS app, include the webkit content script in the build output
-			web_accessible_resources: [
-				...GC_MANIFEST_V2.web_accessible_resources!,
-				'src/script/ics-webkit.ts',
-				'src/script/ics-webkit-bg.ts',
-				// 'src/script/service.ts',
-			],
+				// for the native iOS app, include the webkit content script in the build output
+				web_accessible_resources: [
+					...GC_MANIFEST_V2.web_accessible_resources!,
+					'src/script/ics-webkit.ts',
+					'src/script/ics-webkit-bg.ts',
+					// 'src/script/service.ts',
+				],
+			},
 		},
-	},
-} as const;
+	} as const;
+}

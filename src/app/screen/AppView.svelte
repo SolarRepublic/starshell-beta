@@ -67,13 +67,25 @@
 		if(g_app.on) {
 			Object.assign(h_stage, {
 				disconnect: {
-					trigger() {
-						k_page.push({
-							creator: AppDisconnect,
-							props: {
-								g_app,
-							},
-						});
+					async trigger() {
+						// no connections
+						if(!Object.keys(g_app.connections).length) {
+							// disable app
+							await Apps.update(p_app, () => ({
+								on: 0,
+							}));
+
+							// reset thread
+							k_page.reset();
+						}
+						else {
+							k_page.push({
+								creator: AppDisconnect,
+								props: {
+									g_app,
+								},
+							});
+						}
 					},
 				},
 			});

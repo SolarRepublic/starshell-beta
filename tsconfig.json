@@ -70,7 +70,9 @@
 		"src/**/*.js",
 		"src/**/*.svelte",
 		"plugins/**/*.ts",
-		"rollup.config.ts"
+		"vite.config.ts",
+		"svelte.config.js",
+		".eslintrc.cjs"
 	],
 
 	"exclude": [

@@ -9,6 +9,7 @@ import {
 import {SI_STORE_TAGS} from '#/share/constants';
 
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export const Tags = create_store_class({
 	store: SI_STORE_TAGS,
 	class: class TagsI extends WritableStore<typeof SI_STORE_TAGS> {

@@ -1,6 +1,5 @@
 import {B_FIREFOX_ANDROID, NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB} from '#/share/constants';
 import {timeout_exec} from '#/util/belt';
-import { Data } from '@solar-republic/cosmos-grpc/dist/tendermint/types/types';
 
 /**
  * Locate a script asset in the extension bundle by its path prefix.
@@ -147,9 +146,9 @@ export function render_icon_data(
 
 		let ipx_y_lo = 0;
 		TOP_ROWS:
-		for(; ipx_y_lo<npx_height; ipx_y_lo++) {
+		for(; ipx_y_lo<npx_height-1; ipx_y_lo++) {
 			for(let ipx_x=0; ipx_x<npx_width; ipx_x++) {
-				if(0 !== atu8_data[(ipx_y_lo * npx_width * 4) + ipx_x + 3]) {
+				if(0 !== atu8_data[(ipx_y_lo * npx_width * 4) + (ipx_x * 4) + 3]) {
 					break TOP_ROWS;
 				}
 			}
@@ -159,7 +158,7 @@ export function render_icon_data(
 		BTM_ROWS:
 		for(; ipx_y_hi>ipx_y_lo; ipx_y_hi--) {
 			for(let ipx_x=0; ipx_x<npx_width; ipx_x++) {
-				if(0 !== atu8_data[(ipx_y_hi * npx_width * 4) + ipx_x + 3]) {
+				if(0 !== atu8_data[(ipx_y_hi * npx_width * 4) + (ipx_x * 4) + 3]) {
 					break BTM_ROWS;
 				}
 			}
@@ -167,9 +166,9 @@ export function render_icon_data(
 
 		let ipx_x_lo = 0;
 		LFT_ROWS:
-		for(; ipx_x_lo<npx_width; ipx_x_lo++) {
+		for(; ipx_x_lo<npx_width-1; ipx_x_lo++) {
 			for(let ipx_y=ipx_y_lo; ipx_y<ipx_y_hi; ipx_y++) {
-				if(0 !== atu8_data[(ipx_y * npx_width * 4) + ipx_x_lo + 3]) {
+				if(0 !== atu8_data[(ipx_y * npx_width * 4) + (ipx_x_lo * 4) + 3]) {
 					break LFT_ROWS;
 				}
 			}
@@ -179,11 +178,15 @@ export function render_icon_data(
 		RGT_ROWS:
 		for(; ipx_x_hi>ipx_x_lo; ipx_x_hi--) {
 			for(let ipx_y=ipx_y_lo; ipx_y<ipx_y_hi; ipx_y++) {
-				if(0 !== atu8_data[(ipx_y * npx_width * 4) + ipx_x_hi + 3]) {
+				if(0 !== atu8_data[(ipx_y * npx_width * 4) + (ipx_x_hi * 4) + 3]) {
 					break RGT_ROWS;
 				}
 			}
 		}
+
+		// adjust his to outset
+		ipx_x_hi += 1;
+		ipx_y_hi += 1;
 
 		// trimmable edges
 		const npx_span_x = ipx_x_hi - ipx_x_lo;

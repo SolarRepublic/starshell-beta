@@ -18,7 +18,7 @@ import {decrypt, encrypt, Vault} from '#/crypto/vault';
 import {storage_get_all} from '#/extension/public-storage';
 import {ResourceNonExistentError} from '#/share/errors';
 import {is_dict, ode, oderac} from '#/util/belt';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256, sha256d, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
+import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256d, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
 
 type PathFrom<
 	g_secret extends Pick<SecretStruct, 'type' | 'uuid'>,
@@ -55,6 +55,7 @@ export type SerializableArgon2Params = O.Merge<{
 	salt: string;
 }, Omit<Argon2Params, 'secret' | 'ad'>>;
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export const Secrets = {
 	/**
 	 * Encrypts arbitrary data using the given PIN
@@ -138,8 +139,8 @@ export const Secrets = {
 		return await decrypt(atu8_data, dk_decryption, base93_to_buffer(g_security.encryption.salt));
 	},
 
-	pathFrom(g_secret: Pick<SecretStruct, 'type' | 'uuid'>): PathFrom<typeof g_secret> {
-		return `/secret.${g_secret.type}/uuid.${g_secret.uuid}`;
+	pathFrom<g_secret extends Pick<SecretStruct, 'type' | 'uuid'>>(g_secret: g_secret): PathFrom<g_secret> {
+		return `/secret.${g_secret.type}/uuid.${g_secret.uuid}` as PathFrom<g_secret>;
 	},
 
 	pathAndKeyFrom(g_secret: SecretStruct): [PathFrom<typeof g_secret>, `:${string}`] {
@@ -181,7 +182,7 @@ export const Secrets = {
 	},
 
 	async update<g_secret extends SecretStruct>(g_secret: g_secret): Promise<PathFrom<g_secret>> {
-		const p_secret = Secrets.pathFrom(g_secret) as PathFrom<g_secret>;
+		const p_secret = Secrets.pathFrom(g_secret);
 
 		await Secrets.borrowPlaintext(p_secret, kn => Secrets.put(kn.data, g_secret));
 
@@ -341,7 +342,9 @@ export const Secrets = {
 		);
 
 		// no filter; return everything
-		if(!Object.keys(gc_filter || {}).length) return a_entries as StructFromFilterConfig<gc_filter>[];
+		if(!Object.keys(gc_filter || {}).length) {
+			return a_entries as unknown as StructFromFilterConfig<gc_filter>[];
+		}
 
 		// list of secrets matching given filter
 		const a_matches: SecretStruct[] = [];
@@ -391,7 +394,7 @@ export const Secrets = {
 					// expectation given as array
 					if(Array.isArray(z_expect)) {
 						// each expected contract
-						for(const sa_contract of z_expect) {
+						for(const sa_contract of z_expect as string[]) {
 							// only reject if contract was never involved
 							if(!(sa_contract in z_actual)) continue FILTERING_SECRETS;
 						}
@@ -399,7 +402,7 @@ export const Secrets = {
 					// expectation given as dict
 					else if(is_dict(z_expect)) {
 						// each expected contract
-						for(const [sa_contract, sx_expect] of ode(z_expect)) {
+						for(const [sa_contract, sx_expect] of ode(z_expect) as [string, string][]) {
 							// non-empty string indicates the tx hash that the permit was revoked, undefined means no permit
 							if(sx_expect !== z_actual[sa_contract]) continue FILTERING_SECRETS;
 						}
@@ -416,7 +419,7 @@ export const Secrets = {
 		}
 
 		// return matches
-		return a_matches as StructFromFilterConfig<gc_filter>[];
+		return a_matches as unknown as StructFromFilterConfig<gc_filter>[];
 	},
 
 	async filterMany(...a_filters: SecretFilterConfig[]): Promise<SecretStruct[]> {

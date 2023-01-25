@@ -1,4 +1,4 @@
-/// <reference types="chrome-types" />
+/// <reference types="@types/chrome" />
 /// <reference types="svelte" />
 /// <reference types="vite/client" />
 /// <reference types="@solar-republic/vite-plugin-web-extension/client" />
@@ -49,6 +49,7 @@ export type WebKitMessageHandlerRegsitry = {
 type WebKitMessageHandlerKey = keyof WebKitMessageHandlerRegsitry;
 
 declare global {
+	/* eslint-disable @typescript-eslint/naming-convention */
 	const __H_MEDIA_BUILTIN: Store.Cache<typeof SI_STORE_MEDIA>;
 	const __H_MEDIA_LOOKUP: Dict<Resource.Path<ImageMedia>>;
 	const __SI_VERSION: string;
@@ -68,4 +69,6 @@ declare global {
 	const webkit: {
 		messageHandlers: WebKitMessageHandlers<WebKitMessageHandlerRegsitry>;
 	};
+
+	/* eslint-enable */
 }

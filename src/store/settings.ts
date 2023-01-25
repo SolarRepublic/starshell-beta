@@ -55,6 +55,7 @@ export type SettingsRegistry = {
 
 export type SettingsKey = keyof SettingsRegistry;
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export const Settings = create_store_class({
 	store: SI_STORE_SETTINGS,
 	extension: 'dict',

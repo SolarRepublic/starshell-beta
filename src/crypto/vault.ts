@@ -9,7 +9,8 @@ import {Argon2Type} from './argon2';
 
 import SensitiveBytes from './sensitive-bytes';
 
-import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set, StoredHashParams} from '#/extension/public-storage';
+import type {StoredHashParams} from '#/extension/public-storage';
+import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
 import {WorkerHost} from '#/extension/worker-host';
 import {global_broadcast} from '#/script/msg-global';

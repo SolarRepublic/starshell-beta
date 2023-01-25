@@ -1,5 +1,5 @@
 <script lang="ts" context="module">
-	export type Status = 'connected' | 'no_permissions' | 'disconnected' | 'blocked';
+	export type Status = 'connected' | 'no_permissions' | 'disabled' | 'disconnected' | 'blocked';
 </script>
 
 <script lang="ts">
@@ -36,6 +36,9 @@
 		},
 		disconnected: {
 			text: 'Disconnected',
+		},
+		disabled: {
+			text: 'Disabled',
 		},
 		blocked: {
 			text: 'Blocked',
@@ -131,7 +134,7 @@
 						}
 					}
 
-					&.no_permissions {
+					&.no_permissions,&.disabled {
 						color: var(--theme-color-caution);
 
 						&::before {

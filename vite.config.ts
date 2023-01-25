@@ -1,18 +1,18 @@
-import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
-import {defineConfig, loadEnv} from 'vite';
-import replace from '@rollup/plugin-replace';
 import nodeResolve from '@rollup/plugin-node-resolve';
-import analyze from 'rollup-plugin-analyzer'
-import graph from 'rollup-plugin-graph';
-import {svelte} from '@sveltejs/vite-plugin-svelte';
+import replace from '@rollup/plugin-replace';
 import webExtension from '@samrum/vite-plugin-web-extension';
+import {svelte} from '@sveltejs/vite-plugin-svelte';
+import analyze from 'rollup-plugin-analyzer';
+import graph from 'rollup-plugin-graph';
+import {defineConfig, loadEnv} from 'vite';
 
 import G_PACKAGE_JSON from './package.json';
-import {H_BROWSERS} from './src/manifest';
 import {inlineRequire} from './plugins/inline-require';
+import {buildBrowserManifest} from './src/manifest';
 import {
 	base64_to_buffer, buffer_to_base58,
 } from './src/util/data';
@@ -25,7 +25,7 @@ const H_REPLACEMENTS_ENGINE = {
 
 const PD_MEDIA = path.join(__dirname, 'public', 'media');
 
-function builtin_media(): Record<string, {hash:string; data:string;}> {
+function builtin_media(): Record<string, {hash: string; data: string}> {
 	// prep output dict
 	const h_out = {};
 
@@ -63,8 +63,7 @@ function builtin_media(): Record<string, {hash:string; data:string;}> {
 
 // `defineConfig` is merely used to provide type hints in IDEs
 export default defineConfig((gc_run) => {
-	// the callback function above is used to control configuration depending on run target
-	// destructure it
+	// destructure run config
 	const {
 		command: si_command,
 		mode: si_mode,
@@ -72,7 +71,7 @@ export default defineConfig((gc_run) => {
 
 	// sensitive build values are stored in environment variables
 	const {
-		ENGINE: SI_ENGINE='chrome' as 'chrome' | 'firefox' | 'safari' | 'ios',
+		ENGINE: SI_ENGINE='chrome' as 'chrome' | 'firefox' | 'safari',
 	} = {
 		...loadEnv(si_mode, process.cwd(), ''),
 		...process.env,
@@ -84,11 +83,9 @@ export default defineConfig((gc_run) => {
 	// compute lookup table
 	const H_MEDIA_LOOKUP = Object.fromEntries(Object.entries(H_MEDIA_BUILTIN).map(([si_key, g_media]) => [g_media.data, si_key]));
 
-	const SI_BROWSER = 'ios' === SI_ENGINE? 'safari': SI_ENGINE;
+	const SI_BROWSER = SI_ENGINE;
 
 	const srd_out = `dist/${SI_ENGINE}`;
-
-	// const sx_deep_seal = fs.readFileSync('./plugins/deep-seal/content.js');
 
 	return {
 		define: {
@@ -117,22 +114,16 @@ export default defineConfig((gc_run) => {
 			// build svelte components
 			svelte(),
 
-			...'ios' === SI_ENGINE
-				? [
-					// viteSingleFile(),
-				]
-				// build scripts and output manifest for web extension
-				: [
-					webExtension({
-						manifest: {
-							author: G_PACKAGE_JSON.author.name,
-							description: G_PACKAGE_JSON.description,
-							name: G_PACKAGE_JSON.displayName,
-							version: G_PACKAGE_JSON.version,
-							...H_BROWSERS[SI_BROWSER].manifest,
-						} as chrome.runtime.ManifestV2 & chrome.runtime.ManifestV3,
-					}),
-				],
+			// build scripts and output manifest for web extension
+			webExtension({
+				manifest: {
+					author: G_PACKAGE_JSON.author.name,
+					description: G_PACKAGE_JSON.description,
+					name: G_PACKAGE_JSON.displayName,
+					version: G_PACKAGE_JSON.version,
+					...buildBrowserManifest('production' === si_mode)[SI_BROWSER].manifest,
+				} as chrome.runtime.ManifestV2 & chrome.runtime.ManifestV3,
+			}),
 
 			{
 				name: 'bundle-mapper',
@@ -165,10 +156,6 @@ export default defineConfig((gc_run) => {
 			},
 		},
 
-		// ...'ios' === SI_ENGINE? {
-		// 	base: '../../',
-		// }: {},
-
 		build: {
 			sourcemap: true,
 			minify: 'production' === si_mode,
@@ -177,13 +164,6 @@ export default defineConfig((gc_run) => {
 			target: 'es2020',
 
 			rollupOptions: {
-				...'ios' === SI_ENGINE && {
-					input: {
-						popup: 'src/entry/popup.html',
-						flow: 'src/entry/flow.html',
-					},
-				},
-
 				output: {
 					...('firefox' === SI_ENGINE) && {
 						manualChunks: {
