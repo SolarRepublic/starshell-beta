@@ -70,6 +70,7 @@
 
 	<hr class="no-margin">
 
+	<div class="flex_1" />
 
 	<ActionsWall>
 		<button disabled={b_disabled} on:click={() => close()}>Don't Restart</button>

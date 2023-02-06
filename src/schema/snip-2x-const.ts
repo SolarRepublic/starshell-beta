@@ -54,6 +54,12 @@ import {
 } from '#/util/data';
 import {RateLimitingPool} from '#/util/rate-limiting-pool';
 
+export type TransferHistoryData = Dict<TransferHistoryItem>;
+
+export type TransferHistoryCache = {
+	transfers: TransferHistoryData;
+	order: string[];
+};
 
 type TokenInfoResponse = Snip20.BaseQueryResponse<'token_info'>;
 
@@ -485,7 +491,13 @@ export async function deduce_token_interfaces(
 					for(const si_query of g_deduction!.queries) {
 						// query not present in contract
 						if(!a_queries.includes(si_query)) {
-							await _demote(si_interface);
+							// avoid demoting built-in snip-20
+							if('snip20' === si_interface) {
+								debugger;
+							}
+							else {
+								await _demote(si_interface);
+							}
 
 							continue DEDUCTIONS;
 						}
@@ -752,18 +764,13 @@ export class Snip2xToken {
 	}
 
 	async transferHistory(nl_page_size=16): QueryRes<'transfer_history'> {
-		type TransferHistoryCache = TransferHistoryItem[];
-
 		nl_page_size = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, nl_page_size));
 
 		// read from cache
-		const g_cache = await this.readCache<{
-			transfers: TransferHistoryCache;
-			order: string[];
-		}>('transfer_history');
+		const g_cache = await this.readCache<TransferHistoryCache>('transfer_history');
 
 		// new transfer cache
-		const h_trs: TransferHistoryCache = g_cache?.data?.transfers || [];
+		const h_trs: TransferHistoryData = g_cache?.data?.transfers || {};
 		const a_order = g_cache?.data?.order || [];
 
 		// count number of new trs

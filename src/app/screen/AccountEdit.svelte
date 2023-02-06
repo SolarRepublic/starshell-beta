@@ -50,7 +50,11 @@
 
 	$: b_form_valid = !!s_name;
 
-	$: sa_account = g_account && $yw_chain? Chains.addressFor(g_account.pubkey, $yw_chain): '';
+	$: sa_account = g_account
+		? $yw_chain
+			? Chains.addressFor(g_account.pubkey, $yw_chain)
+			: Chains.addressFor(g_account.pubkey, 'addr').slice(0, -6)+'[...]'
+		: '';
 
 	const {
 		k_page,

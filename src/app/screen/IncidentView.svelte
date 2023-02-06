@@ -3,12 +3,13 @@
 
 	import type {AccountPath, AccountStruct} from '#/meta/account';
 	import type {AppPath, AppStruct} from '#/meta/app';
-	import type {JsonObject, JsonValue, Promisable} from '#/meta/belt';
+	import type {Dict, JsonObject, JsonValue, Promisable} from '#/meta/belt';
 	import type {ChainStruct, ChainPath} from '#/meta/chain';
+	import type {Cw} from '#/meta/cosm-wasm';
 	import type {FieldConfig} from '#/meta/field';
 	import type {Incident, IncidentStruct, IncidentPath, IncidentType} from '#/meta/incident';
 	
-	import type {TransactionHistoryItem} from '#/schema/snip-2x-def';
+	import type {TransactionHistoryItem, TransferHistoryItem} from '#/schema/snip-2x-def';
 	
 	import {MsgSend} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/tx';
 	import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
@@ -23,6 +24,7 @@
 	import type {CosmosNetwork} from '#/chain/cosmos-network';
 	import type {ReviewedMessage} from '#/chain/messages/_types';
 	import {_FAILED_MESSAGE_OVERRIDE} from '#/chain/messages/compute';
+	import type {SelectTransactionHistoryItem} from '#/chain/messages/snip-history';
 	import {H_SNIP_TRANSACTION_HISTORY_HANDLER} from '#/chain/messages/snip-history';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 	import {Accounts} from '#/store/accounts';
@@ -42,6 +44,7 @@
 	import Spacer from '../ui/Spacer.svelte';
 	
 	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
+    import type { TransferHistoryCache } from '#/schema/snip-2x-const';
 
 
 	const {
@@ -320,9 +323,6 @@
 
 			const sa_owner = Chains.addressFor(g_account.pubkey, g_chain);
 
-			// load from query cache
-			const g_response = await QueryCache.get(p_chain, sa_owner, `${sa_contract}:transaction_history`);
-
 			const g_contract = await produce_contract(sa_contract, g_chain);
 
 			const a_fields_inbound_above: FieldConfig[] = [
@@ -334,51 +334,73 @@
 				},
 			];
 
+			const ks_cache = await QueryCache.read();
+
 			const a_fields_inbound_below: FieldConfig[] = [];
-	
-			if(g_response) {
-				const h_data = g_response.data;
-				const g_tx = h_data[si_tx] as TransactionHistoryItem;
+
+			let g_transfer: SelectTransactionHistoryItem | null = null;
+
+			// load from query cache
+			let g_cache_txn = ks_cache.get<Dict<TransactionHistoryItem>>(p_chain, sa_owner, `${sa_contract}:transaction_history`);
+			if(g_cache_txn) {
+				const h_data = g_cache_txn.data;
+				const g_tx = h_data[si_tx];
 				const h_action = g_tx.action;
 				if(h_action.transfer) {
-					const g_transfer = h_action.transfer;
-
-					const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer({
+					g_transfer = {
 						coins: g_tx.coins,
-						from: g_transfer.from,
-						receiver: g_transfer.recipient,
+						from: h_action.transfer.from,
+						receiver: h_action.transfer.recipient,
 						memo: g_tx.memo,
-					}, {
-						g_snip20: g_contract.interfaces.snip20!,
-						g_contract,
-						g_chain,
-						g_account,
-					});
-
-
-					const g_reviewed = await g_handled?.review?.();
-
-					if(g_reviewed) {
-						return {
-							s_title: g_reviewed.title,
-							a_fields: [
-								...a_fields_inbound_above,
-								...g_reviewed?.fields || [],
-								...a_fields_inbound_below,
-							],
-						};
-					}
+					};
 				}
-
-				return {
-					s_title: 'Received Transfer',
-					a_fields: [
-						...a_fields_inbound_above,
-						...[],
-						...a_fields_inbound_below,
-					],
-				};
 			}
+			else {
+				let g_cache_xfr = ks_cache.get<TransferHistoryCache>(p_chain, sa_owner, `${sa_contract}:transfer_history`);
+				if(g_cache_xfr) {
+					const g_xfer = g_cache_xfr.data?.transfers?.[si_tx];
+					g_transfer = {
+						coins: g_xfer.coins,
+						from: g_xfer.from!,
+						receiver: g_xfer.receiver,
+						memo: '' as Cw.String,
+					};
+				}
+				else {
+					return;
+				}
+			}
+
+			if(g_transfer) {
+				const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_transfer, {
+					g_snip20: g_contract.interfaces.snip20!,
+					g_contract,
+					g_chain,
+					g_account,
+				});
+
+				const g_reviewed = await g_handled?.review?.();
+
+				if(g_reviewed) {
+					return {
+						s_title: g_reviewed.title,
+						a_fields: [
+							...a_fields_inbound_above,
+							...g_reviewed?.fields || [],
+							...a_fields_inbound_below,
+						],
+					};
+				}
+			}
+
+			return {
+				s_title: 'Received Transfer',
+				a_fields: [
+					...a_fields_inbound_above,
+					...[],
+					...a_fields_inbound_below,
+				],
+			};
 		},
 
 		account_created: g_data => ({

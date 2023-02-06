@@ -15,7 +15,7 @@ import {Chains} from '#/store/chains';
 import {format_amount} from '#/util/format';
 
 
-type SelectTransactionHistoryItem = Pick<TransferHistoryItem, 'from' | 'receiver' | 'coins' | 'memo'>;
+export type SelectTransactionHistoryItem = Pick<TransferHistoryItem, 'from' | 'receiver' | 'coins' | 'memo'>;
 
 type HistoryHandler = Record<'transfer', (g_tx: SelectTransactionHistoryItem, g_context: {
 	g_snip20: TokenStructDescriptor<'snip20'>['snip20'];

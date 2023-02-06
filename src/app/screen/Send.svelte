@@ -505,6 +505,7 @@
 	#field-recipient-status {
 		:global(&) {
 			margin-top: -12px;
+			margin-bottom: 0;
 		}
 
 		.field-value {
@@ -680,7 +681,7 @@
 	{#if b_new_address && b_checked_save_contact}
 		<Field short slides
 			key='new-contact-name'
-			name='Contact Name'
+			name='Save as'
 		>
 			<input id="new-contact-name-value" type="text" on:input={input_new_contact} class:invalid={s_err_new_contact}>
 

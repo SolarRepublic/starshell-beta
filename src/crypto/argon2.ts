@@ -1,9 +1,14 @@
 import type {O} from 'ts-toolbelt';
 
-import {buffer_to_text, zero_out} from '#/util/data';
+import {buffer_to_text, concat, zero_out} from '#/util/data';
 
 export interface Argon2Methods {
 	hash(gc_hash: Argon2Config): Promise<Uint8Array>;
+	attack(gc_attack: AttackConfig): Promise<Uint8Array>;
+}
+
+export interface Argon2Worker extends Argon2Methods {
+	terminate(): void;
 }
 
 export type Argon2Params = {
@@ -26,6 +31,14 @@ export type Argon2Config = O.Merge<Argon2Params, {
 	 */
 	preserve?: boolean;
 }>;
+
+export type AttackConfig = {
+	attempts: number;
+	difficulty: number;
+	params: Omit<Argon2Config, 'salt'> & {
+		salt?: Argon2Config['salt'];
+	};
+};
 
 interface Argon2WasmInstance {
 	mem: ProgramMemory;
@@ -303,6 +316,46 @@ export const Argon2: Argon2Methods = {
 		}
 
 		return atu8_output;
+	},
+
+	async attack(gc_attack: AttackConfig): Promise<Uint8Array> {
+		const {
+			attempts: n_attempts,
+			difficulty: n_difficulty,
+			params: gc_hash,
+		} = gc_attack;
+
+		// ref or create initial guess vector
+		const atu32_guess = 32 === gc_hash.salt?.byteLength? gc_hash.salt: crypto.getRandomValues(new Uint32Array(8));
+
+		// obtain u8 buffer view
+		const atu8_guess = new Uint8Array(atu32_guess.buffer);
+
+		// set difficulty mask
+		const xm_difficulty = ~(~0 >>> n_difficulty) >>> 0;
+
+		// make attempts
+		for(let c_attempts=0; c_attempts<n_attempts; c_attempts++) {
+			// run hash algo
+			const atu8_hash = await Argon2.hash({
+				...gc_hash,
+				salt: atu8_guess,
+			});
+
+			// read highest 32 bits in BE
+			const xu32_hi = new DataView(atu8_hash.buffer).getUint32(atu8_hash.byteOffset, false) >>> 0;
+
+			// solved
+			if(0 === (xu32_hi & xm_difficulty) >>> 0) {
+				return concat([atu8_guess, atu8_hash]);
+			}
+
+			// move onto next guess
+			atu32_guess[0] += 1;
+		}
+
+		// finished attempts, did not succeed
+		return new Uint8Array(0);
 	},
 };
 

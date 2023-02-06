@@ -25,7 +25,7 @@
 </style>
 
 
-<div class="bottom no-flex">
+<div class="bottom flex_0">
 	<div class="actions-wall">
 		<slot />
 	</div>

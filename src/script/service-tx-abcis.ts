@@ -58,6 +58,11 @@ export interface CosmosEvents {
 interface AbciExtras {
 	g_synced?: TxSynced | TxError;
 	si_txn?: string;
+
+	/**
+	 * Optionally, the block of the previous bulk sync
+	 */
+	xg_previous?: bigint;
 }
 
 interface TxDataExtra extends AbciExtras {

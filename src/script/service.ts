@@ -4,7 +4,15 @@ debug(`Launched on ${Date()}`);
 
 /* eslint-disable i/order */
 import {do_webkit_polyfill} from './webkit-polyfill';
-import {B_IPHONE_IOS, B_IOS_NATIVE, G_USERAGENT, R_CAIP_2, XT_TIMEOUT_APP_PERMISSIONS, XT_TIMEOUT_SERVICE_REQUEST, SI_EXTENSION_ID_KEPLR} from '#/share/constants';
+import {
+	B_IPHONE_IOS,
+	B_IOS_NATIVE,
+	G_USERAGENT,
+	XT_TIMEOUT_APP_PERMISSIONS,
+	XT_TIMEOUT_SERVICE_REQUEST,
+	SI_EXTENSION_ID_KEPLR,
+	B_DEVELOPMENT,
+} from '#/share/constants';
 /* eslint-enable */
 
 if(B_IOS_NATIVE) {
@@ -22,67 +30,39 @@ import type {
 
 import type {AppStatus} from './service-apps';
 import type Browser from 'webextension-polyfill';
-import type {AccountStruct, AccountPath} from '#/meta/account';
+import type {AccountPath} from '#/meta/account';
 import type {AppChainConnection, AppPermissionSet} from '#/meta/app';
 import type {JsonObject, JsonValue} from '#/meta/belt';
 import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 import type {IncidentPath} from '#/meta/incident';
-
-
-import type {SecretStruct} from '#/meta/secret';
 import type {Vocab} from '#/meta/vocab';
-
-import {fromBech32, toBech32} from '@cosmjs/encoding';
-import {decodeTxRaw} from '@cosmjs/proto-signing';
-import {MsgExecuteContract} from '@solar-republic/cosmos-grpc/dist/cosmwasm/wasm/v1/tx';
-import {MsgExecuteContract as SecretMsgExecuteContract} from '@solar-republic/cosmos-grpc/dist/secret/compute/v1beta1/msg';
-
-import BigNumber from 'bignumber.js';
 
 import IcsHost from './ics-host';
 import McsRatifier from './mcs-ratifier';
 import {open_flow} from './msg-flow';
-import {global_broadcast, global_receive} from './msg-global';
+import {global_receive} from './msg-global';
 import {set_keplr_compatibility_mode} from './scripts';
-
 
 import {app_blocked, check_app_permissions, page_info_from_sender, parse_sender, position_widow_over_tab, request_advertisement, request_keplr_decision, RetryCode, unlock_to_continue} from './service-apps';
 import {NetworkFeed} from './service-feed';
 import {H_HANDLERS_ICS_APP} from './service-handlers-ics-app';
-
 import {instruction_handlers} from './service-router-instruction';
 
-import {amino_to_base, encode_proto, proto_to_amino} from '#/chain/cosmos-msgs';
-import {pubkey_to_bech32} from '#/crypto/bech32';
-import {EntropyProducer} from '#/crypto/entropy';
-import SensitiveBytes from '#/crypto/sensitive-bytes';
 import {Vault} from '#/crypto/vault';
 import {system_notify} from '#/extension/notifications';
 import {add_permission_to_set, process_permissions_request} from '#/extension/permissions';
-import {PublicStorage, storage_clear, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {ServiceHost} from '#/extension/service-comms';
-import {SessionStorage} from '#/extension/session-storage';
 import type {InternalConnectionsResponse} from '#/provider/connection';
-import {import_private_key} from '#/share/account';
-import {factory_reset, reinstall} from '#/share/auth';
+import {reinstall} from '#/share/auth';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
-import {Contracts} from '#/store/contracts';
-import {Histories, Incidents} from '#/store/incidents';
-import {Providers} from '#/store/providers';
-import {Secrets} from '#/store/secrets';
-import {Settings} from '#/store/settings';
-import {crypto_random_int, F_NOOP, ode, random_int, shuffle, timeout, timeout_exec} from '#/util/belt';
-import {base58_to_buffer, base64_to_buffer, base93_to_buffer, buffer_to_base58, buffer_to_base64, buffer_to_base93, buffer_to_hex, buffer_to_text, hex_to_buffer, ripemd160_sync, sha256d, sha256_sync, text_to_base64, text_to_buffer, uuid_v4} from '#/util/data';
+import {F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
+import {base64_to_buffer, buffer_to_base64, sha256d} from '#/util/data';
 import {stringify_params} from '#/util/dom';
 
-import type {StoreKey} from '#/meta/store';
-
-import {Argon2} from '#/crypto/argon2';
-import {SecretWasm} from '#/crypto/secret-wasm';
-import {SecretNetwork} from '#/chain/secret-network';
-import {FeeGrants} from '#/chain/fee-grant';
+import {enable_debug_mode} from './debug';
+import {KeplrExtensionState, keplr_extension_state} from './utils';
 
 
 
@@ -221,6 +201,13 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 
 		// app does not have permissions; silently ignore
 		if(!g_check) return;
+
+		// keplr is installed and enabled
+		if(KeplrExtensionState.ENABLED === await keplr_extension_state()) {
+			await request_keplr_decision(g_msg.profile!, g_sender);
+			fk_respond({});
+			return;
+		}
 
 		// destructure
 		const {
@@ -411,15 +398,6 @@ const H_HANDLERS_ICS: Vocab.HandlersChrome<IcsToService.PublicVocab> = {
 
 			// keplr is installed and enabled
 			if(g_keplr.enabled) {
-				// ask user what to do
-				const s_action = await request_keplr_decision(g_detected.profile, g_sender);
-
-				// user disabled it
-				if('disabled' === s_action) break CHECK_KEPLR_ENABLED;
-
-				// user want's to use keplr; do not interfere with it
-
-
 				debug(`Content Script at "${g_sender.url}" detected Keplr API but Keplr is installed and active, ignoring polyfill.`);
 				return;
 			}
@@ -948,124 +926,9 @@ void check_network_feeds();
 // set compatibility mode based on apps and current settings
 void set_keplr_compatibility_mode();
 
-// development mode
-function enable_debug_mode() {
-	Object.assign(globalThis.debug? globalThis.debug: globalThis.debug={}, {
-		async decrypt(si_store: StoreKey) {
-			// fetch the root key
-			const dk_root = await Vault.getRootKey();
 
-			// derive the cipher key
-			const dk_cipher = await Vault.cipherKey(dk_root!, true);
-
-			// read from the store
-			const kv_store = await Vault.readonly(si_store);
-
-			// read the store as json
-			const w_store = await kv_store.readJson(dk_cipher);
-
-			return w_store;
-		},
-
-		Argon2,
-
-		Secrets,
-		Accounts,
-		Apps,
-		Chains,
-		Contracts,
-		Histories,
-		Incidents,
-		Providers,
-
-		EntropyProducer,
-		SecretWasm,
-		SecretNetwork,
-
-		base93_to_buffer,
-		base58_to_buffer,
-		buffer_to_base93,
-		buffer_to_base58,
-		base64_to_buffer,
-		buffer_to_base64,
-		sha256_sync,
-		ripemd160_sync,
-		hex_to_buffer,
-		buffer_to_hex,
-		text_to_base64,
-		text_to_buffer,
-		buffer_to_text,
-		pubkey_to_bech32,
-		fromBech32,
-		toBech32,
-		SessionStorage,
-		PublicStorage,
-		G_USERAGENT,
-
-		shuffle,
-		random_int,
-		crypto_random_int,
-
-		decodeTxRaw,
-		set_keplr_compatibility_mode,
-		SecretMsgExecuteContract,
-		MsgExecuteContract,
-
-		amino_to_base,
-		proto_to_amino,
-		encode_proto,
-
-		global_broadcast,
-		global_receive,
-
-		factory_reset,
-
-		storage_get,
-		storage_get_all,
-		storage_set,
-		storage_remove,
-		storage_clear,
-
-		Settings,
-		BigNumber,
-
-		FeeGrants,
-
-		async network(si_chain='secret-4') {
-			const g_chain = await Chains.at(`/family.cosmos/chain.${si_chain}`);
-			return await Providers.activateStableDefaultFor(g_chain!);
-		},
-
-		async import_sk(sxb64_sk: string, s_name='Citizen '+uuid_v4().slice(0, 4)) {
-			const atu8_sk = base64_to_buffer(sxb64_sk);
-
-			const kn_sk = new SensitiveBytes(atu8_sk);
-
-			return await import_private_key(kn_sk, s_name);
-		},
-
-		async import_account(g_account: AccountStruct): Promise<AccountPath> {
-			return await Accounts.open(ks_accounts => ks_accounts.put(g_account));
-		},
-
-		async import_secrets(a_data: Array<number[]>, a_secrets: SecretStruct[]) {
-			for(let i_secret=0; i_secret<a_secrets.length; i_secret++) {
-				await Secrets.put(Uint8Array.from(a_data[i_secret]), a_secrets[i_secret]);
-			}
-		},
-
-		async inspect_tx(si_tx: string, si_caip2: Caip2.String) {
-			const [, si_namespace, si_reference] = R_CAIP_2.exec(si_caip2)!;
-			const p_chain = Chains.pathFor(si_namespace as 'cosmos', si_reference);
-			const g_chain = (await Chains.at(p_chain))!;
-			const k_network = await Providers.activateDefaultFor(g_chain);
-			return await k_network.fetchTx(si_tx);
-		},
-	});
-}
-
-
-if('development' === import.meta.env.MODE) {
+if(B_DEVELOPMENT) {
+	// chrome won't allow dynamic import from service worker
 	enable_debug_mode();
 }
 
@@ -1075,7 +938,8 @@ try {
 		try {
 			const atu8_verify = await sha256d(base64_to_buffer(g_answer['@enable_developer_mode'] as string));
 			if('5ASpwSBF4nQFNUnM9gY7bOk+kuumb707tuIbpWSkjAA=' === buffer_to_base64(atu8_verify)) {
-				console.log('🕵️ developer mode enabled');
+				console.log('🧑‍💻 developer mode enabled');
+
 				enable_debug_mode();
 			}
 		}

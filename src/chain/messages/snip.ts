@@ -534,7 +534,8 @@ export const H_SNIP_HANDLERS: Partial<SnipHandlers> = wrap_handlers<Snip2x.AnyMe
 
 		const a_tokens = a_sent.map((g_sent) => {
 			const [si_coin, g_coin] = Coins.infoFromDenom(g_sent.denom, g_chain)!;
-			if(si_coin === g_rate.denom) {
+
+			if(g_coin.denom === g_rate.denom) {
 				return BigNumber(g_sent.amount).shiftedBy(-g_coin.decimals).div(g_rate.rate).toString()+' '+s_symbol;
 			}
 			else {

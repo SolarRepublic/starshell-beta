@@ -250,6 +250,14 @@
 					flex: 0;
 				}
 
+				:global(&.flex_0) {
+					flex: 0;
+				}
+
+				:global(&.flex_1) {
+					flex: 1;
+				}
+
 				:global(:where(&:not(.no-margin))) {
 					margin: 0 var(--ui-padding);
 				}

@@ -58,6 +58,7 @@ console.log(`StarShell.ics-link: Launched on <${location.href}>`);
 	}
 
 	window.addEventListener('DOMContentLoaded', () => {
-		init();
+		// TODO: re-enable link script once deep-linking is ready
+		// init();
 	});
 })();

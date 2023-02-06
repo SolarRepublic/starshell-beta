@@ -7,15 +7,15 @@ import type {Store, StoreKey} from '#/meta/store';
 
 import {Argon2Type} from './argon2';
 
+import {load_argon_worker} from './argon2-host';
 import SensitiveBytes from './sensitive-bytes';
 
 import type {StoredHashParams} from '#/extension/public-storage';
 import {PublicStorage, public_storage_get, public_storage_put, public_storage_remove, storage_get, storage_get_all, storage_remove, storage_set} from '#/extension/public-storage';
 import {SessionStorage} from '#/extension/session-storage';
-import {WorkerHost} from '#/extension/worker-host';
 import {global_broadcast} from '#/script/msg-global';
 
-import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_LOCALHOST, XG_64_BIT_MAX} from '#/share/constants';
+import {ATU8_DUMMY_PHRASE, ATU8_SHA256_STARSHELL, B_DEVELOPMENT, B_LOCALHOST, XG_64_BIT_MAX} from '#/share/constants';
 import {NotAuthenticatedError} from '#/share/errors';
 import {F_NOOP} from '#/util/belt';
 import {
@@ -32,9 +32,11 @@ import {
 
 
 // number of argon hashing iterations
-export const N_ARGON2_ITERATIONS = B_LOCALHOST? 1: 42;
+export const N_ARGON2_ITERATIONS = B_LOCALHOST? 1
+	: B_DEVELOPMENT? 8: 21;
 
-export const NB_ARGON2_MEMORY = B_LOCALHOST? 256: 32 * 1024;  // 32 KiB
+export const NB_ARGON2_MEMORY = B_LOCALHOST? 256
+	: B_DEVELOPMENT? 1024: 32 * 1024;  // 32 KiB
 
 /**
  * Sets the block size to use when padding plaintext before encrypting for storage.
@@ -43,10 +45,6 @@ const NB_PLAINTEXT_BLOCK_SIZE = 512;
 
 // size of salt in bytes
 const NB_SALT = 256 >> 3;
-
-// pseudo-random hash function (OK to use SHA-512 with AES-256 since kdf will simply use higheset-order octets of hash)
-// <https://crypto.stackexchange.com/questions/41476/is-there-any-benefit-from-using-sha-512-over-sha-256-when-aes-just-truncates-it>
-const SI_PRF = 'SHA-512';
 
 // size of derived AES key in bits
 const NI_DERIVED_AES_KEY = 256;
@@ -216,6 +214,7 @@ interface RootKeyStruct {
 	key: CryptoKey;
 	vector: Uint8Array;
 	nonce: bigint;
+	params: StoredHashParams;
 }
 
 
@@ -241,30 +240,6 @@ interface RootKeysData {
 
 // wait for release from local frame
 const h_release_waiters_local: Dict<VoidFunction[]> = {};
-
-// argon worker
-let k_argon_host: Argon2Methods;
-async function load_argon_worker(): Promise<Argon2Methods> {
-	if(k_argon_host) return k_argon_host;
-
-	// when testing on localhost, import argon2 directly to run on main thread
-	if(B_LOCALHOST) {
-		const {Argon2} = await import('#/crypto/argon2');
-		return k_argon_host = {
-			...Argon2,
-
-			// override hash function by injecting preserve flag
-			hash: gc_hash => Argon2.hash({
-				...gc_hash,
-				preserve: true,
-			}),
-		};
-	}
-	// otherwise use webworker so as to not block ui
-	else {
-		return k_argon_host = await WorkerHost.create('assets/src/script/worker-argon2');
-	}
-}
 
 
 /**
@@ -368,6 +343,7 @@ export const Vault = {
 	/**
 	 * Loads the Argon2 WASM worker
 	 */
+	// TODO: delete in favor of direct call to function
 	async wasmArgonWorker(): Promise<Argon2Methods> {
 		return await load_argon_worker();
 	},
@@ -430,13 +406,12 @@ export const Vault = {
 		// read from stored params
 		const g_params_old = (await PublicStorage.hashParams())!;
 
-		// if a new version changes the number of iterations used, it should happen here
-		// migration
-		const g_params_new = g_params_old;
-		// const g_last_seen = await PublicStorage.lastSeen();
-		// if(!g_last_seen) {
-		// 	g_params_new = {...};
-		// }
+		// automatic migration; set new params from const
+		const g_params_new: StoredHashParams = {
+			...g_params_old,
+			iterations: N_ARGON2_ITERATIONS,
+			memory: NB_ARGON2_MEMORY,
+		};
 
 		// derive the two root byte sequences for this session
 		const [
@@ -468,11 +443,13 @@ export const Vault = {
 				key: dk_root_old,
 				vector: atu8_vector_old,
 				nonce: xg_nonce_old,
+				params: g_params_old,
 			},
 			new: {
 				key: dk_root_new,
 				vector: atu8_vector_new,
 				nonce: xg_nonce_new,
+				params: g_params_new,
 			},
 			export: b_export_new? kn_root_new: null,
 		};
@@ -547,7 +524,7 @@ export const Vault = {
 			]);
 
 			// ready from storage
-			const sx_entry = await storage_get<string>(si_key);
+			const sx_entry = await storage_get<string>(si_key as StoreKey);
 
 			// skip no data
 			if(!sx_entry) continue;
@@ -632,7 +609,7 @@ export const Vault = {
 		return new Promise((fk_acquired) => {
 			// abort signal timeout
 			const d_controller = new AbortController();
-			const i_abort = setTimeout(() => {
+			const i_abort = (globalThis as typeof window).setTimeout(() => {
 				d_controller.abort();
 			}, 5e3);
 
@@ -665,7 +642,7 @@ export const Vault = {
 				};
 
 				// create lease timeout
-				const i_lease = setTimeout(() => {
+				const i_lease = (globalThis as typeof window).setTimeout(() => {
 					// log error
 					console.error(`${si_key} mutex was not released within time limit. Forcibly revoking access`);
 

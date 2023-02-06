@@ -43,6 +43,22 @@ class Subscribable<
 		};
 	}
 
+	// // similar to subscribe but performs initial callback
+	// follow(f_subscription: Subscriber<w_value>, b_skip_initial=false): VoidFunction {
+	// 	this._a_subscribers.push(f_subscription);
+
+	// 	// invoke immediately after
+	// 	if(true !== b_skip_initial) {  // eslint-disable-line @typescript-eslint/no-unnecessary-boolean-literal-compare
+	// 		queueMicrotask(() => {
+	// 			void f_subscription(this._w_value);
+	// 		});
+	// 	}
+
+	// 	return () => {
+	// 		remove(this._a_subscribers, f_subscription);
+	// 	};
+	// }
+
 	once(f_callback: Subscriber<w_value>): void {
 		const f_wrapper = () => {
 			remove(this._a_subscribers, f_wrapper);

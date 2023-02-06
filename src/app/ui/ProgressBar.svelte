@@ -24,8 +24,8 @@
 	}
 </style>
 
-<span class="progress-bar">
+<div class="progress-bar">
 	<span bind:this={dm_bar}>
 		&nbsp;
 	</span>
-</span>
+</div>

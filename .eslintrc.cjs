@@ -4,10 +4,10 @@ const H_PRIMITIVES = {
 		'b',
 	],
 	number: [
-		'c[b]?', 'i([bt]|px)?', 'n[lb]?', 'x[a-z]?',
+		'c[b]?', 'i([bt]|px)?', 'n[bil]?', 'x(?:a[rd]|[b-z][l]?|[uifg](?:8|16|32|64))?',
 	],
 	string: [
-		's[aipqrx]?', 'p[r]?',
+		's[aihpqrx]?', 'p[r]?',
 	],
 	array: [
 		'a',
@@ -18,7 +18,7 @@ const H_PRIMITIVES = {
 	_other: [
 		'd[a-z]{0,2}', 'e', 'g[ca-z]?',
 		'h[m]?', 'k[a-z]{0,2}', 'm', 'r[t]?',
-		't', 'v', 'w', 'y[a-z]{0,2}', 'z',
+		't', 'v', 'w', 'xg', 'y[a-z]{0,2}', 'z',
 		'a[btsx]', 'at[uif](8|16|32|64)',
 	],
 };
@@ -437,7 +437,7 @@ const GC_APP = {
 						modifiers: ['const', 'global'],
 						types: [si_type],
 						patterns: a_patterns,
-						caps: 'only',
+						caps: 'optional',
 						format: 'function' === si_type? ['snake_case']: [],
 						regex: 'function' === si_type? '[a-z][a-z0-9_]+': '',
 					}))),

@@ -1,16 +1,23 @@
 import type {IcsToService} from './messages';
 
-import {open_flow} from './msg-flow';
-
 import type {ConnectionManifestV1, SessionRequest} from '#/meta/api';
+
 import type {Dict, JsonObject, JsonValue} from '#/meta/belt';
+
 import type {Bech32, Caip2, ChainStruct, ChainNamespaceKey, ContractStruct, AgentStruct, ChainPath} from '#/meta/chain';
+
+import type {ContactSpace, ContactStruct} from '#/meta/contact';
+import {ContactAgentType} from '#/meta/contact';
 import type {PfpTarget} from '#/meta/pfp';
+
+
 import type {Vocab} from '#/meta/vocab';
 
 import {TokenInterfaceRuntimeSchema} from '#/schema/token-interface-const';
 
 import toml from 'toml';
+
+import {open_flow} from './msg-flow';
 
 import {load_icon_data} from './utils';
 
@@ -37,7 +44,7 @@ import {Chains} from '#/store/chains';
 import {ode, is_dict} from '#/util/belt';
 import {concat, sha256_sync, text_to_buffer, uuid_v4} from '#/util/data';
 import {qsa} from '#/util/dom';
-import { ContactAgentType, ContactSpace, ContactStruct } from '#/meta/contact';
+
 
 
 // verbose

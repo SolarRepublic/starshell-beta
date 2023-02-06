@@ -23,13 +23,17 @@
 		yw_update,
 	} from '../mem';
 	
+	import {is_starshell_muted} from '#/extension/keplr';
 	import {keplr_polyfill_script_add_matches} from '#/script/scripts';
 	import {Accounts} from '#/store/accounts';
 	import {Apps} from '#/store/apps';
 	import {Chains} from '#/store/chains';
 	
+	import type {AppPolicyResult} from '#/store/policies';
+	import {Policies} from '#/store/policies';
 	import {Secrets} from '#/store/secrets';
 	import {Settings} from '#/store/settings';
+	import {F_NOOP} from '#/util/belt';
 	import {load_page_context} from '##/svelte';
 	
 	import Close from './Close.svelte';
@@ -41,10 +45,13 @@
 	
 	import AppView from '../screen/AppView.svelte';
 	
+	import Unmute from '../screen/Unmute.svelte';
+	
 	import SX_ICON_ARROW_LEFT from '#/icon/arrow-left.svg?raw';
 	import SX_ICON_CHECKED from '#/icon/checked-circle.svg?raw';
 	import SX_ICON_CLOSE from '#/icon/close.svg?raw';
 	import SX_ICON_CONFIRMATION from '#/icon/confirmation.svg?raw';
+	import SX_ICON_ERROR from '#/icon/error.svg?raw';
 	import SX_ICON_ARROW_DOWN from '#/icon/expand_more.svg?raw';
 	import SX_ICON_NARROW from '#/icon/narrow.svg?raw';
 	import SX_ICON_SEARCH from '#/icon/search.svg?raw';
@@ -247,6 +254,13 @@
 		}
 	}
 
+	async function unblock() {
+		if(await Policies.unblockApp(g_cause!.app!)) {
+			// enable api on this app
+			await enable_keplr_api();
+		}
+	}
+
 	async function enable_keplr_api() {
 		const g_app = g_cause!.app!;
 
@@ -289,8 +303,27 @@
 		};
 	}
 
+	// whether keplr compatibility is currently disabled
+	let b_starshell_muted = false;
+
+	// whether the current app is being blocked
+	let b_app_blocked = false;
+	let g_policy: AppPolicyResult;
+
 	// there is an active app affiliated with the popup
 	if(g_cause?.app) {
+		void is_starshell_muted().then(b => b_starshell_muted = true === b);
+
+		if(p_app) {
+			Policies.forApp(g_cause.app).then((_g_policy) => {
+				g_policy = _g_policy;
+
+				if(g_policy.blocked) {
+					b_app_blocked = true;
+				}
+			}).catch(F_NOOP);
+		}
+
 		// subscribe to account changes
 		yw_account.subscribe((g_account) => {
 			// ignore interim loading state
@@ -605,22 +638,38 @@
 						{#if (b_network || b_account) && g_cause?.app}
 							<span class="app" on:click={(d_event) => {
 								d_event.stopPropagation();
-								$yw_overlay_app = !$yw_overlay_app;
+
+								if(b_starshell_muted) {
+									k_page.push({
+										creator: Unmute,
+										props: {},
+									});
+								}
+								else {
+									$yw_overlay_app = !$yw_overlay_app;
+								}
 							}}>
-								<PfpDisplay
-									resource={g_cause.app}
-									{...overlay_pfp_network_props('left')}
-								/>
+								{#if b_starshell_muted || b_app_blocked}
+									<span class="global_svg-icon color_caution" style={overlay_pfp_network_props('left').rootStyle}>
+										{@html SX_ICON_ERROR}
+									</span>
+								{:else}
+									<PfpDisplay
+										resource={g_cause.app}
+										{...overlay_pfp_network_props('left')}
+									/>
+								{/if}
 							</span>
 
 							{#if $yw_overlay_app && $yw_owner}
-								{@const s_app_status = g_cause.registered
-									? Object.keys(g_cause.app.connections).length
-										? 'connected'
-										: 'no_permissions'
-									: 0 === g_cause.app?.on
-										? 'disabled'
-										: 'disconnected'}
+								{@const s_app_status = b_app_blocked? 'blocked'
+									: g_cause.registered
+										? Object.keys(g_cause.app.connections).length
+											? 'connected'
+											: 'no_permissions'
+										: 0 === g_cause.app?.on
+											? 'disabled'
+											: 'disconnected'}
 
 								<OverlaySelect
 									title='Current App'
@@ -664,15 +713,20 @@
 													</span>
 												{/if}
 											</svelte:fragment>
-		<!-- 
-											<svelte:fragment slot="icon">
-												<PfpDisplay dim={32} resource={g_cause.app} />
-											</svelte:fragment> -->
 										</Row>
 
-										{#if !g_cause.registered}
+										{#if b_app_blocked}
 											<div style={`
 												display: flex;
+											`.replace(/\s+/g, ' ')}>
+												<button class="pill" on:click|stopPropagation={() => unblock()}>
+													Unblock
+												</button>
+											</div>
+										{:else if !g_cause.registered}
+											<div style={`
+												display: flex;
+												gap: 1rem;
 											`.replace(/\s+/g, ' ')}>
 												<button class="pill" on:click|stopPropagation={() => enable_keplr_api()}>
 													Enable Keplr API

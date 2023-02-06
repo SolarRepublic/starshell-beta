@@ -32,9 +32,7 @@ import type {AdaptedAminoResponse} from '#/schema/amino';
 
 import type {InternalConnectionsResponse, InternalSessionResponse} from '#/provider/connection';
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import type {Apps, AppProfile} from '#/store/apps';
-import type {Chains} from '#/store/chains';
-import type {Contracts} from '#/store/contracts';
+import type {AppProfile} from '#/store/apps';
 /* eslint-enable */
 import type {Consolidator} from '#/util/consolidator';
 
@@ -102,7 +100,9 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 		fromBech32,
 		ServiceRouter,
 
+		Policies,
 		Secrets,
+		Settings,
 		Snip2xToken,
 
 		TxRaw,
@@ -243,7 +243,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 				algo: 'secp256k1',
 				bech32Address: sa_owner,
 				isNanoLedger: false,
-				name: _g_permissions.doxx?.name? _g_account?.name: 'beta',  // TODO: fill with random name?
+				name: _g_permissions.doxx?.name? _g_account?.name: `Anonymous User ${sa_owner.slice(0, -7)}`,  // TODO: fill with random name?
 				pubKey: buffer_to_keplr_str(atu8_pubkey),
 				// intercepts: ['address', 'bech32Address', 'pubbKey'],
 			};
@@ -1246,6 +1246,12 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 				}
 			}
 
+			// ensure that keplr-clash has been handled
+			await detected_keplr();
+
+			// polyfill disabled
+			if(b_cancel_polyfill) return;
+
 			// destructure data
 			const {
 				args: a_args,
@@ -1477,6 +1483,10 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 	let b_detected = false;
 
 	async function detected_keplr() {
+		await microtask();
+
+		await dp_bootstrap;
+
 		// prevent redundant detection
 		if(b_detected) return;
 		b_detected = true;
@@ -1511,8 +1521,30 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 	}
 
 
-	(async function keplr_compatibility() {
+	const dp_bootstrap = (async function keplr_compatibility() {
 		debug('Running keplr compatibility check');
+
+		const p_host = location.host;
+		const s_protocol = location.protocol.replace(/:$/, '') as 'https';
+
+		// check for block
+		try {
+			// lookup policy
+			const g_policy = await Policies.forApp({
+				host: p_host,
+				scheme: s_protocol,
+			});
+
+			// app is blocked by policy
+			if(g_policy.blocked) {
+				// do not polyfill, do not respond to proxy requests
+				b_cancel_polyfill = true;
+
+				// do not proceed with compatibility check
+				return;
+			}
+		}
+		catch(e_read) {}
 
 		// synchronous session storage is available
 		if(SessionStorage.synchronously) {
@@ -1537,8 +1569,8 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 
 			// find matching app
 			const a_apps = await Apps.filter({
-				scheme: location.protocol.replace(/:$/, '') as 'https',
-				host: location.host,
+				scheme: s_protocol,
+				host: p_host,
 			});
 
 			// app is already registered
@@ -1578,6 +1610,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 				}
 
 				// do not attempt to detect keplr
+				b_detected = true;
 				return;
 			}
 			else {
@@ -1633,7 +1666,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 
 			// detected
 			if(x_detected) {
-				await detected_keplr();
+				void detected_keplr();
 			}
 			// not detected
 			else {
@@ -1658,7 +1691,7 @@ const RT_KEPLR_DETECTOR = /([\s.]keplr\b|\[['"`]keplr['"`]\s*[\],)])/;
 										d_observer.disconnect();
 
 										// trigger detection
-										await detected_keplr();
+										void detected_keplr();
 
 										// stop searching
 										return;

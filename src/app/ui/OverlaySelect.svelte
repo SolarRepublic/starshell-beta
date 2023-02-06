@@ -21,7 +21,7 @@
 		b_showing = true;
 	}, 10);
 
-	function pause(dm: HTMLElement, gc: any) {
+	function pause(dm: HTMLElement, gc?: any) {
 		return {
 			duration: 200,
 		};

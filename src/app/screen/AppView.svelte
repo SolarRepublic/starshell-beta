@@ -12,9 +12,11 @@
 	import {reloadable} from '../mem-store';
 	import {load_page_context} from '../svelte';
 	
+	import {try_reloading_page} from '#/extension/browser';
 	import {Accounts} from '#/store/accounts';
 	import {Apps} from '#/store/apps';
 	
+	import {Policies} from '#/store/policies';
 	import {Secrets} from '#/store/secrets';
 	
 	import AppDisconnect from './AppDisconnect.svelte';
@@ -45,12 +47,13 @@
 
 	const {
 		k_page,
+		g_cause,
 	} = load_page_context();
 
 	let h_actions: Actions = {};
 	
-	{
-		const h_stage = {
+	(function reload() {
+		const h_stage: Actions = {
 			// permissions: {
 			// 	trigger() {
 			// 		// 
@@ -66,6 +69,15 @@
 
 		if(g_app.on) {
 			Object.assign(h_stage, {
+				// disable: {
+				// 	async trigger() {
+				// 		// temporarily disable app
+				// 		await SessionStorage.set({
+
+				// 		});
+				// 	},
+				// },
+
 				disconnect: {
 					async trigger() {
 						// no connections
@@ -113,8 +125,27 @@
 			});
 		}
 
+
+		(async() => {
+			const g_policy = await Policies.forApp(g_app);
+			if(g_policy.blocked) {
+				h_actions.unblock = {
+					async trigger() {
+						await Policies.unblockApp(g_app);
+						reload();
+
+						if(g_cause?.tab) {
+							await try_reloading_page({tabId:g_cause.tab.id});
+						}
+					},
+				};
+
+				h_actions = h_actions;
+			}
+		})();
+
 		h_actions = h_stage;
-	}
+	})();
 
 
 	let a_keys: SecretStruct<'viewing_key'>[] = [];

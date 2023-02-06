@@ -23,6 +23,7 @@ import {SignDoc, TxBody} from '@solar-republic/cosmos-grpc/dist/cosmos/tx/v1beta
 import IncidentView from '#/app/screen/IncidentView.svelte';
 import MonitorTx from '#/app/screen/MonitorTx.svelte';
 import NoticeIllegalChainsSvelte from '#/app/screen/NoticeIllegalChains.svelte';
+import PageException from '#/app/screen/PageException.svelte';
 import PreRegister from '#/app/screen/PreRegister.svelte';
 import ReloadPage from '#/app/screen/ReloadPage.svelte';
 import RequestConnection_AccountsSvelte from '#/app/screen/RequestConnection_Accounts.svelte';
@@ -31,30 +32,29 @@ import RequestKeplrDecisionSvelte from '#/app/screen/RequestKeplrDecision.svelte
 import type {CompletedProtoSignature, CompletedSignature} from '#/app/screen/RequestSignature.svelte';
 
 import RequestSignatureSvelte from '#/app/screen/RequestSignature.svelte';
+import RequestTokenAdd from '#/app/screen/RequestTokenAdd.svelte';
+import RestartService from '#/app/screen/RestartService.svelte';
 import ScanQrSvelte from '#/app/screen/ScanQr.svelte';
+import {proto_to_amino} from '#/chain/cosmos-msgs';
 import {Vault} from '#/crypto/vault';
 import {SessionStorage} from '#/extension/session-storage';
 import type {ErrorRegistry, IntraExt} from '#/script/messages';
 import {RegisteredFlowError} from '#/script/msg-flow';
-import {B_IOS_NATIVE, B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constants';
+import {global_receive} from '#/script/msg-global';
+import {B_LOCALHOST, XT_INTERVAL_HEARTBEAT} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Apps} from '#/store/apps';
 import {Chains} from '#/store/chains';
-import {fold, F_NOOP, is_dict, ode, timeout_exec} from '#/util/belt';
+import {fold, forever, F_NOOP, is_dict, ode, timeout_exec} from '#/util/belt';
 import {base93_to_buffer} from '#/util/data';
 import {parse_params, qs} from '#/util/dom';
 import SystemSvelte from '##/container/System.svelte';
 import AuthenticateSvelte from '##/screen/Authenticate.svelte';
 
 import RequestAdvertisementSvelte from '##/screen/RequestAdvertisement.svelte';
-import RequestConnectionSvelte from '##/screen/RequestConnection.svelte';
-import { Snip2xMessageConstructor } from '#/schema/snip-2x-const';
-import RequestTokenAdd from '#/app/screen/RequestTokenAdd.svelte';
-import RestartService from '#/app/screen/RestartService.svelte';
-import { ProtoData, proto_to_amino } from '#/chain/cosmos-msgs';
-import { global_receive } from '#/script/msg-global';
-import PageException from '#/app/screen/PageException.svelte';
-import { install_contracts } from '#/chain/contract';
+
+// import Solver from '#/app/screen/Solver.svelte';
+
 
 export type FlowMessage = Vocab.Message<IntraExt.FlowVocab>;
 
@@ -327,10 +327,7 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 		}
 	},
 
-	requestKeplrDecision: g_value => completed_render(RequestKeplrDecisionSvelte, {
-		app: g_value.app,
-		page: g_value.page,
-	}),
+	requestKeplrDecision: g_value => completed_render(RequestKeplrDecisionSvelte, g_value),
 
 	illegalChains: g_value => completed_render(NoticeIllegalChainsSvelte, g_value),
 
@@ -495,6 +492,14 @@ const H_HANDLERS_AUTHED: Vocab.Handlers<Omit<IntraExt.FlowVocab, 'authenticate'>
 			chain: g_context.chain,
 			accountPath: g_value.accountPath,
 		});
+	},
+
+	solver({accountPath:p_account}) {
+		// render(Solver, {
+		// 	p_account,
+		// });
+
+		return forever();
 	},
 } as const;
 

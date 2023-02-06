@@ -3,6 +3,7 @@ import type {Readable} from 'svelte/store';
 import type {Nameable, Pfpable} from '#/meta/able';
 import type {AccountStruct, AccountPath} from '#/meta/account';
 import type {AppStruct, AppPath} from '#/meta/app';
+import type {Dict} from '#/meta/belt';
 import type {ChainStruct, ChainPath, Bech32} from '#/meta/chain';
 import type {Resource} from '#/meta/resource';
 import type {ParametricSvelteConstructor} from '#/meta/svelte';
@@ -10,29 +11,28 @@ import type {ParametricSvelteConstructor} from '#/meta/svelte';
 import {getContext} from 'svelte';
 import {cubicOut} from 'svelte/easing';
 
+import {detach, insert, noop} from 'svelte/internal';
+
 import {syserr} from './common';
 import {yw_network, yw_progress} from './mem';
 
 import {FeeGrants} from '#/chain/fee-grant';
-import {Argon2Type} from '#/crypto/argon2';
+import {Argon2, Argon2Type} from '#/crypto/argon2';
 import {NB_ARGON2_MEMORY, Vault} from '#/crypto/vault';
 import type {IntraExt} from '#/script/messages';
 import {global_receive} from '#/script/msg-global';
 import {A_COURTESY_ACCOUNTS} from '#/share/constants';
-import {HttpResponseError} from '#/share/errors';
 import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_STARSHELL} from '#/store/apps';
 import {Chains} from '#/store/chains';
 import {NB_ARGON2_PIN_MEMORY, N_ARGON2_PIN_ITERATIONS} from '#/store/secrets';
-import {ode, ofe, timeout, timeout_exec} from '#/util/belt';
+import {ode, ofe, timeout_exec} from '#/util/belt';
 import {text_to_buffer} from '#/util/data';
 import {dd} from '#/util/dom';
 
 import type {Page} from '##/nav/page';
 
 import PfpDisplay from './frag/PfpDisplay.svelte';
-import { detach, insert, noop } from 'svelte/internal';
-import type { Dict } from '#/meta/belt';
 
 
 export function once_store_updates(yw_store: Readable<any>, b_truthy=false): (typeof yw_store) extends Readable<infer w_out>? Promise<w_out>: never {
@@ -289,7 +289,9 @@ export interface HashSampleConfig {
 
 // runs the hasher on fake data to estimate the time it will take with higher iteration count
 export async function argon_hash_sample(gc_sample: HashSampleConfig): Promise<void> {
-	await (await Vault.wasmArgonWorker()).hash({
+	// const k_worker = await Vault.wasmArgonWorker();
+
+	await Argon2.hash({
 		phrase: text_to_buffer('0'.repeat(gc_sample.nl_input || 8)),
 		salt: crypto.getRandomValues(new Uint8Array(32)),
 		type: Argon2Type.Argon2id,

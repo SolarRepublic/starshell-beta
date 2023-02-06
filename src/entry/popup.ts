@@ -44,7 +44,7 @@ import {Secrets} from '#/store/secrets';
 import {Settings} from '#/store/settings';
 import type {StarShellDefaults} from '#/store/web-resource-cache';
 import {WebResourceCache} from '#/store/web-resource-cache';
-import {forever, F_NOOP, ode, timeout, timeout_exec} from '#/util/belt';
+import {forever, F_NOOP, microtask, ode, timeout, timeout_exec} from '#/util/belt';
 import {parse_params, qs} from '#/util/dom';
 
 
@@ -165,6 +165,7 @@ const dp_connect = B_IOS_NATIVE? forever<ServiceClient>(): ServiceClient.connect
 
 // reload the entire system
 async function reload(b_override_restriction=false) {
+	domlog('(Re?)starting system load');
 	debug(`reload called; busy: ${b_busy}`);
 	if(b_busy) return;
 
@@ -201,9 +202,10 @@ async function reload(b_override_restriction=false) {
 	};
 
 	// try to update cache
+	domlog('Attempting to update web resource cache');
 	debug('updating web resource cache');
 	try {
-		await WebResourceCache.updateAll();
+		await timeout_exec(6e3, () => WebResourceCache.updateAll());
 	}
 	catch(e_update) {
 		console.warn(`Failed to update web resource cache: ${e_update.message}`);
@@ -224,6 +226,8 @@ async function reload(b_override_restriction=false) {
 	}
 	// vault is unlocked
 	else if(await Vault.isUnlocked()) {
+		domlog('Vault is unlocked');
+
 		// register for global events
 		const f_unregister = global_receive({
 			// system received logout command
@@ -341,6 +345,8 @@ async function reload(b_override_restriction=false) {
 	}
 	// vault is locked
 	else {
+		domlog('Vault is locked');
+
 		// register for global events
 		const f_unregister = global_receive({
 			// system received login command
@@ -354,6 +360,7 @@ async function reload(b_override_restriction=false) {
 		});
 
 		debug('getting base');
+
 		// retrieve root
 		const g_root = await Vault.getBase();
 
@@ -374,111 +381,105 @@ async function reload(b_override_restriction=false) {
 		h_context.completed = F_NOOP;
 	}
 
-	// wait for navigator to be initialized
-	let b_initialized = false;
-	const f_unsubscribe = yw_navigator.subscribe((k_navigator) => {
-		// runner gets called immediately, but system has not updated navigator yet
-		if(!b_initialized) {
-			b_initialized = true;
-			return;
+	function navigator_updated(k_navigator) {
+		// navigator was not set
+		if(!k_navigator) {
+			throw new Error(`Navigator was not initialized`);
 		}
 
-		// system updated navigator
-		if(k_navigator) {
-			// unsubscribe from reactive updates
-			f_unsubscribe();
+		// launch to homescreen
+		if(b_launch) {
+			void k_navigator.activateThread(ThreadId.TOKENS).then(async() => {
+				// thread activated
 
-			// launch to homescreen
-			if(b_launch) {
-				void k_navigator.activateThread(ThreadId.TOKENS).then(async() => {
-					// thread activated
+				// development env
+				if(B_LOCALHOST) {
+					if(h_params.screen) {
+						switch(h_params.screen) {
+							case 'mnemonic': {
+								const atu16_indicies = await Bip39.entropyToIndicies();
 
-					// development env
-					if(B_LOCALHOST) {
-						if(h_params.screen) {
-							switch(h_params.screen) {
-								case 'mnemonic': {
-									const atu16_indicies = await Bip39.entropyToIndicies();
+								k_navigator.activePage.push({
+									creator: ImportMnemonicSvelte,
+									props: {
+										atu16_indicies,
+									},
+								});
+								break;
+							}
 
-									k_navigator.activePage.push({
-										creator: ImportMnemonicSvelte,
-										props: {
-											atu16_indicies,
-										},
-									});
-									break;
-								}
+							case 'json': {
+								k_navigator.activePage.push({
+									creator: JsonPreviewDemo,
+								});
+								break;
+							}
 
-								case 'json': {
-									k_navigator.activePage.push({
-										creator: JsonPreviewDemo,
-									});
-									break;
-								}
-
-								default: {
-									// ignore
-								}
+							default: {
+								// ignore
 							}
 						}
 					}
-				});
-			}
-			// launch to init thread
-			else {
-				void k_navigator.activateThread(ThreadId.INIT);
-			}
+				}
+			});
+		}
+		// launch to init thread
+		else {
+			void k_navigator.activateThread(ThreadId.INIT);
+		}
 
-			// attempt to hide log
-			try {
-				dm_log!.style.display = 'none';
-			}
-			catch(e_hide) {}
+		// attempt to hide log
+		try {
+			dm_log!.style.display = 'none';
+		}
+		catch(e_hide) {}
 
-			// listen for heartbeat
-			if(!B_IOS_NATIVE) {
-				const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
-				let i_service_health = 0;
-				function health_check() {
-					clearTimeout(i_service_health);
+		// listen for heartbeat
+		if(!B_IOS_NATIVE) {
+			const d_service: Vocab.TypedRuntime<IntraExt.ServiceInstruction> = chrome.runtime;
+			let i_service_health = 0;
+			function health_check() {
+				clearTimeout(i_service_health);
 
-					i_service_health = window.setTimeout(async() => {
-						console.warn(`Waking idle service worker`);
+				i_service_health = window.setTimeout(async() => {
+					console.warn(`Waking idle service worker`);
 
-						let k_client!: ServiceClient;
-						const [, xc_timeout] = await timeout_exec(2e3, async() => {
-							k_client = await dp_connect;
+					let k_client!: ServiceClient;
+					const [, xc_timeout] = await timeout_exec(2e3, async() => {
+						k_client = await dp_connect;
 
-							await k_client.send({
-								type: 'wake',
-							});
-
-							console.warn(`Service worker responded`);
+						await k_client.send({
+							type: 'wake',
 						});
 
-						if(xc_timeout) {
-							console.warn(`⚠️ Service worker is unresponsive. Waiting for refresh... %O`, k_client || {});
+						console.warn(`Service worker responded`);
+					});
 
-							global_broadcast({
-								type: 'unresponsiveService',
-							});
-						}
-					}, 2e3);
-				}
+					if(xc_timeout) {
+						console.warn(`⚠️ Service worker is unresponsive. Waiting for refresh... %O`, k_client || {});
 
-				global_receive({
-					heartbeat() {
-						health_check();
-					},
-				});
+						global_broadcast({
+							type: 'unresponsiveService',
+						});
+					}
+				}, 2e3);
+			}
 
-				// user is logged in, ensure the service is running
-				if(b_launch) {
+			global_receive({
+				heartbeat() {
 					health_check();
-				}
+				},
+			});
+
+			// user is logged in, ensure the service is running
+			if(b_launch) {
+				health_check();
 			}
 		}
-	});
+	}
+
+	yw_navigator.once(navigator_updated);
+
 	debug('launching system');
 
 	// create system component
@@ -524,6 +525,8 @@ if(B_LOCALHOST) {
 	}
 }
 else {
+	domlog('Loading system from popup');
+
 	// start health check timer
 	i_health = (globalThis as typeof window).setTimeout(() => {
 		domlog('Fatal time out, likely caused by an uncaught error.');
@@ -534,6 +537,7 @@ else {
 		void reload();
 	}
 	catch(e_load) {
+		domlog((e_load as Error).message || e_load+'');
 		debugger;
 		console.error(e_load);
 	}

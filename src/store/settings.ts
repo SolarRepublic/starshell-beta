@@ -43,6 +43,7 @@ export type SettingsRegistry = {
 	 */
 	p_chain_selected?: ChainPath;
 
+
 	gc_rate_limit_queries_default?: RateLimitConfig;
 
 	gc_rate_limit_webapis_default?: RateLimitConfig;

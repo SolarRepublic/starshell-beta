@@ -165,6 +165,9 @@
 						local: true,
 						broadcast: true,
 					},
+					context: {
+						completed: F_NOOP,
+					},
 				});
 			};
 		}

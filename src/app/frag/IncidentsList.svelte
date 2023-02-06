@@ -49,6 +49,7 @@
 	import {produce_contract} from '#/chain/contract';
 	import {proto_to_amino} from '#/chain/cosmos-msgs';
 	import type {ReviewedMessage} from '#/chain/messages/_types';
+	import type {SelectTransactionHistoryItem} from '#/chain/messages/snip-history';
 	import {H_SNIP_TRANSACTION_HISTORY_HANDLER} from '#/chain/messages/snip-history';
 	import {H_INTERPRETTERS} from '#/chain/msg-interpreters';
 	import {Accounts} from '#/store/accounts';
@@ -77,6 +78,7 @@
 	import SX_ICON_SIGNATURE from '#/icon/signature.svg?raw';
 	import SX_ICON_ACC_CREATED from '#/icon/user-add.svg?raw';
 	import SX_ICON_ACC_EDITED from '#/icon/user-edit.svg?raw';
+    import type { Cw } from '#/meta/cosm-wasm';
 
 
 	type IncidentHandler<si_type extends IncidentType=IncidentType> = (
@@ -380,41 +382,71 @@
 
 			const ks_cache = await QueryCache.read();
 
-			const g_cache = ks_cache.get<Dict<TransactionHistoryItem>>(p_chain, sa_owner!, `${sa_contract}:transaction_history`);
-			if(g_cache) {
-				const h_history = g_cache.data;
 
-				const g_tx = h_history[si_tx];
 
-				// transfer action
-				const g_transfer = g_tx?.action.transfer;
-				if(g_transfer) {
-					const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer({
+			let g_transfer: SelectTransactionHistoryItem | null = null;
+
+			// load from query cache
+			let g_cache_txn = ks_cache.get<Dict<TransactionHistoryItem>>(p_chain, sa_owner!, `${sa_contract}:transaction_history`);
+			if(g_cache_txn) {
+				const h_data = g_cache_txn.data;
+				const g_tx = h_data[si_tx];
+				const h_action = g_tx.action;
+				if(h_action.transfer) {
+					g_transfer = {
 						coins: g_tx.coins,
-						from: g_transfer.from,
-						receiver: g_transfer.recipient,
+						from: h_action.transfer.from,
+						receiver: h_action.transfer.recipient,
 						memo: g_tx.memo,
-					}, {
-						g_snip20: g_contract.interfaces.snip20!,
-						g_contract,
-						g_chain: g_chain!,
-						g_account: g_account!,
-					});
-
-					const g_reviewed = g_handled?.review?.();
-					if(g_reviewed) {
-						const s_infos = (g_reviewed['infos'] || []).map(s => ` / ${s}`).join('');
-
-						return {
-							...g_reviewed,
-							subtitle: format_time_ago(xt_when)+s_infos,
-							icon: mk_icon(SX_ICON_RECV, xt_when),
-							name: g_contract.name,
-							pfp: g_contract.pfp || '',
-						};
-					}
+					};
 				}
 			}
+			else {
+				let g_cache_xfr = ks_cache.get<TransferHistoryCache>(p_chain, sa_owner!, `${sa_contract}:transfer_history`);
+				if(g_cache_xfr) {
+					const g_xfer = g_cache_xfr.data?.transfers?.[si_tx];
+					g_transfer = {
+						coins: g_xfer.coins,
+						from: g_xfer.from!,
+						receiver: g_xfer.receiver,
+						memo: '' as Cw.String,
+					};
+				}
+				else {
+					return;
+				}
+			}
+
+			if(g_transfer) {
+				const g_handled = await H_SNIP_TRANSACTION_HISTORY_HANDLER.transfer(g_transfer, {
+					g_snip20: g_contract.interfaces.snip20!,
+					g_contract,
+					g_chain: g_chain!,
+					g_account: g_account!,
+				});
+
+				const g_reviewed = await g_handled?.review?.();
+				if(g_reviewed) {
+					const s_infos = (g_reviewed['infos'] || []).map(s => ` / ${s}`).join('');
+
+					return {
+						...g_reviewed,
+						subtitle: format_time_ago(xt_when)+s_infos,
+						icon: mk_icon(SX_ICON_RECV, xt_when),
+						name: g_contract.name,
+						pfp: g_contract.pfp || '',
+					};
+				}
+			}
+
+			// return {
+			// 	s_title: 'Received Transfer',
+			// 	a_fields: [
+			// 		...a_fields_inbound_above,
+			// 		...[],
+			// 		...a_fields_inbound_below,
+			// 	],
+			// };
 
 			return {
 				title: 'Inbound Token Transfer',

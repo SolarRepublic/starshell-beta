@@ -23,7 +23,7 @@ import type {AdaptedAminoResponse, AdaptedStdSignDoc} from '#/schema/amino';
 
 import type {SloppySignDoc} from '#/schema/protobuf';
 
-import type {Argon2Config} from '#/crypto/argon2';
+import type {Argon2Config, AttackConfig} from '#/crypto/argon2';
 import type {NotificationConfig} from '#/extension/notifications';
 import type {ConnectionHandleConfig} from '#/provider/connection';
 
@@ -741,6 +741,7 @@ export namespace IntraExt {
 			value: {
 				page: PageInfo;
 				profile: AppProfile;
+				app?: AppStruct;
 			};
 			response: string;
 		};
@@ -845,13 +846,24 @@ export namespace IntraExt {
 			value: DeepLinkMessage;
 		};
 
-		// monitor an outgoing tx
+		/**
+		 * monitor an outgoing tx
+		 */
 		monitorTx: {
 			value: {
 				app: AppPath;
 				chain: ChainPath;
 				account: AccountPath;
 				hash: string;
+			};
+		};
+
+		/**
+		 * attempt to solve a proof-of-work challenge
+		 */
+		solver: {
+			value: {
+				accountPath: AccountPath;
 			};
 		};
 	}, {
@@ -1015,6 +1027,9 @@ export namespace Workers {
 	export type HostToArgon2 = Vocab.New<{
 		hash: {
 			value: Argon2Config;
+		};
+		attack: {
+			value: AttackConfig;
 		};
 	}, {
 		each: {

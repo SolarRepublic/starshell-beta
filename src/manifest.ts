@@ -137,15 +137,19 @@ export function buildBrowserManifest(b_prod=false) {
 			};
 		},
 
-		worker_argon2() {
+		dynamically_importable() {
 			return {
 				...G_CONTENT_SCRIPT_DEFAULT,
-				js: ['src/script/worker-argon2.ts'],
+				js: [
+					'src/script/worker-argon2.ts',
+					'src/script/debug.ts',
+				],
 				matches: A_MATCH_NEVER,
 				run_at: 'document_start',
 				all_frames: false,
 			};
 		},
+		
 
 		// ics_polyfill(h_overrides?: ContentScriptOverrides) {
 		// 	return {
@@ -231,7 +235,7 @@ export function buildBrowserManifest(b_prod=false) {
 			G_CONTENT_SCRIPTS.ics_spotter(),
 			G_CONTENT_SCRIPTS.ics_launch(),
 			G_CONTENT_SCRIPTS.ics_link(),
-			G_CONTENT_SCRIPTS.worker_argon2(),
+			G_CONTENT_SCRIPTS.dynamically_importable(),
 		] as Mv2ContentScript[],
 
 		background: {
@@ -281,7 +285,7 @@ export function buildBrowserManifest(b_prod=false) {
 			G_CONTENT_SCRIPTS.ics_link({
 				world: 'ISOLATED',
 			}),
-			G_CONTENT_SCRIPTS.worker_argon2(),
+			G_CONTENT_SCRIPTS.dynamically_importable(),
 		] as Mv3ContentScript[],
 
 		background: {
@@ -308,6 +312,7 @@ export function buildBrowserManifest(b_prod=false) {
 		firefox: {
 			manifest: {
 				...GC_MANIFEST_V2,
+				background: GC_MANIFEST_V2.background,
 				content_security_policy: csp({
 					'script-src': [...H_CONTENT_SECURITY_POLICY['script-src'], `'unsafe-eval'`],
 					'frame-ancestors': [

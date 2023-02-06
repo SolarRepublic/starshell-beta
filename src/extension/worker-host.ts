@@ -1,14 +1,15 @@
-import type { Argon2Config } from "#/crypto/argon2";
-import type { Dict } from "#/meta/belt";
-import type { Vocab } from "#/meta/vocab";
-import type { Workers } from "#/script/messages";
-import { locate_script } from "#/script/utils";
-import { concat } from "#/util/data";
+import type {Dict} from '#/meta/belt';
+import type {Vocab} from '#/meta/vocab';
+
+import type {Argon2Config, Argon2Worker, AttackConfig} from '#/crypto/argon2';
+import type {Workers} from '#/script/messages';
+import {locate_script} from '#/script/utils';
+import {concat} from '#/util/data';
 
 type ResponseHandler = [(atu8_hash: Uint8Array) => void, (e_reject: Error) => void];
 
-export class WorkerHost {
-	static async create(sr_script: string) {
+export class WorkerHost implements Argon2Worker {
+	static async create(sr_script: string): Promise<WorkerHost> {
 		// 'assets/src/script/worker-argon2'
 		const k_host = new WorkerHost(sr_script);
 
@@ -18,7 +19,7 @@ export class WorkerHost {
 	protected _p_script: string;
 	protected _d_worker: Worker;
 	protected _h_response_handlers: Dict<ResponseHandler> = {};
-	
+
 	constructor(sr_script: string) {
 		// locate script
 		const p_script = locate_script(sr_script);
@@ -62,10 +63,10 @@ export class WorkerHost {
 							delete this._h_response_handlers[si_request];
 
 							if('ok' === si_type) {
-								fk_resolve(w_value as Uint8Array);
+								fk_resolve(w_value);
 							}
 							else if('error' === si_type) {
-								fe_reject(new Error(w_value as string));
+								fe_reject(new Error(w_value));
 							}
 						}
 					};
@@ -87,7 +88,11 @@ export class WorkerHost {
 		});
 	}
 
-	async hash(gc_hash: Argon2Config): Promise<Uint8Array> {
+	terminate(): void {
+		this._d_worker.terminate();
+	}
+
+	hash(gc_hash: Argon2Config): Promise<Uint8Array> {
 		// go async
 		return new Promise((fk_resolve, fe_reject) => {
 			// create transfers list
@@ -109,6 +114,36 @@ export class WorkerHost {
 				type: 'hash',
 				id: si_request,
 				value: gc_hash,
+			}, a_transfers);
+		});
+	}
+
+	attack(gc_attack: AttackConfig): Promise<Uint8Array> {
+		// go async
+		return new Promise((fk_resolve, fe_reject) => {
+			const {
+				params: gc_hash,
+			} = gc_attack;
+
+			// create transfers list
+			const a_transfers = [
+				gc_hash.phrase,
+				gc_hash.salt,
+				gc_hash.secret,
+				gc_hash.ad,
+			].filter(atu8 => atu8).map(atu8 => concat([atu8!]).buffer);
+
+			// create unique request id
+			const si_request = crypto.randomUUID();
+
+			// set handler
+			this._h_response_handlers[si_request] = [fk_resolve, fe_reject];
+
+			// post message to worker
+			this._d_worker.postMessage({
+				type: 'attack',
+				id: si_request,
+				value: gc_attack,
 			}, a_transfers);
 		});
 	}

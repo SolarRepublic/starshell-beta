@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type {AccountStruct, AccountPath} from '#/meta/account';
 	
+	import type {ChainPath} from '#/meta/chain';
+	
 	import {createEventDispatcher} from 'svelte';
 	
 	import {Accounts} from '#/store/accounts';
@@ -13,13 +15,15 @@
 
 
 	export let accountPath: AccountPath = $yw_account_ref;
+
+	export let p_chain: ChainPath = $yw_chain_ref;
 	
 	const dispatch = createEventDispatcher();
 
 	const mk_account = (p_acc: AccountPath, g_acc: AccountStruct) => ({
 		value: p_acc,
 		primary: g_acc.name,
-		secondary: g_acc.assets[$yw_chain_ref]?.totalFiatCache || '(?)',
+		secondary: g_acc.assets[p_chain]?.totalFiatCache || '(?)',
 		// secondary: format_fiat(g_acc.holdings(H_HOLDINGS, $yw_chain)
 			// .reduce((c_sum, k_holding) => c_sum + k_holding.toUsd(H_TOKENS, H_VERSUS_USD), 0)),
 	});

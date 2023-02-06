@@ -1,4 +1,3 @@
-import {SecretNetwork} from './secret-network';
 import type {SignedDoc} from './signing';
 import type {AminoMsg} from '@cosmjs/amino';
 import type {QueryBalanceResponse} from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/query';
@@ -11,6 +10,11 @@ import type {Proposal, TallyResult} from '@solar-republic/cosmos-grpc/dist/cosmo
 import type {ParamChange} from '@solar-republic/cosmos-grpc/dist/cosmos/params/v1beta1/params';
 import type {
 	QueryParamsRequest as ParamsQueryConfig} from '@solar-republic/cosmos-grpc/dist/cosmos/params/v1beta1/query';
+import type {
+	Params,
+	Pool,
+	RedelegationResponse,
+	UnbondingDelegation} from '@solar-republic/cosmos-grpc/dist/cosmos/staking/v1beta1/staking';
 import type {
 	GetTxsEventResponse,
 	BroadcastTxResponse,
@@ -41,7 +45,16 @@ import type {
 } from '#/meta/chain';
 
 import type {Cw} from '#/meta/cosm-wasm';
-import type {Incident, IncidentStruct, IncidentType, MsgEventRegistry, TxError, TxModeInfo, TxPending, TxSynced} from '#/meta/incident';
+import type {
+	Incident,
+	IncidentStruct,
+	IncidentType,
+	MsgEventRegistry,
+	TxError,
+	TxModeInfo,
+	TxPending,
+	TxSynced,
+} from '#/meta/incident';
 import type {ProviderStruct} from '#/meta/provider';
 
 import type {AdaptedStdSignDoc, GenericAminoMessage} from '#/schema/amino';
@@ -54,8 +67,8 @@ import {
 	QueryClientImpl as BankQueryClient,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/bank/v1beta1/query';
 
-import {ServiceClientImpl as TendermintServiceClient} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 import {ServiceClientImpl as NodeServiceClient} from '@solar-republic/cosmos-grpc/dist/cosmos/base/node/v1beta1/query';
+import {ServiceClientImpl as TendermintServiceClient} from '@solar-republic/cosmos-grpc/dist/cosmos/base/tendermint/v1beta1/query';
 import {PubKey} from '@solar-republic/cosmos-grpc/dist/cosmos/crypto/secp256k1/keys';
 import {BasicAllowance, PeriodicAllowance} from '@solar-republic/cosmos-grpc/dist/cosmos/feegrant/v1beta1/feegrant';
 import {
@@ -68,11 +81,7 @@ import {QueryClientImpl as StakingQueryClient, QueryParamsResponse, QueryPoolRes
 
 import {
 	BondStatus, bondStatusToJSON,
-	Params,
-	Pool,
 	Redelegation,
-	RedelegationResponse,
-	UnbondingDelegation,
 	type DelegationResponse,
 	type Validator,
 } from '@solar-republic/cosmos-grpc/dist/cosmos/staking/v1beta1/staking';
@@ -91,12 +100,14 @@ import {grpc} from '@solar-republic/grpc-web';
 import BigNumber from 'bignumber.js';
 
 import {amino_to_base, encode_proto} from './cosmos-msgs';
+import {SecretNetwork} from './secret-network';
 import {sign_direct_doc} from './signing';
 
 import {syserr} from '#/app/common';
 
 import type {WsTxResponse} from '#/cosmos/tm-json-rpc-ws-def';
 import {Secp256k1Key} from '#/crypto/secp256k1';
+import {wgrpc_retry} from '#/extension/network';
 import {RT_UINT, XG_SYNCHRONIZE_PAGINATION_LIMIT} from '#/share/constants';
 import {Accounts} from '#/store/accounts';
 import {Apps, G_APP_EXTERNAL} from '#/store/apps';
@@ -124,7 +135,6 @@ import {
 
 
 import {buffer_to_base64, buffer_to_base93, buffer_to_hex, sha256_sync_insecure} from '#/util/data';
-import { wgrpc_retry } from '#/extension/network';
 
 
 
@@ -340,7 +350,7 @@ async function _depaginate<
 	offset: string;
 })) => Promise<[g_response, (a: g_row[]) => g_row[]]>): Promise<g_row[]> {
 	let atu8_key: Uint8Array | undefined = void 0;
-	let i_offset = 0;
+	const i_offset = 0;
 	let a_rows: g_row[] = [];
 
 	for(;;) {
@@ -989,6 +999,7 @@ export class CosmosNetwork {
 		g_tx: Tx;
 		g_result: TxResponse;
 		g_synced: TxSynced | TxError;
+		xg_previous: bigint;
 	}> {
 		// create sync id
 		const si_sync = a_events.join('\n');
@@ -1094,6 +1105,7 @@ export class CosmosNetwork {
 						g_tx,
 						g_result,
 						g_synced,
+						xg_previous: xg_synced,
 					};
 				}
 
@@ -1221,16 +1233,6 @@ export class CosmosNetwork {
 
 		return g_bundle as O.Compulsory<typeof g_bundle>;
 	}
-
-	// return await _depaginate(200, async(g_pagination) => {
-	// 	const g_res = await new StakingQueryClient(this._y_grpc).validators({
-	// 		status: bondStatusToJSON(BondStatus.BOND_STATUS_BONDED),
-	// 		pagination: g_pagination,
-	// 	});
-
-	// 	return [g_res, a => a.concat(g_res.validators)];
-	// });
-
 
 	async validators(): Promise<Validator[]> {
 		const g_response = await wgrpc_retry(() => new StakingQueryClient(this._y_grpc).validators({

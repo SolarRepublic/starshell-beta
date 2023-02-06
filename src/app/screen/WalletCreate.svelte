@@ -54,7 +54,7 @@
 		A single seed is like a master password for all your funds.
 	</p>
 
-	<div class="global_svg-icon seed-derivation">
+	<div class="global_svg-icon seed-derivation flex_1">
 		{@html SX_ICON_SEED_DERIVATION}
 	</div>
 

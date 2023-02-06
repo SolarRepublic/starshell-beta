@@ -24,6 +24,8 @@ import {SIV, WebCryptoProvider} from 'miscreant/release/index';
 
 import {syserr} from '#/app/common';
 import {utility_key_child} from '#/share/account';
+import {R_SCRT_COMPUTE_ERROR} from '#/share/constants';
+import {ContractDecryptionError} from '#/share/errors';
 import {Accounts} from '#/store/accounts';
 import {
 	base64_to_buffer,
@@ -36,8 +38,6 @@ import {
 	text_to_buffer,
 	zero_out,
 } from '#/util/data';
-import { R_SCRT_COMPUTE_ERROR } from '#/share/constants';
-import { ContractDecryptionError } from '#/share/errors';
 
 export interface DecryptedMessage {
 	code_hash: string;

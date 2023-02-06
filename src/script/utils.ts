@@ -1,4 +1,4 @@
-import {B_FIREFOX_ANDROID, NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB} from '#/share/constants';
+import {B_FIREFOX_ANDROID, NL_DATA_ICON_MAX, R_DATA_IMAGE_URL_WEB, SI_EXTENSION_ID_KEPLR} from '#/share/constants';
 import {timeout_exec} from '#/util/belt';
 
 /**
@@ -12,8 +12,9 @@ export function locate_script(s_pattern: string): null | string {
 	// each content script entry
 	for(const g_script of g_manifest.content_scripts || []) {
 		for(const sr_script of g_script.js ?? []) {
-			if(sr_script.startsWith(s_pattern)) {
-				return sr_script;
+			// the right half of the OR and the regex below are for firefox
+			if(sr_script.startsWith(s_pattern) || sr_script.startsWith(chrome.runtime.getURL(s_pattern))) {
+				return sr_script.replace(/^[^:]+:\/\/[^/]+\//, '');
 			}
 		}
 	}
@@ -112,9 +113,25 @@ export function render_icon_data(
 	const npx_trim_width = g_trim_apply.x2 - g_trim_apply.x1;
 	const npx_trim_height = g_trim_apply.y2 - g_trim_apply.y1;
 
+	// should always be the same
+	const npx_dim_trim = Math.max(npx_trim_width, npx_trim_height);
+
 	// image is svg; work around annoying intrinsic size canvas interaction
 	if(sx_media_type?.startsWith('image/svg')) {
-		d_2d.drawImage(d_img, g_trim_apply.x1, g_trim_apply.y1, npx_trim_width, npx_trim_height, 0, 0, npx_dim_dst, npx_dim_dst);
+		if(g_trim) {
+			// move top-left corner of image to origin
+			d_2d.translate(g_trim.x1, g_trim.y1);
+
+			// scale to fit bounds
+			const xs_scale = npx_dim_dst / npx_dim_trim;
+			d_2d.scale(xs_scale, xs_scale);
+
+			// draw image same as before, using image's intrinsic dimensions
+			d_2d.drawImage(d_img, 0, 0, npx_dim_dst, npx_dim_dst);
+		}
+		else {
+			d_2d.drawImage(d_img, 0, 0, npx_dim_dst, npx_dim_dst);
+		}
 	}
 	// draw image to canvas, centered along both axes
 	else {
@@ -290,4 +307,29 @@ export async function load_icon_data(p_image: string, n_px_dim=256): Promise<str
 		d_2d.fillStyle = '#000000';
 		d_2d.fillRect(0, 0, n_px_dim, n_px_dim);
 	}, sx_media_type);
+}
+
+export enum KeplrExtensionState {
+	UNKNOWN,
+	NOT_INSTALLED,
+	DISABLED,
+	ENABLED,
+}
+
+export async function keplr_extension_state(): Promise<KeplrExtensionState> {
+	if('function' === typeof chrome.management?.get) {
+		let g_keplr: chrome.management.ExtensionInfo;
+		try {
+			g_keplr = await chrome.management.get(SI_EXTENSION_ID_KEPLR);
+		}
+		// not installed
+		catch(e_get) {
+			return KeplrExtensionState.NOT_INSTALLED;
+		}
+
+		// keplr is installed and enabled
+		return g_keplr.enabled? KeplrExtensionState.ENABLED: KeplrExtensionState.DISABLED;
+	}
+
+	return KeplrExtensionState.UNKNOWN;
 }

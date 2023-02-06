@@ -72,22 +72,24 @@
 
 	<hr class="no-margin">
 
-	<p>
-		StarShell prevented this app from misusing the Keplr API in a way that would produce incorrect transaction data,
-		potentially leading to a loss of funds or degradation of privacy.
-	</p>
+	<div class="flex_1">
+		<p>
+			StarShell prevented this app from misusing the Keplr API in a way that would produce incorrect transaction data,
+			potentially leading to a loss of funds or degradation of privacy.
+		</p>
 
-	<p>
-		While the Keplr wallet itself might not prevent this misuse, it does so incorrectly and at the harm of its users.
-	</p>
+		<p>
+			While the Keplr wallet itself might not prevent this misuse, it does so incorrectly and at the harm of its users.
+		</p>
 
-	<p>
-		It is recommended that you stop using this app immediately, report this error, and wait until the issues are resolved.
-	</p>
+		<p>
+			It is recommended that you stop using this app immediately, report this error, and wait until the issues are resolved.
+		</p>
 
-	<code>
-		{report}
-	</code>
+		<code>
+			{report}
+		</code>
+	<div class="flex_1">
 
 	<ActionsWall>
 		<button class="primary" on:click={() => acknowledge()}>Acknowledge</button>

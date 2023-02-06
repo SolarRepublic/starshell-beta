@@ -10,6 +10,7 @@ import {fetch_cipher} from './_base';
 
 import type {Argon2Params} from '#/crypto/argon2';
 import {Argon2Type} from '#/crypto/argon2';
+import {load_argon_worker} from '#/crypto/argon2-host';
 import type {Bip44Path} from '#/crypto/bip44';
 
 import SensitiveBytes from '#/crypto/sensitive-bytes';
@@ -19,6 +20,7 @@ import {storage_get_all} from '#/extension/public-storage';
 import {ResourceNonExistentError} from '#/share/errors';
 import {is_dict, ode, oderac} from '#/util/belt';
 import {base93_to_buffer, buffer_to_base93, buffer_to_json, concat, json_to_buffer, sha256d, sha256_sync, text_to_buffer, zero_out} from '#/util/data';
+import { B_DEVELOPMENT } from '#/share/constants';
 
 type PathFrom<
 	g_secret extends Pick<SecretStruct, 'type' | 'uuid'>,
@@ -48,8 +50,8 @@ type StructFromFilterConfig<
 	>;
 
 
-export const N_ARGON2_PIN_ITERATIONS = 64;
-export const NB_ARGON2_PIN_MEMORY = 64 << 10;
+export const N_ARGON2_PIN_ITERATIONS = B_DEVELOPMENT? 8: 64;
+export const NB_ARGON2_PIN_MEMORY = B_DEVELOPMENT? 1024: 64 << 10;
 
 export type SerializableArgon2Params = O.Merge<{
 	salt: string;
@@ -121,8 +123,11 @@ export const Secrets = {
 		// ref hashing params
 		const g_params_hashing = g_security.hashing;
 
+		// load worker
+		const k_worker = await load_argon_worker();
+
 		// perform hashing
-		const atu8_hash = await (await Vault.wasmArgonWorker()).hash({
+		const atu8_hash = await k_worker.hash({
 			phrase: atu8_pin,
 			hashLen: 32,
 			...g_params_hashing,

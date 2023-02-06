@@ -15,6 +15,7 @@
 		share: {};
 		export: {};
 		more: {};
+		unblock: {};
 	}
 
 	export type ActionKey = keyof ActionRegistry;
@@ -63,6 +64,7 @@
 	import SX_ICON_SHIELD_INSPECT from '#/icon/shield-inspect.svg?raw';
 	import SX_ICON_UNWRAP from '#/icon/unwrap.svg?raw';
 	import SX_ICON_WRAP from '#/icon/wrap.svg?raw';
+	import SX_ICON_HEXAGON_CHECK from '#/icon/hexagon-check.svg?raw';
 
 	const H_ACTIONS: Record<ActionKey, DefaultActionConfig> = {
 		send: {
@@ -124,6 +126,10 @@
 		more: {
 			label: 'More',
 			icon: SX_ICON_MORE_VERT,
+		},
+		unblock: {
+			label: 'Unblock',
+			icon: SX_ICON_HEXAGON_CHECK,
 		},
 	};
 

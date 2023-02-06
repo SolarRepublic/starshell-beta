@@ -258,25 +258,27 @@
 			This app is not connected to {$yw_account.name} on {$yw_chain.name}.
 		</p>
 	{:else}
-		{#if $yw_chain.features.secretwasm}
-			<p>
-				Keep your funds safe and your data private by disconnecting apps you no longer need or trust.
-				You can always reconnect again later.
-			</p>
-
-			{#if b_pending_revoke}
+		<div class="flex_1">
+			{#if $yw_chain.features.secretwasm}
 				<p>
-					App has access to
-					{#if nl_keys_local}
-						{nl_keys_local} viewing key{1 === nl_keys_local? '': 's'} {nl_permits_local? ' and ': ''}
-					{/if}
-					{#if nl_permits_local}
-						{nl_permits_local} query permit{1 === nl_permits_local? '': 's'}
-					{/if}
-					belonging to this account on this chain. They will need to be revoked first.
+					Keep your funds safe and your data private by disconnecting apps you no longer need or trust.
+					You can always reconnect again later.
 				</p>
+
+				{#if b_pending_revoke}
+					<p>
+						App has access to
+						{#if nl_keys_local}
+							{nl_keys_local} viewing key{1 === nl_keys_local? '': 's'} {nl_permits_local? ' and ': ''}
+						{/if}
+						{#if nl_permits_local}
+							{nl_permits_local} query permit{1 === nl_permits_local? '': 's'}
+						{/if}
+						belonging to this account on this chain. They will need to be revoked first.
+					</p>
+				{/if}
 			{/if}
-		{/if}
+		</div>
 
 		<ActionsWall>
 			{#if b_pending_revoke}

@@ -17,8 +17,8 @@
 	
 	import AdjustKeplrCompatibilityMode from './AdjustKeplrCompatibilityMode.svelte';
 	import ReloadPage from './ReloadPage.svelte';
-	import ActionsWall from '../ui/ActionsWall.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
+	import ActionsWall from '../ui/ActionsWall.svelte';
 	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	
 
@@ -72,7 +72,7 @@
 				props: {
 					push: null,
 					app: g_app,
-					enable: false,
+					action: 'disable',
 				},
 				context: {
 					completed,
@@ -113,7 +113,7 @@
 				props: {
 					push: gc_reload,
 					app: g_app,
-					enable: true,
+					action: 'always',
 				},
 				context: {
 					completed,
@@ -264,6 +264,8 @@
 			You still must review permissions before the site is able to connect to your wallet.
 		</div>
 	{/if}
+
+	<div class="flex_1"></div>
 
 	{#if !keplr}
 		{#await parse_domain_parts() then a_domains}

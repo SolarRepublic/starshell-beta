@@ -128,7 +128,7 @@ async function cache_get(p_res: CacheKey): Promise<Cache | null> {
 }
 
 export class WebResourceCache {
-	static async updateAll() {
+	static async updateAll(): Promise<void> {
 		for(const p_res in H_REGISTRY) {
 			const g_entry = H_REGISTRY[p_res as CacheKey];
 

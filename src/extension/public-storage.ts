@@ -1,10 +1,10 @@
 import type {JsonObject, JsonValue, Nilable, Promisable} from '#/meta/belt';
-import type {StoreKey} from '#/meta/store';
+import type {Store, StoreKey} from '#/meta/store';
 
 import {precedes} from './semver';
 
 import {SI_VERSION} from '#/share/constants';
-import {base93_to_buffer, buffer_to_base93, buffer_to_json, json_to_buffer} from '#/util/data';
+import {base93_to_buffer, buffer_to_base93} from '#/util/data';
 
 
 interface LastSeen extends JsonObject {
@@ -67,12 +67,12 @@ type StorageSchema = {
 
 type PublicStorageKey = keyof StorageSchema;
 
-export function storage_get_all(): Promise<JsonObject> {
-	return chrome.storage.local.get(null);
+export function storage_get_all(): Promise<Store> {
+	return chrome.storage.local.get(null) as Promise<Store>;
 }
 
 export async function storage_get<w_value extends any=any>(si_key: StoreKey): Promise<w_value | null> {
-	return (await chrome.storage.local.get([si_key]))[si_key] || null;
+	return (await chrome.storage.local.get([si_key]))[si_key] ?? null;
 }
 
 export function storage_set(h_set: JsonObject): Promise<void> {
@@ -125,7 +125,7 @@ async function getter_setter<
 	}
 	// getting state; fetch from storage
 	else {
-		return await public_storage_get(si_key) || null;
+		return await public_storage_get(si_key) ?? null;
 	}
 }
 

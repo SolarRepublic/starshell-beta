@@ -1,22 +1,26 @@
 <script lang="ts">
-	import type {PageConfig} from '../nav/page';
-
 	import type {AppStruct} from '#/meta/app';
-	
 	import type {ChainStruct} from '#/meta/chain';
 	
 	import {getContext} from 'svelte';
 	
 	import {Screen} from './_screens';
-	import {load_app_context, load_flow_context} from '../svelte';
+	import {load_flow_context} from '../svelte';
 	
+	import {disable_keplr_extension, is_keplr_extension_enabled, is_starshell_muted} from '#/extension/keplr';
+	import type {PageInfo} from '#/script/messages';
 	import {G_APP_STARSHELL} from '#/store/apps';
 	import '#/chain/cosmos-network';
 	
+	import AdjustKeplrCompatibilityMode from './AdjustKeplrCompatibilityMode.svelte';
+	import ShowProfileMethod from './ShowProfileMethod.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
 	import ActionsWall from '../ui/ActionsWall.svelte';
 	
-	
+
+	export let page: PageInfo | null = null;
+
+	export let app: AppStruct | null = null;
 
 	const {
 		k_page,
@@ -27,26 +31,57 @@
 
 	const b_busy = false;
 
-	function surrender() {
-		completed(false, 'surrender');
-	}
-
+	let b_already_muted = false;
 
 	async function disable_keplr() {
-		await chrome.management.setEnabled('dmkamcknogkgcdfhhbddcghachkejeap', false);
+		await disable_keplr_extension(page);
 
-		completed(true, 'disabled');
+		completed?.(true, 'disabled');
+	}
+
+	function close() {
+		if(completed) {
+			completed(false, 'yield');
+		}
+		else {
+			k_page.pop();
+		}
+	}
+
+	// keplr not enabled
+	void is_keplr_extension_enabled().then((b_enabled) => {
+		if(!b_enabled) {
+			completed?.(true, 'disabled');
+		}
+	});
+
+	// starshell already muted
+	void is_starshell_muted().then(b => b_already_muted = b!);
+
+	function show_profile_method() {
+		k_page.push({
+			creator: ShowProfileMethod,
+		});
+	}
+
+	function disable_compatibility() {
+		k_page.push({
+			creator: AdjustKeplrCompatibilityMode,
+			props: {
+				app: app,
+				action: 'disable',
+			},
+		});
 	}
 
 </script>
 
 <style lang="less">
 	@import '../_base.less';
-
 </style>
 
 <Screen>
-	<AppBanner app={G_APP_STARSHELL} chains={[g_chain]}>
+	<AppBanner app={G_APP_STARSHELL} chains={[g_chain]} on:close={close}>
 		<span slot="default" style="display:contents;">
 			Multiple Conflicting Wallets Installed
 		</span>
@@ -58,26 +93,25 @@
 
 	<hr class="no-margin">
 
-	<p>
-		Looks like you have the Keplr extension installed and enabled. It is recommended that you disable Keplr while using StarShell. You can always re-enable it a later time.
-	</p>
-
-	<p>
-		How do you want to proceed?
-	</p>
+	<div class="flex_1">
+		<p>
+			Looks like Keplr is also installed and enabled. We recommended disabling Keplr while using StarShell. You can always re-enable it later.
+		</p>
+	
+		<p>
+			Alternatively, you can use both wallets if you create a separate profile in your browser. Click “Use both wallets” below to see how.
+		</p>
+	</div>
 
 	<ActionsWall>
-		<!-- <div class="dont-ask" on:click={toggleChildCheckbox}>
-			<CheckboxField
-				id='never-again'
-				on:change={({detail:b_checked}) => b_never_again = b_checked}
-			>
-				Don't ever ask again
-			</CheckboxField>
-		</div> -->
+		<button disabled={b_busy} on:click={show_profile_method}>Use both wallets</button>
 
-		<button disabled={b_busy} on:click={() => surrender()}>Use Keplr once</button>
-		<!-- <button disabled={b_busy} on:click={() => ignore()}>Override Keplr</button> -->
-		<button class="primary" on:click={() => disable_keplr()}>Disable Keplr</button>
+		{#if !b_already_muted}
+			<button disabled={b_busy} on:click={disable_compatibility}>Mute StarShell</button>
+		{:else}
+			<button disabled>StarShell is already muted</button>
+		{/if}
+
+		<button disabled={b_busy} class="primary" on:click={disable_keplr}>Disable Keplr extension</button>
 	</ActionsWall>
 </Screen>

@@ -1,16 +1,14 @@
 import type {MergeAll} from 'ts-toolbelt/out/Object/MergeAll';
 import type {NonNullableFlat} from 'ts-toolbelt/out/Object/NonNullable';
 
-import type {Dict, Explode, JsonObject} from '#/meta/belt';
-import type {ContractStruct} from '#/meta/chain';
+import type {Explode, JsonObject} from '#/meta/belt';
 import type {Vocab} from '#/meta/vocab';
 
 import type {ScreenInfo} from '#/extension/browser';
 import type {IcsToService} from '#/script/messages';
 import {do_webkit_polyfill} from '#/script/webkit-polyfill';
 import {B_CHROME_SESSION_CAPABLE, B_IS_BACKGROUND, B_IOS_NATIVE} from '#/share/constants';
-import type { AccountStruct } from '#/meta/account';
-import type { AppProfile } from '#/store/apps';
+import type {AppProfile} from '#/store/apps';
 
 if(B_IOS_NATIVE) {
 	do_webkit_polyfill((s: string, ...a_args: any[]) => console.debug(`StarShell.session-storage: ${s}`, ...a_args));

@@ -1,6 +1,6 @@
 import type {IntraExt} from './messages';
 
-import type {Dict, JsonObject} from '#/meta/belt';
+import type {Dict, JsonObject, Promisable} from '#/meta/belt';
 import type {Vocab} from '#/meta/vocab';
 
 import type {FlowMessage} from '#/entry/flow';
@@ -14,9 +14,10 @@ import {PulseMonitor} from '#/util/pulse-monitor';
 
 type FlowResponseValue<gc_prompt extends PromptConfig> = Vocab.Response<IntraExt.FlowVocab, gc_prompt['flow']['type']>;
 
-export interface PromptConfig extends JsonObject {
+export interface PromptConfig {
 	flow: FlowMessage;
 	open?: OpenWindowConfig | undefined;
+	condition?: () => Promisable<boolean>;
 }
 
 export class RegisteredFlowError extends Error {
@@ -248,6 +249,17 @@ export async function open_flow<
 			await new Promise<void>((fk_resolve) => {
 				g_lane.queue.push([si_intent, fk_resolve]);
 			});
+		}
+
+		// check condition
+		if(gc_prompt.condition) {
+			const b_accept = await gc_prompt.condition();
+
+			// cancel flow
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
+			if(true !== b_accept) {
+				throw new Error(`Flow was rejected since it failed its own condition`);
+			}
 		}
 
 		function tab_removed(i_removed) {

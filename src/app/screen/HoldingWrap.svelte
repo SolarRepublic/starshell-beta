@@ -50,9 +50,13 @@
 	let s_token_symbol = 'destination';
 
 	let s_err_amount = '';
+	let s_warn_amount = '';
 
 	$: if(b_use_max) {
-		s_err_amount = 'No gas left for future transactions';
+		s_warn_amount = 'No gas left for future transactions';
+	}
+	else {
+		s_warn_amount = '';
 	}
 
 	$: b_form_valid = s_amount && g_coin && sa_token && !s_err_amount;

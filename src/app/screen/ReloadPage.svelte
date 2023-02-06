@@ -6,8 +6,8 @@
 	
 	import type {PageInfo} from '#/script/messages';
 	
-	import ActionsWall from '../ui/ActionsWall.svelte';
 	import AppBanner from '../frag/AppBanner.svelte';
+	import ActionsWall from '../ui/ActionsWall.svelte';
 	
 	import SX_ICON_CHECK from '#/icon/tiny-check.svg?raw';
 	
@@ -108,6 +108,8 @@
 	</AppBanner>
 
 	<hr class="no-margin">
+
+	<div class="flex_1"></div>
 
 	<ActionsWall>
 		<button on:click={() => close()}>Don't Reload</button>

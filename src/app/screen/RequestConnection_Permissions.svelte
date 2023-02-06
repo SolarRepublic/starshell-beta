@@ -6,7 +6,6 @@
 	import type {Dict} from '#/meta/belt';
 	import type {Caip2, ChainStruct, ChainPath} from '#/meta/chain';
 	import type {PfpPath, PfpTarget} from '#/meta/pfp';
-	import type {TokenStructDescriptor} from '#/meta/token';
 	
 	import {quintOut} from 'svelte/easing';
 	import {slide} from 'svelte/transition';
@@ -22,7 +21,6 @@
 	import {Accounts} from '#/store/accounts';
 	import {Apps, G_APP_NOT_FOUND} from '#/store/apps';
 	import {Chains} from '#/store/chains';
-	import {Contracts} from '#/store/contracts';
 	import {Incidents} from '#/store/incidents';
 	import {Pfps} from '#/store/pfps';
 	import {fodemtv, ode, ofe} from '#/util/belt';

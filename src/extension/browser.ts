@@ -521,3 +521,16 @@ chrome.storage.onChanged?.addListener((h_changes, si_area) => {
 	}
 });
 
+
+export async function try_reloading_page(g_page: {tabId?: number|undefined}): Promise<boolean> {
+	if(!g_page?.tabId) return false;
+
+	// attempt to reload the tab
+	try {
+		await chrome.tabs.reload(g_page.tabId);
+		return true;
+	}
+	catch(e_reload) {}
+
+	return false;
+}

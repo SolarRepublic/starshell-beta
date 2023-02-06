@@ -6,6 +6,7 @@ import nodeResolve from '@rollup/plugin-node-resolve';
 import replace from '@rollup/plugin-replace';
 import webExtension from '@samrum/vite-plugin-web-extension';
 import {svelte} from '@sveltejs/vite-plugin-svelte';
+import archiver from 'archiver';
 import analyze from 'rollup-plugin-analyzer';
 import graph from 'rollup-plugin-graph';
 import {defineConfig, loadEnv} from 'vite';
@@ -108,7 +109,8 @@ export default defineConfig((gc_run) => {
 
 			// replace
 			replace({
-				...H_REPLACEMENTS_ENGINE[SI_ENGINE] || {},
+				preventAssignment: false,
+				values: H_REPLACEMENTS_ENGINE[SI_ENGINE] || {},
 			}),
 
 			// build svelte components
@@ -147,6 +149,22 @@ export default defineConfig((gc_run) => {
 			analyze({
 				summaryOnly: true,
 			}),
+
+			...'firefox' === SI_ENGINE? [{
+				name: 'zip-firefox',
+				closeBundle() {
+					return new Promise((fk_resolve) => {
+						const ds_out = fs.createWriteStream(`${srd_out}.zip`);
+						const y_archive = archiver('zip');
+						y_archive.on('close', () => {
+							fk_resolve(void 0);
+						});
+						y_archive.pipe(ds_out);
+						y_archive.directory(`${srd_out}/`, false);
+						y_archive.finalize();
+					});
+				},
+			}]: [{}],
 		],
 
 		resolve: {
@@ -165,18 +183,18 @@ export default defineConfig((gc_run) => {
 
 			rollupOptions: {
 				output: {
-					...('firefox' === SI_ENGINE) && {
-						manualChunks: {
-							'html5-qrcode': ['html5-qrcode'],
-							'libsodium': ['libsodium'],
-							'bignumber.js': ['bignumber.js'],
-							'svelte-select': ['svelte-select'],
-							'ics-witness': ['src/script/ics-witness.ts'],
-							'@solar-republic/wasm-secp256k1': ['@solar-republic/wasm-secp256k1'],
-							'miscreant': ['miscreant'],
-							// '@keplr-wallet/provider': ['@keplr-wallet/provider'],
-						},
-					},
+					// ...('firefox' === SI_ENGINE) && {
+					// 	manualChunks: {
+					// 		'html5-qrcode': ['html5-qrcode'],
+					// 		'libsodium': ['libsodium'],
+					// 		'bignumber.js': ['bignumber.js'],
+					// 		'svelte-select': ['svelte-select'],
+					// 		'ics-witness': ['src/script/ics-witness.ts'],
+					// 		'@solar-republic/wasm-secp256k1': ['@solar-republic/wasm-secp256k1'],
+					// 		'miscreant': ['miscreant'],
+					// 		// '@keplr-wallet/provider': ['@keplr-wallet/provider'],
+					// 	},
+					// },
 			// 		preserveModules: true,
 				},
 			// 	preserveEntrySignatures: 'strict',

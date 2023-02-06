@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type {Promisable} from '#/meta/belt';
 	import type {Bech32} from '#/meta/chain';
 	import type {ParametricSvelteConstructor} from '#/meta/svelte';
 	
@@ -20,9 +19,14 @@
 
 	let a_grants: ParametricSvelteConstructor.Parts<ParametricSvelteConstructor<Row>>['params']['$$prop_def'][] = [];
 
-	let b_loading = true;
+	let b_loading = false;
+	let xt_reloaded = 0;
 
 	async function reload() {
+		if(b_loading) return;
+
+		if(Date.now() - xt_reloaded < 3e3) return;
+
 		b_loading = true;
 		a_grants = [];
 
@@ -41,18 +45,12 @@
 		}
 
 		b_loading = false;
+		xt_reloaded = Date.now();
 		a_grants = a_grants;
 	}
 
-	function skip_init(f_callback: () => Promisable<void>) {
-		let c_calls = 0;
-		return function() {
-			if(c_calls++) void f_callback();
-		};
-	}
-
-	yw_account.subscribe(skip_init(reload));
-	yw_network.subscribe(skip_init(reload));
+	yw_account.subscribe(reload, {}, true);
+	yw_network.subscribe(reload, {}, true);
 
 	void reload();
 
@@ -66,6 +64,8 @@
 		finally {
 			b_requesting_feegrant = false;
 		}
+
+		void reload();
 	}
 </script>
 

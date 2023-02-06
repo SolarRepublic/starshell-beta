@@ -177,12 +177,12 @@ export async function unlock_to_continue(g_page: PageInfo): Promise<RetryCode> {
 }
 
 
-function block_app(g_sender: MessageSender, s_msg: string): boolean {
+function block_app(g_sender: MessageSender, s_msg: string): undefined {
 	console.warn(`${s_msg}; blocked request from <${g_sender.url}>`);
-	return true;
+	return void 0;
 }
 
-export async function app_blocked(s_scheme: string, s_host: string, g_sender: MessageSender): Promise<boolean> {
+export async function app_blocked(s_scheme: string, s_host: string, g_sender: MessageSender): Promise<AppPolicyResult | undefined> {
 	// non-secure contexts only allowed at localhost
 	if('http' === s_scheme) {
 		// not localhost
@@ -203,7 +203,18 @@ export async function app_blocked(s_scheme: string, s_host: string, g_sender: Me
 		return block_app(g_sender, `Scheme not allowed "${s_scheme}"`);
 	}
 
-	return false;
+	// lookup policy for app
+	const g_policy = await Policies.forApp({
+		scheme: s_scheme,
+		host: s_host,
+	});
+
+	// blocked by policy
+	if(g_policy.blocked) {
+		return block_app(g_sender, `App is blocked by ${g_policy.source || 'some'} policy`);
+	}
+
+	return g_policy;
 }
 
 
@@ -250,8 +261,11 @@ export async function check_app_permissions(
 		return;
 	}
 
+	// lookup policy for app
+	const g_policy = await app_blocked(s_scheme, s_host, g_sender);
+
 	// app is blocked; exit
-	if(await app_blocked(s_scheme, s_host, g_sender)) return;
+	if(!g_policy) return;
 
 	// prep app struct
 	let g_app: AppStruct | null = null;
@@ -295,15 +309,6 @@ export async function check_app_permissions(
 	{
 		g_app.name = g_profile?.name || g_app.name || g_sender.tab!.title || '';
 		g_app.api = b_keplr? AppApiMode.KEPLR: g_app.api;
-	}
-
-	// lookup policy on app
-	const g_policy = await Policies.forApp(g_app);
-
-	// a policy indicates this app is blocked
-	if(g_policy.blocked) {
-		block_app(g_sender, 'App connection blocked by policy');
-		return;
 	}
 
 	// return struct of app's status
@@ -393,6 +398,9 @@ export async function request_advertisement(g_profile: AppProfile | undefined, g
 export async function request_keplr_decision(g_profile: AppProfile, g_sender: chrome.runtime.MessageSender): Promise<string> {
 	const g_page = page_info_from_sender(g_sender);
 
+	// parse sender url
+	const [s_scheme, s_host] = parse_sender(g_sender.url);
+
 	const {
 		answer: b_approved,
 		data: s_action,
@@ -400,6 +408,15 @@ export async function request_keplr_decision(g_profile: AppProfile, g_sender: ch
 		flow: {
 			type: 'requestKeplrDecision',
 			value: {
+				app: {
+					on: 1,
+					api: AppApiMode.UNKNOWN,
+					name: '',
+					scheme: s_scheme,
+					host: s_host,
+					connections: {},
+					pfp: `pfp:${new URL(g_page.href).origin}`,
+				},
 				profile: g_profile,
 				page: g_page,
 			},
@@ -408,6 +425,18 @@ export async function request_keplr_decision(g_profile: AppProfile, g_sender: ch
 		open: {
 			...await position_widow_over_tab(g_page.tabId),
 			popover: B_MOBILE? g_page: void 0,
+		},
+
+		// in case this gets queued, ensure app is still not blocked when it gets dequeued
+		async condition() {
+			const g_policy = await Policies.forApp({
+				scheme: s_scheme,
+				host: s_host,
+			});
+
+			if(g_policy.blocked) return false;
+
+			return true;
 		},
 	});
 

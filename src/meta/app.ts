@@ -72,3 +72,4 @@ export type App<
 
 export type AppPath = Resource.Path<App>;
 export type AppStruct = App['struct'];
+export type AppIdent = Pick<AppStruct, 'scheme' | 'host'>;

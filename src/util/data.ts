@@ -5,7 +5,7 @@ import type {SerializeToJson, JsonValue} from '#/meta/belt';
 import {instantiateRipemd160, instantiateSha256} from '@solar-republic/wasm-secp256k1';
 import {createHash} from 'sha256-uint8array';
 
-import {is_dict} from './belt';
+import {is_dict, is_dict_es} from './belt';
 
 import {Ripemd160 as Ripemd160Js} from '../crypto/ripemd160';
 import SensitiveBytes from '../crypto/sensitive-bytes';
@@ -628,12 +628,21 @@ export function serialize_to_json<
 }
 
 
-// // testing
-// const fffff = serialize_to_json({
-// 	test: new Uint8Array(),
-// } as {
-// 	bodyBytes?: Uint8Array | null;
-// 	authInfoBytes?: Uint8Array | null;
-// 	chainId?: string | null;
-// 	// accountNumber?: Long | null;
-// });
+export function canonicalize<
+	z_input extends JsonValue,
+>(z_input: z_input): z_input {
+	if(Array.isArray(z_input)) {
+		return z_input.map(w => canonicalize(w)) as z_input;
+	}
+	else if(is_dict_es(z_input)) {
+		const h_out = {};
+
+		for(const si_key of Object.keys(z_input).sort()) {
+			h_out[si_key] = canonicalize(z_input[si_key]);
+		}
+
+		return h_out as z_input;
+	}
+
+	return z_input;
+}

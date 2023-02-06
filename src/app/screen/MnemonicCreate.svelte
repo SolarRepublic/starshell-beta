@@ -11,6 +11,7 @@
 	import Mnemonic from '../frag/Mnemonic.svelte';
 	
 	import ActionsLine from '../ui/ActionsLine.svelte';
+    import { B_DEVELOPMENT } from '#/share/constants';
 
 	export let atu16_indicies: Uint16Array;
 
@@ -53,5 +54,5 @@
 		You will be asked to verify the entire mnemonic on the next screen.
 	</p>
 
-	<ActionsLine back confirm={['Next', next]} wait={10000} />
+	<ActionsLine back confirm={['Next', next]} wait={B_DEVELOPMENT? 1e3: 10e3} />
 </Screen>

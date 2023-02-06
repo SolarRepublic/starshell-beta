@@ -13,7 +13,7 @@
 	import {Accounts} from '#/store/accounts';
 	import {Chains} from '#/store/chains';
 	import {ode, oderac, ofe} from '#/util/belt';
-	import {dd} from '#/util/dom';
+	import {dd, open_external_link} from '#/util/dom';
 	
 	import Address from '../frag/Address.svelte';
 	import PfpDisplay from '../frag/PfpDisplay.svelte';
@@ -23,6 +23,9 @@
 	import Load from '../ui/Load.svelte';
 	import StarSelect, {type SelectOption} from '../ui/StarSelect.svelte';
 	
+	import SX_ICON_LAUNCH from '#/icon/launch.svg?raw';
+
+	const XL_QR_DIM = 180;
 
 	// selected account
 	let g_option_selected_account: Pick<SelectOption<AccountPath>, 'value'> = {value:$yw_account_ref};
@@ -128,16 +131,19 @@
 
 	// reactively generate qrcode
 	let dm_qr: HTMLElement;
+	let sx_raw = '';
+	let p_s2r = '';
 	$: {
 		if(dm_qr && g_account_selected && g_chain_selected) {
-			const p_s2r = `caip-10:${g_chain_selected.namespace}:${g_chain_selected.reference}:${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}:`;
+			sx_raw = `caip-10:${g_chain_selected.namespace}:${g_chain_selected.reference}:${Chains.addressFor(g_account_selected.pubkey, g_chain_selected) || ''}`;
+			p_s2r = `https://m.s2r.sh/#${sx_raw}`;
 
 			const y_qrcode = new QRCode({
 				// use hash fragment to encode the data so that is never leaves device
-				content: `https://m.s2r.sh/qr#${p_s2r}`,
-				width: 220,
-				height: 220,
-				padding: 3,
+				content: p_s2r,
+				width: XL_QR_DIM,
+				height: XL_QR_DIM,
+				padding: 0,
 				ecl: 'H',
 				join: true,
 			}).svg();
@@ -179,13 +185,13 @@
 
 	.qr-code {
 		flex-shrink: 0;
-		width: 220px;
-		height: 220px;
 		border-radius: 8px;
 		overflow: hidden;
 		text-align: center;
 		margin-left: auto;
 		margin-right: auto;
+		padding: 4px;
+		background-color: white;
 	}
 
 	.info {
@@ -240,9 +246,23 @@
 	{/if}
 </Info>
 
+<center>
+	<span class="link">
+		<span class="global_svg-icon icon-diameter_20px" style="vertical-align: middle;">
+			{@html SX_ICON_LAUNCH}
+		</span>
 
-<div class="qr-code" bind:this={dm_qr} />
+		<a href={p_s2r} on:click={() => open_external_link(p_s2r)}>
+			Share as a private, permanent link
+		</a>
+	</span>
+</center>
 
-<div class="info">
+<div class="qr-code" bind:this={dm_qr} style={`
+	width: ${XL_QR_DIM}px;
+	height: ${XL_QR_DIM}px;
+`} />
+
+<!-- <div class="info">
 	Scan QR code to receive to this address
-</div>
+</div> -->

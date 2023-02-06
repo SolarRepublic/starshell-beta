@@ -14,15 +14,15 @@
 	import {ATU8_DUMMY_PHRASE, ATU8_DUMMY_VECTOR} from '#/share/constants';
 	import {AlreadyRegisteredError, InvalidPassphraseError} from '#/share/errors';
 	
+	import {open_external_link} from '#/util/dom';
+	
 	import RegisterWeakPasswordSvelte from './RegisterWeakPassword.svelte';
 	import NewPassword from '../frag/NewPassword.svelte';
-	import ActionsLine from '../ui/ActionsLine.svelte';
+	import ActionsWall from '../ui/ActionsWall.svelte';
+	import CheckboxField, {toggleChildCheckbox} from '../ui/CheckboxField.svelte';
 	import StarShellLogo from '../ui/StarShellLogo.svelte';
 	import StarShellTitle from '../ui/StarShellTitle.svelte';
-    import ActionsWall from '../ui/ActionsWall.svelte';
-    import CheckboxField, { toggleChildCheckbox } from '../ui/CheckboxField.svelte';
-    import { open_external_link } from '#/util/dom';
-	
+
 
 	// will be set if this is part of a flow
 	const {
@@ -96,7 +96,7 @@
 		if(b_busy) return 1; b_busy = true;
 
 		// prep graceful exit
-		const exit = (): 1 => {
+		const f_exit = (): 1 => {
 			$yw_progress = [0, 0];
 			b_busy = false;
 			return 1;
@@ -180,15 +180,10 @@
 			f_cancel();
 
 			//  exit
-			return exit();
+			return f_exit();
 		}
 
 		log('Verifying passphrase');
-
-		// f_cancel = make_progress_timer({
-		// 	estimate: xt_estimate,
-		// 	range: [52, 100],
-		// });
 
 		// attempt login
 		try {
@@ -206,7 +201,7 @@
 			f_cancel();
 
 			// exit
-			return exit();
+			return f_exit();
 		}
 
 		// cancel progress
@@ -222,7 +217,7 @@
 		if(completed) completed(true);
 
 		// done
-		return exit();
+		return f_exit();
 	}
 
 	let b_agreed_tos = false;
@@ -240,7 +235,6 @@
 
 	.intro {
 		margin-top: 1em;
-		// margin-bottom: 4em;
 		margin-bottom: 0;
 
 		.lead {
@@ -268,7 +262,6 @@
 
 		.icon {
 			--svg-color-fg: silver;
-			// --svg-color-bg: #f52525;
 			width: calc(100% - 60px);
 			height: auto;
 
@@ -352,6 +345,4 @@
 			Continue
 		</button>
 	</ActionsWall>
-
-	<!-- <ActionsLine confirm={a_confirm_action} /> -->
 </Screen>

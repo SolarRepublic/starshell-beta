@@ -6,13 +6,12 @@
 	import {Screen} from './_screens';
 	import {load_flow_context} from '../svelte';
 	
+	import {mute_starshell} from '#/extension/keplr';
 	import {
 		keplr_polyfill_script_add_matches,
-		set_keplr_compatibility_mode,
-		set_keplr_detection,
 		set_keplr_polyfill,
 	} from '#/script/scripts';
-	import {Apps} from '#/store/apps';
+	import {Apps, G_APP_NOT_FOUND} from '#/store/apps';
 	import {Policies} from '#/store/policies';
 	
 	import AppBanner from '../frag/AppBanner.svelte';
@@ -22,22 +21,25 @@
 	const {
 		k_page,
 		completed,
+		g_cause,
 	} = load_flow_context<undefined>();
 
-	export let push: PageConfig | null;
+	export let push: PageConfig | null = null;
 
-	export let app: AppStruct;
+	export let app: AppStruct | null = g_cause?.app || null;
 
-	export let enable: boolean;
+	export let action: 'disable' | 'always';
 
 	async function enable_once(b_bypass_only=false) {
 		// save app def to storage
-		await Apps.add(app);
+		if(app) {
+			await Apps.add(app);
 
-		// actually enable once
-		if(!b_bypass_only) {
-			// ensure polyfill is enabled for this app
-			await keplr_polyfill_script_add_matches([Apps.scriptMatchPatternFrom(app)]);
+			// actually enable once
+			if(!b_bypass_only) {
+				// ensure polyfill is enabled for this app
+				await keplr_polyfill_script_add_matches([Apps.scriptMatchPatternFrom(app)]);
+			}
 		}
 
 		// prompt user to reload 
@@ -53,28 +55,25 @@
 	}
 
 	async function disable_everywhere() {
-		// TODO: consider impact on existing connections using keplr polyfill
-
-		// do not inject window.keplr unconditionally anymore
-		await set_keplr_polyfill(false);
-
-		// disable keplr detection
-		await set_keplr_detection(false);
-
-		// disable compatibility mode
-		await set_keplr_compatibility_mode(false);
+		// mute
+		await mute_starshell();
 
 		// complete
 		ignore_once();
 	}
 
 	function ignore_once() {
-		completed(false);
+		if(completed) {
+			completed(false);
+		}
+		else {
+			k_page.pop();
+		}
 	}
 
 	async function block_site() {
 		// add policy to block app
-		await Policies.blockApp(app);
+		if(app) await Policies.blockApp(app);
 
 		// complete
 		ignore_once();
@@ -83,19 +82,10 @@
 
 <style lang="less">
 	@import '../_base.less';
-
-	p {
-		color: var(--theme-color-text-med);
-
-		b {
-			color: var(--theme-color-text-light);
-			font-weight: 500;
-		}
-	}
 </style>
 
 <Screen>
-	{#if enable}
+	{#if 'always' === action}
 		<h3>Are you sure you want to permanently enable Keplr compatibility mode?</h3>
 
 		<hr class="no-margin">
@@ -117,18 +107,31 @@
 			<button on:click={() => enable_once()}>Enable Once</button>
 			<button class="primary" on:click={() => enable_everywhere()}>Enable Everywhere</button>
 		</ActionsWall>
-	{:else}
-		<AppBanner {app} on:close={() => completed(false)} />
+	{:else if 'disable' === action && app}
+		<AppBanner app={app ?? G_APP_NOT_FOUND} on:close={() => completed(false)}>
+			<span slot="default" style="display:contents;">
+				🔇 Mute StarShell Prompts
+			</span>
 
-		<h3>Do you want to ignore, block this site, or disable Keplr compatibility mode?</h3>
+			<span slot="context" style="display:contents;">
+				Do you want to apply this globally or just here?
+			</span>
+		</AppBanner>
 
-		<p>
-			Blocking this site will continue to hide the wallet from <code>{app.host}</code> and will not prompt you again.
-		</p>
+		<hr class="no-margin">
 
-		<p>
-			Permanently disabling this feature means that all websites will not be able to connect to your wallet using the Keplr API.
-		</p>
+		<div class="flex_1">
+			{#if app}
+				<p>
+					“Block Site” will prevent <code>{app.host}</code> from talking to StarShell anymore and you will no longer receive prompts from this site.
+				</p>
+			{/if}
+	
+			<p>
+				Disabling everywhere means that all websites will not be able to connect to StarShell anymore.
+				You will have to manually re-enable this later if you want to use StarShell with dApps.
+			</p>
+		</div>
 
 		<ActionsWall>
 			<style lang="less">
@@ -144,11 +147,13 @@
 			</style>
 
 			<div class="line">
-				<button on:click={() => ignore_once()}>Ignore Once</button>
+				<button on:click={() => k_page.pop()}>Back</button>
 				<button class="cautionary" on:click={() => disable_everywhere()}>Disable Everywhere</button>
 			</div>
 
-			<button class="primary" on:click={() => block_site()}>Block Site</button>
+			{#if app}
+				<button class="primary" on:click={() => block_site()}>Block Site</button>
+			{/if}
 		</ActionsWall>
 	{/if}
 </Screen>

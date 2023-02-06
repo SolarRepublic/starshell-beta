@@ -6,8 +6,14 @@ import {PublicStorage, storage_clear, storage_remove} from '#/extension/public-s
 import {SessionStorage} from '#/extension/session-storage';
 import {global_broadcast} from '#/script/msg-global';
 import {set_keplr_compatibility_mode} from '#/script/scripts';
-import {F_NOOP, timeout} from '#/util/belt';
-import {text_to_buffer} from '#/util/data';
+import {F_NOOP, ode, timeout} from '#/util/belt';
+import {canonicalize, text_to_buffer} from '#/util/data';
+import { Contracts } from '#/store/contracts';
+import { H_STORE_INIT_CONTRACTS } from '#/store/_init';
+import { precedes } from '#/extension/semver';
+import { Chains } from '#/store/chains';
+import { QueryCache } from '#/store/query-cache';
+import type { JsonObject } from '#/meta/belt';
 
 
 
@@ -140,11 +146,13 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 		old: {
 			key: dk_root_old,
 			vector: atu8_vector_old,
+			params: g_params_old,
 		},
 		new: {
 			key: dk_root_new,
 			vector: atu8_vector_new,
 			nonce: xg_nonce_new,
+			params: g_params_new,
 		},
 		export: kn_root_new,
 	} = await Vault.deriveRootKeys(atu8_phrase, atu8_entropy, xg_nonce_old, true);
@@ -195,6 +203,14 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 			signature: atu8_signature_new,
 		});
 
+		// change in params detected, update
+		if(JSON.stringify(canonicalize(g_params_old)) !== JSON.stringify(canonicalize(g_params_new))) {
+			await PublicStorage.hashParams({
+				iterations: N_ARGON2_ITERATIONS,
+				memory: NB_ARGON2_MEMORY,
+			});
+		}
+
 		// create session auth private key
 		const atu8_auth = crypto.getRandomValues(new Uint8Array(32));
 
@@ -230,6 +246,37 @@ export async function login(sh_phrase: string, b_recover=false, f_update: ((s_st
 
 
 async function run_migrations() {
+	const g_seen = await PublicStorage.lastSeen();
+
+	if(g_seen) {
+		// fix stkd-scrt
+		if(precedes(g_seen.version, '1.0.4')) {
+			const p_stkd_scrt = '/family.cosmos/chain.secret-4/bech32.secret1k6u0cy4feepm6pehnz804zmwakuwdapm69tuc4/as.contract';
+			await Contracts.open(ks => ks.update(p_stkd_scrt, (g_contract) => {
+				const as_excluded = new Set(g_contract.interfaces.excluded);
+				as_excluded.delete('snip20');
+				g_contract.interfaces.excluded = [...as_excluded];
+				g_contract.interfaces.snip20 = H_STORE_INIT_CONTRACTS[p_stkd_scrt].interfaces.snip20;
+				return g_contract;
+			}));
+		}
+
+		// fix transfer_history query cache
+		if(precedes(g_seen.version, '1.0.7')) {
+			for(const [si_caip2, h_cache] of await QueryCache.entries()) {
+				for(const [si_cache, w_cache] of ode(h_cache)) {
+					if(si_cache.endsWith(':transfer_history')) {
+						// delete entire entry
+						delete h_cache[si_cache];
+					}
+				}
+
+				// overwrite
+				await QueryCache.putAt(si_caip2, h_cache);
+			}
+		}
+	}
+
 	// mark as seen
 	await PublicStorage.markSeen();
 }

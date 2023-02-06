@@ -683,7 +683,7 @@ export class NetworkFeed {
 
 			// start to synchronize all txs since previous sync height
 			const di_synchronize = _k_network.synchronize(g_abci.type, g_abci.filter, g_context_vague.p_account, g_latest);
-			for await(const {g_tx, g_result, g_synced} of di_synchronize) {
+			for await(const {g_tx, g_result, g_synced, xg_previous} of di_synchronize) {
 				// TODO: don't imitate websocket data, make a canonicalizer for the two different data sources instead
 
 				// imitate websocket data
@@ -703,6 +703,7 @@ export class NetworkFeed {
 				await g_abci.hooks.data?.call(kc_account, {TxResult:g_value} as unknown as JsonObject, {
 					si_txn: g_result.txhash,
 					g_synced,
+					xg_previous,
 				});
 			}
 		}

@@ -1,7 +1,10 @@
 <script lang="ts">
+	import type {AccountPath} from '#/meta/account';
 	import type {Nilable, PlainObject} from '#/meta/belt';
 	
 	// import './tailwind.css';
+	import type {ChainPath, ChainStruct} from '#/meta/chain';
+	
 	import {
 		getAllContexts,
 		onMount,
@@ -15,7 +18,6 @@
 	import {Vault} from '#/crypto/vault';
 	import {Accounts} from '#/store/accounts';
 	import {Chains} from '#/store/chains';
-	import {Providers} from '#/store/providers';
 	import {Settings} from '#/store/settings';
 	import {
 		ode,
@@ -30,8 +32,6 @@
 		yw_chain,
 		yw_chain_ref,
 		yw_navigator,
-		yw_network,
-		yw_provider_ref,
 		yw_page,
 		yw_thread,
 	} from '##/mem';
@@ -47,9 +47,6 @@
 	import SearchSvelte from './system/Search.svelte';
 	import SideMenuSvelte from './system/SideMenu.svelte';
 	import VendorMenuSvelte from './system/VendorMenu.svelte';
-    import { debug } from 'svelte/internal';
-    import type { ChainPath, ChainStruct } from '#/meta/chain';
-    import type { AccountPath } from '#/meta/account';
 	
 	
 
@@ -84,23 +81,27 @@
 				? Chains.pathFrom(h_context_all.chain as ChainStruct)
 				: ks_settings.get('p_chain_selected');
 
+			// attempt to load accounts
+			const ks_accounts = await Accounts.read();
+
+			// no accounts yet; don't wait for other stores to update since it may never return
+			if(!Object.keys(ks_accounts.raw).length) {
+				return;
+			}
+
 			// set defaults
 			await Promise.all([
 				// default chain
 				$yw_chain || once_store_updates(yw_chain, true),
 				Chains.read().then(ks => yw_chain_ref.set(p_chain_selected || ode(ks.raw)[0][0])),
 
-				// // default network
-				// $yw_network || once_store_updates(yw_network, true),
-				// Providers.read().then(ks => yw_provider_ref.set(ode(ks.raw)[0][0])),
-
 				// default account
 				$yw_account || once_store_updates(yw_account, true),
-				Accounts.read().then(ks => yw_account_ref.set(p_account_selected || ode(ks.raw)[0][0])),
+				(() => yw_account_ref.set(p_account_selected || ode(ks_accounts.raw)[0][0]))(),
 			]);
 		}
 		catch(e_load_default) {
-			// console.log(e_load_default);
+			console.warn(e_load_default);
 		}
 	}
 

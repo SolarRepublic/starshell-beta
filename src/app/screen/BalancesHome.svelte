@@ -15,7 +15,7 @@
 	
 	import {Header, Screen, type Page} from './_screens';
 	import {syserr} from '../common';
-	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility, yw_popup, yw_context_popup} from '../mem';
+	import {yw_account, yw_account_ref, yw_chain, yw_chain_ref, popup_receive, yw_network, yw_owner, yw_doc_visibility, yw_popup, yw_context_popup, yw_navigator} from '../mem';
 	
 	import {request_feegrant} from '../svelte';
 	
@@ -47,9 +47,10 @@
 	import AllowanceResourceControl from '../frag/AllowanceResourceControl.svelte';
 	import Portrait from '../frag/Portrait.svelte';
 	import TokenRow from '../frag/TokenRow.svelte';
+	import PopupNotice from '../popup/PopupNotice.svelte';
+	import PopupSolver from '../popup/PopupSolver.svelte';
 	import Row from '../ui/Row.svelte';
-    import { HttpResponseError } from '#/share/errors';
-    import PopupNotice from '../popup/PopupNotice.svelte';
+	
 	
 	const G_RETRYING_TOKEN = {
 		name: 'Retrying...',
@@ -197,6 +198,9 @@
 		si_assets_cached,
 	};
 
+	// cached state
+	let si_state_cached = '';
+
 	let b_loading_natives = true;
 
 	// tokens loading flag
@@ -208,6 +212,12 @@
 
 	// switch field state to a new or previously cached one
 	function switch_fields() {
+		// new state identifier
+		const si_state = $yw_account_ref+'\n'+$yw_chain_ref;
+
+		// determine if this is a change of state
+		let b_change = si_state !== si_state_cached;
+
 		// save current fields
 		Object.assign(g_fields, {
 			h_balances,
@@ -226,11 +236,9 @@
 		});
 
 		// load existing fields of new account
-		const si_state = $yw_account_ref+'\n'+$yw_chain_ref;
 		g_fields = h_fields[si_state];
 
 		// none existing; create new
-		let b_new = false;
 		if(!g_fields) {
 			g_fields = h_fields[si_state] = {
 				h_balances: {},
@@ -249,8 +257,11 @@
 			};
 
 			// save new flag
-			b_new = true;
+			b_change = true;
 		}
+
+		// save statey
+		si_state_cached = si_state;
 
 		// reactively assign
 		({
@@ -270,7 +281,7 @@
 		} = g_fields);
 
 		// reload all
-		if(b_new) {
+		if(b_change) {
 			void update_remote();
 		}
 	}
@@ -313,6 +324,69 @@
 			// switch fields
 			switch_fields();
 		}),
+
+		(() => {
+			const XT_WINDOW = 750;
+			const N_THRESHOLD = 10;
+
+			let xt_prev = 0;
+			let c_trips = 0;
+			let i_trip = 0;
+			let b_unlocked = false;
+
+			function quick_trip() {
+				// do nothing if the user just unlocked it
+				if(b_unlocked) return;
+
+				clearTimeout(i_trip);
+
+				const xt_now = Date.now();
+
+				if(!c_trips || xt_now - xt_prev < XT_WINDOW) {
+					if(N_THRESHOLD === ++c_trips) {
+						b_unlocked = true;
+						setTimeout(() => {
+							b_unlocked = false;
+						}, 5e3);
+
+						if(k_page === $yw_navigator.activePage) {
+							$yw_popup = PopupSolver;
+						}
+					}
+
+					console.log(c_trips);
+				}
+
+				xt_prev = xt_now;
+
+				i_trip = window.setTimeout(() => {
+					console.warn(`Missing it`);
+					c_trips = 0;
+				}, XT_WINDOW);
+			}
+
+			let b_down = false;
+			const f_listener_down = (d_event) => {
+				if(!b_down && 'Shift' === d_event.key) {
+					b_down = true;
+					quick_trip();
+				}
+			};
+
+			const f_listener_up = (d_event) => {
+				if(b_down && 'Shift' === d_event.key) {
+					b_down = false;
+				}
+			};
+
+			document.addEventListener('keydown', f_listener_down);
+			document.addEventListener('keyup', f_listener_up);
+
+			return () => {
+				document.removeEventListener('keydown', f_listener_down);
+				document.removeEventListener('keyup', f_listener_up);
+			};
+		})(),
 	];
 
 	onDestroy(() => {
@@ -326,7 +400,7 @@
 		void navigator.locks.request('ui:holdings:total-balance', () => timeout_exec(30e3, async() => {
 			let p_account = $yw_account_ref;
 			let g_account = $yw_account;
-			let p_chain = $yw_chain_ref;
+			const p_chain = $yw_chain_ref;
 
 			// account change
 			if(p_account !== Accounts.pathFrom(g_account)) {
@@ -348,15 +422,21 @@
 
 			// save to cache if different
 			if(s_total !== g_account.assets[p_chain]?.totalFiatCache) {
-				void Accounts.update(p_account, _g_account => ({
-					assets: {
-						..._g_account.assets,
-						[p_chain]: {
-							..._g_account.assets[p_chain],
-							totalFiatCache: dp_total,
+				// commit to accounts store
+				void Accounts.update(p_account, (_g_account) => {
+					// do not react to the next account store update
+					c_ignore_account_update++;
+
+					return {
+						assets: {
+							..._g_account.assets,
+							[p_chain]: {
+								..._g_account.assets[p_chain],
+								totalFiatCache: dp_total,
+							},
 						},
-					},
-				}));
+					};
+				});
 			}
 		}));
 	}
@@ -658,7 +738,7 @@
 		b_loading_tokens = true;
 
 		// ref contract addresses
-		const a_bech32s = g_assets.fungibleTokens;
+		const a_bech32s = g_assets?.fungibleTokens || [];
 
 		// render contract addresses
 		const a_contract_paths = a_bech32s.map(sa => Contracts.pathFor($yw_chain_ref, sa));
@@ -1144,7 +1224,9 @@
 			</div> -->
 
 			<div class="group" style="margin-bottom:-14px;">
-				<AddressResourceControl address={sa_owner} />
+				{#if sa_owner}
+					<AddressResourceControl address={sa_owner} />
+				{/if}
 
 				<AllowanceResourceControl>
 					{#if s_grant_status}
@@ -1217,7 +1299,7 @@
 				/>
 			{:else}
 				<!-- each token -->
-				{#each a_tokens as g_token (g_token.bech32)}
+				{#each a_tokens.filter(g => !!g.interfaces?.['snip20']) as g_token (g_token.bech32)}
 					{@const sa_token = g_token.bech32}
 					
 					<!-- failed to fetch balance -->

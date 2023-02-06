@@ -128,7 +128,8 @@
 				enter: (atu8_pin: Uint8Array) => Secrets.borrow(p_secret_mnemonic, async(kn_encrypted) => {
 					// attempt to decrypt with pin
 					try {
-						fk_resolve(await Secrets.decryptWithPin(kn_encrypted.data, atu8_pin, g_secret_mnemonic.security));
+						const _atu8_package = await Secrets.decryptWithPin(kn_encrypted.data, atu8_pin, g_secret_mnemonic.security);
+						fk_resolve(_atu8_package);
 						return true;
 					}
 					catch(e_decrypt) {
@@ -404,6 +405,8 @@
 			{/if}
 		{/await}
 	{/if}
+
+	<div class="flex_1" />
 	
 	<ActionsWall>
 		<button class="primary"

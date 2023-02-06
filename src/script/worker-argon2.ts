@@ -22,7 +22,7 @@ import type * as Argon2Imports from '#/crypto/argon2';
 
 				if('hash' === si_type) {
 					// run hash algo
-					Argon2.hash(w_value as Argon2Imports.Argon2Config)
+					Argon2.hash(w_value)
 						.then((atu8_hash) => {
 							// send success response
 							self.postMessage({
@@ -30,6 +30,25 @@ import type * as Argon2Imports from '#/crypto/argon2';
 								id: si_request,
 								value: atu8_hash,
 							}, [atu8_hash.buffer]);
+						})
+						.catch((e_hash) => {
+							self.postMessage({
+								type: 'error',
+								id: si_request,
+								value: e_hash.message,
+							});
+						});
+				}
+				else if('attack' === si_type) {
+					// run attack
+					Argon2.attack(w_value)
+						.then((atu8_answer) => {
+							// send success response
+							self.postMessage({
+								type: 'ok',
+								id: si_request,
+								value: atu8_answer,
+							}, [atu8_answer.buffer]);
 						})
 						.catch((e_hash) => {
 							self.postMessage({

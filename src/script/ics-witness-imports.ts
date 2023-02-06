@@ -78,7 +78,11 @@ export {
 	AppApiMode,
 } from '#/meta/app';
 
+export {Policies} from '#/store/policies';
+
 export {Secrets} from '#/store/secrets';
+
+export {Settings} from '#/store/settings';
 
 export {Snip2xToken} from '#/schema/snip-2x-const';
 

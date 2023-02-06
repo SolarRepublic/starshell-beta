@@ -64,7 +64,7 @@ if('undefined' === typeof globalThis['__starshell_deeply_frozen']) {
 		if(globalThis === z_thing) {
 			// not at the root traversal; block
 			if(s_parent !== 'globalThis') return;
-			
+
 			// make it immutable
 			immutate(z_thing, 'globalThis');
 		}
@@ -94,7 +94,7 @@ if('undefined' === typeof globalThis['__starshell_deeply_frozen']) {
 				}
 			}
 		}
-		
+
 		// obtain all own keys on this thing
 		const a_keys = Reflect.ownKeys(z_thing);
 
@@ -195,7 +195,7 @@ if('undefined' === typeof globalThis['__starshell_deeply_frozen']) {
 		{
 			try {
 				globalThis['__starshell_deeply_frozen'] = 1;
-				
+
 				// write had no effect
 				if(1 !== globalThis['__starshell_deeply_frozen']) throw new Error();
 			}
